@@ -1,25 +1,25 @@
+// app.js — Frontend puro (ESM)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-// === TUS CREDENCIALES ===
+// ==== CREDENCIALES SUPABASE ====
 const SUPABASE_URL = "https://vwkszvdvswznlgxlfdtz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Helpers
-const $ = (s)=>document.querySelector(s);
+// ==== HELPERS ====
+const $  = (s)=>document.querySelector(s);
 const $$ = (s)=>Array.from(document.querySelectorAll(s));
+const setStatus = (t)=>{ const el=$("#status"); if(el) el.textContent=t; };
 const dmy = (date)=>{
   if(!date) return "";
   const d = new Date(date);
   if(Number.isNaN(d.getTime())) return date;
-  const dd = String(d.getDate()).padStart(2,'0');
-  const mm = String(d.getMonth()+1).padStart(2,'0');
-  const yy = d.getFullYear();
-  return `${dd}/${mm}/${yy}`;
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
 };
 
-// ---------- RENDER APP (después de login) ----------
+// ====================== UI: APP ======================
 function renderApp(user){
+  // Reemplaza todo el body por la app
   document.body.innerHTML = `
     <div class="app">
       <aside class="sidebar">
@@ -106,36 +106,73 @@ function renderApp(user){
     </div>
   `;
 
-  // eventos
-  $$('#btn-logout').forEach(b=>b.addEventListener('click', async ()=>{ await supabase.auth.signOut(); location.reload(); }));
+  // Eventos globales
+  $('#btn-logout')?.addEventListener('click', async ()=>{
+    await supabase.auth.signOut();
+    renderLogin(); // volver al login sin recargar
+  });
   $$('.menu .menu-item').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
-  $('#btn-buscar-paciente').addEventListener('click', buscarPacientePorDni);
-  $('#btn-asignar').addEventListener('click', asignarTurno);
-  $('#form-paciente').addEventListener('submit', guardarPaciente);
-  $('#q').addEventListener('input', filtrarPacientes);
 
-  // init
+  // Eventos de vistas
+  $('#btn-buscar-paciente')?.addEventListener('click', buscarPacientePorDni);
+  $('#btn-asignar')?.addEventListener('click', asignarTurno);
+  $('#form-paciente')?.addEventListener('submit', guardarPaciente);
+  $('#q')?.addEventListener('input', filtrarPacientes);
+
+  // Init
   switchView('new-appointment');
   cargarPacientes();
   cargarTurnosDeHoy();
 }
 
-// ---------- NAV ----------
+// ====================== UI: LOGIN ======================
+function renderLogin(){
+  document.body.innerHTML = `
+    <div class="login-container">
+      <h1>Gestión de Turnos</h1>
+      <form id="login-form">
+        <input type="email" id="email" placeholder="Email" required />
+        <input type="password" id="password" placeholder="Contraseña" required />
+        <button type="submit">Ingresar</button>
+      </form>
+      <p id="error-message"></p>
+    </div>
+  `;
+  $('#login-form')?.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const email=$('#email').value.trim();
+    const pass=$('#password').value.trim();
+    $('#error-message').textContent='Ingresando…';
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
+    if(error){ $('#error-message').textContent = error.message; return; }
+    // onAuthStateChange renderiza la app automáticamente
+  });
+}
+
+// Escuchar cambios de sesión (login, logout, refresh)
+supabase.auth.onAuthStateChange((_evt, session)=>{
+  if(session?.user) renderApp(session.user);
+  else renderLogin();
+});
+
+// ====================== NAV ======================
 function switchView(view){
   $$('.menu .menu-item').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
   $('#page-title').textContent =
     view==='patients' ? 'Pacientes' :
     view==='new-patient' ? 'Nuevo paciente' :
     view==='today' ? 'Turnos de hoy' : 'Nuevo turno';
+
   ['view-new-appointment','view-new-patient','view-patients','view-today']
-    .forEach(id=>$('#'+id).classList.add('hidden'));
-  if(view==='new-appointment') $('#view-new-appointment').classList.remove('hidden');
-  if(view==='new-patient') $('#view-new-patient').classList.remove('hidden');
-  if(view==='patients') $('#view-patients').classList.remove('hidden');
-  if(view==='today') $('#view-today').classList.remove('hidden');
+    .forEach(id=>$('#'+id)?.classList.add('hidden'));
+
+  if(view==='new-appointment') $('#view-new-appointment')?.classList.remove('hidden');
+  if(view==='new-patient')     $('#view-new-patient')?.classList.remove('hidden');
+  if(view==='patients')        $('#view-patients')?.classList.remove('hidden');
+  if(view==='today')           $('#view-today')?.classList.remove('hidden');
 }
 
-// ---------- PACIENTES ----------
+// ====================== PACIENTES ======================
 let pacientesCache = [];
 
 async function cargarPacientes(){
@@ -149,7 +186,8 @@ async function cargarPacientes(){
 }
 function renderPacientes(rows){
   const headers = ['dni','apellido','nombre','fecha_nacimiento','telefono','email','obra_social','numero_afiliado'];
-  const tbl = $('#tbl-pacientes'); tbl.innerHTML='';
+  const tbl = $('#tbl-pacientes'); if(!tbl) return;
+  tbl.innerHTML='';
   const thead=document.createElement('thead'); const trh=document.createElement('tr');
   headers.forEach(h=>{ const th=document.createElement('th'); th.textContent=h; trh.appendChild(th); });
   thead.appendChild(trh); tbl.appendChild(thead);
@@ -164,7 +202,7 @@ function renderPacientes(rows){
     tbody.appendChild(tr);
   });
   tbl.appendChild(tbody);
-  $('#rows-count').textContent = `${rows.length} paciente(s)`;
+  const rc = $('#rows-count'); if(rc) rc.textContent = `${rows.length} paciente(s)`;
 }
 function filtrarPacientes(e){
   const q = e.target.value.toLowerCase().trim();
@@ -189,7 +227,7 @@ async function guardarPaciente(e){
   switchView('new-appointment');
 }
 
-// ---------- NUEVO TURNO ----------
+// ====================== NUEVO TURNO ======================
 let pacienteActual = null;
 
 async function buscarPacientePorDni(){
@@ -218,21 +256,27 @@ async function asignarTurno(){
   const fecha = $('#ap-fecha').value;                // YYYY-MM-DD
   const hi = $('#ap-hora-inicio').value;             // HH:MM
   const hf = $('#ap-hora-fin').value || null;
-
   if(!profesionalTxt || !centroTxt || !fecha || !hi) return alert('Completá todos los campos');
 
-      nombre: profesionalTxt }).select().single();
-    if(error) return alert('Error creando profesional: '+error.message);
+  // Profesional (crear si no existe)
+  let { data: pro, error: e1 } = await supabase.from('profesionales').select('id').ilike('apellido', profesionalTxt).limit(1);
+  if(e1) return alert(e1.message);
+  let profesional_id = pro?.[0]?.id;
+  if(!profesional_id){
+    const { data: np, error: e2 } = await supabase.from('profesionales')
+      .insert({ apellido: profesionalTxt, nombre: profesionalTxt }).select().single();
+    if(e2) return alert('Error creando profesional: '+e2.message);
     profesional_id = np.id;
   }
 
   // Centro Médico (crear si no existe)
-  let { data: cen } = await supabase.from('centros_medicos').select('*').ilike('nombre', centroTxt).limit(1);
+  let { data: cen, error: e3 } = await supabase.from('centros_medicos').select('id').ilike('nombre', centroTxt).limit(1);
+  if(e3) return alert(e3.message);
   let centro_id = cen?.[0]?.id;
   if(!centro_id){
-    const { data: nc, error } = await supabase.from('centros_medicos')
+    const { data: nc, error: e4 } = await supabase.from('centros_medicos')
       .insert({ nombre: centroTxt }).select().single();
-    if(error) return alert('Error creando centro: '+error.message);
+    if(e4) return alert('Error creando centro: '+e4.message);
     centro_id = nc.id;
   }
 
@@ -260,7 +304,7 @@ async function asignarTurno(){
   switchView('today');
 }
 
-// ---------- TURNOS HOY ----------
+// ====================== TURNOS HOY ======================
 async function cargarTurnosDeHoy(){
   const hoy = new Date();
   const ymd = hoy.toISOString().split('T')[0];
@@ -273,7 +317,8 @@ async function cargarTurnosDeHoy(){
     .eq('fecha', ymd).order('hora_inicio');
   if(error){ setStatus('Error'); return alert(error.message); }
 
-  const tbl = $('#tbl-hoy'); tbl.innerHTML='';
+  const tbl = $('#tbl-hoy'); if(!tbl) return;
+  tbl.innerHTML='';
   const thead = document.createElement('thead');
   const trh = document.createElement('tr');
   ['Hora','Paciente','Profesional','Centro','Teléfono'].forEach(h=>{
@@ -283,41 +328,21 @@ async function cargarTurnosDeHoy(){
 
   const tbody=document.createElement('tbody');
   (data||[]).forEach(t=>{
-    const tr=document.createElement('tr');
     const hora = `${t.hora_inicio||''}${t.hora_fin?'-'+t.hora_fin:''}`;
-    const pac = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre}` : '';
-    const pro = t.profesionales ? `${t.profesionales.apellido} ${t.profesionales.nombre||''}` : '';
-    const cen = t.centros_medicos ? t.centros_medicos.nombre : '';
-    tr.innerHTML = `
-      <td>${hora}</td>
-      <td>${pac}</td>
-      <td>${pro}</td>
-      <td>${cen}</td>
-      <td>${t.pacientes?.telefono||''}</td>
-    `;
+    const pac  = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre}` : '';
+    const pro  = t.profesionales ? `${t.profesionales.apellido} ${t.profesionales.nombre||''}` : '';
+    const cen  = t.centros_medicos ? t.centros_medicos.nombre : '';
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${hora}</td><td>${pac}</td><td>${pro}</td><td>${cen}</td><td>${t.pacientes?.telefono||''}</td>`;
     tbody.appendChild(tr);
   });
   tbl.appendChild(tbody);
   setStatus('Listo');
 }
 
-// ---------- UTILS ----------
-function setStatus(msg){ const el=$('#status'); if(el) el.textContent=msg; }
-
-// ---------- AUTH FLOW ----------
-async function init(){
+// ====================== INIT ======================
+(async ()=>{
   const { data:{ session } } = await supabase.auth.getSession();
-  if(session) return renderApp(session.user);
-
-  // mostrar login
-  $('.login-container').style.display='block';
-  $('#login-form').addEventListener('submit', async e=>{
-    e.preventDefault();
-    const email=$('#email').value, pass=$('#password').value;
-    const { error } = await supabase.auth.signInWithPassword({ email, password:pass });
-    if(error){ $('#error-message').textContent = error.message; return; }
-    location.reload();
-  });
-}
-
-init();
+  if(session?.user) renderApp(session.user);
+  else renderLogin();
+})();
