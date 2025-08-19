@@ -1,0 +1,12 @@
+:root{--primary:#7b5da7;--bg:#f7f5fb;--ink:#2c1e3a;--line:#e8e2f2}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--ink)}
+.login-container{max-width:360px;margin:12vh auto;background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:0 4px 18px rgba(0,0,0,.05)}
+h1{margin:0 0 14px 0;font-size:22px}
+#login-form{display:flex;flex-direction:column;gap:10px}
+#login-form input{padding:10px 12px;border:1px solid var(--line);border-radius:10px;outline:none}
+#login-form input:focus{border-color:var(--primary)}
+#login-form button{padding:10px 12px;border-radius:10px;border:0;background:var(--primary);color:#fff;cursor:pointer}
+#error-message{color:#b00020;font-size:13px;margin-top:8px;min-height:18px}
+.app{max-width:980px;margin:40px auto;padding:0 16px}
+.app header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.app .btn{padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:#fff;cursor:pointer}
