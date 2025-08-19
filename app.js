@@ -48,7 +48,7 @@ async function haySolapamiento({ profesional_id, centro_id, fecha, hi, hf }) {
 
 // ====================== UI: APP ======================
 async function renderApp(user){
-  // 1) Traer mi perfil (rol, profesional_id, etc.)
+  // perfil para saber rol
   const { data: me, error: meErr } = await supabase
     .from('profiles')
     .select('role, profesional_id, display_name, active')
@@ -56,7 +56,6 @@ async function renderApp(user){
     .single();
   if(meErr){ alert(meErr.message); return; }
 
-  // 2) Render UI (sidebar + vistas)
   document.body.innerHTML = `
     <div class="app">
       <aside class="sidebar">
@@ -64,26 +63,42 @@ async function renderApp(user){
           <div class="brand-title">Gestión de Turnos</div>
           <div class="brand-sub">${user.email}</div>
         </div>
+
         <nav class="menu">
-          <button class="menu-item active" data-view="new-appointment">➕ Nuevo turno</button>
-          <button class="menu-item" data-view="new-patient">👤 Nuevo paciente</button>
-          <button class="menu-item" data-view="patients">📋 Pacientes</button>
           <button class="menu-item" data-view="today">🗓️ Turnos de hoy</button>
-          ${['propietario','medico'].includes(me.role) ? `<button class="menu-item" data-view="config">⚙️ Configuración</button>` : ``}
-        </nav>
-        <div style="margin-top:auto">
-          <span class="badge" id="status">Listo</span>
-          <div style="margin-top:10px">
-            <button id="btn-logout" class="btn" style="width:100%">Cerrar sesión</button>
+          <button class="menu-item" data-view="new-appointment">➕ Nuevo turno</button>
+
+          <div class="separator"></div>
+
+          <button class="menu-item submenu-toggle" data-submenu="patients">
+            Pacientes <span class="caret">▸</span>
+          </button>
+          <div class="submenu-items" id="submenu-patients">
+            <button class="menu-subitem" data-view="new-patient">＋ Nuevo paciente</button>
+            <button class="menu-subitem" data-view="patients">📋 Listado</button>
           </div>
+        </nav>
+
+        <div class="settings-slot">
+          ${['propietario','medico'].includes(me.role)
+            ? `<button class="btn settings-btn" data-view="config">⚙️ Configuración</button>`
+            : ''}
+        </div>
+
+        <div style="padding:10px 8px 14px">
+          <span class="badge" id="status">Listo</span>
+          <button id="btn-logout" class="btn" style="width:100%; margin-top:10px">Cerrar sesión</button>
         </div>
       </aside>
 
       <main class="main">
-        <div class="topbar"><h2 id="page-title">Nuevo turno</h2></div>
+        <div class="topbar">
+          <h2 id="page-title">Turnos de hoy</h2>
+          <button id="btn-home" class="btn" style="display:none">← Volver</button>
+        </div>
 
         <!-- Nuevo Turno -->
-        <section class="card" id="view-new-appointment">
+        <section class="card hidden" id="view-new-appointment">
           <h3>Asignar Turno</h3>
           <div class="grid">
             <label>DNI Paciente <input type="text" id="dni-buscar" placeholder="30123456" required></label>
@@ -126,7 +141,7 @@ async function renderApp(user){
           </form>
         </section>
 
-        <!-- Pacientes -->
+        <!-- Pacientes (Listado) -->
         <section class="card hidden" id="view-patients">
           <div class="toolbar">
             <input type="search" id="q" placeholder="Buscar por DNI, nombre o apellido…">
@@ -135,8 +150,8 @@ async function renderApp(user){
           <div class="table-wrap"><table id="tbl-pacientes"></table></div>
         </section>
 
-        <!-- Turnos de hoy -->
-        <section class="card hidden" id="view-today">
+        <!-- Turnos de hoy (Home) -->
+        <section class="card" id="view-today">
           <h3>Turnos de hoy</h3>
           <div class="table-wrap"><table id="tbl-hoy"></table></div>
         </section>
@@ -149,26 +164,39 @@ async function renderApp(user){
     </div>
   `;
 
-  // 3) Eventos globales
+  // eventos globales
   $('#btn-logout')?.addEventListener('click', async ()=>{
     await supabase.auth.signOut();
     renderLogin();
   });
-  $$('.menu .menu-item').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
 
-  // 4) Eventos de vistas
+  // toggle submenú Pacientes
+  const toggle = $('.submenu-toggle');
+  const sub = $('#submenu-patients');
+  toggle?.addEventListener('click', ()=>{
+    toggle.classList.toggle('open');
+    sub?.classList.toggle('show');
+  });
+
+  // navegación (botones del menú + subitems + config)
+  [...$$('.menu .menu-item'), ...$$('.menu-subitem'), ...$('.settings-slot')?.querySelectorAll('button')||[]]
+    .forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
+
+  // botón volver (aparece cuando no estamos en hoy)
+  $('#btn-home')?.addEventListener('click', ()=> switchView('today'));
+
+  // eventos de vistas
   $('#btn-buscar-paciente')?.addEventListener('click', buscarPacientePorDni);
   $('#btn-asignar')?.addEventListener('click', asignarTurno);
   $('#form-paciente')?.addEventListener('submit', guardarPaciente);
   $('#q')?.addEventListener('input', filtrarPacientes);
 
-  // 5) Inicializar Settings (contexto con tu perfil y helpers)
-  initSettings({ supabase, me, setStatus, refreshToday: cargarTurnosDeHoy });
-
-  // 6) Init vistas
-  switchView('new-appointment');
+  // init
+  switchView('today');         // home por defecto
   cargarPacientes();
   cargarTurnosDeHoy();
+  // settings ctx
+  initSettings({ supabase, me, setStatus, refreshToday: cargarTurnosDeHoy });
 }
 
 // ====================== UI: LOGIN ======================
@@ -203,8 +231,12 @@ supabase.auth.onAuthStateChange((_evt, session)=>{
 
 // ====================== NAV ======================
 function switchView(view){
-  $$('.menu .menu-item').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
+  // resaltar activos en menú y submenú
+  [...$$('.menu .menu-item'), ...$$('.menu-subitem')].forEach(b=>{
+    b?.classList.toggle('active', b.dataset.view === view);
+  });
 
+  // título
   $('#page-title').textContent =
     view==='patients'     ? 'Pacientes' :
     view==='new-patient'  ? 'Nuevo paciente' :
@@ -212,6 +244,11 @@ function switchView(view){
     view==='config'       ? 'Configuración' :
                             'Nuevo turno';
 
+  // botón volver
+  const homeBtn = $('#btn-home');
+  if (homeBtn) homeBtn.style.display = (view === 'today') ? 'none' : 'inline-flex';
+
+  // ocultar/mostrar vistas
   ['view-new-appointment','view-new-patient','view-patients','view-today','view-config']
     .forEach(id => $('#'+id)?.classList.add('hidden'));
 
@@ -224,7 +261,6 @@ function switchView(view){
     renderSettingsView(document.querySelector('#settings-root'));
   }
 }
-
 
 
 
