@@ -204,21 +204,27 @@ supabase.auth.onAuthStateChange((_evt, session)=>{
 // ====================== NAV ======================
 function switchView(view){
   $$('.menu .menu-item').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
-  $('#page-title').textContent =
-    view==='patients' ? 'Pacientes' :
-    view==='new-patient' ? 'Nuevo paciente' :
-    view==='today' ? 'Turnos de hoy' : 'Nuevo turno';
 
-  ['view-new-appointment','view-new-patient','view-patients','view-today']
-    .forEach(id=>$('#'+id)?.classList.add('hidden'));
+  $('#page-title').textContent =
+    view==='patients'     ? 'Pacientes' :
+    view==='new-patient'  ? 'Nuevo paciente' :
+    view==='today'        ? 'Turnos de hoy' :
+    view==='config'       ? 'Configuración' :
+                            'Nuevo turno';
+
+  ['view-new-appointment','view-new-patient','view-patients','view-today','view-config']
+    .forEach(id => $('#'+id)?.classList.add('hidden'));
 
   if(view==='new-appointment') $('#view-new-appointment')?.classList.remove('hidden');
   if(view==='new-patient')     $('#view-new-patient')?.classList.remove('hidden');
   if(view==='patients')        $('#view-patients')?.classList.remove('hidden');
   if(view==='today')           $('#view-today')?.classList.remove('hidden');
-if(view==='config') { $('#view-config').classList.remove('hidden');
-  renderSettingsView(document.querySelector('#settings-root'));
+  if(view==='config') {
+    $('#view-config')?.classList.remove('hidden');
+    renderSettingsView(document.querySelector('#settings-root'));
+  }
 }
+
 
 
 
