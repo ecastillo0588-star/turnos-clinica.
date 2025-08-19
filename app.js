@@ -7,6 +7,8 @@ import { initSettings, renderSettingsView } from './settings.js';
 const SUPABASE_URL = "https://vwkszvdvswznlgxlfdtz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const VIEW_KEY = 'gt_last_view';
+
 
 // ==== HELPERS ====
 const $  = (s)=>document.querySelector(s);
@@ -167,8 +169,10 @@ async function renderApp(user){
   // eventos globales
   $('#btn-logout')?.addEventListener('click', async ()=>{
     await supabase.auth.signOut();
-    renderLogin();
+    try { localStorage.removeItem(VIEW_KEY); } catch {}
+    renderLogin(); // volver al login sin recargar
   });
+
 
   // toggle submenú Pacientes
   const toggle = $('.submenu-toggle');
@@ -260,7 +264,11 @@ function switchView(view){
     $('#view-config')?.classList.remove('hidden');
     renderSettingsView(document.querySelector('#settings-root'));
   }
+
+  // Guardar la última vista (para restaurar luego)
+  try { localStorage.setItem(VIEW_KEY, view); } catch {}
 }
+
 
 
 
