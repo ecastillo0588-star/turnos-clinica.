@@ -17,6 +17,33 @@ const dmy = (date)=>{
   return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
 };
 
+// Chequeo de solapamiento (mismo profesional + centro + fecha)
+async function haySolapamiento({ profesional_id, centro_id, fecha, hi, hf }) {
+  // si no se pasó hora_fin, usamos misma hora_inicio como rango mínimo
+  const horaFin = hf || hi;
+
+  // Traemos turnos del día y checamos overlaps
+  const { data, error } = await supabase
+    .from('turnos')
+    .select('hora_inicio, hora_fin')
+    .eq('profesional_id', profesional_id)
+    .eq('centro_id', centro_id)
+    .eq('fecha', fecha);
+
+  if(error) throw error;
+
+  // overlap si: startA < endB && startB < endA
+  const toMins = (t)=>{ const [H,M]=t.split(':'); return (+H)*60 + (+M); };
+  const Astart = toMins(hi);
+  const Aend   = toMins(horaFin);
+
+  return (data || []).some(t => {
+    const Bstart = toMins(t.hora_inicio);
+    const Bend   = toMins(t.hora_fin || t.hora_inicio);
+    return Astart < Bend && Bstart < Aend;
+  });
+}
+
 // ====================== UI: APP ======================
 function renderApp(user){
   // Reemplaza todo el body por la app
@@ -218,14 +245,41 @@ async function guardarPaciente(e){
   e.preventDefault();
   const fd = new FormData(e.currentTarget);
   const payload = Object.fromEntries(fd.entries());
+  if(!payload.dni) return alert('El DNI es obligatorio');
+
   setStatus('Guardando paciente…');
+  // 1) si existe, avisamos y no insertamos
+  const { data: existente, error: e1 } = await supabase
+    .from('pacientes')
+    .select('id, apellido, nombre, telefono, email')
+    .eq('dni', payload.dni)
+    .maybeSingle();
+
+  if(e1){ setStatus('Error'); return alert(e1.message); }
+
+  if(existente){
+    setStatus('Ya existe');
+    alert(`Ya existe un paciente con DNI ${payload.dni}:\n${existente.apellido}, ${existente.nombre}`);
+    // opcional: llevar a Nuevo turno con ese DNI prellenado
+    $('#dni-buscar').value = payload.dni;
+    switchView('new-appointment');
+    return;
+  }
+
+  // 2) insert
   const { error } = await supabase.from('pacientes').insert(payload);
-  if(error){ setStatus('Error'); return alert(error.message); }
+  if(error){
+    setStatus('Error');
+    // clave duplicada u otro error
+    return alert(error.message.includes('duplicate key') ?
+      'Ese DNI ya está registrado.' : error.message);
+  }
   setStatus('Paciente guardado');
   e.currentTarget.reset();
   await cargarPacientes();
   switchView('new-appointment');
 }
+
 
 // ====================== NUEVO TURNO ======================
 let pacienteActual = null;
@@ -280,6 +334,19 @@ async function asignarTurno(){
     centro_id = nc.id;
   }
 
+  // Chequear solapamiento antes de insertar
+  try {
+    const overlap = await haySolapamiento({
+      profesional_id, centro_id, fecha, hi, hf
+    });
+    if (overlap) {
+      return alert('Ya existe un turno en ese horario para ese profesional/centro. Elegí otra hora.');
+    }
+  } catch (e) {
+    console.error(e);
+    return alert('No se pudo validar superposición de turnos.');
+  }
+
   // Insertar turno
   setStatus('Asignando turno…');
   const { error } = await supabase.from('turnos').insert({
@@ -288,7 +355,7 @@ async function asignarTurno(){
     centro_id,
     fecha,
     hora_inicio: hi,
-    hora_fin: hf
+    hora_fin: hf || null
   });
   if(error){ setStatus('Error'); return alert(error.message); }
 
@@ -303,6 +370,7 @@ async function asignarTurno(){
   await cargarTurnosDeHoy();
   switchView('today');
 }
+
 
 // ====================== TURNOS HOY ======================
 async function cargarTurnosDeHoy(){
