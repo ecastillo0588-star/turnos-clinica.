@@ -40,3 +40,67 @@ thead th{position:sticky;top:0;background:#faf8fd;border-bottom:1px solid var(--
 tbody td{padding:9px 12px;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap}
 tr:nth-child(even) td{background:#fff} tr:nth-child(odd) td{background:#fcfbfe}
 .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:10px}
+
+/* --- sidebar reorganizada --- */
+.menu .separator {
+  height: 1px;
+  background: rgba(0,0,0,.08);
+  margin: 8px 0 12px 0;
+  border-radius: 1px;
+}
+
+.submenu-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.submenu-toggle .caret {
+  transition: transform .15s ease;
+}
+
+.submenu-toggle.open .caret {
+  transform: rotate(90deg);
+}
+
+.submenu-items {
+  display: none;
+  padding-left: 8px;
+  margin-top: 6px;
+}
+
+.submenu-items.show { display: block; }
+
+.menu-subitem {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.menu-subitem:hover { background: rgba(0,0,0,.04); }
+.menu-subitem.active { background: var(--primary-50, #F2ECF9); border-color: rgba(0,0,0,.06); }
+
+/* botón de Configuración, separado y centrado */
+.settings-slot {
+  margin-top: auto;
+  display: flex;
+  justify-content: center;
+  padding: 12px 8px 0 8px;
+}
+.settings-slot .settings-btn {
+  width: 90%;
+  justify-content: center;
+}
+
+/* topbar: botón volver */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
