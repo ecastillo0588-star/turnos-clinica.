@@ -7,7 +7,16 @@ import { initSettings, renderSettingsView } from './settings.js';
 const SUPABASE_URL = "https://vwkszvdvswznlgxlfdtz.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Clave para guardar/restaurar la vista en localStorage
 const VIEW_KEY = 'gt_last_view';
+const VALID_VIEWS = ['today','new-appointment','new-patient','patients','config'];
+
+function getViewFromHash() {
+  const v = (location.hash || '').replace('#/', '').replace('#', '');
+  return VALID_VIEWS.includes(v) ? v : null;
+}
+
 
 
 // ==== HELPERS ====
@@ -196,7 +205,16 @@ async function renderApp(user){
   $('#q')?.addEventListener('input', filtrarPacientes);
 
   // init
-  switchView('today');         // home por defecto
+  // Init vistas: primero hash, luego storage, si no -> 'today'
+const initialView = getViewFromHash()
+  || (()=>{ try {
+        const v = localStorage.getItem(VIEW_KEY);
+        return VALID_VIEWS.includes(v) ? v : null;
+      } catch { return null; } })()
+  || 'today';
+
+switchView(initialView);
+
   cargarPacientes();
   cargarTurnosDeHoy();
   // settings ctx
@@ -265,11 +283,24 @@ function switchView(view){
     renderSettingsView(document.querySelector('#settings-root'));
   }
 
-  // Guardar la última vista (para restaurar luego)
+  // Guardar última vista
   try { localStorage.setItem(VIEW_KEY, view); } catch {}
+
+  // Actualizar hash (evita cambiar si ya coincide)
+  const target = `#/${view}`;
+  if (location.hash !== target) {
+    location.hash = target;
+  }
+
+  // Abrir submenú si aplica
+  if (['patients','new-patient'].includes(view)) {
+    document.querySelector('.submenu-toggle')?.classList.add('open');
+    document.getElementById('submenu-patients')?.classList.add('show');
+  } else {
+    document.querySelector('.submenu-toggle')?.classList.remove('open');
+    document.getElementById('submenu-patients')?.classList.remove('show');
+  }
 }
-
-
 
 
 // ====================== PACIENTES ======================
