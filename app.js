@@ -1,5 +1,7 @@
 // app.js — Frontend puro (ESM)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { initSettings, renderSettingsView } from './settings.js';
+
 
 // ==== CREDENCIALES SUPABASE ====
 const SUPABASE_URL = "https://vwkszvdvswznlgxlfdtz.supabase.co";
@@ -45,8 +47,16 @@ async function haySolapamiento({ profesional_id, centro_id, fecha, hi, hf }) {
 }
 
 // ====================== UI: APP ======================
-function renderApp(user){
-  // Reemplaza todo el body por la app
+async function renderApp(user){
+  // 1) Traer mi perfil (rol, profesional_id, etc.)
+  const { data: me, error: meErr } = await supabase
+    .from('profiles')
+    .select('role, profesional_id, display_name, active')
+    .eq('id', user.id)
+    .single();
+  if(meErr){ alert(meErr.message); return; }
+
+  // 2) Render UI (sidebar + vistas)
   document.body.innerHTML = `
     <div class="app">
       <aside class="sidebar">
@@ -59,6 +69,7 @@ function renderApp(user){
           <button class="menu-item" data-view="new-patient">👤 Nuevo paciente</button>
           <button class="menu-item" data-view="patients">📋 Pacientes</button>
           <button class="menu-item" data-view="today">🗓️ Turnos de hoy</button>
+          ${['propietario','medico'].includes(me.role) ? `<button class="menu-item" data-view="config">⚙️ Configuración</button>` : ``}
         </nav>
         <div style="margin-top:auto">
           <span class="badge" id="status">Listo</span>
@@ -129,24 +140,32 @@ function renderApp(user){
           <h3>Turnos de hoy</h3>
           <div class="table-wrap"><table id="tbl-hoy"></table></div>
         </section>
+
+        <!-- Configuración -->
+        <section class="card hidden" id="view-config">
+          <div id="settings-root"></div>
+        </section>
       </main>
     </div>
   `;
 
-  // Eventos globales
+  // 3) Eventos globales
   $('#btn-logout')?.addEventListener('click', async ()=>{
     await supabase.auth.signOut();
-    renderLogin(); // volver al login sin recargar
+    renderLogin();
   });
   $$('.menu .menu-item').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
 
-  // Eventos de vistas
+  // 4) Eventos de vistas
   $('#btn-buscar-paciente')?.addEventListener('click', buscarPacientePorDni);
   $('#btn-asignar')?.addEventListener('click', asignarTurno);
   $('#form-paciente')?.addEventListener('submit', guardarPaciente);
   $('#q')?.addEventListener('input', filtrarPacientes);
 
-  // Init
+  // 5) Inicializar Settings (contexto con tu perfil y helpers)
+  initSettings({ supabase, me, setStatus, refreshToday: cargarTurnosDeHoy });
+
+  // 6) Init vistas
   switchView('new-appointment');
   cargarPacientes();
   cargarTurnosDeHoy();
@@ -197,7 +216,11 @@ function switchView(view){
   if(view==='new-patient')     $('#view-new-patient')?.classList.remove('hidden');
   if(view==='patients')        $('#view-patients')?.classList.remove('hidden');
   if(view==='today')           $('#view-today')?.classList.remove('hidden');
+if(view==='config') { $('#view-config').classList.remove('hidden');
+  renderSettingsView(document.querySelector('#settings-root'));
 }
+
+
 
 // ====================== PACIENTES ======================
 let pacientesCache = [];
