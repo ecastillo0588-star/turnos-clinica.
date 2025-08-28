@@ -1,133 +1,84 @@
-// app.js (arriba del todo)
-import { buildLayout, bindLayoutHandlers } from './ui.js';
-import { initSettings, renderSettingsView } from './settings.js';
+// 1. Inicialización de Supabase (poné tus claves reales)
+const supabase = createClient('https://TU_SUPABASE_URL.supabase.co', 'TU_SUPABASE_ANON_KEY');
 
-// ... tus const y helpers (SUPABASE_URL, supabase, VIEW_KEY, VALID_VIEWS, getViewFromHash, etc.)
-
-async function renderApp(user){
-  // Traer perfil
-  const { data: me, error: meErr } = await supabase
-    .from('profiles')
-    .select('role, profesional_id, display_name, active')
-    .eq('id', user.id)
-    .single();
-  if(meErr){ alert(meErr.message); return; }
-
-  // 1) Construir layout
-  document.body.innerHTML = buildLayout(user, me);
-
-  // 2) Bind handlers del layout (router + logout)
-  bindLayoutHandlers({
-    switchView,
-    onLogout: async ()=>{
-      await supabase.auth.signOut();
-      try { localStorage.removeItem(VIEW_KEY); } catch {}
-      location.hash = '#/today';
-      renderLogin();
-    }
-  });
-
-  // 3) Eventos de vistas
-  $('#btn-buscar-paciente')?.addEventListener('click', buscarPacientePorDni);
-  $('#btn-asignar')?.addEventListener('click', asignarTurno);
-  $('#form-paciente')?.addEventListener('submit', guardarPaciente);
-  $('#q')?.addEventListener('input', filtrarPacientes);
-
-  // 4) Init router/vistas
-  const initialView = getViewFromHash()
-    || (()=>{ try { const v = localStorage.getItem(VIEW_KEY); return VALID_VIEWS.includes(v) ? v : null; } catch { return null; } })()
-    || 'today';
-  switchView(initialView);
-
-  // abrir submenú si corresponde
-  if (['patients','new-patient'].includes(initialView)) {
-    document.querySelector('.submenu-toggle')?.classList.add('open');
-    document.getElementById('submenu-patients')?.classList.add('show');
-  }
-
-  // 5) Data inicial + settings ctx
-  cargarPacientes();
-  cargarTurnosDeHoy();
-  initSettings({ supabase, me, setStatus, refreshToday: cargarTurnosDeHoy });
-}
-
-function renderLogin(){
+// 2. Renderiza el formulario de login
+function renderLogin() {
   document.body.innerHTML = `
-    <div class="auth">
-      <div class="auth-card">
-        <h2>Ingresar</h2>
-        <form id="login-form" class="grid">
-          <label>Email <input type="email" id="login-email" required></label>
-          <label>Contraseña <input type="password" id="login-pass" required></label>
-          <div class="actions">
-            <button class="btn primary" type="submit">Entrar</button>
-          </div>
-        </form>
-        <p class="muted" style="margin-top:8px">
-          Acceso restringido — altas de usuarios desde el panel del propietario.
-        </p>
-      </div>
-    </div>
+    <form id="login-form" style="margin:50px auto;max-width:350px;padding:24px;border:1px solid #eee;border-radius:8px;">
+      <h2>Login</h2>
+      <input type="email" id="email" placeholder="Email" required style="width:100%;margin-bottom:10px;padding:8px;" />
+      <input type="password" id="password" placeholder="Contraseña" required style="width:100%;margin-bottom:10px;padding:8px;" />
+      <button type="submit" style="width:100%;padding:8px;">Ingresar</button>
+    </form>
   `;
 
-  $('#login-form')?.addEventListener('submit', async (e)=>{
+  const form = document.getElementById('login-form');
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    setStatus('Ingresando…');
 
-    const email = $('#login-email').value.trim();
-    const pass  = $('#login-pass').value;
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
 
-    console.log('🔑 Intentando login con:', email);
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password: pass
-    });
-
-    if (error) {
-      setStatus('Error');
-      console.error('❌ Error en signInWithPassword:', error);
-      alert(`Login falló: ${error.message}`);
+    if (!email || !password) {
+      alert('Por favor, completa ambos campos.');
       return;
     }
 
-    console.log('✅ Login OK, data:', data);
-    setStatus('Listo');
+    // Llama a Supabase para autenticación
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      alert('Error: ' + error.message);
+      console.error(error);
+      return;
+    }
+
+    if (data && data.session && data.user) {
+      // Sesión exitosa
+      renderApp(data.user);
+    } else {
+      alert('No se pudo iniciar sesión. Intenta de nuevo.');
+    }
   });
 }
 
-async function bootstrap(){
-  // Escuchar cambios de sesión
-  supabase.auth.onAuthStateChange((event, session) => {
-    console.log('📡 onAuthStateChange:', event, session);
-    if (session?.user) {
-      console.log('👤 Usuario autenticado:', session.user.email);
-      renderApp(session.user);
-    } else {
-      console.log('ℹ️ Sin sesión activa, mostrar login');
-      renderLogin();
-    }
-  });
+// 3. Renderiza la app si el login fue exitoso
+function renderApp(user) {
+  // Acá ponés tu lógica real. Ejemplo básico:
+  document.body.innerHTML = `
+    <h1>Bienvenido, ${user.email}</h1>
+    <button id="logout">Cerrar sesión</button>
+    <div id="dashboard">
+      <!-- Aquí iría tu dashboard real -->
+      <p>Acá va la lógica de tu app.</p>
+    </div>
+  `;
 
-  // Cargar sesión actual al iniciar
-  const { data: { session }, error } = await supabase.auth.getSession();
-  if (error) console.error('⚠️ Error al obtener sesión:', error);
+  document.getElementById('logout').onclick = async () => {
+    await supabase.auth.signOut();
+    renderLogin();
+  };
+}
 
-  console.log('🚀 bootstrap() session actual:', session);
-
-  if (session?.user) {
-    console.log('👤 Sesión encontrada al inicio:', session.user.email);
-    renderApp(session.user);
+// 4. Arranque inicial: chequea sesión y muestra login o app
+async function bootstrap() {
+  // Obtiene la sesión actual
+  const { data } = await supabase.auth.getSession();
+  if (data.session && data.session.user) {
+    renderApp(data.session.user);
   } else {
-    console.log('ℹ️ No hay sesión, renderLogin()');
     renderLogin();
   }
 
-  // Router: back/forward
-  window.addEventListener('hashchange', () => {
-    const v = getViewFromHash();
-    console.log('🔄 hashchange ->', v);
-    if (v) switchView(v);
+  // Escucha cambios de sesión, por si el usuario cierra sesión en otro tab
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (session && session.user) {
+      renderApp(session.user);
+    } else {
+      renderLogin();
+    }
   });
 }
 
+// 5. Ejecuta bootstrap al cargar la página
+bootstrap();
