@@ -117,25 +117,11 @@
 </div>
 
 <script type="module">
-// Supabase config
+// Supabase config - reemplaza la apikey por la que ves en Supabase > Project Settings > API > anon public
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-const supabaseAnonKey = 'eyJ...'; // tu key aquí
+const supabaseAnonKey = 'TU_SUPABASE_ANON_KEY_AQUI'; // <--- pon aquí tu anon key completa
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// ----------------------
-// GUARDAR EN CACHE AL LOGUEAR
-// ----------------------
-// Supongamos que después de login exitoso recibes:
-// { usuario_id, profesional_id, centro_medico_id, centro_medico_nombre }
-// Guarda así, justo luego del login:
-function guardarEnCacheLogin({ usuario_id, profesional_id, centro_medico_id, centro_medico_nombre }) {
-  localStorage.setItem('usuario_id', usuario_id);
-  localStorage.setItem('profesional_id', profesional_id);
-  localStorage.setItem('centro_medico_id', centro_medico_id);
-  localStorage.setItem('centro_medico_nombre', centro_medico_nombre);
-}
-// Llama esta función después de login correcto
 
 const profesional_id = localStorage.getItem('profesional_id');
 const centro_default_id = localStorage.getItem('centro_medico_id');
