@@ -2,318 +2,32 @@
 <div class="config-grid card">
   <!-- BLOQUE: Centros Médicos y Asociación -->
   <section class="bloque-centros">
-    <h2>Centros Médicos</h2>
-    <div>
-      <label>Centros médicos donde atiende</label>
-      <div style="display:flex;gap:8px;">
-        <select id="centro-selector" style="min-width:220px;">
-          <option value="">Seleccione un centro...</option>
-        </select>
-        <button type="button" class="btn" id="btn-agregar-centro">Asociar</button>
-        <button type="button" class="btn" id="btn-nuevo-centro">Crear nuevo centro</button>
-      </div>
-      <div id="centros-elegidos" style="margin-top:10px;"></div>
-    </div>
-    <!-- Modal para crear nuevo centro -->
-    <div id="modal-nuevo-centro" class="modal hidden">
-      <div class="modal-content card">
-        <h3>Crear nuevo centro médico</h3>
-        <form id="form-nuevo-centro">
-          <label>Nombre <input type="text" name="nombre" required></label>
-          <div class="actions">
-            <button type="submit" class="btn primary">Crear</button>
-            <button type="button" class="btn" id="btn-cancel-nuevo-centro">Cancelar</button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <!-- ... aquí va tu bloque de centros médicos ... -->
   </section>
 
   <!-- BLOQUE: Configuración General de Agenda -->
   <section class="bloque-agenda">
-    <h2>Configuración General</h2>
-    <form id="config-form">
-      <div class="grid agenda-grid">
-        <div>
-          <label>Días laborales</label>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;">
-            <label><input type="checkbox" name="dias" value="lunes">Lun</label>
-            <label><input type="checkbox" name="dias" value="martes">Mar</label>
-            <label><input type="checkbox" name="dias" value="miercoles">Mié</label>
-            <label><input type="checkbox" name="dias" value="jueves">Jue</label>
-            <label><input type="checkbox" name="dias" value="viernes">Vie</label>
-            <label><input type="checkbox" name="dias" value="sabado">Sáb</label>
-            <label><input type="checkbox" name="dias" value="domingo">Dom</label>
-          </div>
-        </div>
-        <div>
-          <label>Horario laboral</label>
-          <div style="display:flex;gap:8px;">
-            <input type="time" name="hora_inicio" required>
-            <span>-</span>
-            <input type="time" name="hora_fin" required>
-          </div>
-        </div>
-        <div>
-          <label>Duración turno nueva consulta (min)</label>
-          <select name="duracion_nueva" required></select>
-        </div>
-        <div>
-          <label>Duración turno consulta recurrente (min)</label>
-          <select name="duracion_recurrente" required></select>
-        </div>
-      </div>
-      <div class="actions" style="margin-top:24px;">
-        <button type="submit" class="btn primary">Guardar configuración</button>
-      </div>
-    </form>
+    <!-- ... aquí va tu bloque de configuración general ... -->
   </section>
 
-  <!-- BLOQUE: Espacio para Agenda -->
+  <!-- BLOQUE: Espacio para Agenda (solo se inserta el HTML externo) -->
   <section class="bloque-generador-agenda">
     <h2>Configurar Agenda</h2>
     <div id="generador-agenda-espacio">
-      <!-- Aquí se inserta el contenido de agenda-generador.html -->
+      <!-- Aquí se insertará dinámicamente el contenido de agenda-generador.html -->
     </div>
   </section>
 
   <!-- BLOQUE: Asistentes -->
   <section class="bloque-asistentes">
-    <h2>Asistentes</h2>
-    <div id="asistentes-list"></div>
-    <button class="btn" id="btn-add-asistente" style="margin-top:10px;">Agregar asistente</button>
-    <div id="asistente-form-wrap" class="card hidden" style="margin-top:12px;">
-      <form id="asistente-form">
-        <label>Email <input type="email" name="email" required></label>
-        <label>Nombre <input type="text" name="nombre" required></label>
-        <label>Apellido <input type="text" name="apellido" required></label>
-        <label>Teléfono <input type="text" name="telefono"></label>
-        <div class="actions">
-          <button type="submit" class="btn primary">Crear asistente</button>
-          <button type="button" class="btn" id="btn-cancel-asistente">Cancelar</button>
-        </div>
-      </form>
-    </div>
+    <!-- ... aquí va tu bloque de asistentes ... -->
   </section>
 </div>
 
 <script type="module">
-// --- Scripts de configuración, centros, asistentes ---
-
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-// REEMPLAZA por tus credenciales reales
-const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-const supabaseAnonKey = 'eyJ...';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-const profesional_id = localStorage.getItem('profesional_id');
-const DIAS = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
-
-// --- Duración de turnos ---
-function llenarOpcionesDuracion() {
-  for(let i=10;i<=60;i+=5) {
-    ['duracion_nueva','duracion_recurrente'].forEach(name=>{
-      const select = document.querySelector(`[name="${name}"]`);
-      const opt = document.createElement('option');
-      opt.value = i;
-      opt.textContent = i + ' min';
-      select.appendChild(opt);
-    });
-  }
-}
-llenarOpcionesDuracion();
-
-// --- Bloque CENTROS MEDICOS ---
-let centrosDisponibles = [];
-let centrosElegidos = [];
-async function cargarCentros() {
-  const selector = document.getElementById('centro-selector');
-  selector.innerHTML = '<option value="">Seleccione un centro...</option>';
-  const { data: centros } = await supabase
-    .from('centros_medicos')
-    .select('id, nombre')
-    .eq('activo', true);
-  centrosDisponibles = centros || [];
-  centrosDisponibles.forEach(centro=>{
-    const opt = document.createElement('option');
-    opt.value = centro.id;
-    opt.textContent = centro.nombre;
-    selector.appendChild(opt);
-  });
-  const { data: vinculos } = await supabase
-    .from('profesional_centro')
-    .select('centro_id')
-    .eq('profesional_id', profesional_id)
-    .eq('activo', true);
-  centrosElegidos = vinculos ? vinculos.map(vc=>vc.centro_id) : [];
-  renderCentrosElegidos();
-}
-function renderCentrosElegidos() {
-  const cont = document.getElementById('centros-elegidos');
-  cont.innerHTML = '<b>Centros asociados:</b><br>';
-  if (!centrosElegidos.length) cont.innerHTML += '<i>No hay centros asociados.</i>';
-  centrosElegidos.forEach(id=>{
-    const centro = centrosDisponibles.find(c=>c.id===id);
-    if(centro){
-      const div = document.createElement('div');
-      div.className = 'centro-elegido';
-      div.textContent = centro.nombre;
-      const btn = document.createElement('button');
-      btn.textContent = 'Quitar';
-      btn.className = 'btn';
-      btn.style.marginLeft = "10px";
-      btn.onclick = () => quitarCentro(id);
-      div.appendChild(btn);
-      cont.appendChild(div);
-    }
-  });
-}
-function quitarCentro(id) {
-  centrosElegidos = centrosElegidos.filter(cid=>cid!==id);
-  supabase
-    .from('profesional_centro')
-    .update({ activo: false })
-    .eq('profesional_id', profesional_id)
-    .eq('centro_id', id)
-    .then(()=>cargarCentros());
-}
-document.getElementById('btn-agregar-centro').onclick = function(){
-  const id = document.getElementById('centro-selector').value;
-  if(id && !centrosElegidos.includes(id)){
-    supabase
-      .from('profesional_centro')
-      .upsert({ profesional_id, centro_id: id, activo: true }, { onConflict: ['profesional_id','centro_id'] })
-      .then(()=>cargarCentros());
-  }
-};
-document.getElementById('btn-nuevo-centro').onclick = function(){
-  document.getElementById('modal-nuevo-centro').classList.remove('hidden');
-};
-document.getElementById('btn-cancel-nuevo-centro').onclick = function(){
-  document.getElementById('modal-nuevo-centro').classList.add('hidden');
-};
-document.getElementById('form-nuevo-centro').addEventListener('submit', async function(e){
-  e.preventDefault();
-  const nombre = this.nombre.value;
-  const { data, error } = await supabase
-    .from('centros_medicos')
-    .insert([{ nombre, activo: true }]);
-  if(error) alert('Error al crear centro: ' + error.message);
-  else {
-    document.getElementById('modal-nuevo-centro').classList.add('hidden');
-    await cargarCentros();
-    const nuevoId = data[0].id;
-    await supabase
-      .from('profesional_centro')
-      .upsert({ profesional_id, centro_id: nuevoId, activo: true }, { onConflict: ['profesional_id','centro_id'] });
-    await cargarCentros();
-  }
-});
-cargarCentros();
-
-// --- Bloque AGENDA GENERAL ---
-async function cargarConfiguracion() {
-  const { data } = await supabase
-    .from('profesional_preferencias')
-    .select('*')
-    .eq('profesional_id', profesional_id)
-    .single();
-  if(data) {
-    if(data.dias_laborales) {
-      document.querySelectorAll('[name="dias"]').forEach(cb => {
-        cb.checked = data.dias_laborales.includes(cb.value);
-      });
-    }
-    document.querySelector('[name="hora_inicio"]').value = data.horario_inicio || '08:00';
-    document.querySelector('[name="hora_fin"]').value = data.horario_fin || '17:00';
-    document.querySelector('[name="duracion_nueva"]').value = data.duracion_turno_nueva || 10;
-    document.querySelector('[name="duracion_recurrente"]').value = data.duracion_turno_recurrente || 10;
-  }
-}
-cargarConfiguracion();
-
-document.getElementById('config-form').addEventListener('submit', async function(e){
-  e.preventDefault();
-  const dias = Array.from(document.querySelectorAll('[name="dias"]:checked')).map(cb=>cb.value);
-  const hora_inicio = document.querySelector('[name="hora_inicio"]').value;
-  const hora_fin = document.querySelector('[name="hora_fin"]').value;
-  const duracion_nueva = Number(document.querySelector('[name="duracion_nueva"]').value);
-  const duracion_recurrente = Number(document.querySelector('[name="duracion_recurrente"]').value);
-  await supabase
-    .from('profesional_preferencias')
-    .upsert({
-      profesional_id,
-      dias_laborales: dias,
-      horario_inicio: hora_inicio,
-      horario_fin: hora_fin,
-      duracion_turno_nueva: duracion_nueva,
-      duracion_turno_recurrente: duracion_recurrente
-    });
-  alert('Configuración guardada');
-});
-
-// --- Bloque ASISTENTES ---
-async function cargarAsistentes(){
-  const { data } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('role', 'asistente')
-    .eq('active', true)
-    .eq('profesional_id', profesional_id);
-  const list = document.getElementById('asistentes-list');
-  list.innerHTML = '';
-  if(data && data.length){
-    data.forEach(asistente=>{
-      const div = document.createElement('div');
-      div.textContent = `${asistente.display_name} (${asistente.email})`;
-      const btn = document.createElement('button');
-      btn.textContent = 'Desactivar';
-      btn.className = 'btn';
-      btn.onclick = async function(){
-        await supabase
-          .from('profiles')
-          .update({ active: false })
-          .eq('id', asistente.id);
-        cargarAsistentes();
-      };
-      div.appendChild(btn);
-      list.appendChild(div);
-    });
-  } else {
-    list.textContent = 'No hay asistentes vinculados.';
-  }
-}
-document.getElementById('btn-add-asistente').onclick = ()=> {
-  document.getElementById('asistente-form-wrap').classList.remove('hidden');
-};
-document.getElementById('btn-cancel-asistente').onclick = ()=> {
-  document.getElementById('asistente-form-wrap').classList.add('hidden');
-};
-document.getElementById('asistente-form').addEventListener('submit', async function(e){
-  e.preventDefault();
-  const fd = new FormData(this);
-  const asistente = {
-    email: fd.get('email'),
-    display_name: `${fd.get('nombre')} ${fd.get('apellido')}`,
-    telefono: fd.get('telefono'),
-    role: 'asistente',
-    active: true,
-    profesional_id
-  };
-  const { data, error } = await supabase
-    .from('profiles')
-    .insert([asistente]);
-  if(error) alert('Error al crear asistente: ' + error.message);
-  else alert('Asistente creado.');
-  document.getElementById('asistente-form-wrap').classList.add('hidden');
-  cargarAsistentes();
-});
-cargarAsistentes();
-
-// --- BLOQUE: Cargar el generador de agenda externo ---
+// Solo este bloque se encarga de llamar y cargar el HTML del generador de agenda
 async function cargarGeneradorAgenda() {
   const espacio = document.getElementById('generador-agenda-espacio');
-  // Cambia el path si el archivo está en otra carpeta
   const resp = await fetch('agenda-generador.html');
   let html = await resp.text();
   espacio.innerHTML = html;
@@ -335,12 +49,6 @@ body { background: #f6f3fa;}
 .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 2px;}
 .btn.primary { background: #7656b0; }
 .btn:hover { background: #7f62b6; }
-.grid { display: grid; }
-.actions { margin-top:20px;}
-.hidden { display:none; }
-.modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.25); align-items:center; justify-content:center; z-index:1000;}
-.modal:not(.hidden) { display:flex; }
-.modal-content { min-width:320px; background:#fff; padding:24px; border-radius:10px; }
 .config-grid {
   display: grid;
   grid-template-columns: 1.1fr 1fr 1.2fr 1fr;
@@ -348,8 +56,6 @@ body { background: #f6f3fa;}
   max-width: 1400px;
   margin: 32px auto;
 }
-.bloque-centros, .bloque-agenda, .bloque-generador-agenda, .bloque-asistentes { min-width: 0; }
-.agenda-grid { grid-template-columns: repeat(2,1fr); gap: 12px;}
 @media (max-width: 1100px) {
   .config-grid { grid-template-columns: 1fr; }
 }
