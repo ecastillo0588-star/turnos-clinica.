@@ -5,87 +5,22 @@
   <title>Login - EG Health Solutions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { 
-      font-family: 'Segoe UI', Arial, sans-serif; 
-      background: #f7f9fb; 
-      margin: 0; 
-      display: flex; 
-      justify-content: center; 
-      align-items: center; 
-      min-height: 100vh;
-    }
-    .login-container {
-      background: #fff;
-      box-shadow: 0 2px 24px rgba(0,0,0,0.07);
-      border-radius: 10px;
-      padding: 32px 24px;
-      width: 100%;
-      max-width: 340px;
-      text-align: center;
-      position: relative;
-    }
-    .logo {
-      width: 90px;
-      height: 90px;
-      border-radius: 50%;
-      object-fit: contain;
-      margin-bottom: 16px;
-      background: #eaf3fa;
-      display: inline-block;
-    }
-    h2 {
-      margin-bottom: 8px;
-      color: #0055a5;
-      font-size: 1.6em;
-      font-weight: 700;
-    }
-    .subtitle {
-      color: #666;
-      margin-bottom: 24px;
-      font-size: 1em;
-      font-weight: 400;
-    }
-    input[type="email"], input[type="password"] {
-      width: 100%;
-      padding: 10px 12px;
-      margin: 8px 0;
-      border: 1px solid #d3e0ea;
-      border-radius: 6px;
-      font-size: 1em;
-      background: #f7f9fb;
-      transition: border-color 0.2s;
-    }
-    input:focus {
-      border-color: #0055a5;
-      outline: none;
-    }
-    .login-btn {
-      width: 100%;
-      background: #0055a5;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 12px;
-      font-size: 1.07em;
-      font-weight: 600;
-      margin-top: 10px;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-    .login-btn:hover {
-      background: #073d7d;
-    }
-    .error-message {
-      color: #d0003a;
-      margin-top: 12px;
-      font-size: 0.93em;
-      min-height: 24px;
-    }
+    /* Estilos igual que antes... */
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f9fb; margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    .login-container { background: #fff; box-shadow: 0 2px 24px rgba(0,0,0,0.07); border-radius: 10px; padding: 32px 24px; width: 100%; max-width: 340px; text-align: center; position: relative; }
+    .logo { width: 90px; height: 90px; border-radius: 50%; object-fit: contain; margin-bottom: 16px; background: #eaf3fa; display: inline-block; }
+    h2 { margin-bottom: 8px; color: #0055a5; font-size: 1.6em; font-weight: 700; }
+    .subtitle { color: #666; margin-bottom: 24px; font-size: 1em; font-weight: 400; }
+    input, select { width: 100%; padding: 10px 12px; margin: 8px 0; border: 1px solid #d3e0ea; border-radius: 6px; font-size: 1em; background: #f7f9fb; transition: border-color 0.2s; }
+    input:focus, select:focus { border-color: #0055a5; outline: none; }
+    .login-btn { width: 100%; background: #0055a5; color: #fff; border: none; border-radius: 6px; padding: 12px; font-size: 1.07em; font-weight: 600; margin-top: 10px; cursor: pointer; transition: background 0.2s; }
+    .login-btn:hover { background: #073d7d; }
+    .error-message { color: #d0003a; margin-top: 12px; font-size: 0.93em; min-height: 24px; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
   <div class="login-container">
-    <!-- Logo: lo agregaremos luego -->
     <img src="logo-placeholder.png" alt="EG Health Solutions Logo" class="logo" id="logo-img">
     <h2>EG Health Solutions</h2>
     <div class="subtitle">Iniciar sesión en el sistema</div>
@@ -95,14 +30,22 @@
       <button type="submit" class="login-btn">Ingresar</button>
       <div class="error-message" id="error-message"></div>
     </form>
+    <form id="center-form" class="hidden">
+      <div id="center-select-div"></div>
+      <button type="submit" class="login-btn">Entrar al sistema</button>
+    </form>
   </div>
-  <!-- Supabase login logic -->
   <script type="module">
     import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-    // Tu config de Supabase
     const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+    let userEmail = null;
+    let userRole = null;
+    let profesionalId = null;
+    let centros = [];
+    let centroAsignado = null;
 
     // Login handler
     document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -112,14 +55,99 @@
       const errorMessage = document.getElementById('error-message');
       errorMessage.textContent = '';
       // Iniciar sesión con Supabase Auth
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         errorMessage.textContent = 'Correo o contraseña incorrectos.';
-      } else {
-        errorMessage.textContent = '';
-        // Redirigir al dashboard o página principal
-        window.location.href = "dashboard.html";
+        return;
       }
+      // Guardar email de usuario
+      userEmail = email;
+      // Buscar perfil y rol
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, profesional_id, id, email')
+        .eq('email', email)
+        .single();
+      if (profileError || !profileData) {
+        errorMessage.textContent = 'Perfil no encontrado.';
+        return;
+      }
+      userRole = profileData.role;
+      profesionalId = profileData.profesional_id;
+      // Según el rol, buscar centros médicos
+      if (userRole === 'propietario' || userRole === 'medico') {
+        // Buscar centros asociados
+        const { data: centrosRel, error: centrosError } = await supabase
+          .from('profesional_centro')
+          .select('centro_id')
+          .eq('profesional_id', profesionalId);
+        if (centrosError || !centrosRel || centrosRel.length === 0) {
+          errorMessage.textContent = 'No tienes centros médicos asociados.';
+          return;
+        }
+        // Buscar info de cada centro
+        const centroIds = centrosRel.map(c => c.centro_id);
+        const { data: centrosData, error: centrosDataError } = await supabase
+          .from('centros_medicos')
+          .select('id, nombre')
+          .in('id', centroIds)
+          .eq('activo', true);
+        if (centrosDataError || !centrosData || centrosData.length === 0) {
+          errorMessage.textContent = 'No hay centros médicos activos asociados.';
+          return;
+        }
+        centros = centrosData;
+        // Mostrar selector de centros
+        document.getElementById('login-form').classList.add('hidden');
+        const selectHtml = `<label for="select-centro">Elige tu centro médico:</label>
+          <select id="select-centro" required>
+            ${centros.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')}
+          </select>`;
+        document.getElementById('center-select-div').innerHTML = selectHtml;
+        document.getElementById('center-form').classList.remove('hidden');
+      } else if (userRole === 'asistente') {
+        // Suponiendo que profesional_id es el centro asignado para asistente
+        // Si tienes otro campo, cámbialo aquí
+        if (!profileData.profesional_id) {
+          errorMessage.textContent = 'No tienes centro médico asignado.';
+          return;
+        }
+        // Buscar centro médico asignado
+        const { data: centroData, error: centroError } = await supabase
+          .from('centros_medicos')
+          .select('id, nombre')
+          .eq('id', profileData.profesional_id)
+          .eq('activo', true)
+          .single();
+        if (centroError || !centroData) {
+          errorMessage.textContent = 'Centro médico no encontrado o inactivo.';
+          return;
+        }
+        centroAsignado = centroData;
+        // Mostrar nombre del centro (sin selector)
+        document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('center-select-div').innerHTML = `<label>Centro médico asignado:</label>
+          <div style="font-weight:600;color:#0055a5;padding:10px 0;">${centroAsignado.nombre}</div>`;
+        document.getElementById('center-form').classList.remove('hidden');
+      } else {
+        errorMessage.textContent = 'Rol no reconocido.';
+      }
+    });
+
+    // Handler para seleccionar centro y entrar al sistema
+    document.getElementById('center-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      let centroId = null;
+      if (userRole === 'propietario' || userRole === 'medico') {
+        centroId = document.getElementById('select-centro').value;
+      } else if (userRole === 'asistente') {
+        centroId = centroAsignado.id;
+      }
+      // Guardar centro médico elegido/asignado en localStorage
+      localStorage.setItem('centro_medico_id', centroId);
+      localStorage.setItem('centro_medico_nombre', centros.find(c => c.id === centroId)?.nombre || centroAsignado?.nombre);
+      // Redirigir al dashboard
+      window.location.href = "dashboard.html";
     });
 
     // Puedes luego cambiar el src de #logo-img por tu logo real
