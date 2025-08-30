@@ -1,8 +1,14 @@
 <!-- Generador de Agenda de Disponibilidad de Turnos -->
 <div class="card agenda-generador">
   <h2>Generar Agenda de Disponibilidad</h2>
+  <!-- Nombre de la agenda -->
+  <section class="bloque-nombre-agenda">
+    <label for="nombre-agenda"><b>Nombre de la agenda</b></label><br>
+    <input type="text" id="nombre-agenda" placeholder="Ejemplo: Agenda Septiembre 2025" style="max-width:300px;">
+  </section>
+
   <!-- Bloque de Fechas y Centro -->
-  <section class="bloque-fechas">
+  <section class="bloque-fechas" style="margin-top:14px;">
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;">
       <div>
         <label for="fecha-inicio"><b>Fecha inicio</b></label><br>
@@ -14,7 +20,7 @@
       </div>
       <div>
         <label for="centro-agenda"><b>Centro médico</b></label><br>
-        <select id="centro-agenda" required style="min-width:130px;max-width:180px;font-size:14px;"></select>
+        <select id="centro-agenda" required style="min-width:130px;max-width:220px;font-size:14px;"></select>
         <button type="button" class="btn" id="btn-nuevo-centro" style="margin-top:6px;">Agregar nuevo centro</button>
         <div id="nuevo-centro-form" class="hidden" style="margin-top:6px;">
           <input type="text" id="nuevo-centro-nombre" placeholder="Nombre del centro" style="width:140px;">
@@ -22,6 +28,31 @@
           <button type="button" class="btn" id="cancelar-nuevo-centro">Cancelar</button>
         </div>
       </div>
+    </div>
+  </section>
+
+  <!-- Duración de turnos por tipo -->
+  <section class="bloque-duracion-turno" style="margin-top:12px;display:flex;gap:32px;">
+    <div>
+      <label for="duracion-nueva"><b>Duración turno nueva consulta</b></label><br>
+      <select id="duracion-nueva" required style="max-width:95px;">
+        <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
+        <option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option>
+      </select>
+    </div>
+    <div>
+      <label for="duracion-recurrente"><b>Duración turno consulta recurrente</b></label><br>
+      <select id="duracion-recurrente" required style="max-width:95px;">
+        <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
+        <option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option>
+      </select>
+    </div>
+    <div>
+      <label for="duracion-sobreturno"><b>Duración de sobre turnos</b></label><br>
+      <select id="duracion-sobreturno" required style="max-width:95px;">
+        <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
+        <option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option>
+      </select>
     </div>
   </section>
 
@@ -51,14 +82,6 @@
     </table>
   </section>
 
-  <!-- Duración de turno -->
-  <section class="bloque-duracion-turno" style="margin-top:12px;">
-    <label for="duracion-turno"><b>Duración de cada turno</b></label>
-    <select id="duracion-turno" required style="max-width:100px;">
-      <!-- Opciones por JS -->
-    </select>
-  </section>
-
   <!-- Acción -->
   <div class="actions" style="margin-top:18px;">
     <button class="btn primary" id="btn-generar-agenda">Generar agenda</button>
@@ -83,46 +106,17 @@ const DIAS = [
   {nombre:'jueves', label:'JUEV'}, {nombre:'viernes', label:'VIER'}, {nombre:'sabado', label:'SÁB'}
 ];
 
-// Rellenar duración: desde 10 min, luego cada 5 hasta 60
-const selectDuracion = document.getElementById('duracion-turno');
-for(let i=10; i<=60; i+=5){
-  const opt = document.createElement('option');
-  opt.value = i;
-  opt.textContent = i + ' min';
-  selectDuracion.appendChild(opt);
-}
-
-// Cargar centros médicos asociados y seleccionar por defecto el del login
+// ---------- Carga de centros médicos ----------
 async function cargarCentros() {
-  // Buscar centros médicos vinculados por profesional
-  const { data: vinculos } = await supabase
-    .from('profesional_centro')
-    .select('centro_id')
-    .eq('profesional_id', profesional_id)
+  // Buscar todos los centros médicos activos
+  const { data: centros, error } = await supabase
+    .from('centros_medicos')
+    .select('id,nombre')
     .eq('activo', true);
-
-  const centro_ids = vinculos ? vinculos.map(v=>v.centro_id) : [];
-  let centros = [];
-  if (centro_ids.length > 0) {
-    const { data } = await supabase
-      .from('centros_medicos')
-      .select('id,nombre')
-      .in('id', centro_ids);
-    centros = data || [];
-  }
-
-  // Si no hay centros, mostrar todos los activos
-  if (centros.length === 0) {
-    const { data } = await supabase
-      .from('centros_medicos')
-      .select('id,nombre')
-      .eq('activo', true);
-    centros = data || [];
-  }
 
   const selector = document.getElementById('centro-agenda');
   selector.innerHTML = '';
-  centros.forEach(c=>{
+  centros.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.id;
     opt.textContent = c.nombre;
@@ -142,7 +136,7 @@ document.getElementById('btn-nuevo-centro').onclick = function() {
 document.getElementById('cancelar-nuevo-centro').onclick = function() {
   document.getElementById('nuevo-centro-form').classList.add('hidden');
 };
-// Guardar nuevo centro y asociar a profesional
+// Guardar nuevo centro y recargar el selector
 document.getElementById('guardar-nuevo-centro').onclick = async function() {
   const nombre = document.getElementById('nuevo-centro-nombre').value.trim();
   if (!nombre) return;
@@ -152,11 +146,6 @@ document.getElementById('guardar-nuevo-centro').onclick = async function() {
     .select('id,nombre')
     .single();
   if (!error && data) {
-    // Asociar al profesional
-    await supabase
-      .from('profesional_centro')
-      .insert([{ centro_id: data.id, profesional_id, activo: true }]);
-    // Recargar centros y seleccionar el nuevo
     await cargarCentros();
     document.getElementById('centro-agenda').value = data.id;
     document.getElementById('nuevo-centro-form').classList.add('hidden');
@@ -166,7 +155,7 @@ document.getElementById('guardar-nuevo-centro').onclick = async function() {
   }
 };
 
-// Renderizar la tabla de horarios/días
+// ---------- Horarios por día ----------
 function renderTablaHorarios() {
   const tbody = document.getElementById('horarios-body');
   tbody.innerHTML = '';
@@ -185,17 +174,21 @@ function renderTablaHorarios() {
 }
 renderTablaHorarios();
 
-// Generar agenda al hacer click
+// ---------- Generar agenda ----------
 document.getElementById('btn-generar-agenda').onclick = async function() {
   const msg = document.getElementById('msg-agenda');
   msg.textContent = '';
   // Fechas y centro
+  const nombre_agenda = document.getElementById('nombre-agenda').value.trim();
   const fecha_inicio = document.getElementById('fecha-inicio').value;
   const fecha_fin = document.getElementById('fecha-fin').value;
   const centro_id = document.getElementById('centro-agenda').value;
-  const duracion_turno = Number(document.getElementById('duracion-turno').value);
-  if(!fecha_inicio || !fecha_fin || !centro_id){
-    msg.textContent = "Seleccione fechas y centro médico.";
+  const duracion_nueva = Number(document.getElementById('duracion-nueva').value);
+  const duracion_recurrente = Number(document.getElementById('duracion-recurrente').value);
+  const duracion_sobreturno = Number(document.getElementById('duracion-sobreturno').value);
+
+  if(!fecha_inicio || !fecha_fin || !centro_id || !nombre_agenda){
+    msg.textContent = "Complete nombre, fechas y centro médico.";
     return;
   }
   // Recopilar horarios por día
@@ -207,19 +200,66 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     const tm_ini = document.querySelector(`[name="tm_ini_${idx}"]`).value;
     const tm_fin = document.querySelector(`[name="tm_fin_${idx}"]`).value;
     if(tm_ini && tm_fin && tm_ini < tm_fin){
-      turnos.push({dia:dia.nombre, turno:'mañana', hora_inicio:tm_ini, hora_fin:tm_fin});
+      turnos.push({
+        dia:dia.nombre,
+        turno:'nueva',
+        tipo:'nueva',
+        hora_inicio:tm_ini,
+        hora_fin:tm_fin,
+        duracion: duracion_nueva,
+      });
+      turnos.push({
+        dia:dia.nombre,
+        turno:'recurrente',
+        tipo:'recurrente',
+        hora_inicio:tm_ini,
+        hora_fin:tm_fin,
+        duracion: duracion_recurrente,
+      });
+      turnos.push({
+        dia:dia.nombre,
+        turno:'sobreturno',
+        tipo:'sobreturno',
+        hora_inicio:tm_ini,
+        hora_fin:tm_fin,
+        duracion: duracion_sobreturno,
+      });
     }
     // Tarde
     const tt_ini = document.querySelector(`[name="tt_ini_${idx}"]`).value;
     const tt_fin = document.querySelector(`[name="tt_fin_${idx}"]`).value;
     if(tt_ini && tt_fin && tt_ini < tt_fin){
-      turnos.push({dia:dia.nombre, turno:'tarde', hora_inicio:tt_ini, hora_fin:tt_fin});
+      turnos.push({
+        dia:dia.nombre,
+        turno:'nueva',
+        tipo:'nueva',
+        hora_inicio:tt_ini,
+        hora_fin:tt_fin,
+        duracion: duracion_nueva,
+      });
+      turnos.push({
+        dia:dia.nombre,
+        turno:'recurrente',
+        tipo:'recurrente',
+        hora_inicio:tt_ini,
+        hora_fin:tt_fin,
+        duracion: duracion_recurrente,
+      });
+      turnos.push({
+        dia:dia.nombre,
+        turno:'sobreturno',
+        tipo:'sobreturno',
+        hora_inicio:tt_ini,
+        hora_fin:tt_fin,
+        duracion: duracion_sobreturno,
+      });
     }
   });
   if(turnos.length===0){
     msg.textContent = "Configure al menos un horario válido para algún día.";
     return;
   }
+
   // Generar slots de agenda
   msg.textContent = "Generando agenda...";
   let totalSlots = 0;
@@ -236,10 +276,9 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     for(const t of diaTurnos){
       let hIni = toMinutes(t.hora_inicio);
       let hFin = toMinutes(t.hora_fin);
-      for(let m=hIni; m+duracion_turno<=hFin; m+=duracion_turno){
+      for(let m=hIni; m+t.duracion<=hFin; m+=t.duracion){
         const hora_inicio = toHoraStr(m);
-        const hora_fin = toHoraStr(m+duracion_turno);
-        // Insertar fila en la agenda
+        const hora_fin = toHoraStr(m+t.duracion);
         await supabase
           .from('agenda')
           .upsert({
@@ -249,7 +288,9 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
             hora_inicio,
             hora_fin,
             capacidad: 1,
-            estado: 'disponible'
+            estado: 'disponible',
+            notas: t.tipo,
+            "Nombre de Agenda": nombre_agenda
           }, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
         totalSlots++;
       }
@@ -282,4 +323,5 @@ function toHoraStr(minutos){
 .card { background: #fff; padding: 22px; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.09); }
 .bloque-fechas label, .bloque-duracion-turno label { font-size:13px; }
 .hidden { display:none; }
+.bloque-nombre-agenda label { font-size:15px; margin-bottom:2px; color:#381e60; }
 </style>
