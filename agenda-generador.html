@@ -3,34 +3,40 @@
   <h2>Generar Agenda de Disponibilidad</h2>
   <!-- Bloque de Fechas y Centro -->
   <section class="bloque-fechas">
-    <div style="display:flex;gap:24px;align-items:center;">
+    <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;">
       <div>
         <label for="fecha-inicio"><b>Fecha inicio</b></label><br>
-        <input type="date" id="fecha-inicio" required>
+        <input type="date" id="fecha-inicio" required style="max-width:120px;">
       </div>
       <div>
         <label for="fecha-fin"><b>Fecha fin</b></label><br>
-        <input type="date" id="fecha-fin" required>
+        <input type="date" id="fecha-fin" required style="max-width:120px;">
       </div>
       <div>
         <label for="centro-agenda"><b>Centro médico</b></label><br>
-        <select id="centro-agenda" required style="min-width:180px;"></select>
+        <select id="centro-agenda" required style="min-width:120px;max-width:180px;font-size:14px;"></select>
       </div>
     </div>
   </section>
 
-  <!-- Bloque de Horarios por Día -->
-  <section class="bloque-horario-dias" style="margin-top:24px;">
-    <h3>Horarios por Día</h3>
-    <table class="horarios-table">
+  <!-- Tabla compacta de horarios por día -->
+  <section class="bloque-horario-dias" style="margin-top:18px;">
+    <h3 style="margin-bottom:9px;">Horarios por Día</h3>
+    <table class="horarios-table-compact">
       <thead>
         <tr>
-          <th>Día</th>
-          <th>Turno Mañana<br><small>Hora inicio</small></th>
-          <th>Turno Mañana<br><small>Hora fin</small></th>
-          <th>Turno Tarde<br><small>Hora inicio</small></th>
-          <th>Turno Tarde<br><small>Hora fin</small></th>
-          <th>Habilitar</th>
+          <th style="width:60px;">Día</th>
+          <th colspan="2">Mañana</th>
+          <th colspan="2">Tarde</th>
+          <th style="width:55px;">Habilitar</th>
+        </tr>
+        <tr>
+          <td></td>
+          <td style="font-size:11px;">Inicio</td>
+          <td style="font-size:11px;">Fin</td>
+          <td style="font-size:11px;">Inicio</td>
+          <td style="font-size:11px;">Fin</td>
+          <td></td>
         </tr>
       </thead>
       <tbody id="horarios-body">
@@ -39,21 +45,21 @@
     </table>
   </section>
 
-  <!-- Bloque de Duración de Turno -->
-  <section class="bloque-duracion-turno" style="margin-top:18px;">
+  <!-- Duración de turno -->
+  <section class="bloque-duracion-turno" style="margin-top:12px;">
     <label for="duracion-turno"><b>Duración de cada turno</b></label>
-    <select id="duracion-turno" required>
+    <select id="duracion-turno" required style="max-width:100px;">
       <!-- Opciones por JS -->
     </select>
   </section>
 
   <!-- Acción -->
-  <div class="actions" style="margin-top:32px;">
+  <div class="actions" style="margin-top:18px;">
     <button class="btn primary" id="btn-generar-agenda">Generar agenda</button>
   </div>
 
   <!-- Mensajes -->
-  <div id="msg-agenda" style="margin-top:22px;"></div>
+  <div id="msg-agenda" style="margin-top:14px;"></div>
 </div>
 
 <script type="module">
@@ -64,12 +70,8 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const profesional_id = localStorage.getItem('profesional_id');
 const DIAS = [
-  {nombre:'lunes', label:'LUN'},
-  {nombre:'martes', label:'MAR'},
-  {nombre:'miercoles', label:'MIÉR'},
-  {nombre:'jueves', label:'JUEV'},
-  {nombre:'viernes', label:'VIER'},
-  {nombre:'sabado', label:'SÁB'}
+  {nombre:'lunes', label:'LUN'}, {nombre:'martes', label:'MAR'}, {nombre:'miercoles', label:'MIÉR'},
+  {nombre:'jueves', label:'JUEV'}, {nombre:'viernes', label:'VIER'}, {nombre:'sabado', label:'SÁB'}
 ];
 
 // Rellenar duración: desde 10 min, luego cada 5 hasta 60
@@ -111,11 +113,11 @@ function renderTablaHorarios() {
   DIAS.forEach((dia, idx)=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td><b>${dia.label}</b></td>
-      <td><input type="time" name="tm_ini_${idx}" style="width:84px;"></td>
-      <td><input type="time" name="tm_fin_${idx}" style="width:84px;"></td>
-      <td><input type="time" name="tt_ini_${idx}" style="width:84px;"></td>
-      <td><input type="time" name="tt_fin_${idx}" style="width:84px;"></td>
+      <td style="font-size:13px;"><b>${dia.label}</b></td>
+      <td><input type="time" name="tm_ini_${idx}" class="input-hora"></td>
+      <td><input type="time" name="tm_fin_${idx}" class="input-hora"></td>
+      <td><input type="time" name="tt_ini_${idx}" class="input-hora"></td>
+      <td><input type="time" name="tt_fin_${idx}" class="input-hora"></td>
       <td><input type="checkbox" name="hab_${idx}" checked></td>
     `;
     tbody.appendChild(tr);
@@ -127,7 +129,7 @@ renderTablaHorarios();
 document.getElementById('btn-generar-agenda').onclick = async function() {
   const msg = document.getElementById('msg-agenda');
   msg.textContent = '';
-  // 1. Fechas y centro
+  // Fechas y centro
   const fecha_inicio = document.getElementById('fecha-inicio').value;
   const fecha_fin = document.getElementById('fecha-fin').value;
   const centro_id = document.getElementById('centro-agenda').value;
@@ -136,7 +138,7 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     msg.textContent = "Seleccione fechas y centro médico.";
     return;
   }
-  // 2. Recopilar horarios por día
+  // Recopilar horarios por día
   const turnos = [];
   DIAS.forEach((dia, idx)=>{
     const habilitado = document.querySelector(`[name="hab_${idx}"]`).checked;
@@ -158,8 +160,7 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     msg.textContent = "Configure al menos un horario válido para algún día.";
     return;
   }
-
-  // 3. Generar slots de agenda
+  // Generar slots de agenda
   msg.textContent = "Generando agenda...";
   let totalSlots = 0;
   let fechaActual = new Date(fecha_inicio);
@@ -169,13 +170,11 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     if(!diaSemana) { fechaActual.setDate(fechaActual.getDate()+1); continue; }
     const diaTurnos = turnos.filter(t=>t.dia===diaSemana.nombre);
     for(const t of diaTurnos){
-      // Genera slots de la franja para ese día
       let hIni = toMinutes(t.hora_inicio);
       let hFin = toMinutes(t.hora_fin);
       for(let m=hIni; m+duracion_turno<=hFin; m+=duracion_turno){
         const hora_inicio = toHoraStr(m);
         const hora_fin = toHoraStr(m+duracion_turno);
-        // Guardar slot en agenda
         await supabase
           .from('agenda')
           .upsert({
@@ -195,7 +194,6 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
   msg.textContent = `Agenda generada (${totalSlots} turnos disponibles).`;
 };
 
-// Helpers
 function toMinutes(horaStr){
   const [h,m] = horaStr.split(':'); return parseInt(h)*60+parseInt(m);
 }
@@ -206,15 +204,15 @@ function toHoraStr(minutos){
 </script>
 
 <style>
-.agenda-generador { max-width: 900px; margin: 32px auto; }
-.bloque-fechas { margin-bottom: 18px; }
-.horarios-table { border-collapse:collapse;width:100%;background:#f7f4fa;}
-.horarios-table th, .horarios-table td { border:1px solid #e3d8f6;padding:8px;text-align:center; }
-.horarios-table th { background:#ece3fa;font-weight:600; }
-.horarios-table td input[type="time"] { width:84px;}
-.horarios-table td input[type="checkbox"] { transform:scale(1.2);}
+.agenda-generador { max-width: 740px; margin: 24px auto; }
+.horarios-table-compact { border-collapse:collapse;width:100%;background:#f7f4fa;font-size:13px; }
+.horarios-table-compact th, .horarios-table-compact td { border:1px solid #e3d8f6;padding:5px;text-align:center; }
+.horarios-table-compact th { background:#ece3fa;font-weight:600;font-size:13px; }
+.input-hora { width:70px; padding:2px 4px; font-size:13px; border-radius:5px; border:1px solid #d2c6ed; }
+.horarios-table-compact td input[type="checkbox"] { transform:scale(1.1); }
 .btn.primary { background: #7656b0; }
-.btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 2px;}
+.btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 5px 12px; cursor:pointer; margin: 2px;}
 .btn:hover { background: #7f62b6; }
-.card { background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.09); }
+.card { background: #fff; padding: 22px; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.09); }
+.bloque-fechas label, .bloque-duracion-turno label { font-size:13px; }
 </style>
