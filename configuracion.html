@@ -24,18 +24,22 @@
       </div>
       <div>
         <label>Duración turno nueva consulta (min)</label>
-        <input type="number" name="duracion_nueva" min="10" max="180" required>
+        <select name="duracion_nueva" required></select>
       </div>
       <div>
         <label>Duración turno consulta recurrente (min)</label>
-        <input type="number" name="duracion_recurrente" min="5" max="180" required>
+        <select name="duracion_recurrente" required></select>
       </div>
     </div>
     <div style="margin-top:24px;">
       <label>Centros médicos donde atiende</label>
-      <select name="centros" id="centros-select" multiple style="min-width:220px;">
-        <!-- Opciones se llenan por JS -->
-      </select>
+      <div style="display:flex;gap:8px;">
+        <select id="centro-selector" style="min-width:220px;">
+          <!-- Opciones por JS -->
+        </select>
+        <button type="button" class="btn" id="btn-agregar-centro">Agregar</button>
+      </div>
+      <div id="centros-elegidos" style="margin-top:10px;"></div>
     </div>
     <div class="actions" style="margin-top:24px;">
       <button type="submit" class="btn primary">Guardar configuración</button>
@@ -47,11 +51,10 @@
     <button class="btn" id="btn-add-asistente" style="margin-top:10px;">Agregar asistente</button>
     <div id="asistente-form-wrap" class="card hidden" style="margin-top:12px;">
       <form id="asistente-form">
+        <label>Email <input type="email" name="email" required></label>
         <label>Nombre <input type="text" name="nombre" required></label>
         <label>Apellido <input type="text" name="apellido" required></label>
-        <label>Email <input type="email" name="email"></label>
         <label>Teléfono <input type="text" name="telefono"></label>
-        <label>Especialidad <input type="text" name="especialidad"></label>
         <div class="actions">
           <button type="submit" class="btn primary">Crear asistente</button>
           <button type="button" class="btn" id="btn-cancel-asistente">Cancelar</button>
@@ -60,18 +63,29 @@
     </div>
   </div>
 </div>
-
 <script type="module">
-// Reemplaza por tu clave/supabaseUrl
+// Supabase config
 const supabaseUrl = 'https://TU_SUPABASE_URL.supabase.co';
 const supabaseKey = 'TU_SUPABASE_ANON_KEY';
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Obtener profesional_id (del login/localStorage)
 const profesional_id = localStorage.getItem('profesional_id');
 
-// 1. Cargar configuración actual
+// 1. Selectores de duración en saltos de 5 minutos
+function llenarOpcionesDuracion() {
+  for(let i=5;i<=180;i+=5) {
+    ['duracion_nueva','duracion_recurrente'].forEach(name=>{
+      const select = document.querySelector(`[name="${name}"]`);
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = i + ' min';
+      select.appendChild(opt);
+    });
+  }
+}
+llenarOpcionesDuracion();
+
+// 2. Cargar configuración actual
 async function cargarConfiguracion() {
   const { data, error } = await supabase
     .from('profesional_preferencias')
@@ -93,18 +107,76 @@ async function cargarConfiguracion() {
     document.querySelector('[name="duracion_recurrente"]').value = data.duracion_turno_recurrente || 15;
   }
 }
+cargarConfiguracion();
 
-// 2. Guardar configuración
+// 3. Centros médicos: selector y lista
+let centrosDisponibles = [];
+let centrosElegidos = [];
+async function cargarCentros() {
+  const { data, error } = await supabase
+    .from('centros_medicos')
+    .select('id,nombre')
+    .eq('activo', true);
+  centrosDisponibles = data || [];
+  const selector = document.getElementById('centro-selector');
+  selector.innerHTML = '';
+  centrosDisponibles.forEach(centro=>{
+    const opt = document.createElement('option');
+    opt.value = centro.id;
+    opt.textContent = centro.nombre;
+    selector.appendChild(opt);
+  });
+  // Cargar los ya elegidos
+  const { data: vinculos } = await supabase
+    .from('profesional_centro')
+    .select('centro_id')
+    .eq('profesional_id', profesional_id)
+    .eq('activo', true);
+  centrosElegidos = vinculos ? vinculos.map(vc=>vc.centro_id) : [];
+  renderCentrosElegidos();
+}
+function renderCentrosElegidos() {
+  const cont = document.getElementById('centros-elegidos');
+  cont.innerHTML = '';
+  centrosElegidos.forEach(id=>{
+    const centro = centrosDisponibles.find(c=>c.id===id);
+    if(centro){
+      const div = document.createElement('div');
+      div.className = 'centro-elegido';
+      div.textContent = centro.nombre;
+      const btn = document.createElement('button');
+      btn.textContent = 'Quitar';
+      btn.className = 'btn';
+      btn.style.marginLeft = "10px";
+      btn.onclick = () => quitarCentro(id);
+      div.appendChild(btn);
+      cont.appendChild(div);
+    }
+  });
+}
+function quitarCentro(id) {
+  centrosElegidos = centrosElegidos.filter(cid=>cid!==id);
+  renderCentrosElegidos();
+}
+document.getElementById('btn-agregar-centro').onclick = function(){
+  const id = document.getElementById('centro-selector').value;
+  if(id && !centrosElegidos.includes(id)){
+    centrosElegidos.push(id);
+    renderCentrosElegidos();
+  }
+};
+cargarCentros();
+
+// Guardar configuración
 document.getElementById('config-form').addEventListener('submit', async function(e){
   e.preventDefault();
-  // Tomar datos
   const dias = Array.from(document.querySelectorAll('[name="dias"]:checked')).map(cb=>cb.value);
   const hora_inicio = document.querySelector('[name="hora_inicio"]').value;
   const hora_fin = document.querySelector('[name="hora_fin"]').value;
   const duracion_nueva = Number(document.querySelector('[name="duracion_nueva"]').value);
   const duracion_recurrente = Number(document.querySelector('[name="duracion_recurrente"]').value);
-  // Actualizar tabla preferencias
-  const { data, error } = await supabase
+  // Actualizar preferencias
+  await supabase
     .from('profesional_preferencias')
     .upsert({
       profesional_id,
@@ -114,76 +186,43 @@ document.getElementById('config-form').addEventListener('submit', async function
       duracion_turno_nueva: duracion_nueva,
       duracion_turno_recurrente: duracion_recurrente
     });
-  if(error) alert('Error al guardar: ' + error.message);
-  else alert('Configuración guardada');
-});
-
-// 3. Cargar centros médicos activos
-async function cargarCentros() {
-  const { data, error } = await supabase
-    .from('centros_medicos')
-    .select('id,nombre')
-    .eq('activo', true);
-  const select = document.getElementById('centros-select');
-  select.innerHTML = '';
-  if(data) {
-    data.forEach(centro => {
-      const option = document.createElement('option');
-      option.value = centro.id;
-      option.textContent = centro.nombre;
-      select.appendChild(option);
-    });
-  }
-  // Marcar los centros donde atiende
-  const { data: vinculos } = await supabase
-    .from('profesional_centro')
-    .select('centro_id')
-    .eq('profesional_id', profesional_id)
-    .eq('activo', true);
-  if(vinculos) {
-    Array.from(select.options).forEach(opt=>{
-      if(vinculos.some(vc=>vc.centro_id===opt.value)) opt.selected = true;
-    });
-  }
-}
-document.getElementById('centros-select').addEventListener('change', async function(e){
-  // Actualizar vinculos
-  const centros = Array.from(this.selectedOptions).map(opt=>opt.value);
-  // Primero, desactivar todos los vinculos actuales
+  // Actualizar vinculos de centros
+  // Desactivar todos
   await supabase
     .from('profesional_centro')
     .update({ activo: false })
     .eq('profesional_id', profesional_id);
-  // Luego, activar los seleccionados (o crear si no existen)
-  for(const centro_id of centros) {
-    const { data, error } = await supabase
+  // Activar los elegidos
+  for(const centro_id of centrosElegidos) {
+    await supabase
       .from('profesional_centro')
       .upsert({ profesional_id, centro_id, activo: true }, { onConflict: ['profesional_id','centro_id'] });
   }
+  alert('Configuración guardada');
 });
 
-// 4. Gestión de asistentes
+// 4. Asistentes (usuarios con rol asistente en profiles)
 async function cargarAsistentes(){
   const { data, error } = await supabase
-    .from('profesionales')
+    .from('profiles')
     .select('*')
-    .eq('activo', true)
-    .neq('id', profesional_id);
+    .eq('role', 'asistente')
+    .eq('active', true)
+    .eq('profesional_id', profesional_id);
   const list = document.getElementById('asistentes-list');
   list.innerHTML = '';
   if(data && data.length){
     data.forEach(asistente=>{
       const div = document.createElement('div');
-      div.textContent = `${asistente.nombre} ${asistente.apellido} (${asistente.especialidad||''})`;
-      // Opción para desvincular
+      div.textContent = `${asistente.display_name} (${asistente.email})`;
       const btn = document.createElement('button');
-      btn.textContent = 'Desvincular';
+      btn.textContent = 'Desactivar';
       btn.className = 'btn';
       btn.onclick = async function(){
         await supabase
-          .from('profesional_centro')
-          .delete()
-          .eq('profesional_id', asistente.id);
+          .from('profiles')
+          .update({ active: false })
+          .eq('id', asistente.id);
         cargarAsistentes();
       };
       div.appendChild(btn);
@@ -193,38 +232,27 @@ async function cargarAsistentes(){
     list.textContent = 'No hay asistentes vinculados.';
   }
 }
-// Mostrar formulario para crear asistente
 document.getElementById('btn-add-asistente').onclick = ()=> {
   document.getElementById('asistente-form-wrap').classList.remove('hidden');
 };
 document.getElementById('btn-cancel-asistente').onclick = ()=> {
   document.getElementById('asistente-form-wrap').classList.add('hidden');
 };
-// Crear asistente
 document.getElementById('asistente-form').addEventListener('submit', async function(e){
   e.preventDefault();
   const fd = new FormData(this);
   const asistente = {
+    email: fd.get('email'),
     nombre: fd.get('nombre'),
     apellido: fd.get('apellido'),
-    email: fd.get('email'),
-    telefono: fd.get('telefono'),
-    especialidad: fd.get('especialidad'),
-    activo: true
+    telefono: fd.get('telefono')
   };
-  const { data, error } = await supabase
-    .from('profesionales')
-    .insert([asistente]);
-  if(error) alert('Error al crear asistente: ' + error.message);
-  else {
-    alert('Asistente creado');
-    document.getElementById('asistente-form-wrap').classList.add('hidden');
-    cargarAsistentes();
-  }
+  // IMPORTANTE: Para crear el usuario en Auth y en profiles, debes hacer esto en el backend con la service_role key.
+  // Aquí solo guardamos el perfil si ya existe el usuario en Auth.
+  // Si tienes un endpoint propio que llama a la función crearAsistente (como te pasé antes), puedes hacer fetch a ese endpoint aquí.
+  alert('Para crear asistentes correctamente, usa el endpoint seguro en el backend como te recomendé.');
+  document.getElementById('asistente-form-wrap').classList.add('hidden');
+  cargarAsistentes();
 });
-
-// Inicializar todo
-cargarConfiguracion();
-cargarCentros();
 cargarAsistentes();
 </script>
