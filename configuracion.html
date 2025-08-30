@@ -1,53 +1,57 @@
 <!-- Panel de Configuración de Agenda con gestión de centros médicos y asistentes -->
-<div class="card" style="max-width:700px;margin:auto;">
-  <h2>Configuración de Agenda</h2>
-  <form id="config-form">
-    <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:18px;">
-      <div>
-        <label>Días laborales</label>
-        <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          <label><input type="checkbox" name="dias" value="lunes">Lun</label>
-          <label><input type="checkbox" name="dias" value="martes">Mar</label>
-          <label><input type="checkbox" name="dias" value="miercoles">Mié</label>
-          <label><input type="checkbox" name="dias" value="jueves">Jue</label>
-          <label><input type="checkbox" name="dias" value="viernes">Vie</label>
-          <label><input type="checkbox" name="dias" value="sabado">Sáb</label>
-          <label><input type="checkbox" name="dias" value="domingo">Dom</label>
+<div class="card config-grid">
+  <!-- Panel izquierdo: Configuración de agenda -->
+  <div class="config-left">
+    <h2>Configuración de Agenda</h2>
+    <form id="config-form">
+      <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:18px;">
+        <div>
+          <label>Días laborales</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <label><input type="checkbox" name="dias" value="lunes">Lun</label>
+            <label><input type="checkbox" name="dias" value="martes">Mar</label>
+            <label><input type="checkbox" name="dias" value="miercoles">Mié</label>
+            <label><input type="checkbox" name="dias" value="jueves">Jue</label>
+            <label><input type="checkbox" name="dias" value="viernes">Vie</label>
+            <label><input type="checkbox" name="dias" value="sabado">Sáb</label>
+            <label><input type="checkbox" name="dias" value="domingo">Dom</label>
+          </div>
+        </div>
+        <div>
+          <label>Horario laboral</label>
+          <div style="display:flex;gap:8px;">
+            <input type="time" name="hora_inicio" required>
+            <span>-</span>
+            <input type="time" name="hora_fin" required>
+          </div>
+        </div>
+        <div>
+          <label>Duración turno nueva consulta (min)</label>
+          <select name="duracion_nueva" required></select>
+        </div>
+        <div>
+          <label>Duración turno consulta recurrente (min)</label>
+          <select name="duracion_recurrente" required></select>
         </div>
       </div>
-      <div>
-        <label>Horario laboral</label>
+      <div style="margin-top:24px;">
+        <label>Centros médicos donde atiende</label>
         <div style="display:flex;gap:8px;">
-          <input type="time" name="hora_inicio" required>
-          <span>-</span>
-          <input type="time" name="hora_fin" required>
+          <select id="centro-selector" style="min-width:220px;">
+            <option value="">Seleccione un centro...</option>
+          </select>
+          <button type="button" class="btn" id="btn-agregar-centro">Asociar</button>
+          <button type="button" class="btn" id="btn-nuevo-centro">Crear nuevo centro</button>
         </div>
+        <div id="centros-elegidos" style="margin-top:10px;"></div>
       </div>
-      <div>
-        <label>Duración turno nueva consulta (min)</label>
-        <select name="duracion_nueva" required></select>
+      <div class="actions" style="margin-top:24px;">
+        <button type="submit" class="btn primary">Guardar configuración</button>
       </div>
-      <div>
-        <label>Duración turno consulta recurrente (min)</label>
-        <select name="duracion_recurrente" required></select>
-      </div>
-    </div>
-    <div style="margin-top:24px;">
-      <label>Centros médicos donde atiende</label>
-      <div style="display:flex;gap:8px;">
-        <select id="centro-selector" style="min-width:220px;">
-          <option value="">Seleccione un centro...</option>
-        </select>
-        <button type="button" class="btn" id="btn-agregar-centro">Asociar</button>
-        <button type="button" class="btn" id="btn-nuevo-centro">Crear nuevo centro</button>
-      </div>
-      <div id="centros-elegidos" style="margin-top:10px;"></div>
-    </div>
-    <div class="actions" style="margin-top:24px;">
-      <button type="submit" class="btn primary">Guardar configuración</button>
-    </div>
-  </form>
-  <div style="margin-top:40px;">
+    </form>
+  </div>
+  <!-- Panel derecho: Asistentes -->
+  <div class="config-right">
     <h3>Asistentes</h3>
     <div id="asistentes-list"></div>
     <button class="btn" id="btn-add-asistente" style="margin-top:10px;">Agregar asistente</button>
@@ -85,8 +89,6 @@ import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-// Puedes obtener el profesional_id desde el login, perfil o localStorage:
 const profesional_id = localStorage.getItem('profesional_id');
 
 // 1. Selectores de duración en saltos de 5 minutos
@@ -312,6 +314,7 @@ cargarAsistentes();
 </script>
 
 <style>
+body { background: #f6f3fa;}
 .card { background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.09); }
 .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 2px;}
 .btn.primary { background: #7656b0; }
@@ -322,4 +325,17 @@ cargarAsistentes();
 .modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.25); align-items:center; justify-content:center; z-index:1000;}
 .modal:not(.hidden) { display:flex; }
 .modal-content { min-width:320px; background:#fff; padding:24px; border-radius:10px; }
+.config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  max-width: 1050px;
+  margin: 32px auto;
+}
+.config-left, .config-right {
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .config-grid { grid-template-columns: 1fr; }
+}
 </style>
