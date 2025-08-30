@@ -8,15 +8,20 @@
 </head>
 <body>
   <!-- Login (si no hay sesión) -->
-  <div class="login-container">
+  <div class="login-container" id="login-container">
     <h1>Gestión de Turnos</h1>
     <form id="login-form">
       <input type="email" id="email" placeholder="Email" required />
       <input type="password" id="password" placeholder="Contraseña" required />
       <button type="submit">Ingresar</button>
     </form>
+    <button id="forgot-password-btn" class="btn" style="margin-top:10px;width:100%;background:#eee;color:#444;">¿Olvidaste tu contraseña?</button>
     <p id="error-message"></p>
+    <p id="success-message" style="color:green;"></p>
   </div>
+
+  <!-- App principal, oculta al inicio -->
+  <div id="app-root" style="display:none"></div>
 
   <script type="module" src="app.js"></script>
 </body>
