@@ -1,3 +1,4 @@
+<!-- Panel de Configuración de Agenda con gestión de centros médicos y asistentes -->
 <div class="card" style="max-width:600px;margin:auto;">
   <h2>Configuración de Agenda</h2>
   <form id="config-form">
@@ -37,7 +38,8 @@
         <select id="centro-selector" style="min-width:220px;">
           <!-- Opciones por JS -->
         </select>
-        <button type="button" class="btn" id="btn-agregar-centro">Agregar</button>
+        <button type="button" class="btn" id="btn-agregar-centro">Asociar</button>
+        <button type="button" class="btn" id="btn-nuevo-centro">Crear nuevo centro</button>
       </div>
       <div id="centros-elegidos" style="margin-top:10px;"></div>
     </div>
@@ -63,12 +65,26 @@
     </div>
   </div>
 </div>
+
+<!-- Modal nuevo centro -->
+<div id="modal-nuevo-centro" class="modal hidden">
+  <div class="modal-content card">
+    <h3>Crear nuevo centro médico</h3>
+    <form id="form-nuevo-centro">
+      <label>Nombre <input type="text" name="nombre" required></label>
+      <div class="actions">
+        <button type="submit" class="btn primary">Crear</button>
+        <button type="button" class="btn" id="btn-cancel-nuevo-centro">Cancelar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
-// Supabase config
-const supabaseUrl = 'https://TU_SUPABASE_URL.supabase.co';
-const supabaseKey = 'TU_SUPABASE_ANON_KEY';
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const profesional_id = localStorage.getItem('profesional_id');
 
 // 1. Selectores de duración en saltos de 5 minutos
@@ -109,15 +125,16 @@ async function cargarConfiguracion() {
 }
 cargarConfiguracion();
 
-// 3. Centros médicos: selector y lista
+// 3. Centros médicos: selector, lista y creación
 let centrosDisponibles = [];
 let centrosElegidos = [];
 async function cargarCentros() {
-  const { data, error } = await supabase
+  // 1. Todos los centros activos
+  const { data: centros, error } = await supabase
     .from('centros_medicos')
-    .select('id,nombre')
+    .select('id, nombre')
     .eq('activo', true);
-  centrosDisponibles = data || [];
+  centrosDisponibles = centros || [];
   const selector = document.getElementById('centro-selector');
   selector.innerHTML = '';
   centrosDisponibles.forEach(centro=>{
@@ -126,7 +143,7 @@ async function cargarCentros() {
     opt.textContent = centro.nombre;
     selector.appendChild(opt);
   });
-  // Cargar los ya elegidos
+  // 2. Los ya asociados
   const { data: vinculos } = await supabase
     .from('profesional_centro')
     .select('centro_id')
@@ -137,7 +154,7 @@ async function cargarCentros() {
 }
 function renderCentrosElegidos() {
   const cont = document.getElementById('centros-elegidos');
-  cont.innerHTML = '';
+  cont.innerHTML = '<b>Centros asociados:</b><br>';
   centrosElegidos.forEach(id=>{
     const centro = centrosDisponibles.find(c=>c.id===id);
     if(centro){
@@ -156,15 +173,49 @@ function renderCentrosElegidos() {
 }
 function quitarCentro(id) {
   centrosElegidos = centrosElegidos.filter(cid=>cid!==id);
-  renderCentrosElegidos();
+  // Desactivar vínculo en DB
+  supabase
+    .from('profesional_centro')
+    .update({ activo: false })
+    .eq('profesional_id', profesional_id)
+    .eq('centro_id', id)
+    .then(()=>cargarCentros());
 }
 document.getElementById('btn-agregar-centro').onclick = function(){
   const id = document.getElementById('centro-selector').value;
   if(id && !centrosElegidos.includes(id)){
-    centrosElegidos.push(id);
-    renderCentrosElegidos();
+    // Asociar en DB
+    supabase
+      .from('profesional_centro')
+      .upsert({ profesional_id, centro_id: id, activo: true }, { onConflict: ['profesional_id','centro_id'] })
+      .then(()=>cargarCentros());
   }
 };
+// Modal para crear nuevo centro
+document.getElementById('btn-nuevo-centro').onclick = function(){
+  document.getElementById('modal-nuevo-centro').classList.remove('hidden');
+};
+document.getElementById('btn-cancel-nuevo-centro').onclick = function(){
+  document.getElementById('modal-nuevo-centro').classList.add('hidden');
+};
+document.getElementById('form-nuevo-centro').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const nombre = this.nombre.value;
+  const { data, error } = await supabase
+    .from('centros_medicos')
+    .insert([{ nombre, activo: true }]);
+  if(error) alert('Error al crear centro: ' + error.message);
+  else {
+    document.getElementById('modal-nuevo-centro').classList.add('hidden');
+    await cargarCentros();
+    // Selecciona y asocia el nuevo centro automáticamente
+    const nuevoId = data[0].id;
+    await supabase
+      .from('profesional_centro')
+      .upsert({ profesional_id, centro_id: nuevoId, activo: true }, { onConflict: ['profesional_id','centro_id'] });
+    await cargarCentros();
+  }
+});
 cargarCentros();
 
 // Guardar configuración
@@ -186,18 +237,6 @@ document.getElementById('config-form').addEventListener('submit', async function
       duracion_turno_nueva: duracion_nueva,
       duracion_turno_recurrente: duracion_recurrente
     });
-  // Actualizar vinculos de centros
-  // Desactivar todos
-  await supabase
-    .from('profesional_centro')
-    .update({ activo: false })
-    .eq('profesional_id', profesional_id);
-  // Activar los elegidos
-  for(const centro_id of centrosElegidos) {
-    await supabase
-      .from('profesional_centro')
-      .upsert({ profesional_id, centro_id, activo: true }, { onConflict: ['profesional_id','centro_id'] });
-  }
   alert('Configuración guardada');
 });
 
@@ -247,12 +286,16 @@ document.getElementById('asistente-form').addEventListener('submit', async funct
     apellido: fd.get('apellido'),
     telefono: fd.get('telefono')
   };
-  // IMPORTANTE: Para crear el usuario en Auth y en profiles, debes hacer esto en el backend con la service_role key.
-  // Aquí solo guardamos el perfil si ya existe el usuario en Auth.
-  // Si tienes un endpoint propio que llama a la función crearAsistente (como te pasé antes), puedes hacer fetch a ese endpoint aquí.
-  alert('Para crear asistentes correctamente, usa el endpoint seguro en el backend como te recomendé.');
+  // IMPORTANTE: Para crear el usuario en Auth y profiles, deberías hacerlo desde backend/API por seguridad.
+  alert('Para crear asistentes correctamente, usa un endpoint seguro en el backend como te recomendé.');
   document.getElementById('asistente-form-wrap').classList.add('hidden');
   cargarAsistentes();
 });
 cargarAsistentes();
 </script>
+
+<style>
+.modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.25); align-items:center; justify-content:center; }
+.modal:not(.hidden) { display:flex; }
+.modal-content { min-width:320px; }
+</style>
