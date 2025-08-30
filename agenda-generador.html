@@ -1,4 +1,4 @@
-<!-- Generador de Agenda de Disponibilidad de Turnos -->
+<!-- Generador de Agenda de Disponibilidad de Turnos (Slots sin tipo) -->
 <div class="card agenda-generador">
   <h2>Generar Agenda de Disponibilidad</h2>
   <!-- Nombre de la agenda -->
@@ -54,27 +54,11 @@
     </div>
   </section>
 
-  <!-- Duración de turnos por tipo -->
+  <!-- Duración de los slots básicos -->
   <section class="bloque-duracion-turno" style="margin-top:12px;display:flex;gap:32px;">
     <div>
-      <label for="duracion-nueva"><b>Duración turno nueva consulta <span class="obligatorio">*</span></b></label><br>
-      <select id="duracion-nueva" required>
-        <option value="">Seleccione...</option>
-        <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
-        <option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option>
-      </select>
-    </div>
-    <div>
-      <label for="duracion-recurrente"><b>Duración turno consulta recurrente <span class="obligatorio">*</span></b></label><br>
-      <select id="duracion-recurrente" required>
-        <option value="">Seleccione...</option>
-        <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
-        <option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option>
-      </select>
-    </div>
-    <div>
-      <label for="duracion-sobreturno"><b>Duración de sobre turnos <span class="obligatorio">*</span></b></label><br>
-      <select id="duracion-sobreturno" required>
+      <label for="duracion-slot"><b>Duración de cada slot (minutos) <span class="obligatorio">*</span></b></label><br>
+      <select id="duracion-slot" required>
         <option value="">Seleccione...</option>
         <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
         <option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option>
@@ -117,23 +101,24 @@
 </div>
 
 <script type="module">
+// Supabase config
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Validación de sesión
 const profesional_id = localStorage.getItem('profesional_id');
 const centro_default_id = localStorage.getItem('centro_medico_id');
-const DIAS = [
-  {nombre:'lunes', label:'LUN'}, {nombre:'martes', label:'MAR'}, {nombre:'miercoles', label:'MIÉR'},
-  {nombre:'jueves', label:'JUEV'}, {nombre:'viernes', label:'VIER'}, {nombre:'sabado', label:'SÁB'}
-];
-
-// Validación inicial: Si no hay sesión, redirigir a login
 if (!profesional_id || !centro_default_id) {
   alert('Sesión no iniciada o datos incompletos. Redirigiendo a login.');
   window.location.href = "index.html";
 }
+
+const DIAS = [
+  {nombre:'lunes', label:'LUN'}, {nombre:'martes', label:'MAR'}, {nombre:'miercoles', label:'MIÉR'},
+  {nombre:'jueves', label:'JUEV'}, {nombre:'viernes', label:'VIER'}, {nombre:'sabado', label:'SÁB'}
+];
 
 // --- Cargar centros médicos activos ---
 async function cargarCentros() {
@@ -152,7 +137,6 @@ async function cargarCentros() {
       opt.textContent = c.nombre;
       selector.appendChild(opt);
     });
-    // Selecciona por defecto el centro del login si existe en el listado
     if (centro_default_id && selector.querySelector(`option[value="${centro_default_id}"]`)) {
       selector.value = centro_default_id;
     }
@@ -173,7 +157,7 @@ document.getElementById('cancelar-nuevo-centro').onclick = function() {
   document.getElementById('nuevo-centro-form').classList.add('hidden');
 };
 
-// Guardar nuevo centro médico con todos los campos
+// Guardar nuevo centro médico
 document.getElementById('guardar-nuevo-centro').onclick = async function() {
   const nombre = document.getElementById('nuevo-centro-nombre').value.trim();
   const direccion = document.getElementById('nuevo-centro-direccion').value.trim();
@@ -225,7 +209,7 @@ renderTablaHorarios();
 // --- Validaciones en tiempo real ---
 const campos_requeridos = [
   'nombre-agenda', 'fecha-inicio', 'fecha-fin',
-  'centro-agenda', 'duracion-nueva', 'duracion-recurrente', 'duracion-sobreturno'
+  'centro-agenda', 'duracion-slot'
 ];
 campos_requeridos.forEach(id => {
   document.getElementById(id).addEventListener('input', validarCamposAgenda);
@@ -249,12 +233,10 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
   const fecha_inicio = document.getElementById('fecha-inicio').value;
   const fecha_fin = document.getElementById('fecha-fin').value;
   const centro_id = document.getElementById('centro-agenda').value;
-  const duracion_nueva = Number(document.getElementById('duracion-nueva').value);
-  const duracion_recurrente = Number(document.getElementById('duracion-recurrente').value);
-  const duracion_sobreturno = Number(document.getElementById('duracion-sobreturno').value);
+  const duracion_slot = Number(document.getElementById('duracion-slot').value);
 
   // Recopilar horarios por día
-  const turnos = [];
+  const bloques = [];
   DIAS.forEach((dia, idx)=>{
     const habilitado = document.querySelector(`[name="hab_${idx}"]`).checked;
     if(!habilitado) return;
@@ -262,78 +244,45 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     const tm_ini = document.querySelector(`[name="tm_ini_${idx}"]`).value;
     const tm_fin = document.querySelector(`[name="tm_fin_${idx}"]`).value;
     if(tm_ini && tm_fin && tm_ini < tm_fin){
-      turnos.push({
+      bloques.push({
         dia:dia.nombre,
-        tipo_turno:'nueva_consulta',
         hora_inicio:tm_ini,
         hora_fin:tm_fin,
-        duracion: duracion_nueva,
-      });
-      turnos.push({
-        dia:dia.nombre,
-        tipo_turno:'recurrente',
-        hora_inicio:tm_ini,
-        hora_fin:tm_fin,
-        duracion: duracion_recurrente,
-      });
-      turnos.push({
-        dia:dia.nombre,
-        tipo_turno:'sobreturno',
-        hora_inicio:tm_ini,
-        hora_fin:tm_fin,
-        duracion: duracion_sobreturno,
       });
     }
     // Tarde
     const tt_ini = document.querySelector(`[name="tt_ini_${idx}"]`).value;
     const tt_fin = document.querySelector(`[name="tt_fin_${idx}"]`).value;
     if(tt_ini && tt_fin && tt_ini < tt_fin){
-      turnos.push({
+      bloques.push({
         dia:dia.nombre,
-        tipo_turno:'nueva_consulta',
         hora_inicio:tt_ini,
         hora_fin:tt_fin,
-        duracion: duracion_nueva,
-      });
-      turnos.push({
-        dia:dia.nombre,
-        tipo_turno:'recurrente',
-        hora_inicio:tt_ini,
-        hora_fin:tt_fin,
-        duracion: duracion_recurrente,
-      });
-      turnos.push({
-        dia:dia.nombre,
-        tipo_turno:'sobreturno',
-        hora_inicio:tt_ini,
-        hora_fin:tt_fin,
-        duracion: duracion_sobreturno,
       });
     }
   });
-  if(turnos.length===0){
+  if(bloques.length===0){
     msg.textContent = "Configure al menos un horario válido para algún día.";
     return;
   }
 
-  // Generar slots de agenda
+  // Generar slots de agenda: SOLO UNO por bloque, tipo_turno se asigna en la reserva
   msg.textContent = "Generando agenda...";
   let totalSlots = 0;
   let fechaActual = new Date(fecha_inicio);
   const fechaFin = new Date(fecha_fin);
   while(fechaActual <= fechaFin){
     const diaSemanaNum = fechaActual.getDay(); // 0=domingo, 1=lunes, ..., 6=sábado
-    const diaMap = {1:0,2:1,3:2,4:3,5:4,6:5}; // lunes=1
-    const idx = diaMap[diaSemanaNum];
-    if(idx===undefined) { fechaActual.setDate(fechaActual.getDate()+1); continue; }
-    const diaSemana = DIAS[idx].nombre;
-    const diaTurnos = turnos.filter(t=>t.dia===diaSemana);
-    for(const t of diaTurnos){
-      let hIni = toMinutes(t.hora_inicio);
-      let hFin = toMinutes(t.hora_fin);
-      for(let m=hIni; m+t.duracion<=hFin; m+=t.duracion){
+    const diaMap = {1:'lunes',2:'martes',3:'miercoles',4:'jueves',5:'viernes',6:'sabado'}; // lunes=1
+    const diaSemana = diaMap[diaSemanaNum];
+    if(!diaSemana) { fechaActual.setDate(fechaActual.getDate()+1); continue; }
+    const bloquesDia = bloques.filter(b=>b.dia===diaSemana);
+    for(const b of bloquesDia){
+      let hIni = toMinutes(b.hora_inicio);
+      let hFin = toMinutes(b.hora_fin);
+      for(let m=hIni; m+duracion_slot<=hFin; m+=duracion_slot){
         const hora_inicio = toHoraStr(m);
-        const hora_fin = toHoraStr(m+t.duracion);
+        const hora_fin = toHoraStr(m+duracion_slot);
         await supabase
           .from('agenda')
           .upsert({
@@ -343,17 +292,17 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
             hora_inicio,
             hora_fin,
             capacidad: 1,
-            estado: 'disponible',                  // Estado inicial
-            notas: t.tipo_turno,
+            estado: 'disponible',
+            notas: '',
             "Nombre de Agenda": nombre_agenda,
-            tipo_turno: t.tipo_turno
+            tipo_turno: '', // Pendiente, se asigna en la reserva
           }, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
         totalSlots++;
       }
     }
     fechaActual.setDate(fechaActual.getDate()+1);
   }
-  msg.textContent = `Agenda generada (${totalSlots} turnos disponibles).`;
+  msg.textContent = `Agenda generada (${totalSlots} slots disponibles).`;
 };
 
 // --- Helpers ---
