@@ -1,341 +1,115 @@
-<!-- Panel de Configuración de Agenda con gestión de centros médicos y asistentes -->
 <div class="card config-grid">
-  <!-- Panel izquierdo: Configuración de agenda -->
   <div class="config-left">
     <h2>Configuración de Agenda</h2>
     <form id="config-form">
-      <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:18px;">
-        <div>
-          <label>Días laborales</label>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;">
-            <label><input type="checkbox" name="dias" value="lunes">Lun</label>
-            <label><input type="checkbox" name="dias" value="martes">Mar</label>
-            <label><input type="checkbox" name="dias" value="miercoles">Mié</label>
-            <label><input type="checkbox" name="dias" value="jueves">Jue</label>
-            <label><input type="checkbox" name="dias" value="viernes">Vie</label>
-            <label><input type="checkbox" name="dias" value="sabado">Sáb</label>
-            <label><input type="checkbox" name="dias" value="domingo">Dom</label>
-          </div>
-        </div>
-        <div>
-          <label>Horario laboral</label>
-          <div style="display:flex;gap:8px;">
-            <input type="time" name="hora_inicio" required>
-            <span>-</span>
-            <input type="time" name="hora_fin" required>
-          </div>
-        </div>
-        <div>
-          <label>Duración turno nueva consulta (min)</label>
-          <select name="duracion_nueva" required></select>
-        </div>
-        <div>
-          <label>Duración turno consulta recurrente (min)</label>
-          <select name="duracion_recurrente" required></select>
-        </div>
-      </div>
-      <div style="margin-top:24px;">
-        <label>Centros médicos donde atiende</label>
-        <div style="display:flex;gap:8px;">
-          <select id="centro-selector" style="min-width:220px;">
-            <option value="">Seleccione un centro...</option>
-          </select>
-          <button type="button" class="btn" id="btn-agregar-centro">Asociar</button>
-          <button type="button" class="btn" id="btn-nuevo-centro">Crear nuevo centro</button>
-        </div>
-        <div id="centros-elegidos" style="margin-top:10px;"></div>
-      </div>
+      <div id="turnos-list"></div>
+      <button type="button" class="btn" id="btn-agregar-turno" style="margin-top:8px;">Agregar turno</button>
       <div class="actions" style="margin-top:24px;">
         <button type="submit" class="btn primary">Guardar configuración</button>
       </div>
     </form>
   </div>
-  <!-- Panel derecho: Asistentes -->
-  <div class="config-right">
-    <h3>Asistentes</h3>
-    <div id="asistentes-list"></div>
-    <button class="btn" id="btn-add-asistente" style="margin-top:10px;">Agregar asistente</button>
-    <div id="asistente-form-wrap" class="card hidden" style="margin-top:12px;">
-      <form id="asistente-form">
-        <label>Email <input type="email" name="email" required></label>
-        <label>Nombre <input type="text" name="nombre" required></label>
-        <label>Apellido <input type="text" name="apellido" required></label>
-        <label>Teléfono <input type="text" name="telefono"></label>
-        <div class="actions">
-          <button type="submit" class="btn primary">Crear asistente</button>
-          <button type="button" class="btn" id="btn-cancel-asistente">Cancelar</button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-<!-- Modal nuevo centro -->
-<div id="modal-nuevo-centro" class="modal hidden">
-  <div class="modal-content card">
-    <h3>Crear nuevo centro médico</h3>
-    <form id="form-nuevo-centro">
-      <label>Nombre <input type="text" name="nombre" required></label>
-      <div class="actions">
-        <button type="submit" class="btn primary">Crear</button>
-        <button type="button" class="btn" id="btn-cancel-nuevo-centro">Cancelar</button>
-      </div>
-    </form>
-  </div>
+  <!-- ... resto del panel asistentes ... -->
 </div>
 
 <script type="module">
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
+const supabaseAnonKey = 'eyJ...'; // tu key real aquí
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 const profesional_id = localStorage.getItem('profesional_id');
 
-// 1. Selectores de duración en saltos de 5 minutos
-function llenarOpcionesDuracion() {
-  for(let i=5;i<=180;i+=5) {
-    ['duracion_nueva','duracion_recurrente'].forEach(name=>{
-      const select = document.querySelector(`[name="${name}"]`);
-      const opt = document.createElement('option');
-      opt.value = i;
-      opt.textContent = i + ' min';
-      select.appendChild(opt);
-    });
-  }
-}
-llenarOpcionesDuracion();
+const DIAS = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
 
-// 2. Cargar configuración actual
-async function cargarConfiguracion() {
+function crearTurnoHTML(turno = {}) {
+  // turno: {dias:[], hora_inicio:'', hora_fin:''}
+  const idx = turno.idx !== undefined ? turno.idx : Date.now();
+  return `
+    <div class="turno-row" data-idx="${idx}">
+      <div>
+        <label>Días:</label>
+        <div style="display:flex;gap:8px;">
+          ${DIAS.map(dia => `
+            <label>
+              <input type="checkbox" name="dias_${idx}" value="${dia}" ${turno.dias && turno.dias.includes(dia)?'checked':''}> ${dia.slice(0,3)}
+            </label>
+          `).join('')}
+        </div>
+      </div>
+      <div>
+        <label>Horario:</label>
+        <input type="time" name="hora_inicio_${idx}" value="${turno.hora_inicio||''}" required>
+        <span>-</span>
+        <input type="time" name="hora_fin_${idx}" value="${turno.hora_fin||''}" required>
+      </div>
+      <button type="button" class="btn btn-quitar-turno" style="margin-left:10px;">Quitar</button>
+    </div>
+  `;
+}
+
+function renderTurnos(turnos) {
+  const cont = document.getElementById('turnos-list');
+  cont.innerHTML = '';
+  turnos.forEach((turno, idx) => {
+    turno.idx = idx;
+    cont.innerHTML += crearTurnoHTML(turno);
+  });
+  // Listeners para quitar turno
+  cont.querySelectorAll('.btn-quitar-turno').forEach((btn, idx) => {
+    btn.onclick = () => {
+      turnos.splice(idx,1);
+      renderTurnos(turnos);
+    };
+  });
+}
+
+let turnosActuales = [];
+
+async function cargarTurnos() {
+  // Obtener los turnos de ese profesional
   const { data } = await supabase
-    .from('profesional_preferencias')
+    .from('profesional_turnos')
     .select('*')
-    .eq('profesional_id', profesional_id)
-    .single();
-  if(data) {
-    // Días laborales
-    if(data.dias_laborales) {
-      document.querySelectorAll('[name="dias"]').forEach(cb => {
-        cb.checked = data.dias_laborales.includes(cb.value);
-      });
-    }
-    // Horario
-    document.querySelector('[name="hora_inicio"]').value = data.horario_inicio || '08:00';
-    document.querySelector('[name="hora_fin"]').value = data.horario_fin || '17:00';
-    // Duraciones
-    document.querySelector('[name="duracion_nueva"]').value = data.duracion_turno_nueva || 30;
-    document.querySelector('[name="duracion_recurrente"]').value = data.duracion_turno_recurrente || 15;
-  }
+    .eq('profesional_id', profesional_id);
+  turnosActuales = data ? data.map(t=>({
+    dias: t.dias,
+    hora_inicio: t.hora_inicio,
+    hora_fin: t.hora_fin
+  })) : [];
+  renderTurnos(turnosActuales.length ? turnosActuales : [{dias:[],hora_inicio:'',hora_fin:''}]);
 }
-cargarConfiguracion();
+cargarTurnos();
 
-// 3. Centros médicos: selector, lista y creación
-let centrosDisponibles = [];
-let centrosElegidos = [];
-async function cargarCentros() {
-  // 1. Todos los centros activos
-  const selector = document.getElementById('centro-selector');
-  selector.innerHTML = '<option value="">Seleccione un centro...</option>';
-  const { data: centros } = await supabase
-    .from('centros_medicos')
-    .select('id, nombre')
-    .eq('activo', true);
-  centrosDisponibles = centros || [];
-  centrosDisponibles.forEach(centro=>{
-    const opt = document.createElement('option');
-    opt.value = centro.id;
-    opt.textContent = centro.nombre;
-    selector.appendChild(opt);
-  });
-  // 2. Los ya asociados
-  const { data: vinculos } = await supabase
-    .from('profesional_centro')
-    .select('centro_id')
-    .eq('profesional_id', profesional_id)
-    .eq('activo', true);
-  centrosElegidos = vinculos ? vinculos.map(vc=>vc.centro_id) : [];
-  renderCentrosElegidos();
-}
-function renderCentrosElegidos() {
-  const cont = document.getElementById('centros-elegidos');
-  cont.innerHTML = '<b>Centros asociados:</b><br>';
-  if (!centrosElegidos.length) cont.innerHTML += '<i>No hay centros asociados.</i>';
-  centrosElegidos.forEach(id=>{
-    const centro = centrosDisponibles.find(c=>c.id===id);
-    if(centro){
-      const div = document.createElement('div');
-      div.className = 'centro-elegido';
-      div.textContent = centro.nombre;
-      const btn = document.createElement('button');
-      btn.textContent = 'Quitar';
-      btn.className = 'btn';
-      btn.style.marginLeft = "10px";
-      btn.onclick = () => quitarCentro(id);
-      div.appendChild(btn);
-      cont.appendChild(div);
-    }
-  });
-}
-function quitarCentro(id) {
-  centrosElegidos = centrosElegidos.filter(cid=>cid!==id);
-  // Desactivar vínculo en DB
-  supabase
-    .from('profesional_centro')
-    .update({ activo: false })
-    .eq('profesional_id', profesional_id)
-    .eq('centro_id', id)
-    .then(()=>cargarCentros());
-}
-document.getElementById('btn-agregar-centro').onclick = function(){
-  const id = document.getElementById('centro-selector').value;
-  if(id && !centrosElegidos.includes(id)){
-    // Asociar en DB
-    supabase
-      .from('profesional_centro')
-      .upsert({ profesional_id, centro_id: id, activo: true }, { onConflict: ['profesional_id','centro_id'] })
-      .then(()=>cargarCentros());
-  }
+document.getElementById('btn-agregar-turno').onclick = () => {
+  turnosActuales.push({dias:[],hora_inicio:'',hora_fin:''});
+  renderTurnos(turnosActuales);
 };
-// Modal para crear nuevo centro
-document.getElementById('btn-nuevo-centro').onclick = function(){
-  document.getElementById('modal-nuevo-centro').classList.remove('hidden');
-};
-document.getElementById('btn-cancel-nuevo-centro').onclick = function(){
-  document.getElementById('modal-nuevo-centro').classList.add('hidden');
-};
-document.getElementById('form-nuevo-centro').addEventListener('submit', async function(e){
-  e.preventDefault();
-  const nombre = this.nombre.value;
-  const { data, error } = await supabase
-    .from('centros_medicos')
-    .insert([{ nombre, activo: true }]);
-  if(error) alert('Error al crear centro: ' + error.message);
-  else {
-    document.getElementById('modal-nuevo-centro').classList.add('hidden');
-    await cargarCentros();
-    // Selecciona y asocia el nuevo centro automáticamente
-    const nuevoId = data[0].id;
-    await supabase
-      .from('profesional_centro')
-      .upsert({ profesional_id, centro_id: nuevoId, activo: true }, { onConflict: ['profesional_id','centro_id'] });
-    await cargarCentros();
-  }
-});
-cargarCentros();
 
-// Guardar configuración
 document.getElementById('config-form').addEventListener('submit', async function(e){
   e.preventDefault();
-  const dias = Array.from(document.querySelectorAll('[name="dias"]:checked')).map(cb=>cb.value);
-  const hora_inicio = document.querySelector('[name="hora_inicio"]').value;
-  const hora_fin = document.querySelector('[name="hora_fin"]').value;
-  const duracion_nueva = Number(document.querySelector('[name="duracion_nueva"]').value);
-  const duracion_recurrente = Number(document.querySelector('[name="duracion_recurrente"]').value);
-  // Actualizar preferencias
-  await supabase
-    .from('profesional_preferencias')
-    .upsert({
-      profesional_id,
-      dias_laborales: dias,
-      horario_inicio: hora_inicio,
-      horario_fin: hora_fin,
-      duracion_turno_nueva: duracion_nueva,
-      duracion_turno_recurrente: duracion_recurrente
-    });
-  alert('Configuración guardada');
-});
-
-// 4. Asistentes (usuarios con rol asistente en profiles)
-async function cargarAsistentes(){
-  const { data } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('role', 'asistente')
-    .eq('active', true)
-    .eq('profesional_id', profesional_id);
-  const list = document.getElementById('asistentes-list');
-  list.innerHTML = '';
-  if(data && data.length){
-    data.forEach(asistente=>{
-      const div = document.createElement('div');
-      div.textContent = `${asistente.display_name} (${asistente.email})`;
-      const btn = document.createElement('button');
-      btn.textContent = 'Desactivar';
-      btn.className = 'btn';
-      btn.onclick = async function(){
-        await supabase
-          .from('profiles')
-          .update({ active: false })
-          .eq('id', asistente.id);
-        cargarAsistentes();
-      };
-      div.appendChild(btn);
-      list.appendChild(div);
-    });
-  } else {
-    list.textContent = 'No hay asistentes vinculados.';
+  // Recoger todos los turnos del DOM
+  const turnos = [];
+  document.querySelectorAll('.turno-row').forEach(row=>{
+    const idx = row.getAttribute('data-idx');
+    const dias = Array.from(row.querySelectorAll(`[name="dias_${idx}"]:checked`)).map(cb=>cb.value);
+    const hora_inicio = row.querySelector(`[name="hora_inicio_${idx}"]`).value;
+    const hora_fin = row.querySelector(`[name="hora_fin_${idx}"]`).value;
+    if(dias.length && hora_inicio && hora_fin) {
+      turnos.push({dias, hora_inicio, hora_fin});
+    }
+  });
+  // Elimina todos los turnos previos y guarda los nuevos (puedes optimizar si quieres editar/actualizar)
+  await supabase.from('profesional_turnos').delete().eq('profesional_id', profesional_id);
+  for(const turno of turnos) {
+    await supabase.from('profesional_turnos').insert([{profesional_id, ...turno}]);
   }
-}
-document.getElementById('btn-add-asistente').onclick = ()=> {
-  document.getElementById('asistente-form-wrap').classList.remove('hidden');
-};
-document.getElementById('btn-cancel-asistente').onclick = ()=> {
-  document.getElementById('asistente-form-wrap').classList.add('hidden');
-};
-document.getElementById('asistente-form').addEventListener('submit', async function(e){
-  e.preventDefault();
-  const fd = new FormData(this);
-  const asistente = {
-    email: fd.get('email'),
-    nombre: fd.get('nombre'),
-    apellido: fd.get('apellido'),
-    telefono: fd.get('telefono')
-  };
-  // IMPORTANTE: El alta del asistente en Auth y profiles debe hacerse vía backend/API por seguridad.
-  // Aquí solo guardamos el perfil si ya existe el usuario en Auth.
-  // Si tienes un endpoint propio que llama a la función crearAsistente, puedes hacer fetch a ese endpoint aquí.
-  // Ejemplo de creación directa en profiles (no seguro, solo si el usuario ya existe en Auth):
-  const { data, error } = await supabase
-    .from('profiles')
-    .insert([{
-      email: asistente.email,
-      display_name: `${asistente.nombre} ${asistente.apellido}`,
-      telefono: asistente.telefono,
-      role: 'asistente',
-      active: true,
-      profesional_id
-    }]);
-  if(error) alert('Error al crear asistente: ' + error.message);
-  else alert('Asistente creado. Recuerda activar su usuario en Auth desde backend seguro.');
-  document.getElementById('asistente-form-wrap').classList.add('hidden');
-  cargarAsistentes();
+  alert('Turnos guardados');
+  cargarTurnos();
 });
-cargarAsistentes();
 </script>
 
 <style>
-body { background: #f6f3fa;}
-.card { background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.09); }
-.btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 2px;}
-.btn.primary { background: #7656b0; }
-.btn:hover { background: #7f62b6; }
-.grid { display: grid; }
-.actions { margin-top:20px;}
-.hidden { display:none; }
-.modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.25); align-items:center; justify-content:center; z-index:1000;}
-.modal:not(.hidden) { display:flex; }
-.modal-content { min-width:320px; background:#fff; padding:24px; border-radius:10px; }
-.config-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 32px;
-  max-width: 1050px;
-  margin: 32px auto;
-}
-.config-left, .config-right {
-  min-width: 0;
-}
-@media (max-width: 900px) {
-  .config-grid { grid-template-columns: 1fr; }
-}
+.config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; max-width: 1050px; margin: 32px auto; }
+.turno-row { display:flex;align-items:center;gap:22px;margin-bottom:14px;padding-bottom:6px;border-bottom:1px solid #eee;}
+@media (max-width: 900px) { .config-grid { grid-template-columns: 1fr; } }
 </style>
