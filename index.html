@@ -17,6 +17,8 @@
     .error-message { color: #d0003a; margin-top: 12px; font-size: 0.93em; min-height: 24px; }
     .hidden { display: none; }
     .success-message { color: #008c4a; margin-top: 12px; font-size: 0.93em; min-height: 24px; }
+    .forgot-link { display:block; margin-top:10px; margin-bottom:8px; color:#0055a5; font-size:0.97em; text-decoration:underline; cursor:pointer; }
+    #forgot-form { margin-top:16px; }
   </style>
 </head>
 <body>
@@ -29,6 +31,14 @@
       <input type="password" id="password" placeholder="Contraseña" required>
       <button type="submit" class="login-btn">Ingresar</button>
       <div class="error-message" id="error-message"></div>
+      <span class="forgot-link" id="forgot-link">¿Olvidaste tu contraseña?</span>
+    </form>
+    <form id="forgot-form" class="hidden">
+      <input type="email" id="forgot-email" placeholder="Correo para recuperar contraseña" required>
+      <button type="submit" class="login-btn">Enviar recuperación</button>
+      <div class="success-message" id="forgot-success"></div>
+      <div class="error-message" id="forgot-error"></div>
+      <span class="forgot-link" id="volver-login">Volver al login</span>
     </form>
     <form id="center-form" class="hidden">
       <div id="center-select-div"></div>
@@ -82,6 +92,12 @@
       }
       userRole = profileData.role;
       profesionalId = profileData.profesional_id;
+
+      // Guardar datos básicos en localStorage
+      localStorage.setItem('usuario_id', profileData.id);
+      localStorage.setItem('profesional_id', profesionalId);
+      localStorage.setItem('email', userEmail);
+      localStorage.setItem('user_role', userRole);
 
       // Debugging: mostrar valores en la consola
       console.log("Email logueado:", userEmail);
@@ -204,6 +220,46 @@
       setTimeout(() => {
         window.location.href = "dashboard.html";
       }, 1500);
+    });
+
+    // --- Recuperar contraseña ---
+    const forgotLink = document.getElementById('forgot-link');
+    const forgotForm = document.getElementById('forgot-form');
+    const loginForm = document.getElementById('login-form');
+    const volverLogin = document.getElementById('volver-login');
+    forgotLink.addEventListener('click', () => {
+      loginForm.classList.add('hidden');
+      forgotForm.classList.remove('hidden');
+      document.getElementById('forgot-success').textContent = '';
+      document.getElementById('forgot-error').textContent = '';
+      document.getElementById('forgot-email').value = '';
+    });
+    volverLogin.addEventListener('click', () => {
+      forgotForm.classList.add('hidden');
+      loginForm.classList.remove('hidden');
+      document.getElementById('error-message').textContent = '';
+    });
+
+    forgotForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('forgot-email').value.trim();
+      const success = document.getElementById('forgot-success');
+      const errorDiv = document.getElementById('forgot-error');
+      success.textContent = '';
+      errorDiv.textContent = '';
+      if (!email) {
+        errorDiv.textContent = 'Ingrese su correo electrónico.';
+        return;
+      }
+      // Enviar email de recuperación con Supabase
+      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + "/reset-password.html"
+      });
+      if (error) {
+        errorDiv.textContent = 'No se pudo enviar el correo de recuperación. Revise el email ingresado.';
+        return;
+      }
+      success.textContent = 'Correo de recuperación enviado. Revise su bandeja de entrada.';
     });
 
     // Puedes luego cambiar el src de #logo-img por tu logo real
