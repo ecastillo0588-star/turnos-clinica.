@@ -24,12 +24,33 @@
           <option value="">Seleccione un centro...</option>
         </select>
         <button type="button" class="btn" id="btn-nuevo-centro" style="margin-top:6px;">Agregar nuevo centro</button>
-        <div id="nuevo-centro-form" class="hidden" style="margin-top:6px;">
-          <input type="text" id="nuevo-centro-nombre" placeholder="Nombre del centro" style="width:140px;">
-          <button type="button" class="btn" id="guardar-nuevo-centro">Guardar</button>
-          <button type="button" class="btn" id="cancelar-nuevo-centro">Cancelar</button>
-        </div>
       </div>
+    </div>
+    <!-- Formulario para crear centro médico completo -->
+    <div id="nuevo-centro-form" class="hidden centro-form-block">
+      <h4>Nuevo Centro Médico</h4>
+      <div>
+        <label>Nombre <span class="obligatorio">*</span></label>
+        <input type="text" id="nuevo-centro-nombre" required>
+      </div>
+      <div>
+        <label>Dirección</label>
+        <input type="text" id="nuevo-centro-direccion">
+      </div>
+      <div>
+        <label>Teléfono</label>
+        <input type="text" id="nuevo-centro-telefono">
+      </div>
+      <div>
+        <label>Email</label>
+        <input type="email" id="nuevo-centro-email">
+      </div>
+      <div>
+        <label>Notas</label>
+        <input type="text" id="nuevo-centro-notas">
+      </div>
+      <button type="button" class="btn" id="guardar-nuevo-centro">Guardar</button>
+      <button type="button" class="btn" id="cancelar-nuevo-centro">Cancelar</button>
     </div>
   </section>
 
@@ -102,6 +123,20 @@ const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJ...'; // tu key aquí
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// ----------------------
+// GUARDAR EN CACHE AL LOGUEAR
+// ----------------------
+// Supongamos que después de login exitoso recibes:
+// { usuario_id, profesional_id, centro_medico_id, centro_medico_nombre }
+// Guarda así, justo luego del login:
+function guardarEnCacheLogin({ usuario_id, profesional_id, centro_medico_id, centro_medico_nombre }) {
+  localStorage.setItem('usuario_id', usuario_id);
+  localStorage.setItem('profesional_id', profesional_id);
+  localStorage.setItem('centro_medico_id', centro_medico_id);
+  localStorage.setItem('centro_medico_nombre', centro_medico_nombre);
+}
+// Llama esta función después de login correcto
+
 const profesional_id = localStorage.getItem('profesional_id');
 const centro_default_id = localStorage.getItem('centro_medico_id');
 const DIAS = [
@@ -116,7 +151,7 @@ async function cargarCentros() {
   try {
     const { data: centros, error } = await supabase
       .from('centros_medicos')
-      .select('id,nombre')
+      .select('id, nombre')
       .eq('activo', true)
       .order('nombre', { ascending: true });
     if (error || !Array.isArray(centros)) throw error;
@@ -126,7 +161,7 @@ async function cargarCentros() {
       opt.textContent = c.nombre;
       selector.appendChild(opt);
     });
-    // Selecciona por defecto el centro del login si existe
+    // Selecciona por defecto el centro del login si existe en el listado
     if (centro_default_id && selector.querySelector(`option[value="${centro_default_id}"]`)) {
       selector.value = centro_default_id;
     }
@@ -146,21 +181,31 @@ document.getElementById('btn-nuevo-centro').onclick = function() {
 document.getElementById('cancelar-nuevo-centro').onclick = function() {
   document.getElementById('nuevo-centro-form').classList.add('hidden');
 };
+
+// Guardar nuevo centro médico con todos los campos
 document.getElementById('guardar-nuevo-centro').onclick = async function() {
   const nombre = document.getElementById('nuevo-centro-nombre').value.trim();
-  if (!nombre) return;
-  // Insertar el centro médico nuevo
+  const direccion = document.getElementById('nuevo-centro-direccion').value.trim();
+  const telefono = document.getElementById('nuevo-centro-telefono').value.trim();
+  const email = document.getElementById('nuevo-centro-email').value.trim();
+  const notas = document.getElementById('nuevo-centro-notas').value.trim();
+  if (!nombre) return alert("El nombre es obligatorio");
+
   const { data, error } = await supabase
     .from('centros_medicos')
-    .insert([{ nombre, activo: true }])
-    .select('id,nombre')
+    .insert([{ nombre, direccion, telefono, email, notas, activo: true }])
+    .select('id, nombre')
     .single();
+
   if (!error && data) {
-    // Recargar el selector y seleccionar el nuevo centro
     await cargarCentros();
     document.getElementById('centro-agenda').value = data.id;
     document.getElementById('nuevo-centro-form').classList.add('hidden');
     document.getElementById('nuevo-centro-nombre').value = '';
+    document.getElementById('nuevo-centro-direccion').value = '';
+    document.getElementById('nuevo-centro-telefono').value = '';
+    document.getElementById('nuevo-centro-email').value = '';
+    document.getElementById('nuevo-centro-notas').value = '';
     validarCamposAgenda();
   } else {
     alert('Error al crear centro médico');
@@ -359,4 +404,16 @@ function toHoraStr(minutos){
   z-index: 99;
   border-top: 1px solid #ece3fa;
 }
+.centro-form-block {
+  background: #f3eafc;
+  border-radius: 8px;
+  box-shadow: 0 1px 6px rgba(120,80,180,.07);
+  padding: 14px 16px 12px 16px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  max-width:320px;
+}
+.centro-form-block h4 {margin-top:0;margin-bottom:8px;color:#7656b0;font-size:16px;}
+.centro-form-block label {display:block;font-size:13px;margin-bottom:2px;margin-top:8px;}
+.centro-form-block input {width:95%;margin-bottom:4px;}
 </style>
