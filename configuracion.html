@@ -1,13 +1,138 @@
 <!-- Panel de Configuración EG Health Solutions -->
 <div class="card config-grid" style="max-width: 1100px; margin: 40px auto;">
   <h2 style="margin-bottom:24px;">Configuración de Agenda</h2>
-  <div style="font-size: 1.3em; color: #7656b0; text-align: center; margin: 80px 0;">
-    Aquí va la configuración
+  <div class="config-main-grid" style="display:grid;grid-template-columns:2fr 1fr;gap:32px;">
+    <section>
+      <!-- Bloque: Configuración general de agenda -->
+      <form id="config-form">
+        <div style="display:flex;flex-wrap:wrap;gap:18px 30px;">
+          <div>
+            <label><b>Días laborales</b></label><br>
+            <div style="display:flex;gap:7px;">
+              <label><input type="checkbox" name="dias" value="lunes">Lun</label>
+              <label><input type="checkbox" name="dias" value="martes">Mar</label>
+              <label><input type="checkbox" name="dias" value="miercoles">Mié</label>
+              <label><input type="checkbox" name="dias" value="jueves">Jue</label>
+              <label><input type="checkbox" name="dias" value="viernes">Vie</label>
+              <label><input type="checkbox" name="dias" value="sabado">Sáb</label>
+              <label><input type="checkbox" name="dias" value="domingo">Dom</label>
+            </div>
+          </div>
+          <div>
+            <label><b>Horario laboral</b></label><br>
+            <input type="time" name="hora_inicio" required>
+            <span>-</span>
+            <input type="time" name="hora_fin" required>
+          </div>
+          <div>
+            <label><b>Duración turno nueva consulta (min)</b></label><br>
+            <select name="duracion_nueva" required>
+              <option>5 min</option>
+              <option>10 min</option>
+              <option>15 min</option>
+              <option>20 min</option>
+              <option>30 min</option>
+              <option>45 min</option>
+              <option>60 min</option>
+            </select>
+          </div>
+          <div>
+            <label><b>Duración turno consulta recurrente (min)</b></label><br>
+            <select name="duracion_recurrente" required>
+              <option>5 min</option>
+              <option>10 min</option>
+              <option>15 min</option>
+              <option>20 min</option>
+              <option>30 min</option>
+              <option>45 min</option>
+              <option>60 min</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin:22px 0 12px;">
+          <label><b>Centros médicos donde atiende</b></label><br>
+          <select id="centro-selector" style="min-width:220px;">
+            <option value="">Seleccione un centro...</option>
+          </select>
+          <button type="button" class="btn" id="btn-agregar-centro">Asociar</button>
+          <button type="button" class="btn" id="btn-nuevo-centro">Crear nuevo centro</button>
+        </div>
+        <div id="centros-elegidos" style="margin-bottom:14px;">
+          <b>Centros asociados:</b><br>
+          <span class="muted">No hay centros asociados.</span>
+        </div>
+        <button type="submit" class="btn primary">Guardar configuración</button>
+      </form>
+    </section>
+    <section>
+      <!-- Bloque: Asistentes -->
+      <h3 style="margin-top:0;">Asistentes</h3>
+      <div id="asistentes-list" style="margin-bottom:16px;">
+        <span class="muted">No hay asistentes vinculados.</span>
+      </div>
+      <button class="btn" id="btn-add-asistente">Agregar asistente</button>
+      <div id="asistente-form-wrap" class="card hidden" style="margin-top:12px;">
+        <form id="asistente-form">
+          <label>Email <input type="email" name="email" required></label>
+          <label>Nombre <input type="text" name="nombre" required></label>
+          <label>Apellido <input type="text" name="apellido" required></label>
+          <label>Teléfono <input type="text" name="telefono"></label>
+          <div class="actions">
+            <button type="submit" class="btn primary">Crear asistente</button>
+            <button type="button" class="btn" id="btn-cancel-asistente">Cancelar</button>
+          </div>
+        </form>
+      </div>
+    </section>
+  </div>
+
+  <!-- Espacio donde se insertará agenda-generador.html SIEMPRE visible y debajo del formulario -->
+  <div style="margin-top:42px;">
+    <h2 style="margin-bottom:14px;">Generar Agenda de Disponibilidad</h2>
+    <div id="generador-agenda-espacio">
+      <!-- Aquí se inserta agenda-generador.html -->
+      <div class="muted">Cargando generador de agenda...</div>
+    </div>
   </div>
 </div>
+
+<script type="module">
+// --- SOLO carga del generador de agenda externo ---
+async function cargarGeneradorAgenda() {
+  const espacio = document.getElementById('generador-agenda-espacio');
+  try {
+    const resp = await fetch('agenda-generador.html');
+    if (!resp.ok) {
+      espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error al cargar agenda-generador.html</div>';
+      return;
+    }
+    let html = await resp.text();
+    espacio.innerHTML = html;
+    // Ejecutar scripts del HTML cargado (<script type="module">)
+    Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
+      const newScript = document.createElement('script');
+      newScript.type = 'module';
+      if (oldScript.src) newScript.src = oldScript.src;
+      else newScript.textContent = oldScript.textContent;
+      document.body.appendChild(newScript);
+    });
+  } catch (e) {
+    espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error de conexión al cargar agenda-generador.html</div>';
+  }
+}
+cargarGeneradorAgenda();
+</script>
 
 <style>
 body { background: #f6f3fa;}
 .card { background: #fff; padding: 32px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.10); }
-.config-grid { max-width: 1100px; margin: 40px auto; }
+.btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 2px;}
+.btn.primary { background: #7656b0; }
+.btn:hover { background: #7f62b6; }
+.muted { color: #6b6480; font-size: 13px; }
+.hidden { display:none; }
+.config-main-grid > section { min-width: 0; }
+@media (max-width: 900px) {
+  .config-main-grid { grid-template-columns: 1fr; }
+}
 </style>
