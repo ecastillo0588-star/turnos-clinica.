@@ -3,7 +3,7 @@
   <h2>Generar Agenda de Disponibilidad</h2>
   <!-- Nombre de la agenda -->
   <section class="bloque-nombre-agenda">
-    <label for="nombre-agenda"><b>Nombre de la agenda</b></label><br>
+    <label for="nombre-agenda"><b>Nombre de la agenda <span class="obligatorio">*</span></b></label><br>
     <input type="text" id="nombre-agenda" placeholder="Ejemplo: Agenda Septiembre 2025" style="max-width:300px;" required>
   </section>
 
@@ -11,15 +11,15 @@
   <section class="bloque-fechas" style="margin-top:14px;">
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;">
       <div>
-        <label for="fecha-inicio"><b>Fecha inicio</b></label><br>
+        <label for="fecha-inicio"><b>Fecha inicio <span class="obligatorio">*</span></b></label><br>
         <input type="date" id="fecha-inicio" required>
       </div>
       <div>
-        <label for="fecha-fin"><b>Fecha fin</b></label><br>
+        <label for="fecha-fin"><b>Fecha fin <span class="obligatorio">*</span></b></label><br>
         <input type="date" id="fecha-fin" required>
       </div>
       <div>
-        <label for="centro-agenda"><b>Centro médico</b></label><br>
+        <label for="centro-agenda"><b>Centro médico <span class="obligatorio">*</span></b></label><br>
         <select id="centro-agenda" required>
           <option value="">Seleccione un centro...</option>
         </select>
@@ -36,7 +36,7 @@
   <!-- Duración de turnos por tipo -->
   <section class="bloque-duracion-turno" style="margin-top:12px;display:flex;gap:32px;">
     <div>
-      <label for="duracion-nueva"><b>Duración turno nueva consulta</b></label><br>
+      <label for="duracion-nueva"><b>Duración turno nueva consulta <span class="obligatorio">*</span></b></label><br>
       <select id="duracion-nueva" required>
         <option value="">Seleccione...</option>
         <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
@@ -44,7 +44,7 @@
       </select>
     </div>
     <div>
-      <label for="duracion-recurrente"><b>Duración turno consulta recurrente</b></label><br>
+      <label for="duracion-recurrente"><b>Duración turno consulta recurrente <span class="obligatorio">*</span></b></label><br>
       <select id="duracion-recurrente" required>
         <option value="">Seleccione...</option>
         <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
@@ -52,7 +52,7 @@
       </select>
     </div>
     <div>
-      <label for="duracion-sobreturno"><b>Duración de sobre turnos</b></label><br>
+      <label for="duracion-sobreturno"><b>Duración de sobre turnos <span class="obligatorio">*</span></b></label><br>
       <select id="duracion-sobreturno" required>
         <option value="">Seleccione...</option>
         <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
@@ -86,14 +86,13 @@
       </tbody>
     </table>
   </section>
+</div>
 
-  <!-- Acción -->
-  <div class="actions" style="margin-top:18px;">
-    <button class="btn primary" id="btn-generar-agenda" disabled>Generar agenda</button>
-  </div>
-
-  <!-- Mensajes -->
-  <div id="msg-agenda" style="margin-top:14px;"></div>
+<!-- Botón SIEMPRE visible y sticky, con tooltip -->
+<div class="agenda-footer-sticky">
+  <button class="btn primary" id="btn-generar-agenda" disabled
+    title="Debe completar los campos obligatorios*">Generar agenda</button>
+  <span id="msg-agenda" style="margin-left:18px;"></span>
 </div>
 
 <script type="module">
@@ -113,23 +112,28 @@ const DIAS = [
 async function cargarCentros() {
   const selector = document.getElementById('centro-agenda');
   selector.innerHTML = '<option value="">Seleccione un centro...</option>';
-  const { data: centros, error } = await supabase
-    .from('centros_medicos')
-    .select('id,nombre')
-    .eq('activo', true);
-  if (error) {
-    selector.innerHTML += '<option value="">Error al cargar</option>';
-    return;
-  }
-  centros.forEach(c => {
+  try {
+    const { data: centros, error } = await supabase
+      .from('centros_medicos')
+      .select('id,nombre')
+      .eq('activo', true);
+    if (error || !centros) throw error;
+    centros.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nombre;
+      selector.appendChild(opt);
+    });
+    // Selecciona por defecto el centro del login si existe
+    if (centro_default_id && selector.querySelector(`option[value="${centro_default_id}"]`)) {
+      selector.value = centro_default_id;
+    }
+  } catch (e) {
     const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = c.nombre;
+    opt.value = "";
+    opt.textContent = "Error al cargar";
+    opt.className = "error-option";
     selector.appendChild(opt);
-  });
-  // Selecciona por defecto el centro del login si existe
-  if (centro_default_id && selector.querySelector(`option[value="${centro_default_id}"]`)) {
-    selector.value = centro_default_id;
   }
 }
 cargarCentros();
@@ -192,7 +196,9 @@ function validarCamposAgenda() {
     const el = document.getElementById(id);
     if (!el.value || el.value === "") valido = false;
   });
-  document.getElementById('btn-generar-agenda').disabled = !valido;
+  const btn = document.getElementById('btn-generar-agenda');
+  btn.disabled = !valido;
+  btn.title = valido ? "" : "Debe completar los campos obligatorios*";
 }
 
 // --- Generar agenda ---
@@ -338,6 +344,20 @@ function toHoraStr(minutos){
 .btn:hover:not(:disabled) { background: #7f62b6; }
 .card { background: #fff; padding: 22px; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.09); }
 .bloque-fechas label, .bloque-duracion-turno label { font-size:13px; }
-.hidden { display:none; }
 .bloque-nombre-agenda label { font-size:15px; margin-bottom:2px; color:#381e60; }
+.obligatorio { color: #c2001d; font-weight:700; font-size:1em; }
+.hidden { display:none; }
+.agenda-footer-sticky {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  background: #f7f4fa;
+  width: 100%;
+  padding: 14px 0 10px 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  z-index: 99;
+  border-top: 1px solid #ece3fa;
+}
 </style>
