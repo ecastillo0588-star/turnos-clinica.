@@ -14,7 +14,13 @@
       </div>
       <div>
         <label for="centro-agenda"><b>Centro médico</b></label><br>
-        <select id="centro-agenda" required style="min-width:120px;max-width:180px;font-size:14px;"></select>
+        <select id="centro-agenda" required style="min-width:130px;max-width:180px;font-size:14px;"></select>
+        <button type="button" class="btn" id="btn-nuevo-centro" style="margin-top:6px;">Agregar nuevo centro</button>
+        <div id="nuevo-centro-form" class="hidden" style="margin-top:6px;">
+          <input type="text" id="nuevo-centro-nombre" placeholder="Nombre del centro" style="width:140px;">
+          <button type="button" class="btn" id="guardar-nuevo-centro">Guardar</button>
+          <button type="button" class="btn" id="cancelar-nuevo-centro">Cancelar</button>
+        </div>
       </div>
     </div>
   </section>
@@ -68,7 +74,10 @@ const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJ...'; // tu key aquí
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Obtener IDs de profesional y centro desde localStorage
 const profesional_id = localStorage.getItem('profesional_id');
+const centro_default_id = localStorage.getItem('centro_medico_id');
+const centro_default_nombre = localStorage.getItem('centro_medico_nombre');
 const DIAS = [
   {nombre:'lunes', label:'LUN'}, {nombre:'martes', label:'MAR'}, {nombre:'miercoles', label:'MIÉR'},
   {nombre:'jueves', label:'JUEV'}, {nombre:'viernes', label:'VIER'}, {nombre:'sabado', label:'SÁB'}
@@ -83,18 +92,34 @@ for(let i=10; i<=60; i+=5){
   selectDuracion.appendChild(opt);
 }
 
-// Cargar centros médicos asociados
+// Cargar centros médicos asociados y seleccionar por defecto el del login
 async function cargarCentros() {
+  // Buscar centros médicos vinculados por profesional
   const { data: vinculos } = await supabase
     .from('profesional_centro')
     .select('centro_id')
     .eq('profesional_id', profesional_id)
     .eq('activo', true);
+
   const centro_ids = vinculos ? vinculos.map(v=>v.centro_id) : [];
-  const { data: centros } = await supabase
-    .from('centros_medicos')
-    .select('id,nombre')
-    .in('id', centro_ids);
+  let centros = [];
+  if (centro_ids.length > 0) {
+    const { data } = await supabase
+      .from('centros_medicos')
+      .select('id,nombre')
+      .in('id', centro_ids);
+    centros = data || [];
+  }
+
+  // Si no hay centros, mostrar todos los activos
+  if (centros.length === 0) {
+    const { data } = await supabase
+      .from('centros_medicos')
+      .select('id,nombre')
+      .eq('activo', true);
+    centros = data || [];
+  }
+
   const selector = document.getElementById('centro-agenda');
   selector.innerHTML = '';
   centros.forEach(c=>{
@@ -103,8 +128,43 @@ async function cargarCentros() {
     opt.textContent = c.nombre;
     selector.appendChild(opt);
   });
+  // Selecciona por defecto el centro del login si existe
+  if (centro_default_id && selector.querySelector(`option[value="${centro_default_id}"]`)) {
+    selector.value = centro_default_id;
+  }
 }
 cargarCentros();
+
+// Mostrar formulario para agregar nuevo centro
+document.getElementById('btn-nuevo-centro').onclick = function() {
+  document.getElementById('nuevo-centro-form').classList.remove('hidden');
+};
+document.getElementById('cancelar-nuevo-centro').onclick = function() {
+  document.getElementById('nuevo-centro-form').classList.add('hidden');
+};
+// Guardar nuevo centro y asociar a profesional
+document.getElementById('guardar-nuevo-centro').onclick = async function() {
+  const nombre = document.getElementById('nuevo-centro-nombre').value.trim();
+  if (!nombre) return;
+  const { data, error } = await supabase
+    .from('centros_medicos')
+    .insert([{ nombre, activo: true }])
+    .select('id,nombre')
+    .single();
+  if (!error && data) {
+    // Asociar al profesional
+    await supabase
+      .from('profesional_centro')
+      .insert([{ centro_id: data.id, profesional_id, activo: true }]);
+    // Recargar centros y seleccionar el nuevo
+    await cargarCentros();
+    document.getElementById('centro-agenda').value = data.id;
+    document.getElementById('nuevo-centro-form').classList.add('hidden');
+    document.getElementById('nuevo-centro-nombre').value = '';
+  } else {
+    alert('Error al crear centro médico');
+  }
+};
 
 // Renderizar la tabla de horarios/días
 function renderTablaHorarios() {
@@ -166,15 +226,20 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
   let fechaActual = new Date(fecha_inicio);
   const fechaFin = new Date(fecha_fin);
   while(fechaActual <= fechaFin){
-    const diaSemana = DIAS[fechaActual.getDay()];
-    if(!diaSemana) { fechaActual.setDate(fechaActual.getDate()+1); continue; }
-    const diaTurnos = turnos.filter(t=>t.dia===diaSemana.nombre);
+    const diaSemanaNum = fechaActual.getDay(); // 0=domingo, 1=lunes, ..., 6=sábado
+    // DIAS está de lunes (0) a sábado (5), pero getDay() es 1 a 6, 0=domingo
+    const diaMap = {1:0,2:1,3:2,4:3,5:4,6:5}; // lunes=1
+    const idx = diaMap[diaSemanaNum];
+    if(idx===undefined) { fechaActual.setDate(fechaActual.getDate()+1); continue; }
+    const diaSemana = DIAS[idx].nombre;
+    const diaTurnos = turnos.filter(t=>t.dia===diaSemana);
     for(const t of diaTurnos){
       let hIni = toMinutes(t.hora_inicio);
       let hFin = toMinutes(t.hora_fin);
       for(let m=hIni; m+duracion_turno<=hFin; m+=duracion_turno){
         const hora_inicio = toHoraStr(m);
         const hora_fin = toHoraStr(m+duracion_turno);
+        // Insertar fila en la agenda
         await supabase
           .from('agenda')
           .upsert({
@@ -194,6 +259,7 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
   msg.textContent = `Agenda generada (${totalSlots} turnos disponibles).`;
 };
 
+// Helpers
 function toMinutes(horaStr){
   const [h,m] = horaStr.split(':'); return parseInt(h)*60+parseInt(m);
 }
@@ -215,4 +281,5 @@ function toHoraStr(minutos){
 .btn:hover { background: #7f62b6; }
 .card { background: #fff; padding: 22px; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.09); }
 .bloque-fechas label, .bloque-duracion-turno label { font-size:13px; }
+.hidden { display:none; }
 </style>
