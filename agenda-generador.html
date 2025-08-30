@@ -1,19 +1,19 @@
 <!-- Generador de Agenda de Disponibilidad de Turnos -->
 <div class="card agenda-generador">
   <h2>Generar Agenda de Disponibilidad</h2>
-  <!-- Bloque de Fechas -->
+  <!-- Bloque de Fechas y Centro -->
   <section class="bloque-fechas">
     <div style="display:flex;gap:24px;align-items:center;">
       <div>
-        <label>Fecha inicio</label>
+        <label for="fecha-inicio"><b>Fecha inicio</b></label><br>
         <input type="date" id="fecha-inicio" required>
       </div>
       <div>
-        <label>Fecha fin</label>
+        <label for="fecha-fin"><b>Fecha fin</b></label><br>
         <input type="date" id="fecha-fin" required>
       </div>
       <div>
-        <label>Centro médico</label>
+        <label for="centro-agenda"><b>Centro médico</b></label><br>
         <select id="centro-agenda" required style="min-width:180px;"></select>
       </div>
     </div>
@@ -41,8 +41,10 @@
 
   <!-- Bloque de Duración de Turno -->
   <section class="bloque-duracion-turno" style="margin-top:18px;">
-    <label>Duración de cada turno</label>
-    <select id="duracion-turno" required></select>
+    <label for="duracion-turno"><b>Duración de cada turno</b></label>
+    <select id="duracion-turno" required>
+      <!-- Opciones por JS -->
+    </select>
   </section>
 
   <!-- Acción -->
@@ -62,12 +64,12 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const profesional_id = localStorage.getItem('profesional_id');
 const DIAS = [
-  {nombre:'lunes', label:'Lun'},
-  {nombre:'martes', label:'Mar'},
-  {nombre:'miercoles', label:'Mié'},
-  {nombre:'jueves', label:'Jue'},
-  {nombre:'viernes', label:'Vie'},
-  {nombre:'sabado', label:'Sáb'}
+  {nombre:'lunes', label:'LUN'},
+  {nombre:'martes', label:'MAR'},
+  {nombre:'miercoles', label:'MIÉR'},
+  {nombre:'jueves', label:'JUEV'},
+  {nombre:'viernes', label:'VIER'},
+  {nombre:'sabado', label:'SÁB'}
 ];
 
 // Rellenar duración: desde 10 min, luego cada 5 hasta 60
@@ -170,7 +172,7 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
       // Genera slots de la franja para ese día
       let hIni = toMinutes(t.hora_inicio);
       let hFin = toMinutes(t.hora_fin);
-      for(let m=hIni; m+hIni+duracion_turno<=hFin; m+=duracion_turno){
+      for(let m=hIni; m+duracion_turno<=hFin; m+=duracion_turno){
         const hora_inicio = toHoraStr(m);
         const hora_fin = toHoraStr(m+duracion_turno);
         // Guardar slot en agenda
