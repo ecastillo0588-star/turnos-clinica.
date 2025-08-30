@@ -17,6 +17,7 @@
     .login-btn:hover { background: #073d7d; }
     .error-message { color: #d0003a; margin-top: 12px; font-size: 0.93em; min-height: 24px; }
     .hidden { display: none; }
+    .success-message { color: #008c4a; margin-top: 12px; font-size: 0.93em; min-height: 24px; }
   </style>
 </head>
 <body>
@@ -33,6 +34,14 @@
     <form id="center-form" class="hidden">
       <div id="center-select-div"></div>
       <button type="submit" class="login-btn">Entrar al sistema</button>
+      <div class="success-message" id="success-message"></div>
+      <div class="error-message" id="center-error-message"></div>
+    </form>
+    <form id="associate-form" class="hidden">
+      <div id="associate-select-div"></div>
+      <button type="submit" class="login-btn">Asociar centro médico</button>
+      <div class="success-message" id="associate-success-message"></div>
+      <div class="error-message" id="associate-error-message"></div>
     </form>
   </div>
   <script type="module">
@@ -81,11 +90,32 @@
           .from('profesional_centro')
           .select('centro_id')
           .eq('profesional_id', profesionalId);
-        if (centrosError || !centrosRel || centrosRel.length === 0) {
-          errorMessage.textContent = 'No tienes centros médicos asociados.';
+        if (centrosError) {
+          errorMessage.textContent = 'Error buscando centros médicos asociados.';
           return;
         }
-        // Buscar info de cada centro
+        if (!centrosRel || centrosRel.length === 0) {
+          // No tiene centros médicos asociados: mostrar todos los centros activos para asociar
+          const { data: allCentros, error: allCentrosError } = await supabase
+            .from('centros_medicos')
+            .select('id, nombre')
+            .eq('activo', true);
+          if (allCentrosError || !allCentros || allCentros.length === 0) {
+            errorMessage.textContent = 'No hay centros médicos disponibles.';
+            return;
+          }
+          document.getElementById('login-form').classList.add('hidden');
+          document.getElementById('associate-select-div').innerHTML = `
+            <label for="associate-centro">Asocia un centro médico a tu perfil:</label>
+            <select id="associate-centro" required>
+              ${allCentros.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')}
+            </select>`;
+          document.getElementById('associate-form').classList.remove('hidden');
+          // Guardar centros disponibles para luego
+          centros = allCentros;
+          return;
+        }
+        // Tiene centros asociados: buscar info de cada centro
         const centroIds = centrosRel.map(c => c.centro_id);
         const { data: centrosData, error: centrosDataError } = await supabase
           .from('centros_medicos')
@@ -148,6 +178,31 @@
       localStorage.setItem('centro_medico_nombre', centros.find(c => c.id === centroId)?.nombre || centroAsignado?.nombre);
       // Redirigir al dashboard
       window.location.href = "dashboard.html";
+    });
+
+    // Handler para asociar centro médico si no tiene ninguno
+    document.getElementById('associate-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const centroId = document.getElementById('associate-centro').value;
+      const successMessage = document.getElementById('associate-success-message');
+      const errorMessage = document.getElementById('associate-error-message');
+      successMessage.textContent = '';
+      errorMessage.textContent = '';
+      // Insertar relación en profesional_centro
+      const { error: insertError } = await supabase
+        .from('profesional_centro')
+        .insert([{ profesional_id: profesionalId, centro_id: centroId, activo: true }]);
+      if (insertError) {
+        errorMessage.textContent = 'Error asociando centro médico.';
+        return;
+      }
+      successMessage.textContent = 'Centro médico asociado con éxito. Redirigiendo...';
+      // Guardar centro en localStorage
+      localStorage.setItem('centro_medico_id', centroId);
+      localStorage.setItem('centro_medico_nombre', centros.find(c => c.id === centroId)?.nombre);
+      setTimeout(() => {
+        window.location.href = "dashboard.html";
+      }, 1500);
     });
 
     // Puedes luego cambiar el src de #logo-img por tu logo real
