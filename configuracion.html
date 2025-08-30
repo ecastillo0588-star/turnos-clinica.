@@ -1,5 +1,5 @@
 <!-- Configuración EG Health Solutions - Menú Tabulado -->
-<div class="card config-grid" style="max-width: 840px; margin: 40px auto;">
+<div class="card config-grid" style="max-width: 900px; margin: 40px auto;">
   <h2 style="margin-bottom:18px;">Configuración</h2>
   <nav class="config-tabs">
     <button class="tab-btn active" data-tab="agenda">Configurar Agenda</button>
@@ -8,28 +8,11 @@
     <button class="tab-btn" data-tab="asistentes">Asistentes</button>
   </nav>
   <div class="config-tab-content">
-    <!-- Agenda -->
+    <!-- Agenda: llama al generador externo -->
     <section id="tab-agenda" class="tab-panel active">
-      <form id="agenda-form">
-        <div style="margin-bottom:16px;">
-          <label><b>Días laborales</b></label><br>
-          <div style="display:flex;gap:7px;margin-top:6px;">
-            <label><input type="checkbox" name="dias" value="lunes">Lun</label>
-            <label><input type="checkbox" name="dias" value="martes">Mar</label>
-            <label><input type="checkbox" name="dias" value="miercoles">Mié</label>
-            <label><input type="checkbox" name="dias" value="jueves">Jue</label>
-            <label><input type="checkbox" name="dias" value="viernes">Vie</label>
-            <label><input type="checkbox" name="dias" value="sabado">Sáb</label>
-            <label><input type="checkbox" name="dias" value="domingo">Dom</label>
-          </div>
-        </div>
-        <div style="margin-bottom:16px;">
-          <label><b>Horario laboral</b></label><br>
-          <input type="time" name="hora_inicio" required style="max-width:90px;"> -
-          <input type="time" name="hora_fin" required style="max-width:90px;">
-        </div>
-        <button type="submit" class="btn primary">Guardar agenda</button>
-      </form>
+      <div id="agenda-generador-html">
+        <div class="muted">Cargando generador de agenda...</div>
+      </div>
     </section>
     <!-- Duración de Turnos -->
     <section id="tab-duracion" class="tab-panel">
@@ -95,7 +78,7 @@
   </div>
 </div>
 
-<script>
+<script type="module">
 // Tabs interactividad
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', function() {
@@ -106,8 +89,38 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
       panel.classList.remove('active');
       if(panel.id==='tab-'+tab) panel.classList.add('active');
     });
+    // Cargar agenda solo cuando se muestra el tab
+    if(tab==='agenda') cargarAgendaGenerador();
   });
 });
+
+// Cargar el generador de agenda externo SOLO cuando se muestra el tab correspondiente
+let agendaCargada = false;
+async function cargarAgendaGenerador() {
+  if (agendaCargada) return; // Solo carga una vez
+  const espacio = document.getElementById('agenda-generador-html');
+  try {
+    const resp = await fetch('agenda-generador.html');
+    if (!resp.ok) {
+      espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error al cargar agenda-generador.html</div>';
+      return;
+    }
+    let html = await resp.text();
+    espacio.innerHTML = html;
+    Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
+      const newScript = document.createElement('script');
+      newScript.type = 'module';
+      if (oldScript.src) newScript.src = oldScript.src;
+      else newScript.textContent = oldScript.textContent;
+      document.body.appendChild(newScript);
+    });
+    agendaCargada = true;
+  } catch (e) {
+    espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error de conexión al cargar agenda-generador.html</div>';
+  }
+}
+// Llama agenda generador al inicio si agenda es el primer tab activo
+if(document.querySelector('.tab-btn.active').getAttribute('data-tab')==='agenda') cargarAgendaGenerador();
 </script>
 
 <style>
