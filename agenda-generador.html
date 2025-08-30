@@ -96,6 +96,7 @@
 </div>
 
 <script type="module">
+// Supabase config
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJ...'; // tu key aquí
@@ -116,8 +117,9 @@ async function cargarCentros() {
     const { data: centros, error } = await supabase
       .from('centros_medicos')
       .select('id,nombre')
-      .eq('activo', true);
-    if (error || !centros) throw error;
+      .eq('activo', true)
+      .order('nombre', { ascending: true });
+    if (error || !Array.isArray(centros)) throw error;
     centros.forEach(c => {
       const opt = document.createElement('option');
       opt.value = c.id;
@@ -147,12 +149,14 @@ document.getElementById('cancelar-nuevo-centro').onclick = function() {
 document.getElementById('guardar-nuevo-centro').onclick = async function() {
   const nombre = document.getElementById('nuevo-centro-nombre').value.trim();
   if (!nombre) return;
+  // Insertar el centro médico nuevo
   const { data, error } = await supabase
     .from('centros_medicos')
     .insert([{ nombre, activo: true }])
     .select('id,nombre')
     .single();
   if (!error && data) {
+    // Recargar el selector y seleccionar el nuevo centro
     await cargarCentros();
     document.getElementById('centro-agenda').value = data.id;
     document.getElementById('nuevo-centro-form').classList.add('hidden');
@@ -224,24 +228,21 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     if(tm_ini && tm_fin && tm_ini < tm_fin){
       turnos.push({
         dia:dia.nombre,
-        turno:'nueva',
-        tipo:'nueva',
+        tipo_turno:'nueva_consulta',
         hora_inicio:tm_ini,
         hora_fin:tm_fin,
         duracion: duracion_nueva,
       });
       turnos.push({
         dia:dia.nombre,
-        turno:'recurrente',
-        tipo:'recurrente',
+        tipo_turno:'recurrente',
         hora_inicio:tm_ini,
         hora_fin:tm_fin,
         duracion: duracion_recurrente,
       });
       turnos.push({
         dia:dia.nombre,
-        turno:'sobreturno',
-        tipo:'sobreturno',
+        tipo_turno:'sobreturno',
         hora_inicio:tm_ini,
         hora_fin:tm_fin,
         duracion: duracion_sobreturno,
@@ -253,24 +254,21 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     if(tt_ini && tt_fin && tt_ini < tt_fin){
       turnos.push({
         dia:dia.nombre,
-        turno:'nueva',
-        tipo:'nueva',
+        tipo_turno:'nueva_consulta',
         hora_inicio:tt_ini,
         hora_fin:tt_fin,
         duracion: duracion_nueva,
       });
       turnos.push({
         dia:dia.nombre,
-        turno:'recurrente',
-        tipo:'recurrente',
+        tipo_turno:'recurrente',
         hora_inicio:tt_ini,
         hora_fin:tt_fin,
         duracion: duracion_recurrente,
       });
       turnos.push({
         dia:dia.nombre,
-        turno:'sobreturno',
-        tipo:'sobreturno',
+        tipo_turno:'sobreturno',
         hora_inicio:tt_ini,
         hora_fin:tt_fin,
         duracion: duracion_sobreturno,
@@ -309,9 +307,10 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
             hora_inicio,
             hora_fin,
             capacidad: 1,
-            estado: 'disponible',
-            notas: t.tipo,
-            "Nombre de Agenda": nombre_agenda
+            estado: 'disponible',                  // Estado inicial
+            notas: t.tipo_turno,
+            "Nombre de Agenda": nombre_agenda,
+            tipo_turno: t.tipo_turno
           }, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
         totalSlots++;
       }
