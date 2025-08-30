@@ -3,26 +3,101 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gestión de Turnos</title>
+  <title>Vista de Tablas Supabase</title>
   <link rel="stylesheet" href="styles.css" />
+  <style>
+    body { font-family: system-ui,Segoe UI,Roboto,Helvetica,Arial;background: #f7f5fb;color: #2c1e3a; }
+    h1 { font-size: 22px; margin: 18px 0 6px 0;}
+    .table-view { margin:24px auto; max-width:1100px; background:#fff; border:1px solid #e8e2f2; border-radius:14px; padding:22px; box-shadow:0 4px 18px rgba(0,0,0,.05);}
+    .tabs { display:flex; gap:8px; margin-bottom:18px;}
+    .tab-btn { padding:8px 18px; border-radius:10px; border:1px solid #e8e2f2; background:#f2ecf9; color:#444; cursor:pointer; }
+    .tab-btn.active { background:#7b5da7; color:#fff; border-color:#6b4b98;}
+    .data-table { width:100%; border-collapse:collapse; margin-bottom:24px;}
+    .data-table th, .data-table td { border:1px solid #e8e2f2; padding:7px 10px; font-size:14px;}
+    .data-table th { background:#faf8fd; font-weight:600;}
+    .data-table tr:nth-child(even) td{background:#fff;} .data-table tr:nth-child(odd) td{background:#fcfbfe;}
+    #error-message { color: #b00020; font-size: 13px; margin-bottom: 8px; }
+  </style>
 </head>
 <body>
-  <!-- Login (si no hay sesión) -->
-  <div class="login-container" id="login-container">
-    <h1>Gestión de Turnos</h1>
-    <form id="login-form">
-      <input type="email" id="email" placeholder="Email" required />
-      <input type="password" id="password" placeholder="Contraseña" required />
-      <button type="submit">Ingresar</button>
-    </form>
-    <button id="forgot-password-btn" class="btn" style="margin-top:10px;width:100%;background:#eee;color:#444;">¿Olvidaste tu contraseña?</button>
-    <p id="error-message"></p>
-    <p id="success-message" style="color:green;"></p>
+  <div class="table-view">
+    <h1>Vista de Tablas Supabase</h1>
+    <div class="tabs" id="tabs"></div>
+    <div id="error-message"></div>
+    <div id="table-root"></div>
   </div>
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm";
 
-  <!-- App principal, oculta al inicio -->
-  <div id="app-root" style="display:none"></div>
+    const supabase = createClient(
+      "https://vwkszvdvswznlgxlfdtz.supabase.co",
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0"
+    );
 
-  <script type="module" src="app.js"></script>
+    // Definición de tablas y campos principales
+    const TABLES = {
+      centros_medicos: ["id", "nombre", "direccion", "telefono"],
+      profesionales: ["id", "apellido", "nombre", "especialidad", "matricula"],
+      profesional_centro: ["profesional_id", "centro_id"],
+      profiles: ["id", "email", "profesional_id", "role"],
+      medico_config: ["profesional_id", "duracion_nuevo_min", "duracion_control_min"],
+      agenda: ["profesional_id", "centro_id", "fecha", "hora_inicio", "hora_fin", "disponible"],
+      pacientes: [
+        "dni", "apellido", "nombre", "fecha_nacimiento", "telefono", "email", "obra_social", "numero_afiliado",
+        "contacto_nombre", "contacto_apellido", "contacto_celular", "vinculo", "credencial",
+        "historia_clinica", "proximo_control", "renovacion_receta"
+      ]
+    };
+
+    // Renderizar tabs
+    const tabsEl = document.getElementById("tabs");
+    const tableRoot = document.getElementById("table-root");
+    const errorMsg = document.getElementById("error-message");
+
+    let current = Object.keys(TABLES)[0];
+    Object.entries(TABLES).forEach(([name, fields], idx) => {
+      const btn = document.createElement("button");
+      btn.className = "tab-btn" + (idx === 0 ? " active" : "");
+      btn.textContent = name;
+      btn.onclick = () => { switchTable(name); };
+      tabsEl.appendChild(btn);
+    });
+
+    async function switchTable(name) {
+      current = name;
+      Array.from(document.getElementsByClassName("tab-btn")).forEach(btn =>
+        btn.classList.toggle("active", btn.textContent === name)
+      );
+      errorMsg.textContent = "";
+      tableRoot.innerHTML = `<div class="muted">Cargando...</div>`;
+      const { data, error } = await supabase.from(name).select("*").limit(50);
+      if (error) {
+        tableRoot.innerHTML = "";
+        errorMsg.textContent = "Error: " + error.message;
+        return;
+      }
+      if (!data || !data.length) {
+        tableRoot.innerHTML = `<div class="muted">No hay registros en <b>${name}</b></div>`;
+        return;
+      }
+      renderTable(data, TABLES[name]);
+    }
+
+    function renderTable(data, fields) {
+      let html = `<table class="data-table"><thead><tr>`;
+      fields.forEach(f => html += `<th>${f}</th>`);
+      html += `</tr></thead><tbody>`;
+      data.forEach(row => {
+        html += `<tr>`;
+        fields.forEach(f => html += `<td>${row[f] ?? ""}</td>`);
+        html += `</tr>`;
+      });
+      html += `</tbody></table>`;
+      tableRoot.innerHTML = html;
+    }
+
+    // Inicializar con la primera tabla
+    switchTable(current);
+  </script>
 </body>
 </html>
