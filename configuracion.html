@@ -26,11 +26,27 @@
           </div>
           <div>
             <label><b>Duración turno nueva consulta (min)</b></label><br>
-            <select name="duracion_nueva" required></select>
+            <select name="duracion_nueva" required>
+              <option>5 min</option>
+              <option>10 min</option>
+              <option>15 min</option>
+              <option>20 min</option>
+              <option>30 min</option>
+              <option>45 min</option>
+              <option>60 min</option>
+            </select>
           </div>
           <div>
             <label><b>Duración turno consulta recurrente (min)</b></label><br>
-            <select name="duracion_recurrente" required></select>
+            <select name="duracion_recurrente" required>
+              <option>5 min</option>
+              <option>10 min</option>
+              <option>15 min</option>
+              <option>20 min</option>
+              <option>30 min</option>
+              <option>45 min</option>
+              <option>60 min</option>
+            </select>
           </div>
         </div>
         <div style="margin:22px 0 12px;">
@@ -41,14 +57,19 @@
           <button type="button" class="btn" id="btn-agregar-centro">Asociar</button>
           <button type="button" class="btn" id="btn-nuevo-centro">Crear nuevo centro</button>
         </div>
-        <div id="centros-elegidos" style="margin-bottom:14px;"></div>
+        <div id="centros-elegidos" style="margin-bottom:14px;">
+          <b>Centros asociados:</b><br>
+          <span class="muted">No hay centros asociados.</span>
+        </div>
         <button type="submit" class="btn primary">Guardar configuración</button>
       </form>
     </section>
     <section>
       <!-- Bloque: Asistentes -->
       <h3 style="margin-top:0;">Asistentes</h3>
-      <div id="asistentes-list" style="margin-bottom:16px;"></div>
+      <div id="asistentes-list" style="margin-bottom:16px;">
+        <span class="muted">No hay asistentes vinculados.</span>
+      </div>
       <button class="btn" id="btn-add-asistente">Agregar asistente</button>
       <div id="asistente-form-wrap" class="card hidden" style="margin-top:12px;">
         <form id="asistente-form">
@@ -65,33 +86,39 @@
     </section>
   </div>
 
-  <!-- Espacio donde se insertará agenda-generador.html -->
+  <!-- Espacio donde se insertará agenda-generador.html SIEMPRE visible y debajo del formulario -->
   <div style="margin-top:42px;">
     <h2 style="margin-bottom:14px;">Generar Agenda de Disponibilidad</h2>
     <div id="generador-agenda-espacio">
       <!-- Aquí se inserta agenda-generador.html -->
+      <div class="muted">Cargando generador de agenda...</div>
     </div>
   </div>
 </div>
 
 <script type="module">
-// --- SOLO configuración y asistentes ---
-// Puedes agregar aquí la lógica de configuración y asistentes si lo necesitas.
-
 // --- SOLO carga del generador de agenda externo ---
 async function cargarGeneradorAgenda() {
   const espacio = document.getElementById('generador-agenda-espacio');
-  const resp = await fetch('agenda-generador.html');
-  let html = await resp.text();
-  espacio.innerHTML = html;
-  // Ejecutar scripts del HTML cargado (<script type="module">)
-  Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
-    const newScript = document.createElement('script');
-    newScript.type = 'module';
-    if (oldScript.src) newScript.src = oldScript.src;
-    else newScript.textContent = oldScript.textContent;
-    document.body.appendChild(newScript);
-  });
+  try {
+    const resp = await fetch('agenda-generador.html');
+    if (!resp.ok) {
+      espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error al cargar agenda-generador.html</div>';
+      return;
+    }
+    let html = await resp.text();
+    espacio.innerHTML = html;
+    // Ejecutar scripts del HTML cargado (<script type="module">)
+    Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
+      const newScript = document.createElement('script');
+      newScript.type = 'module';
+      if (oldScript.src) newScript.src = oldScript.src;
+      else newScript.textContent = oldScript.textContent;
+      document.body.appendChild(newScript);
+    });
+  } catch (e) {
+    espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error de conexión al cargar agenda-generador.html</div>';
+  }
 }
 cargarGeneradorAgenda();
 </script>
@@ -102,8 +129,8 @@ body { background: #f6f3fa;}
 .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 2px;}
 .btn.primary { background: #7656b0; }
 .btn:hover { background: #7f62b6; }
+.muted { color: #6b6480; font-size: 13px; }
 .hidden { display:none; }
-.config-grid { }
 .config-main-grid > section { min-width: 0; }
 @media (max-width: 900px) {
   .config-main-grid { grid-template-columns: 1fr; }
