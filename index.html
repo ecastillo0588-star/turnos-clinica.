@@ -2,100 +2,128 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Visor de Tablas Supabase con Logs</title>
+  <title>Login - EG Health Solutions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: Arial, sans-serif; margin: 2em; }
-    .tab { display: inline-block; margin: 0 10px; padding: 6px 12px; background: #eee; cursor: pointer; border-radius: 4px; }
-    .tab.active { background: #007bff; color: white; }
-    #error-message { color: red; margin-top: 1em; }
-    table { border-collapse: collapse; margin-top: 1em; width: 100%; }
-    th, td { border: 1px solid #ccc; padding: 6px; }
-    th { background: #f7f7f7; }
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      background: #f7f9fb; 
+      margin: 0; 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      min-height: 100vh;
+    }
+    .login-container {
+      background: #fff;
+      box-shadow: 0 2px 24px rgba(0,0,0,0.07);
+      border-radius: 10px;
+      padding: 32px 24px;
+      width: 100%;
+      max-width: 340px;
+      text-align: center;
+      position: relative;
+    }
+    .logo {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      object-fit: contain;
+      margin-bottom: 16px;
+      background: #eaf3fa;
+      display: inline-block;
+    }
+    h2 {
+      margin-bottom: 8px;
+      color: #0055a5;
+      font-size: 1.6em;
+      font-weight: 700;
+    }
+    .subtitle {
+      color: #666;
+      margin-bottom: 24px;
+      font-size: 1em;
+      font-weight: 400;
+    }
+    input[type="email"], input[type="password"] {
+      width: 100%;
+      padding: 10px 12px;
+      margin: 8px 0;
+      border: 1px solid #d3e0ea;
+      border-radius: 6px;
+      font-size: 1em;
+      background: #f7f9fb;
+      transition: border-color 0.2s;
+    }
+    input:focus {
+      border-color: #0055a5;
+      outline: none;
+    }
+    .login-btn {
+      width: 100%;
+      background: #0055a5;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 12px;
+      font-size: 1.07em;
+      font-weight: 600;
+      margin-top: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .login-btn:hover {
+      background: #073d7d;
+    }
+    .error-message {
+      color: #d0003a;
+      margin-top: 12px;
+      font-size: 0.93em;
+      min-height: 24px;
+    }
   </style>
 </head>
 <body>
-  <h2>Visor de Tablas Supabase (con logs)</h2>
-  <div id="tabs"></div>
-  <div id="table-container"></div>
-  <div id="error-message"></div>
+  <div class="login-container">
+    <!-- Logo: lo agregaremos luego -->
+    <img src="logo-placeholder.png" alt="EG Health Solutions Logo" class="logo" id="logo-img">
+    <h2>EG Health Solutions</h2>
+    <div class="subtitle">Iniciar sesión en el sistema</div>
+    <form id="login-form" autocomplete="off">
+      <input type="email" id="email" placeholder="Correo electrónico" required>
+      <input type="password" id="password" placeholder="Contraseña" required>
+      <button type="submit" class="login-btn">Ingresar</button>
+      <div class="error-message" id="error-message"></div>
+    </form>
+  </div>
+  <!-- Supabase login logic -->
   <script type="module">
     import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-    // Reemplaza estos valores por los de tu proyecto:
+    // Tu config de Supabase
     const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // Nombres de tablas
-    const tables = [
-      "centros_medicos",
-      "profesionales",
-      "profiles",
-      "agenda",
-      "pacientes",
-      "profesional_centro",
-      "medico_config",
-      "turnos"
-    ];
-
-    // Render tabs
-    const tabsDiv = document.getElementById('tabs');
-    tables.forEach((t, idx) => {
-      const tab = document.createElement('span');
-      tab.textContent = t;
-      tab.className = 'tab' + (idx === 0 ? ' active' : '');
-      tab.onclick = () => {
-        document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-        tab.classList.add('active');
-        fetchTable(t);
-      };
-      tabsDiv.appendChild(tab);
+    // Login handler
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const errorMessage = document.getElementById('error-message');
+      errorMessage.textContent = '';
+      // Iniciar sesión con Supabase Auth
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        errorMessage.textContent = 'Correo o contraseña incorrectos.';
+      } else {
+        errorMessage.textContent = '';
+        // Redirigir al dashboard o página principal
+        window.location.href = "dashboard.html";
+      }
     });
 
-    // Fetch table data
-    async function fetchTable(tableName) {
-      document.getElementById('error-message').textContent = '';
-      document.getElementById('table-container').innerHTML = '<em>Cargando...</em>';
-      try {
-        const { data, error } = await supabase
-          .from(tableName)
-          .select('*')
-          .limit(50);
-
-        // Log para debugging en consola
-        console.log(`Consulta a tabla: ${tableName}`);
-        console.log('Data:', data);
-        console.log('Error:', error);
-
-        if (error) {
-          document.getElementById('error-message').textContent = `Error al consultar ${tableName}: ${error.message}`;
-          document.getElementById('table-container').innerHTML = '';
-          return;
-        }
-        if (!data || data.length === 0) {
-          document.getElementById('table-container').innerHTML = '<em>No hay datos en la tabla.</em>';
-          return;
-        }
-        renderTable(data);
-      } catch (err) {
-        console.error(`Error inesperado al consultar ${tableName}:`, err);
-        document.getElementById('error-message').textContent = `Error inesperado al consultar ${tableName}: ${err.message}`;
-        document.getElementById('table-container').innerHTML = '';
-      }
-    }
-
-    // Render table
-    function renderTable(data) {
-      const keys = Object.keys(data[0]);
-      let html = '<table><thead><tr>' + keys.map(k => `<th>${k}</th>`).join('') + '</tr></thead><tbody>';
-      data.forEach(row => {
-        html += '<tr>' + keys.map(k => `<td>${row[k]}</td>`).join('') + '</tr>';
-      });
-      html += '</tbody></table>';
-      document.getElementById('table-container').innerHTML = html;
-    }
-
-    // Inicial: mostrar la primera tabla
-    fetchTable(tables[0]);
+    // Puedes luego cambiar el src de #logo-img por tu logo real
+    // document.getElementById('logo-img').src = "tu-logo.png";
   </script>
 </body>
 </html>
