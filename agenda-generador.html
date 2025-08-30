@@ -54,18 +54,6 @@
     </div>
   </section>
 
-  <!-- Duración de los slots básicos -->
-  <section class="bloque-duracion-turno" style="margin-top:12px;display:flex;gap:32px;">
-    <div>
-      <label for="duracion-slot"><b>Duración de cada slot (minutos) <span class="obligatorio">*</span></b></label><br>
-      <select id="duracion-slot" required>
-        <option value="">Seleccione...</option>
-        <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
-        <option value="20">20 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">60 min</option>
-      </select>
-    </div>
-  </section>
-
   <!-- Tabla compacta de horarios por día -->
   <section class="bloque-horario-dias" style="margin-top:18px;">
     <h3 style="margin-bottom:9px;">Horarios por Día</h3>
@@ -241,7 +229,7 @@ document.getElementById('guardar-nuevo-centro').onclick = async function() {
 // --- Validaciones en tiempo real ---
 const campos_requeridos = [
   'nombre-agenda', 'fecha-inicio', 'fecha-fin',
-  'centro-agenda', 'duracion-slot'
+  'centro-agenda'
 ];
 campos_requeridos.forEach(id => {
   document.getElementById(id).addEventListener('input', validarCamposAgenda);
@@ -280,7 +268,7 @@ function horarioValido() {
   return valido;
 }
 
-// --- Generar agenda ---
+// --- Generar agenda (solo guarda disponibilidad básica, sin slots) ---
 document.getElementById('btn-generar-agenda').onclick = async function() {
   const msg = document.getElementById('msg-agenda');
   msg.textContent = '';
@@ -292,7 +280,6 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
   const fecha_inicio = document.getElementById('fecha-inicio').value;
   const fecha_fin = document.getElementById('fecha-fin').value;
   const centro_id = document.getElementById('centro-agenda').value;
-  const duracion_slot = Number(document.getElementById('duracion-slot').value);
 
   // Recopilar horarios por día
   const bloques = [];
@@ -305,6 +292,7 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     if(tm_ini && tm_fin && tm_ini < tm_fin && tm_fin <= '13:00'){
       bloques.push({
         dia:dia.nombre,
+        turno:'mañana',
         hora_inicio:tm_ini,
         hora_fin:tm_fin,
       });
@@ -315,6 +303,7 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     if(tt_ini && tt_fin && tt_ini < tt_fin && tt_ini >= '13:00'){
       bloques.push({
         dia:dia.nombre,
+        turno:'tarde',
         hora_inicio:tt_ini,
         hora_fin:tt_fin,
       });
@@ -325,67 +314,48 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     return;
   }
 
-  // Generar slots de agenda
-  msg.textContent = "Generando agenda...";
-  let totalSlots = 0;
-  let fechaActual = new Date(fecha_inicio);
-  const fechaFin = new Date(fecha_fin);
-  while(fechaActual <= fechaFin){
-    const diaSemanaNum = fechaActual.getDay(); // 0=domingo, 1=lunes, ..., 6=sábado
-    const diaMap = {1:'lunes',2:'martes',3:'miercoles',4:'jueves',5:'viernes',6:'sabado'}; // lunes=1
-    const diaSemana = diaMap[diaSemanaNum];
-    if(!diaSemana) { fechaActual.setDate(fechaActual.getDate()+1); continue; }
-    const bloquesDia = bloques.filter(b=>b.dia===diaSemana);
-    for(const b of bloquesDia){
-      let hIni = toMinutes(b.hora_inicio);
-      let hFin = toMinutes(b.hora_fin);
-      for(let m=hIni; m+duracion_slot<=hFin; m+=duracion_slot){
-        const hora_inicio = toHoraStr(m);
-        const hora_fin = toHoraStr(m+duracion_slot);
-        await supabase
-          .from('agenda')
-          .upsert({
-            centro_id,
-            profesional_id,
-            fecha: fechaActual.toISOString().slice(0,10),
-            hora_inicio,
-            hora_fin,
-            capacidad: 1,
-            estado: 'disponible',
-            notas: '',
-            "Nombre de Agenda": nombre_agenda,
-            tipo_turno: '', // Pendiente, se asigna en la reserva
-          }, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
-        totalSlots++;
-      }
-    }
-    fechaActual.setDate(fechaActual.getDate()+1);
+  // Guarda la agenda como definición de disponibilidad (no slots)
+  msg.textContent = "Guardando agenda de disponibilidad...";
+  // Borra agendas anteriores con este nombre para el profesional y centro
+  await supabase
+    .from('agenda_disponibilidad')
+    .delete()
+    .eq('profesional_id', profesional_id)
+    .eq('centro_id', centro_id)
+    .eq('nombre_agenda', nombre_agenda);
+
+  // Inserta nueva agenda de disponibilidad
+  const { error } = await supabase
+    .from('agenda_disponibilidad')
+    .insert([{
+      profesional_id,
+      centro_id,
+      nombre_agenda,
+      fecha_inicio,
+      fecha_fin,
+      bloques: JSON.stringify(bloques)
+    }]);
+  if(error){
+    msg.textContent = "Error al guardar la agenda.";
+    return;
   }
-  msg.textContent = `Agenda generada (${totalSlots} slots disponibles).`;
+  msg.textContent = "Agenda guardada correctamente.";
 
   // Actualizar el listado de agendas abajo
   await cargarListadoAgendas();
 };
 
-// --- Helpers ---
-function toMinutes(horaStr){
-  const [h,m] = horaStr.split(':'); return parseInt(h)*60+parseInt(m);
-}
-function toHoraStr(minutos){
-  const h = Math.floor(minutos/60), m = minutos%60;
-  return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
-}
-
-// --- Listado de agendas generadas ---
+// --- Listado de agendas generadas agrupadas por nombre ---
 async function cargarListadoAgendas() {
   const listadoCont = document.getElementById('listado-agendas');
   listadoCont.innerHTML = 'Cargando...';
+  // Trae todas las agendas de disponibilidad de este profesional y centro
   const { data, error } = await supabase
-    .from('agenda')
-    .select('Nombre de Agenda, count:id')
+    .from('agenda_disponibilidad')
+    .select('id, nombre_agenda, fecha_inicio, fecha_fin')
     .eq('profesional_id', profesional_id)
-    .eq('centro_id', centro_default_id)
-    .group('Nombre de Agenda');
+    .eq('centro_id', centro_default_id);
+
   if(error){
     listadoCont.innerHTML = '<span style="color:red;">Error al cargar agendas.</span>';
     return;
@@ -396,20 +366,18 @@ async function cargarListadoAgendas() {
   }
   listadoCont.innerHTML = data.map(a => `
     <div class="agenda-list-row">
-      <span><b>${a['Nombre de Agenda']}</b> (${a.count} turnos)</span>
-      <button class="btn eliminar-agenda-btn" data-agenda="${a['Nombre de Agenda']}">Eliminar agenda</button>
+      <span><b>${a.nombre_agenda}</b> (${a.fecha_inicio} &mdash; ${a.fecha_fin})</span>
+      <button class="btn eliminar-agenda-btn" data-id="${a.id}">Eliminar agenda</button>
     </div>
   `).join('');
   // Agregar handlers de eliminar
   document.querySelectorAll('.eliminar-agenda-btn').forEach(btn => {
     btn.onclick = async function() {
-      if(!confirm(`¿Seguro que quieres eliminar TODOS los turnos de la agenda "${btn.dataset.agenda}"?`)) return;
+      if(!confirm(`¿Seguro que quieres eliminar la agenda "${btn.parentNode.querySelector('b').textContent}"?`)) return;
       const { error: delError } = await supabase
-        .from('agenda')
+        .from('agenda_disponibilidad')
         .delete()
-        .eq('profesional_id', profesional_id)
-        .eq('centro_id', centro_default_id)
-        .eq('Nombre de Agenda', btn.dataset.agenda);
+        .eq('id', btn.dataset.id);
       if(delError){
         alert('Error al eliminar la agenda');
       }else{
