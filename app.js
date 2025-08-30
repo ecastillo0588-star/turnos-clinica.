@@ -1,5 +1,8 @@
-// 1. Inicialización de Supabase (poné tus claves reales)
-const supabase = createClient('https://TU_SUPABASE_URL.supabase.co', 'TU_SUPABASE_ANON_KEY');
+// 1. Inicialización de Supabase con tus claves reales
+const supabase = createClient(
+  'https://vwkszvdvswznlgxlfdtz.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0'
+);
 
 // 2. Renderiza el formulario de login
 function renderLogin() {
