@@ -5,7 +5,6 @@
   <title>Panel - EG Health Solutions</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="app.css">
-  <script type="module" src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm"></script>
 </head>
 <body>
   <div class="app">
@@ -48,12 +47,6 @@
     </main>
   </div>
   <script type="module">
-    // Configuración de Supabase
-    const supabaseUrl = 'https://TU_SUPABASE_URL.supabase.co';
-    const supabaseKey = 'TU_SUPABASE_ANON_KEY';
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
     // Datos básicos
     document.getElementById('centro-nombre').textContent = localStorage.getItem('centro_medico_nombre') || 'No asignado';
     document.getElementById('user-rol').textContent = localStorage.getItem('user_rol') || '';
@@ -98,10 +91,10 @@
       showPanel('dashboard');
       document.getElementById('main-content').innerHTML = `<h2>Reporte de facturación</h2><p>Gráficos e información de facturación.</p>`;
     });
-    document.getElementById('btn-config').addEventListener('click', function() {
+    document.getElementById('btn-config').addEventListener('click', async function() {
       setActiveMenu(this);
       showPanel('config');
-      cargarPanelConfiguracion();
+      await cargarPanelConfiguracion();
     });
     document.getElementById('btn-logout').addEventListener('click', function() {
       localStorage.clear();
@@ -119,223 +112,23 @@
       btn.classList.add('active');
     }
 
-    // Panel de configuración (bloque HTML+JS)
+    // Panel de configuración: carga el archivo configuracion.html y lo inserta en el div
     async function cargarPanelConfiguracion() {
-      document.getElementById('configuracion-panel').innerHTML = `
-      <div class="card" style="max-width:600px;margin:auto;">
-        <h2>Configuración de Agenda</h2>
-        <form id="config-form">
-          <div class="grid" style="grid-template-columns:repeat(2,1fr);gap:18px;">
-            <div>
-              <label>Días laborales</label>
-              <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                <label><input type="checkbox" name="dias" value="lunes">Lun</label>
-                <label><input type="checkbox" name="dias" value="martes">Mar</label>
-                <label><input type="checkbox" name="dias" value="miercoles">Mié</label>
-                <label><input type="checkbox" name="dias" value="jueves">Jue</label>
-                <label><input type="checkbox" name="dias" value="viernes">Vie</label>
-                <label><input type="checkbox" name="dias" value="sabado">Sáb</label>
-                <label><input type="checkbox" name="dias" value="domingo">Dom</label>
-              </div>
-            </div>
-            <div>
-              <label>Horario laboral</label>
-              <div style="display:flex;gap:8px;">
-                <input type="time" name="hora_inicio" required>
-                <span>-</span>
-                <input type="time" name="hora_fin" required>
-              </div>
-            </div>
-            <div>
-              <label>Duración turno nueva consulta (min)</label>
-              <input type="number" name="duracion_nueva" min="10" max="180" required>
-            </div>
-            <div>
-              <label>Duración turno consulta recurrente (min)</label>
-              <input type="number" name="duracion_recurrente" min="5" max="180" required>
-            </div>
-          </div>
-          <div style="margin-top:24px;">
-            <label>Centros médicos donde atiende</label>
-            <select name="centros" id="centros-select" multiple style="min-width:220px;">
-              <!-- Opciones se llenan por JS -->
-            </select>
-          </div>
-          <div class="actions" style="margin-top:24px;">
-            <button type="submit" class="btn primary">Guardar configuración</button>
-          </div>
-        </form>
-        <div style="margin-top:40px;">
-          <h3>Asistentes</h3>
-          <div id="asistentes-list"></div>
-          <button class="btn" id="btn-add-asistente" style="margin-top:10px;">Agregar asistente</button>
-          <div id="asistente-form-wrap" class="card hidden" style="margin-top:12px;">
-            <form id="asistente-form">
-              <label>Nombre <input type="text" name="nombre" required></label>
-              <label>Apellido <input type="text" name="apellido" required></label>
-              <label>Email <input type="email" name="email"></label>
-              <label>Teléfono <input type="text" name="telefono"></label>
-              <label>Especialidad <input type="text" name="especialidad"></label>
-              <div class="actions">
-                <button type="submit" class="btn primary">Crear asistente</button>
-                <button type="button" class="btn" id="btn-cancel-asistente">Cancelar</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-      `;
-
-      // Supabase setup para config
-      const profesional_id = localStorage.getItem('profesional_id');
-
-      // 1. Cargar configuración actual
-      async function cargarConfiguracion() {
-        const { data, error } = await supabase
-          .from('profesional_preferencias')
-          .select('*')
-          .eq('profesional_id', profesional_id)
-          .single();
-        if(data) {
-          // Días laborales
-          if(data.dias_laborales) {
-            document.querySelectorAll('[name="dias"]').forEach(cb => {
-              cb.checked = data.dias_laborales.includes(cb.value);
-            });
-          }
-          // Horario
-          document.querySelector('[name="hora_inicio"]').value = data.horario_inicio || '08:00';
-          document.querySelector('[name="hora_fin"]').value = data.horario_fin || '17:00';
-          // Duraciones
-          document.querySelector('[name="duracion_nueva"]').value = data.duracion_turno_nueva || 30;
-          document.querySelector('[name="duracion_recurrente"]').value = data.duracion_turno_recurrente || 15;
-        }
-      }
-
-      // 2. Guardar configuración
-      document.getElementById('config-form').addEventListener('submit', async function(e){
-        e.preventDefault();
-        const dias = Array.from(document.querySelectorAll('[name="dias"]:checked')).map(cb=>cb.value);
-        const hora_inicio = document.querySelector('[name="hora_inicio"]').value;
-        const hora_fin = document.querySelector('[name="hora_fin"]').value;
-        const duracion_nueva = Number(document.querySelector('[name="duracion_nueva"]').value);
-        const duracion_recurrente = Number(document.querySelector('[name="duracion_recurrente"]').value);
-        const { data, error } = await supabase
-          .from('profesional_preferencias')
-          .upsert({
-            profesional_id,
-            dias_laborales: dias,
-            horario_inicio: hora_inicio,
-            horario_fin: hora_fin,
-            duracion_turno_nueva: duracion_nueva,
-            duracion_turno_recurrente: duracion_recurrente
-          });
-        if(error) alert('Error al guardar: ' + error.message);
-        else alert('Configuración guardada');
+      // Solicita el archivo configuracion.html vía fetch
+      const resp = await fetch('configuracion.html');
+      let html = await resp.text();
+      // Inserta el HTML en el panel
+      document.getElementById('configuracion-panel').innerHTML = html;
+      // Los <script type="module"> internos de configuracion.html NO se ejecutan automáticamente,
+      // así que detecta y evalúa los scripts (solo si son de tipo module)
+      const panel = document.getElementById('configuracion-panel');
+      Array.from(panel.querySelectorAll('script[type="module"]')).forEach(oldScript => {
+        const newScript = document.createElement('script');
+        newScript.type = 'module';
+        if (oldScript.src) newScript.src = oldScript.src;
+        else newScript.textContent = oldScript.textContent;
+        document.body.appendChild(newScript);
       });
-
-      // 3. Cargar centros médicos activos
-      async function cargarCentros() {
-        const { data, error } = await supabase
-          .from('centros_medicos')
-          .select('id,nombre')
-          .eq('activo', true);
-        const select = document.getElementById('centros-select');
-        select.innerHTML = '';
-        if(data) {
-          data.forEach(centro => {
-            const option = document.createElement('option');
-            option.value = centro.id;
-            option.textContent = centro.nombre;
-            select.appendChild(option);
-          });
-        }
-        // Marcar los centros donde atiende
-        const { data: vinculos } = await supabase
-          .from('profesional_centro')
-          .select('centro_id')
-          .eq('profesional_id', profesional_id)
-          .eq('activo', true);
-        if(vinculos) {
-          Array.from(select.options).forEach(opt=>{
-            if(vinculos.some(vc=>vc.centro_id===opt.value)) opt.selected = true;
-          });
-        }
-      }
-      document.getElementById('centros-select').addEventListener('change', async function(e){
-        const centros = Array.from(this.selectedOptions).map(opt=>opt.value);
-        await supabase
-          .from('profesional_centro')
-          .update({ activo: false })
-          .eq('profesional_id', profesional_id);
-        for(const centro_id of centros) {
-          await supabase
-            .from('profesional_centro')
-            .upsert({ profesional_id, centro_id, activo: true }, { onConflict: ['profesional_id','centro_id'] });
-        }
-      });
-
-      // 4. Gestión de asistentes
-      async function cargarAsistentes(){
-        const { data, error } = await supabase
-          .from('profesionales')
-          .select('*')
-          .eq('activo', true)
-          .neq('id', profesional_id);
-        const list = document.getElementById('asistentes-list');
-        list.innerHTML = '';
-        if(data && data.length){
-          data.forEach(asistente=>{
-            const div = document.createElement('div');
-            div.textContent = `${asistente.nombre} ${asistente.apellido} (${asistente.especialidad||''})`;
-            const btn = document.createElement('button');
-            btn.textContent = 'Desvincular';
-            btn.className = 'btn';
-            btn.onclick = async function(){
-              await supabase
-                .from('profesional_centro')
-                .delete()
-                .eq('profesional_id', asistente.id);
-              cargarAsistentes();
-            };
-            div.appendChild(btn);
-            list.appendChild(div);
-          });
-        } else {
-          list.textContent = 'No hay asistentes vinculados.';
-        }
-      }
-      document.getElementById('btn-add-asistente').onclick = ()=> {
-        document.getElementById('asistente-form-wrap').classList.remove('hidden');
-      };
-      document.getElementById('btn-cancel-asistente').onclick = ()=> {
-        document.getElementById('asistente-form-wrap').classList.add('hidden');
-      };
-      document.getElementById('asistente-form').addEventListener('submit', async function(e){
-        e.preventDefault();
-        const fd = new FormData(this);
-        const asistente = {
-          nombre: fd.get('nombre'),
-          apellido: fd.get('apellido'),
-          email: fd.get('email'),
-          telefono: fd.get('telefono'),
-          especialidad: fd.get('especialidad'),
-          activo: true
-        };
-        const { data, error } = await supabase
-          .from('profesionales')
-          .insert([asistente]);
-        if(error) alert('Error al crear asistente: ' + error.message);
-        else {
-          alert('Asistente creado');
-          document.getElementById('asistente-form-wrap').classList.add('hidden');
-          cargarAsistentes();
-        }
-      });
-
-      cargarConfiguracion();
-      cargarCentros();
-      cargarAsistentes();
     }
   </script>
 </body>
