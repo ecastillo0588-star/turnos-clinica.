@@ -1,220 +1,356 @@
-<!-- Generador de Agenda de Disponibilidad de Turnos -->
-<div class="card agenda-generador">
-  <h2>Generar Agenda de Disponibilidad</h2>
-  <!-- Bloque de Fechas y Centro -->
-  <section class="bloque-fechas">
-    <div style="display:flex;gap:24px;align-items:center;">
-      <div>
-        <label for="fecha-inicio"><b>Fecha inicio</b></label><br>
-        <input type="date" id="fecha-inicio" required>
+<!-- Panel de Configuración EG Health Solutions -->
+<div class="config-grid card">
+  <!-- BLOQUE: Centros Médicos y Asociación -->
+  <section class="bloque-centros">
+    <h2>Centros Médicos</h2>
+    <div>
+      <label>Centros médicos donde atiende</label>
+      <div style="display:flex;gap:8px;">
+        <select id="centro-selector" style="min-width:220px;">
+          <option value="">Seleccione un centro...</option>
+        </select>
+        <button type="button" class="btn" id="btn-agregar-centro">Asociar</button>
+        <button type="button" class="btn" id="btn-nuevo-centro">Crear nuevo centro</button>
       </div>
-      <div>
-        <label for="fecha-fin"><b>Fecha fin</b></label><br>
-        <input type="date" id="fecha-fin" required>
-      </div>
-      <div>
-        <label for="centro-agenda"><b>Centro médico</b></label><br>
-        <select id="centro-agenda" required style="min-width:180px;"></select>
+      <div id="centros-elegidos" style="margin-top:10px;"></div>
+    </div>
+    <!-- Modal para crear nuevo centro -->
+    <div id="modal-nuevo-centro" class="modal hidden">
+      <div class="modal-content card">
+        <h3>Crear nuevo centro médico</h3>
+        <form id="form-nuevo-centro">
+          <label>Nombre <input type="text" name="nombre" required></label>
+          <div class="actions">
+            <button type="submit" class="btn primary">Crear</button>
+            <button type="button" class="btn" id="btn-cancel-nuevo-centro">Cancelar</button>
+          </div>
+        </form>
       </div>
     </div>
   </section>
 
-  <!-- Bloque de Horarios por Día -->
-  <section class="bloque-horario-dias" style="margin-top:24px;">
-    <h3>Horarios por Día</h3>
-    <table class="horarios-table">
-      <thead>
-        <tr>
-          <th>Día</th>
-          <th>Turno Mañana<br><small>Hora inicio</small></th>
-          <th>Turno Mañana<br><small>Hora fin</small></th>
-          <th>Turno Tarde<br><small>Hora inicio</small></th>
-          <th>Turno Tarde<br><small>Hora fin</small></th>
-          <th>Habilitar</th>
-        </tr>
-      </thead>
-      <tbody id="horarios-body">
-        <!-- Se llena por JS -->
-      </tbody>
-    </table>
+  <!-- BLOQUE: Configuración General de Agenda -->
+  <section class="bloque-agenda">
+    <h2>Configuración General</h2>
+    <form id="config-form">
+      <div class="grid agenda-grid">
+        <div>
+          <label>Días laborales</label>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <label><input type="checkbox" name="dias" value="lunes">Lun</label>
+            <label><input type="checkbox" name="dias" value="martes">Mar</label>
+            <label><input type="checkbox" name="dias" value="miercoles">Mié</label>
+            <label><input type="checkbox" name="dias" value="jueves">Jue</label>
+            <label><input type="checkbox" name="dias" value="viernes">Vie</label>
+            <label><input type="checkbox" name="dias" value="sabado">Sáb</label>
+            <label><input type="checkbox" name="dias" value="domingo">Dom</label>
+          </div>
+        </div>
+        <div>
+          <label>Horario laboral</label>
+          <div style="display:flex;gap:8px;">
+            <input type="time" name="hora_inicio" required>
+            <span>-</span>
+            <input type="time" name="hora_fin" required>
+          </div>
+        </div>
+        <div>
+          <label>Duración turno nueva consulta (min)</label>
+          <select name="duracion_nueva" required></select>
+        </div>
+        <div>
+          <label>Duración turno consulta recurrente (min)</label>
+          <select name="duracion_recurrente" required></select>
+        </div>
+      </div>
+      <div class="actions" style="margin-top:24px;">
+        <button type="submit" class="btn primary">Guardar configuración</button>
+      </div>
+    </form>
   </section>
 
-  <!-- Bloque de Duración de Turno -->
-  <section class="bloque-duracion-turno" style="margin-top:18px;">
-    <label for="duracion-turno"><b>Duración de cada turno</b></label>
-    <select id="duracion-turno" required>
-      <!-- Opciones por JS -->
-    </select>
+  <!-- BLOQUE: Espacio para Agenda -->
+  <section class="bloque-generador-agenda">
+    <h2>Configurar Agenda</h2>
+    <div id="generador-agenda-espacio">
+      <!-- Aquí se inserta el contenido de agenda-generador.html -->
+    </div>
   </section>
 
-  <!-- Acción -->
-  <div class="actions" style="margin-top:32px;">
-    <button class="btn primary" id="btn-generar-agenda">Generar agenda</button>
-  </div>
-
-  <!-- Mensajes -->
-  <div id="msg-agenda" style="margin-top:22px;"></div>
+  <!-- BLOQUE: Asistentes -->
+  <section class="bloque-asistentes">
+    <h2>Asistentes</h2>
+    <div id="asistentes-list"></div>
+    <button class="btn" id="btn-add-asistente" style="margin-top:10px;">Agregar asistente</button>
+    <div id="asistente-form-wrap" class="card hidden" style="margin-top:12px;">
+      <form id="asistente-form">
+        <label>Email <input type="email" name="email" required></label>
+        <label>Nombre <input type="text" name="nombre" required></label>
+        <label>Apellido <input type="text" name="apellido" required></label>
+        <label>Teléfono <input type="text" name="telefono"></label>
+        <div class="actions">
+          <button type="submit" class="btn primary">Crear asistente</button>
+          <button type="button" class="btn" id="btn-cancel-asistente">Cancelar</button>
+        </div>
+      </form>
+    </div>
+  </section>
 </div>
 
 <script type="module">
+// --- Scripts de configuración, centros, asistentes ---
+
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+// REEMPLAZA por tus credenciales reales
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-const supabaseAnonKey = 'eyJ...'; // tu key aquí
+const supabaseAnonKey = 'eyJ...';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const profesional_id = localStorage.getItem('profesional_id');
-const DIAS = [
-  {nombre:'lunes', label:'LUN'},
-  {nombre:'martes', label:'MAR'},
-  {nombre:'miercoles', label:'MIÉR'},
-  {nombre:'jueves', label:'JUEV'},
-  {nombre:'viernes', label:'VIER'},
-  {nombre:'sabado', label:'SÁB'}
-];
+const DIAS = ['lunes','martes','miercoles','jueves','viernes','sabado','domingo'];
 
-// Rellenar duración: desde 10 min, luego cada 5 hasta 60
-const selectDuracion = document.getElementById('duracion-turno');
-for(let i=10; i<=60; i+=5){
-  const opt = document.createElement('option');
-  opt.value = i;
-  opt.textContent = i + ' min';
-  selectDuracion.appendChild(opt);
+// --- Duración de turnos ---
+function llenarOpcionesDuracion() {
+  for(let i=10;i<=60;i+=5) {
+    ['duracion_nueva','duracion_recurrente'].forEach(name=>{
+      const select = document.querySelector(`[name="${name}"]`);
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = i + ' min';
+      select.appendChild(opt);
+    });
+  }
 }
+llenarOpcionesDuracion();
 
-// Cargar centros médicos asociados
+// --- Bloque CENTROS MEDICOS ---
+let centrosDisponibles = [];
+let centrosElegidos = [];
 async function cargarCentros() {
+  const selector = document.getElementById('centro-selector');
+  selector.innerHTML = '<option value="">Seleccione un centro...</option>';
+  const { data: centros } = await supabase
+    .from('centros_medicos')
+    .select('id, nombre')
+    .eq('activo', true);
+  centrosDisponibles = centros || [];
+  centrosDisponibles.forEach(centro=>{
+    const opt = document.createElement('option');
+    opt.value = centro.id;
+    opt.textContent = centro.nombre;
+    selector.appendChild(opt);
+  });
   const { data: vinculos } = await supabase
     .from('profesional_centro')
     .select('centro_id')
     .eq('profesional_id', profesional_id)
     .eq('activo', true);
-  const centro_ids = vinculos ? vinculos.map(v=>v.centro_id) : [];
-  const { data: centros } = await supabase
-    .from('centros_medicos')
-    .select('id,nombre')
-    .in('id', centro_ids);
-  const selector = document.getElementById('centro-agenda');
-  selector.innerHTML = '';
-  centros.forEach(c=>{
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = c.nombre;
-    selector.appendChild(opt);
+  centrosElegidos = vinculos ? vinculos.map(vc=>vc.centro_id) : [];
+  renderCentrosElegidos();
+}
+function renderCentrosElegidos() {
+  const cont = document.getElementById('centros-elegidos');
+  cont.innerHTML = '<b>Centros asociados:</b><br>';
+  if (!centrosElegidos.length) cont.innerHTML += '<i>No hay centros asociados.</i>';
+  centrosElegidos.forEach(id=>{
+    const centro = centrosDisponibles.find(c=>c.id===id);
+    if(centro){
+      const div = document.createElement('div');
+      div.className = 'centro-elegido';
+      div.textContent = centro.nombre;
+      const btn = document.createElement('button');
+      btn.textContent = 'Quitar';
+      btn.className = 'btn';
+      btn.style.marginLeft = "10px";
+      btn.onclick = () => quitarCentro(id);
+      div.appendChild(btn);
+      cont.appendChild(div);
+    }
   });
 }
+function quitarCentro(id) {
+  centrosElegidos = centrosElegidos.filter(cid=>cid!==id);
+  supabase
+    .from('profesional_centro')
+    .update({ activo: false })
+    .eq('profesional_id', profesional_id)
+    .eq('centro_id', id)
+    .then(()=>cargarCentros());
+}
+document.getElementById('btn-agregar-centro').onclick = function(){
+  const id = document.getElementById('centro-selector').value;
+  if(id && !centrosElegidos.includes(id)){
+    supabase
+      .from('profesional_centro')
+      .upsert({ profesional_id, centro_id: id, activo: true }, { onConflict: ['profesional_id','centro_id'] })
+      .then(()=>cargarCentros());
+  }
+};
+document.getElementById('btn-nuevo-centro').onclick = function(){
+  document.getElementById('modal-nuevo-centro').classList.remove('hidden');
+};
+document.getElementById('btn-cancel-nuevo-centro').onclick = function(){
+  document.getElementById('modal-nuevo-centro').classList.add('hidden');
+};
+document.getElementById('form-nuevo-centro').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const nombre = this.nombre.value;
+  const { data, error } = await supabase
+    .from('centros_medicos')
+    .insert([{ nombre, activo: true }]);
+  if(error) alert('Error al crear centro: ' + error.message);
+  else {
+    document.getElementById('modal-nuevo-centro').classList.add('hidden');
+    await cargarCentros();
+    const nuevoId = data[0].id;
+    await supabase
+      .from('profesional_centro')
+      .upsert({ profesional_id, centro_id: nuevoId, activo: true }, { onConflict: ['profesional_id','centro_id'] });
+    await cargarCentros();
+  }
+});
 cargarCentros();
 
-// Renderizar la tabla de horarios/días
-function renderTablaHorarios() {
-  const tbody = document.getElementById('horarios-body');
-  tbody.innerHTML = '';
-  DIAS.forEach((dia, idx)=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td><b>${dia.label}</b></td>
-      <td><input type="time" name="tm_ini_${idx}" style="width:84px;"></td>
-      <td><input type="time" name="tm_fin_${idx}" style="width:84px;"></td>
-      <td><input type="time" name="tt_ini_${idx}" style="width:84px;"></td>
-      <td><input type="time" name="tt_fin_${idx}" style="width:84px;"></td>
-      <td><input type="checkbox" name="hab_${idx}" checked></td>
-    `;
-    tbody.appendChild(tr);
-  });
+// --- Bloque AGENDA GENERAL ---
+async function cargarConfiguracion() {
+  const { data } = await supabase
+    .from('profesional_preferencias')
+    .select('*')
+    .eq('profesional_id', profesional_id)
+    .single();
+  if(data) {
+    if(data.dias_laborales) {
+      document.querySelectorAll('[name="dias"]').forEach(cb => {
+        cb.checked = data.dias_laborales.includes(cb.value);
+      });
+    }
+    document.querySelector('[name="hora_inicio"]').value = data.horario_inicio || '08:00';
+    document.querySelector('[name="hora_fin"]').value = data.horario_fin || '17:00';
+    document.querySelector('[name="duracion_nueva"]').value = data.duracion_turno_nueva || 10;
+    document.querySelector('[name="duracion_recurrente"]').value = data.duracion_turno_recurrente || 10;
+  }
 }
-renderTablaHorarios();
+cargarConfiguracion();
 
-// Generar agenda al hacer click
-document.getElementById('btn-generar-agenda').onclick = async function() {
-  const msg = document.getElementById('msg-agenda');
-  msg.textContent = '';
-  // 1. Fechas y centro
-  const fecha_inicio = document.getElementById('fecha-inicio').value;
-  const fecha_fin = document.getElementById('fecha-fin').value;
-  const centro_id = document.getElementById('centro-agenda').value;
-  const duracion_turno = Number(document.getElementById('duracion-turno').value);
-  if(!fecha_inicio || !fecha_fin || !centro_id){
-    msg.textContent = "Seleccione fechas y centro médico.";
-    return;
-  }
-  // 2. Recopilar horarios por día
-  const turnos = [];
-  DIAS.forEach((dia, idx)=>{
-    const habilitado = document.querySelector(`[name="hab_${idx}"]`).checked;
-    if(!habilitado) return;
-    // Mañana
-    const tm_ini = document.querySelector(`[name="tm_ini_${idx}"]`).value;
-    const tm_fin = document.querySelector(`[name="tm_fin_${idx}"]`).value;
-    if(tm_ini && tm_fin && tm_ini < tm_fin){
-      turnos.push({dia:dia.nombre, turno:'mañana', hora_inicio:tm_ini, hora_fin:tm_fin});
-    }
-    // Tarde
-    const tt_ini = document.querySelector(`[name="tt_ini_${idx}"]`).value;
-    const tt_fin = document.querySelector(`[name="tt_fin_${idx}"]`).value;
-    if(tt_ini && tt_fin && tt_ini < tt_fin){
-      turnos.push({dia:dia.nombre, turno:'tarde', hora_inicio:tt_ini, hora_fin:tt_fin});
-    }
-  });
-  if(turnos.length===0){
-    msg.textContent = "Configure al menos un horario válido para algún día.";
-    return;
-  }
+document.getElementById('config-form').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const dias = Array.from(document.querySelectorAll('[name="dias"]:checked')).map(cb=>cb.value);
+  const hora_inicio = document.querySelector('[name="hora_inicio"]').value;
+  const hora_fin = document.querySelector('[name="hora_fin"]').value;
+  const duracion_nueva = Number(document.querySelector('[name="duracion_nueva"]').value);
+  const duracion_recurrente = Number(document.querySelector('[name="duracion_recurrente"]').value);
+  await supabase
+    .from('profesional_preferencias')
+    .upsert({
+      profesional_id,
+      dias_laborales: dias,
+      horario_inicio: hora_inicio,
+      horario_fin: hora_fin,
+      duracion_turno_nueva: duracion_nueva,
+      duracion_turno_recurrente: duracion_recurrente
+    });
+  alert('Configuración guardada');
+});
 
-  // 3. Generar slots de agenda
-  msg.textContent = "Generando agenda...";
-  let totalSlots = 0;
-  let fechaActual = new Date(fecha_inicio);
-  const fechaFin = new Date(fecha_fin);
-  while(fechaActual <= fechaFin){
-    const diaSemana = DIAS[fechaActual.getDay()];
-    if(!diaSemana) { fechaActual.setDate(fechaActual.getDate()+1); continue; }
-    const diaTurnos = turnos.filter(t=>t.dia===diaSemana.nombre);
-    for(const t of diaTurnos){
-      // Genera slots de la franja para ese día
-      let hIni = toMinutes(t.hora_inicio);
-      let hFin = toMinutes(t.hora_fin);
-      for(let m=hIni; m+duracion_turno<=hFin; m+=duracion_turno){
-        const hora_inicio = toHoraStr(m);
-        const hora_fin = toHoraStr(m+duracion_turno);
-        // Guardar slot en agenda
+// --- Bloque ASISTENTES ---
+async function cargarAsistentes(){
+  const { data } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'asistente')
+    .eq('active', true)
+    .eq('profesional_id', profesional_id);
+  const list = document.getElementById('asistentes-list');
+  list.innerHTML = '';
+  if(data && data.length){
+    data.forEach(asistente=>{
+      const div = document.createElement('div');
+      div.textContent = `${asistente.display_name} (${asistente.email})`;
+      const btn = document.createElement('button');
+      btn.textContent = 'Desactivar';
+      btn.className = 'btn';
+      btn.onclick = async function(){
         await supabase
-          .from('agenda')
-          .upsert({
-            centro_id,
-            profesional_id,
-            fecha: fechaActual.toISOString().slice(0,10),
-            hora_inicio,
-            hora_fin,
-            capacidad: 1,
-            estado: 'disponible'
-          }, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
-        totalSlots++;
-      }
-    }
-    fechaActual.setDate(fechaActual.getDate()+1);
+          .from('profiles')
+          .update({ active: false })
+          .eq('id', asistente.id);
+        cargarAsistentes();
+      };
+      div.appendChild(btn);
+      list.appendChild(div);
+    });
+  } else {
+    list.textContent = 'No hay asistentes vinculados.';
   }
-  msg.textContent = `Agenda generada (${totalSlots} turnos disponibles).`;
+}
+document.getElementById('btn-add-asistente').onclick = ()=> {
+  document.getElementById('asistente-form-wrap').classList.remove('hidden');
 };
+document.getElementById('btn-cancel-asistente').onclick = ()=> {
+  document.getElementById('asistente-form-wrap').classList.add('hidden');
+};
+document.getElementById('asistente-form').addEventListener('submit', async function(e){
+  e.preventDefault();
+  const fd = new FormData(this);
+  const asistente = {
+    email: fd.get('email'),
+    display_name: `${fd.get('nombre')} ${fd.get('apellido')}`,
+    telefono: fd.get('telefono'),
+    role: 'asistente',
+    active: true,
+    profesional_id
+  };
+  const { data, error } = await supabase
+    .from('profiles')
+    .insert([asistente]);
+  if(error) alert('Error al crear asistente: ' + error.message);
+  else alert('Asistente creado.');
+  document.getElementById('asistente-form-wrap').classList.add('hidden');
+  cargarAsistentes();
+});
+cargarAsistentes();
 
-// Helpers
-function toMinutes(horaStr){
-  const [h,m] = horaStr.split(':'); return parseInt(h)*60+parseInt(m);
+// --- BLOQUE: Cargar el generador de agenda externo ---
+async function cargarGeneradorAgenda() {
+  const espacio = document.getElementById('generador-agenda-espacio');
+  // Cambia el path si el archivo está en otra carpeta
+  const resp = await fetch('agenda-generador.html');
+  let html = await resp.text();
+  espacio.innerHTML = html;
+  // Ejecutar scripts del HTML cargado (solo <script type="module">)
+  Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
+    const newScript = document.createElement('script');
+    newScript.type = 'module';
+    if (oldScript.src) newScript.src = oldScript.src;
+    else newScript.textContent = oldScript.textContent;
+    document.body.appendChild(newScript);
+  });
 }
-function toHoraStr(minutos){
-  const h = Math.floor(minutos/60), m = minutos%60;
-  return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
-}
+cargarGeneradorAgenda();
 </script>
 
 <style>
-.agenda-generador { max-width: 900px; margin: 32px auto; }
-.bloque-fechas { margin-bottom: 18px; }
-.horarios-table { border-collapse:collapse;width:100%;background:#f7f4fa;}
-.horarios-table th, .horarios-table td { border:1px solid #e3d8f6;padding:8px;text-align:center; }
-.horarios-table th { background:#ece3fa;font-weight:600; }
-.horarios-table td input[type="time"] { width:84px;}
-.horarios-table td input[type="checkbox"] { transform:scale(1.2);}
-.btn.primary { background: #7656b0; }
-.btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 2px;}
-.btn:hover { background: #7f62b6; }
+body { background: #f6f3fa;}
 .card { background: #fff; padding: 32px; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.09); }
+.btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 2px;}
+.btn.primary { background: #7656b0; }
+.btn:hover { background: #7f62b6; }
+.grid { display: grid; }
+.actions { margin-top:20px;}
+.hidden { display:none; }
+.modal { display:none; position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,.25); align-items:center; justify-content:center; z-index:1000;}
+.modal:not(.hidden) { display:flex; }
+.modal-content { min-width:320px; background:#fff; padding:24px; border-radius:10px; }
+.config-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1.2fr 1fr;
+  gap: 22px;
+  max-width: 1400px;
+  margin: 32px auto;
+}
+.bloque-centros, .bloque-agenda, .bloque-generador-agenda, .bloque-asistentes { min-width: 0; }
+.agenda-grid { grid-template-columns: repeat(2,1fr); gap: 12px;}
+@media (max-width: 1100px) {
+  .config-grid { grid-template-columns: 1fr; }
+}
 </style>
