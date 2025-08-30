@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard - EG Health Solutions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f4f8fb; margin: 0; }
+    .header {
+      background: #0055a5;
+      color: #fff;
+      padding: 20px 0;
+      text-align: center;
+      position: relative;
+    }
+    .logo {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      object-fit: contain;
+      vertical-align: middle;
+      margin-right: 14px;
+      background: #eaf3fa;
+      display: inline-block;
+    }
+    .menu {
+      background: #fff;
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      padding: 15px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+      margin-bottom: 32px;
+    }
+    .menu a {
+      color: #0055a5;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 1.07em;
+      padding: 6px 14px;
+      border-radius: 5px;
+      transition: background 0.15s;
+    }
+    .menu a:hover {
+      background: #eaf3fa;
+    }
+    .dashboard-content {
+      max-width: 600px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+      padding: 38px 32px;
+      margin-top: 32px;
+      text-align: center;
+    }
+    .welcome {
+      font-size: 1.2em;
+      margin-bottom: 18px;
+      color: #0055a5;
+      font-weight: 600;
+    }
+    .user-info {
+      color: #555;
+      font-size: 1em;
+      margin-bottom: 20px;
+    }
+    .logout-btn {
+      background: #d0003a;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 11px 24px;
+      font-size: 1em;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .logout-btn:hover {
+      background: #a4002d;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="logo-placeholder.png" alt="EG Health Solutions" class="logo" id="logo-img">
+    <span style="font-size:1.5em;font-weight:700;">EG Health Solutions</span>
+  </div>
+  <nav class="menu">
+    <a href="dashboard.html">Inicio</a>
+    <a href="tables.html">Ver Tablas</a>
+    <a href="#">Reportes</a>
+    <a href="#">Configuración</a>
+  </nav>
+  <div class="dashboard-content">
+    <div class="welcome">¡Bienvenido al sistema EG Health Solutions!</div>
+    <div class="user-info" id="user-info">Cargando usuario...</div>
+    <button class="logout-btn" id="logout-btn">Cerrar sesión</button>
+  </div>
+  <script type="module">
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+    const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
+    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+    // Mostrar email del usuario logueado
+    async function showUser() {
+      const { data, error } = await supabase.auth.getUser();
+      const infoDiv = document.getElementById('user-info');
+      if (error || !data?.user) {
+        infoDiv.textContent = "No has iniciado sesión. Redirigiendo...";
+        setTimeout(() => window.location.href = "index.html", 1800);
+      } else {
+        infoDiv.textContent = `Usuario: ${data.user.email}`;
+      }
+    }
+    showUser();
+
+    // Logout
+    document.getElementById('logout-btn').onclick = async () => {
+      await supabase.auth.signOut();
+      window.location.href = "index.html";
+    };
+
+    // Cambia el src del logo si lo subes
+    // document.getElementById('logo-img').src = "tu-logo.png";
+  </script>
+</body>
+</html>
