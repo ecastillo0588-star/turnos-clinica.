@@ -1,4 +1,4 @@
-<!-- Generador de Agenda de Disponibilidad de Turnos (Slots sin tipo) -->
+<!-- Generador de Agenda de Disponibilidad de Turnos -->
 <div class="card agenda-generador">
   <h2>Generar Agenda de Disponibilidad</h2>
   <!-- Nombre de la agenda -->
@@ -100,6 +100,12 @@
   <span id="msg-agenda" style="margin-left:18px;"></span>
 </div>
 
+<!-- Listado de agendas generadas -->
+<div class="agendas-list-card" id="agendas-list-card">
+  <h3>Agendas generadas</h3>
+  <div id="listado-agendas"></div>
+</div>
+
 <script type="module">
 // Supabase config
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
@@ -119,6 +125,51 @@ const DIAS = [
   {nombre:'lunes', label:'LUN'}, {nombre:'martes', label:'MAR'}, {nombre:'miercoles', label:'MIÉR'},
   {nombre:'jueves', label:'JUEV'}, {nombre:'viernes', label:'VIER'}, {nombre:'sabado', label:'SÁB'}
 ];
+
+// --- Helpers para los selects horarios ---
+function generarOpcionesHora(inicio, fin) {
+  // Devuelve array de opciones cada 15 minutos desde inicio hasta fin (excluye fin)
+  const opciones = [];
+  for (let h = inicio; h < fin; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      const hora = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
+      opciones.push(`<option value="${hora}">${hora}</option>`);
+    }
+  }
+  // Agrega opción exactamente en fin
+  const horaFin = (fin < 10 ? '0' : '') + fin + ':00';
+  opciones.push(`<option value="${horaFin}">${horaFin}</option>`);
+  return opciones.join('');
+}
+
+// --- Renderizar horarios por día con selects ---
+function renderTablaHorarios() {
+  const tbody = document.getElementById('horarios-body');
+  tbody.innerHTML = '';
+  DIAS.forEach((dia, idx)=>{
+    const opcionesMañana = generarOpcionesHora(0, 13);   // 00:00 a 13:00
+    const opcionesTarde  = generarOpcionesHora(13, 24);  // 13:00 a 00:00
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-size:13px;"><b>${dia.label}</b></td>
+      <td>
+        <select name="tm_ini_${idx}" class="input-hora">${opcionesMañana}</select>
+      </td>
+      <td>
+        <select name="tm_fin_${idx}" class="input-hora">${opcionesMañana}</select>
+      </td>
+      <td>
+        <select name="tt_ini_${idx}" class="input-hora">${opcionesTarde}</select>
+      </td>
+      <td>
+        <select name="tt_fin_${idx}" class="input-hora">${opcionesTarde}</select>
+      </td>
+      <td><input type="checkbox" name="hab_${idx}" checked></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+renderTablaHorarios();
 
 // --- Cargar centros médicos activos ---
 async function cargarCentros() {
@@ -187,25 +238,6 @@ document.getElementById('guardar-nuevo-centro').onclick = async function() {
   }
 };
 
-// --- Renderizar horarios por día ---
-function renderTablaHorarios() {
-  const tbody = document.getElementById('horarios-body');
-  tbody.innerHTML = '';
-  DIAS.forEach((dia, idx)=>{
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="font-size:13px;"><b>${dia.label}</b></td>
-      <td><input type="time" name="tm_ini_${idx}" class="input-hora"></td>
-      <td><input type="time" name="tm_fin_${idx}" class="input-hora"></td>
-      <td><input type="time" name="tt_ini_${idx}" class="input-hora"></td>
-      <td><input type="time" name="tt_fin_${idx}" class="input-hora"></td>
-      <td><input type="checkbox" name="hab_${idx}" checked></td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-renderTablaHorarios();
-
 // --- Validaciones en tiempo real ---
 const campos_requeridos = [
   'nombre-agenda', 'fecha-inicio', 'fecha-fin',
@@ -225,10 +257,37 @@ function validarCamposAgenda() {
   btn.title = valido ? "" : "Debe completar los campos obligatorios*";
 }
 
+// --- Validación de solapamiento y horarios ---
+function horarioValido() {
+  let valido = true;
+  DIAS.forEach((dia, idx)=>{
+    if(!document.querySelector(`[name="hab_${idx}"]`).checked) return;
+    const tm_ini = document.querySelector(`[name="tm_ini_${idx}"]`).value;
+    const tm_fin = document.querySelector(`[name="tm_fin_${idx}"]`).value;
+    const tt_ini = document.querySelector(`[name="tt_ini_${idx}"]`).value;
+    const tt_fin = document.querySelector(`[name="tt_fin_${idx}"]`).value;
+    // Mañana: inicio < fin
+    if(tm_ini >= tm_fin) valido = false;
+    // Tarde: inicio < fin
+    if(tt_ini >= tt_fin) valido = false;
+    // Tarde debe empezar después o igual que fin de mañana
+    if(tt_ini < tm_fin) valido = false;
+    // Mañana debe terminar antes de 13:00
+    if(tm_fin > '13:00') valido = false;
+    // Tarde debe iniciar a partir de 13:00
+    if(tt_ini < '13:00') valido = false;
+  });
+  return valido;
+}
+
 // --- Generar agenda ---
 document.getElementById('btn-generar-agenda').onclick = async function() {
   const msg = document.getElementById('msg-agenda');
   msg.textContent = '';
+  if(!horarioValido()){
+    msg.textContent = "Hay horarios mal configurados o solapados.";
+    return;
+  }
   const nombre_agenda = document.getElementById('nombre-agenda').value.trim();
   const fecha_inicio = document.getElementById('fecha-inicio').value;
   const fecha_fin = document.getElementById('fecha-fin').value;
@@ -243,7 +302,7 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     // Mañana
     const tm_ini = document.querySelector(`[name="tm_ini_${idx}"]`).value;
     const tm_fin = document.querySelector(`[name="tm_fin_${idx}"]`).value;
-    if(tm_ini && tm_fin && tm_ini < tm_fin){
+    if(tm_ini && tm_fin && tm_ini < tm_fin && tm_fin <= '13:00'){
       bloques.push({
         dia:dia.nombre,
         hora_inicio:tm_ini,
@@ -253,7 +312,7 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     // Tarde
     const tt_ini = document.querySelector(`[name="tt_ini_${idx}"]`).value;
     const tt_fin = document.querySelector(`[name="tt_fin_${idx}"]`).value;
-    if(tt_ini && tt_fin && tt_ini < tt_fin){
+    if(tt_ini && tt_fin && tt_ini < tt_fin && tt_ini >= '13:00'){
       bloques.push({
         dia:dia.nombre,
         hora_inicio:tt_ini,
@@ -266,7 +325,7 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     return;
   }
 
-  // Generar slots de agenda: SOLO UNO por bloque, tipo_turno se asigna en la reserva
+  // Generar slots de agenda
   msg.textContent = "Generando agenda...";
   let totalSlots = 0;
   let fechaActual = new Date(fecha_inicio);
@@ -303,6 +362,9 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     fechaActual.setDate(fechaActual.getDate()+1);
   }
   msg.textContent = `Agenda generada (${totalSlots} slots disponibles).`;
+
+  // Actualizar el listado de agendas abajo
+  await cargarListadoAgendas();
 };
 
 // --- Helpers ---
@@ -313,6 +375,51 @@ function toHoraStr(minutos){
   const h = Math.floor(minutos/60), m = minutos%60;
   return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
 }
+
+// --- Listado de agendas generadas ---
+async function cargarListadoAgendas() {
+  const listadoCont = document.getElementById('listado-agendas');
+  listadoCont.innerHTML = 'Cargando...';
+  const { data, error } = await supabase
+    .from('agenda')
+    .select('Nombre de Agenda, count:id')
+    .eq('profesional_id', profesional_id)
+    .eq('centro_id', centro_default_id)
+    .group('Nombre de Agenda');
+  if(error){
+    listadoCont.innerHTML = '<span style="color:red;">Error al cargar agendas.</span>';
+    return;
+  }
+  if(!data || data.length === 0){
+    listadoCont.innerHTML = '<span>No hay agendas generadas.</span>';
+    return;
+  }
+  listadoCont.innerHTML = data.map(a => `
+    <div class="agenda-list-row">
+      <span><b>${a['Nombre de Agenda']}</b> (${a.count} turnos)</span>
+      <button class="btn eliminar-agenda-btn" data-agenda="${a['Nombre de Agenda']}">Eliminar agenda</button>
+    </div>
+  `).join('');
+  // Agregar handlers de eliminar
+  document.querySelectorAll('.eliminar-agenda-btn').forEach(btn => {
+    btn.onclick = async function() {
+      if(!confirm(`¿Seguro que quieres eliminar TODOS los turnos de la agenda "${btn.dataset.agenda}"?`)) return;
+      const { error: delError } = await supabase
+        .from('agenda')
+        .delete()
+        .eq('profesional_id', profesional_id)
+        .eq('centro_id', centro_default_id)
+        .eq('Nombre de Agenda', btn.dataset.agenda);
+      if(delError){
+        alert('Error al eliminar la agenda');
+      }else{
+        await cargarListadoAgendas();
+        document.getElementById('msg-agenda').textContent = 'Agenda eliminada correctamente.';
+      }
+    };
+  });
+}
+cargarListadoAgendas();
 </script>
 
 <style>
@@ -356,4 +463,8 @@ function toHoraStr(minutos){
 .centro-form-block h4 {margin-top:0;margin-bottom:8px;color:#7656b0;font-size:16px;}
 .centro-form-block label {display:block;font-size:13px;margin-bottom:2px;margin-top:8px;}
 .centro-form-block input {width:95%;margin-bottom:4px;}
+.agendas-list-card { max-width:740px; margin: 28px auto 18px auto; background: #fff; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.08); padding: 18px 22px; }
+.agendas-list-card h3 { margin-top:0; margin-bottom:14px; color:#391e60; font-size:18px;}
+.agenda-list-row { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #ece3fa; padding:7px 0;}
+.agenda-list-row:last-child { border-bottom:none;}
 </style>
