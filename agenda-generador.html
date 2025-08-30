@@ -117,10 +117,9 @@
 </div>
 
 <script type="module">
-// Supabase config - reemplaza la apikey por la que ves en Supabase > Project Settings > API > anon public
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-const supabaseAnonKey = 'TU_SUPABASE_ANON_KEY_AQUI'; // <--- pon aquí tu anon key completa
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const profesional_id = localStorage.getItem('profesional_id');
@@ -129,6 +128,12 @@ const DIAS = [
   {nombre:'lunes', label:'LUN'}, {nombre:'martes', label:'MAR'}, {nombre:'miercoles', label:'MIÉR'},
   {nombre:'jueves', label:'JUEV'}, {nombre:'viernes', label:'VIER'}, {nombre:'sabado', label:'SÁB'}
 ];
+
+// Validación inicial: Si no hay sesión, redirigir a login
+if (!profesional_id || !centro_default_id) {
+  alert('Sesión no iniciada o datos incompletos. Redirigiendo a login.');
+  window.location.href = "index.html";
+}
 
 // --- Cargar centros médicos activos ---
 async function cargarCentros() {
