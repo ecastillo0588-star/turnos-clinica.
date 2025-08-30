@@ -1,4 +1,4 @@
-<!-- Configuración de Agenda EG Health Solutions -->
+<!-- Panel de Configuración EG Health Solutions -->
 <div class="config-grid card">
   <!-- BLOQUE 1: Centros Médicos y Asociación -->
   <section class="bloque-centros">
@@ -69,11 +69,12 @@
     </form>
   </section>
 
-  <!-- BLOQUE 3: Turnos por Día y Centro Médico -->
-  <section class="bloque-turnos">
-    <h2>Turnos por Día y Centro Médico</h2>
-    <div id="turnos-list"></div>
-    <button type="button" class="btn" id="btn-agregar-turno" style="margin-top:8px;">Agregar turno</button>
+  <!-- BLOQUE 3: Espacio para Generador de Agenda -->
+  <section class="bloque-generador-agenda">
+    <h2>Generador de Agenda</h2>
+    <div id="generador-agenda-espacio">
+      <!-- Aquí se insertará el HTML del generador de agenda -->
+    </div>
   </section>
 
   <!-- BLOQUE 4: Asistentes -->
@@ -96,8 +97,9 @@
   </section>
 </div>
 
-<!-- SCRIPTS -->
 <script type="module">
+// --- Scripts de configuración, centros, asistentes ---
+
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 // REEMPLAZA por tus credenciales reales
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
@@ -125,7 +127,6 @@ llenarOpcionesDuracion();
 let centrosDisponibles = [];
 let centrosElegidos = [];
 async function cargarCentros() {
-  // 1. Todos los centros activos
   const selector = document.getElementById('centro-selector');
   selector.innerHTML = '<option value="">Seleccione un centro...</option>';
   const { data: centros } = await supabase
@@ -139,7 +140,6 @@ async function cargarCentros() {
     opt.textContent = centro.nombre;
     selector.appendChild(opt);
   });
-  // 2. Los ya asociados
   const { data: vinculos } = await supabase
     .from('profesional_centro')
     .select('centro_id')
@@ -186,7 +186,6 @@ document.getElementById('btn-agregar-centro').onclick = function(){
       .then(()=>cargarCentros());
   }
 };
-// Modal para crear nuevo centro
 document.getElementById('btn-nuevo-centro').onclick = function(){
   document.getElementById('modal-nuevo-centro').classList.remove('hidden');
 };
@@ -253,132 +252,6 @@ document.getElementById('config-form').addEventListener('submit', async function
   alert('Configuración guardada');
 });
 
-// --- Bloque TURNOS POR DÍA/CENTRO ---
-function crearTurnoHTML(turno = {}, idx) {
-  return `
-    <div class="turno-row" data-idx="${idx}">
-      <div>
-        <label>Día:</label>
-        <select name="dia_${idx}" required>
-          ${DIAS.map(dia => `<option value="${dia}" ${turno.dia===dia?'selected':''}>${dia.charAt(0).toUpperCase()+dia.slice(1)}</option>`).join('')}
-        </select>
-      </div>
-      <div>
-        <label>Horario:</label>
-        <input type="time" name="hora_inicio_${idx}" value="${turno.hora_inicio||''}" required>
-        <span>-</span>
-        <input type="time" name="hora_fin_${idx}" value="${turno.hora_fin||''}" required>
-      </div>
-      <div>
-        <label>Centro médico:</label>
-        <select name="centro_id_${idx}" required>
-          <option value="">Seleccione...</option>
-          ${centrosDisponibles.map(centro=>`
-            <option value="${centro.id}" ${turno.centro_id===centro.id?'selected':''}>${centro.nombre}</option>
-          `).join('')}
-        </select>
-      </div>
-      <div>
-        <label>Capacidad:</label>
-        <input type="number" name="capacidad_${idx}" min="1" max="99" value="${turno.capacidad||1}">
-      </div>
-      <button type="button" class="btn btn-quitar-turno" style="margin-left:10px;">Quitar</button>
-    </div>
-  `;
-}
-let turnosActuales = [];
-async function cargarTurnos() {
-  // Debes tener la tabla agenda. Aquí solo traemos los slots futuros del profesional para edición.
-  const { data } = await supabase
-    .from('agenda')
-    .select('*')
-    .eq('profesional_id', profesional_id)
-    .gte('fecha', new Date().toISOString().slice(0,10));
-  turnosActuales = data ? data.map(t=>({
-    dia: DIAS[new Date(t.fecha).getDay()],
-    hora_inicio: t.hora_inicio,
-    hora_fin: t.hora_fin,
-    centro_id: t.centro_id,
-    capacidad: t.capacidad
-  })) : [];
-  renderTurnos(turnosActuales.length ? turnosActuales : []);
-}
-function renderTurnos(turnos) {
-  const cont = document.getElementById('turnos-list');
-  cont.innerHTML = '';
-  turnos.forEach((turno, idx) => {
-    cont.innerHTML += crearTurnoHTML(turno, idx);
-  });
-  // Listeners para quitar turno
-  cont.querySelectorAll('.btn-quitar-turno').forEach((btn, idx) => {
-    btn.onclick = () => {
-      turnos.splice(idx,1);
-      renderTurnos(turnos);
-    };
-  });
-}
-document.getElementById('btn-agregar-turno').onclick = () => {
-  turnosActuales.push({dia:'lunes',hora_inicio:'',hora_fin:'',centro_id:'',capacidad:1});
-  renderTurnos(turnosActuales);
-};
-// Guardar turnos (slots) en tabla agenda
-document.getElementById('turnos-list').addEventListener('change', function() {
-  // Opcional: puedes guardar en tiempo real si lo prefieres.
-});
-document.getElementById('btn-agregar-turno').onclick = () => {
-  turnosActuales.push({dia:'lunes',hora_inicio:'',hora_fin:'',centro_id:'',capacidad:1});
-  renderTurnos(turnosActuales);
-};
-async function guardarTurnos() {
-  // Recoger todos los turnos del DOM y guardar en agenda
-  const turnos = [];
-  document.querySelectorAll('.turno-row').forEach(row=>{
-    const idx = row.getAttribute('data-idx');
-    const dia = row.querySelector(`[name="dia_${idx}"]`).value;
-    const centro_id = row.querySelector(`[name="centro_id_${idx}"]`).value;
-    const hora_inicio = row.querySelector(`[name="hora_inicio_${idx}"]`).value;
-    const hora_fin = row.querySelector(`[name="hora_fin_${idx}"]`).value;
-    const capacidad = Number(row.querySelector(`[name="capacidad_${idx}"]`).value);
-    if(centro_id && hora_inicio && hora_fin) {
-      turnos.push({
-        profesional_id,
-        centro_id,
-        fecha: calcularProximaFecha(dia),
-        hora_inicio,
-        hora_fin,
-        capacidad
-      });
-    }
-  });
-  // Guarda cada slot en agenda
-  for(const turno of turnos) {
-    await supabase
-      .from('agenda')
-      .upsert(turno, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
-  }
-  alert('Turnos guardados');
-}
-// Para ejemplo: calcula la próxima fecha de un día (puedes adaptar a tu lógica real)
-function calcularProximaFecha(dia) {
-  const hoy = new Date();
-  const idx = DIAS.indexOf(dia);
-  const hoyIdx = hoy.getDay();
-  let delta = idx - hoyIdx;
-  if(delta < 0) delta += 7;
-  const fecha = new Date(hoy);
-  fecha.setDate(hoy.getDate() + delta);
-  return fecha.toISOString().slice(0,10);
-}
-// Puedes agregar un botón para guardar los turnos
-const guardarBtn = document.createElement('button');
-guardarBtn.className = "btn primary";
-guardarBtn.textContent = "Guardar turnos";
-guardarBtn.style.marginTop = "10px";
-guardarBtn.onclick = guardarTurnos;
-document.querySelector('.bloque-turnos').appendChild(guardarBtn);
-
-cargarTurnos();
-
 // --- Bloque ASISTENTES ---
 async function cargarAsistentes(){
   const { data } = await supabase
@@ -436,6 +309,24 @@ document.getElementById('asistente-form').addEventListener('submit', async funct
   cargarAsistentes();
 });
 cargarAsistentes();
+
+// --- BLOQUE: Cargar el generador de agenda externo ---
+async function cargarGeneradorAgenda() {
+  const espacio = document.getElementById('generador-agenda-espacio');
+  // Cambia el path si el archivo está en otra carpeta
+  const resp = await fetch('agenda-generador.html');
+  let html = await resp.text();
+  espacio.innerHTML = html;
+  // Ejecutar scripts del HTML cargado (solo <script type="module">)
+  Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
+    const newScript = document.createElement('script');
+    newScript.type = 'module';
+    if (oldScript.src) newScript.src = oldScript.src;
+    else newScript.textContent = oldScript.textContent;
+    document.body.appendChild(newScript);
+  });
+}
+cargarGeneradorAgenda();
 </script>
 
 <style>
@@ -452,14 +343,13 @@ body { background: #f6f3fa;}
 .modal-content { min-width:320px; background:#fff; padding:24px; border-radius:10px; }
 .config-grid {
   display: grid;
-  grid-template-columns: 1.1fr 1fr 1.1fr 1fr;
+  grid-template-columns: 1.1fr 1fr 1.2fr 1fr;
   gap: 22px;
   max-width: 1400px;
   margin: 32px auto;
 }
-.bloque-centros, .bloque-agenda, .bloque-turnos, .bloque-asistentes { min-width: 0; }
+.bloque-centros, .bloque-agenda, .bloque-generador-agenda, .bloque-asistentes { min-width: 0; }
 .agenda-grid { grid-template-columns: repeat(2,1fr); gap: 12px;}
-.turno-row { display:flex;align-items:center;gap:15px;margin-bottom:16px;padding-bottom:6px;border-bottom:1px solid #eee;}
 @media (max-width: 1100px) {
   .config-grid { grid-template-columns: 1fr; }
 }
