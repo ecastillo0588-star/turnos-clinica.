@@ -64,6 +64,7 @@
     let profesionalId = null;
     let centros = [];
     let centroAsignado = null;
+    let userName = null;
 
     // Login handler
     document.getElementById('login-form').addEventListener('submit', async (e) => {
@@ -78,12 +79,11 @@
         errorMessage.textContent = 'Correo o contraseña incorrectos.';
         return;
       }
-      // Guardar email de usuario
       userEmail = email;
-      // Buscar perfil y rol
+      // Buscar perfil y rol y nombre
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('role, profesional_id, id, email')
+        .select('role, profesional_id, id, email, nombre')
         .eq('email', email)
         .single();
       if (profileError || !profileData) {
@@ -92,17 +92,14 @@
       }
       userRole = profileData.role;
       profesionalId = profileData.profesional_id;
+      userName = profileData.nombre || profileData.name || email; // fallback al email si no hay nombre
 
       // Guardar datos básicos en localStorage
       localStorage.setItem('usuario_id', profileData.id);
       localStorage.setItem('profesional_id', profesionalId);
       localStorage.setItem('email', userEmail);
       localStorage.setItem('user_role', userRole);
-
-      // Debugging: mostrar valores en la consola
-      console.log("Email logueado:", userEmail);
-      console.log("Rol:", userRole);
-      console.log("profesional_id usado:", profesionalId);
+      localStorage.setItem('user_name', userName);
 
       // Según el rol, buscar centros médicos
       if (userRole === 'propietario' || userRole === 'medico') {
@@ -111,10 +108,6 @@
           .from('profesional_centro')
           .select('centro_id')
           .eq('profesional_id', profesionalId);
-
-        // Debugging: mostrar resultado consulta
-        console.log("Resultado consulta profesional_centro:", centrosRel);
-        console.log("Error en consulta profesional_centro:", centrosError);
 
         if (centrosError) {
           errorMessage.textContent = 'Error buscando centros médicos asociados: ' + centrosError.message;
