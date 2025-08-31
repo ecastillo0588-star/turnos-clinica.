@@ -14,6 +14,7 @@
     input, select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 5px 8px; font-size:15px; background:#f7f9fb; }
     label { color:#381e60;}
     .muted { color: #6b6480; font-size: 13px; }
+    .error { color: #b02525; font-size: 14px; margin-top:8px;}
     table { width: 100%; border-collapse: collapse; margin-top: 14px; }
     th, td { text-align:left; padding: 10px 8px; }
     th { background: #e7e2fa; color: #381e60; font-size: 16px; }
@@ -75,6 +76,7 @@
       </select>
       <button type="submit" class="btn primary" style="margin-top:10px;">Vincular</button>
       <div id="asistentes-modal-status" class="muted" style="margin-top:10px;"></div>
+      <div id="asistentes-modal-error" class="error" style="margin-top:6px;"></div>
     </form>
   </div>
 </div>
@@ -92,6 +94,7 @@ const asistentesModal = document.getElementById('asistentes-modal');
 const asistentesCerrarModal = document.getElementById('asistentes-cerrar-modal');
 const asistentesForm = document.getElementById('asistentes-form');
 const asistentesModalStatus = document.getElementById('asistentes-modal-status');
+const asistentesModalError = document.getElementById('asistentes-modal-error');
 const asistentesStatusMsg = document.getElementById('asistentes-status-msg');
 const asistentesCentroSelect = document.getElementById('asistentes_centro');
 const asistentesSelect = document.getElementById('asistentes_select');
@@ -136,16 +139,26 @@ async function asistentesCargarCentros() {
 async function asistentesCargarLibres() {
   asistentesSelect.innerHTML = `<option value="" disabled selected>Cargando asistentes...</option>`;
   // 1. Traer todos los asistentes
-  const { data: asistentes } = await supabase
+  const { data: asistentes, error: errorAsist } = await supabase
     .from('profiles')
     .select('id, display_name, email')
     .eq('role', 'asistente');
 
+  if (errorAsist) {
+    asistentesSelect.innerHTML = `<option value="" disabled>Error al cargar asistentes</option>`;
+    return;
+  }
+
   // 2. Traer todas las vinculaciones activas
-  const { data: vinculaciones } = await supabase
+  const { data: vinculaciones, error: errorVinc } = await supabase
     .from('profesional_centro')
     .select('profesional_id')
     .eq('activo', true);
+
+  if (errorVinc) {
+    asistentesSelect.innerHTML = `<option value="" disabled>Error al cargar vinculaciones</option>`;
+    return;
+  }
 
   const idsVinculados = vinculaciones.map(v => v.profesional_id);
   // 3. Filtrar asistentes no vinculados
@@ -167,16 +180,23 @@ async function asistentesCargarLibres() {
 // Carga la tabla de asistentes asociados a los centros médicos del usuario
 async function asistentesCargarTabla() {
   asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Cargando asistentes...</td></tr>`;
-  const { data: centros } = await supabase
+  // Traer todos los centros médicos asociados al profesional
+  const { data: centros, error: errorCentros } = await supabase
     .from('profesional_centro')
     .select('centro_id')
     .eq('profesional_id', profesionalId)
     .eq('activo', true);
 
+  if (errorCentros) {
+    asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Error al cargar centros médicos</td></tr>`;
+    return;
+  }
+
   const idsCentros = centros && centros.length ? centros.map(c => c.centro_id) : [];
   let asistentes = [];
   if (idsCentros.length) {
-    const { data } = await supabase
+    // Trae todos los asistentes vinculados a esos centros
+    const { data, error } = await supabase
       .from('profesional_centro')
       .select(`
         profesional_id, centro_id, activo,
@@ -185,6 +205,12 @@ async function asistentesCargarTabla() {
       `)
       .in('centro_id', idsCentros)
       .eq('activo', true);
+
+    if (error) {
+      asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Error: ${error.message || JSON.stringify(error)}</td></tr>`;
+      return;
+    }
+
     if (data) {
       asistentes = data.filter(a => a.profiles && a.profiles.role === 'asistente');
     }
@@ -221,6 +247,7 @@ async function asistentesCargarTabla() {
 asistentesCrearBtn.addEventListener('click', async () => {
   asistentesForm.reset();
   asistentesModalStatus.textContent = '';
+  asistentesModalError.textContent = '';
   await asistentesCargarLibres();
   await asistentesCargarCentros();
   asistentesModal.style.display = 'flex';
@@ -241,8 +268,11 @@ asistentesForm.addEventListener('submit', async function(e) {
   const centro_id = asistentesCentroSelect.value;
   const activo = document.getElementById('asistentes_activo').value === 'true';
 
+  asistentesModalError.textContent = ''; // Limpia errores anteriores
+
   if (!auth_id || !centro_id) {
-    asistentesModalStatus.textContent = 'Todos los campos son obligatorios.';
+    asistentesModalStatus.textContent = '';
+    asistentesModalError.textContent = 'Todos los campos son obligatorios.';
     return;
   }
   asistentesModalStatus.textContent = 'Procesando...';
@@ -256,12 +286,14 @@ asistentesForm.addEventListener('submit', async function(e) {
     .eq('activo', true);
 
   if (errorVincCheck) {
-    asistentesModalStatus.textContent = 'Error al verificar vinculación: ' + errorVincCheck.message;
+    asistentesModalStatus.textContent = '';
+    asistentesModalError.textContent = 'Error al verificar vinculación: ' + (errorVincCheck.message || JSON.stringify(errorVincCheck));
     return;
   }
 
   if (vinculosExist && vinculosExist.length > 0) {
-    asistentesModalStatus.textContent = 'Ya existe la vinculación de este asistente con ese centro.';
+    asistentesModalStatus.textContent = '';
+    asistentesModalError.textContent = 'Ya existe la vinculación de este asistente con ese centro.';
     return;
   }
 
@@ -271,10 +303,14 @@ asistentesForm.addEventListener('submit', async function(e) {
     .insert({ profesional_id: auth_id, centro_id, activo: activo });
 
   if (errorPC) {
-    asistentesModalStatus.textContent = 'Error al asociar asistente a centro médico';
+    asistentesModalStatus.textContent = '';
+    // Mostramos todo el error para debug
+    asistentesModalError.textContent = 'Error al asociar asistente a centro médico: ' +
+      (errorPC.details || errorPC.message || JSON.stringify(errorPC));
     return;
   }
 
+  asistentesModalError.textContent = '';
   asistentesModalStatus.textContent = '¡Asistente vinculado exitosamente!';
   await asistentesCargarTabla();
   setTimeout(() => { asistentesModal.style.display = 'none'; }, 1200);
@@ -289,7 +325,7 @@ async function asistentesDesasociar(auth_id, centro_id) {
     .eq('profesional_id', auth_id)
     .eq('centro_id', centro_id);
   if (error) {
-    alert('Error al desasociar el asistente');
+    alert('Error al desasociar el asistente: ' + (error.message || JSON.stringify(error)));
     return;
   }
   await asistentesCargarTabla();
