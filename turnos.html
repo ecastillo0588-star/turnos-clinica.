@@ -5,17 +5,16 @@
   <title>Turnos — EG Health Solutions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    /* Reset suave */
     *{box-sizing:border-box}
     :root{
       --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
       --bg:#f7f9fb; --card:#fff; --line:#ece5fc; --accent:#0b5394;
-      --ok:#0a7d38; --okbg:#e8fff0;
+      --ok:#0a7d38; --okbg:#e8fff0; --danger:#b00020; --dangerbg:#fde7eb;
     }
     body{margin:0;background:var(--bg);font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
     .wrap{max-width:1100px;margin:0 auto;padding:12px}
 
-    /* Controles */
+    /* Contenedor superior */
     .toolbar{display:grid;grid-template-columns: 1.1fr 1.1fr 1.4fr 1fr auto;gap:12px;align-items:end;margin-bottom:14px;
       background:var(--card);border-radius:16px;box-shadow:0 2px 12px rgba(80,60,160,.10);padding:14px}
     .field{display:flex;flex-direction:column;gap:6px;position:relative}
@@ -25,14 +24,14 @@
     .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:10px 12px;font-weight:600;cursor:pointer;transition:filter .15s}
     .btn.secondary{background:#e7e2fa;color:#5a3e9a}
     .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
-    .btn.ok{background:var(--ok)}
+    .btn.ok{background:var(--ok)} .btn.danger{background:var(--danger)}
     .btn:hover{filter:brightness(.98)}
 
-    /* chip paciente seleccionado */
+    /* Chip paciente seleccionado */
     .chip{position:absolute;right:8px;top:-18px;background:#e7e2fa;color:#5a3e9a;border-radius:999px;padding:2px 8px;font-size:12px;display:flex;gap:6px;align-items:center;z-index:3}
     .chip button{all:unset;cursor:pointer}
 
-    /* typeahead */
+    /* Typeahead */
     .suggest{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:10px;margin-top:6px;box-shadow:0 6px 18px rgba(0,0,0,.08);z-index:20;max-height:260px;overflow:auto}
     .s-item{padding:10px 12px;display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);cursor:pointer}
     .s-item:last-child{border-bottom:none}
@@ -40,7 +39,7 @@
     .s-meta{font-size:12px;color:var(--muted)}
     .s-create{background:#faf7ff}
 
-    /* Header calendario */
+    /* Encabezado calendario */
     .head{display:flex;align-items:center;justify-content:space-between;margin:12px 0 6px}
     .head h2{margin:0;font-size:20px}
     .legend{display:flex;gap:12px;align-items:center;margin-top:10px;color:var(--muted);font-size:13px}
@@ -65,19 +64,32 @@
     .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.22);display:none;align-items:center;justify-content:center;z-index:1000;overscroll-behavior:contain}
     .modal{
       width:min(900px,96vw);
-      background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px;
-      /* Scroll seguro para que NADA quede oculto */
-      max-height:92vh; overflow:auto; overflow-x:auto;
+      background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px;border:1px solid var(--line);
+      max-height:92vh; overflow:auto; overflow-x:auto;  /* ← scroll total siempre */
     }
     .modal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
     .modal h3{margin:0;font-size:18px}
     .close{background:transparent;border:none;font-size:24px;color:var(--brand);cursor:pointer}
 
     .slots{border:1px solid var(--line);border-radius:10px;padding:10px;max-height:60vh;overflow:auto}
-    .slot{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0;background:#faf9ff}
+    .slot{display:flex;align-items:center;gap:10px;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0;background:#faf9ff}
     .slot.unavailable{opacity:.45}
     .slot .time{font-weight:700;color:var(--accent)}
+    .slot .mini{font-size:12px;color:var(--muted)}
     .slot button{padding:6px 10px}
+
+    /* Tabla turnos del día */
+    .tlist{width:100%;border-collapse:separate;border-spacing:0 6px}
+    .trow{background:#faf9ff;border:1px solid var(--line);border-radius:10px}
+    .tcell{padding:8px 10px}
+    .actions{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+    .icon-btn{border:none;background:#f4f1ff;border:1px solid var(--line);width:34px;height:34px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative}
+    .icon-btn:hover{filter:brightness(.98)}
+    .icon-btn[data-tip]::after{
+      content:attr(data-tip); position:absolute; bottom:110%; left:50%; transform:translateX(-50%);
+      background:#381e60;color:#fff;padding:4px 8px;border-radius:8px;font-size:12px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;
+    }
+    .icon-btn:hover::after{opacity:1}
 
     /* Modal OK */
     .modal-ok{width:min(640px,96vw);background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px;border:2px solid var(--okbg);
@@ -87,7 +99,7 @@
     .ok-list{margin:12px 0 6px;padding-left:18px}
     .ok-list li{margin:6px 0}
 
-    /* Modal Paciente (3 columnas con scroll horizontal si no entra) */
+    /* Modal Paciente (3 columnas + scroll X si no entra) */
     .grid3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:12px; min-width:980px}
     .col-card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#faf9ff}
     .col-card h4{margin:0 0 8px;color:var(--ink)}
@@ -98,7 +110,7 @@
     .uploadthumb img{width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
     .badge-req{color:#b00020;margin-left:4px}
 
-    /* scrollbars más amables */
+    /* scrollbars bonitos */
     .modal::-webkit-scrollbar{ height:10px; width:10px }
     .modal::-webkit-scrollbar-thumb{ background:#d8cfff; border-radius:8px }
   </style>
@@ -177,9 +189,13 @@
       <h3 id="turnos-modal-title">Turnos del día</h3>
       <button class="close" id="turnos-modal-close">&times;</button>
     </header>
+
     <section class="slots">
+      <h4 style="margin:0 0 8px">Horarios disponibles</h4>
       <div id="turnos-slots-list"></div>
-      <div style="height:1px;background:var(--line);margin:10px 0"></div>
+
+      <div style="height:1px;background:var(--line);margin:12px 0"></div>
+
       <h4 style="margin:0 0 8px">Turnos del día</h4>
       <div id="turnos-dia-list"></div>
     </section>
@@ -242,9 +258,14 @@
       <div class="col-card">
         <h4>Obra social</h4>
         <label>Obra social</label>
-        <input id="np-obra" class="inp" />
+        <select id="np-obra" class="sel">
+          <option value="">(Sin obra social)</option>
+        </select>
+        <div id="np-obra-info" class="footer-mini" style="min-height:18px;margin-top:6px;"></div>
+
         <label>N° afiliado</label>
         <input id="np-afiliado" class="inp" />
+
         <label>Credencial (imagen)</label>
         <div class="uploadzone">
           <input type="file" id="np-cred-file" accept="image/*,.pdf" style="display:none" />
@@ -288,7 +309,7 @@
 import supabase from './supabaseClient.js';
 import { isValidHourRange } from './validators.js';
 
-/* ========== UI refs ========== */
+/* ====== UI refs ====== */
 const UI = {
   centroSelect: document.getElementById('turnos-centro-select'),
   centroNombre: document.getElementById('turnos-centro-nombre'),
@@ -325,7 +346,7 @@ const UI = {
   okWa: document.getElementById('ok-wa-link'),
   okCopy: document.getElementById('ok-copy'),
   okMsg: document.getElementById('ok-msg'),
-  // Modal Paciente (3 columnas)
+  // Modal Paciente
   modalPac: document.getElementById('turnos-modal-paciente'),
   modalPacClose: document.getElementById('turnos-modal-paciente-close'),
   npDni: document.getElementById('np-dni'),
@@ -335,6 +356,7 @@ const UI = {
   npTel: document.getElementById('np-telefono'),
   npEmail: document.getElementById('np-email'),
   npObra: document.getElementById('np-obra'),
+  npObraInfo: document.getElementById('np-obra-info'),
   npAfiliado: document.getElementById('np-afiliado'),
   npConNom: document.getElementById('np-contacto-nombre'),
   npConApe: document.getElementById('np-contacto-apellido'),
@@ -349,7 +371,7 @@ const UI = {
   npMsg: document.getElementById('turnos-np-msg'),
 };
 
-/* ========== Sesión ========== */
+/* ====== Sesión ====== */
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
 let currentCentroDireccion = '';
@@ -357,7 +379,7 @@ const userRole = localStorage.getItem('user_role');     // 'medico' | 'asistente
 const loggedProfesionalId = localStorage.getItem('profesional_id');
 if (!currentCentroId) { alert('No hay centro seleccionado. Volviendo al login.'); window.location.href='index.html'; }
 
-/* ========== Fecha & helpers ========== */
+/* ====== Fecha & helpers ====== */
 function todayInfo(){ const d=new Date(); return { y:d.getFullYear(), m:d.getMonth(), d:d.getDate() }; }
 function pad(n){ return n<10 ? '0'+n : ''+n; }
 function toISODate(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
@@ -370,6 +392,7 @@ function groupByFecha(arr){ const map=new Map(); for(const x of arr){ const k=x.
 function toHM(t){ return (t ?? '').toString().slice(0,5); }
 function overlaps(aStart,aEnd,bStart,bEnd){ return (aStart < bEnd) && (bStart < aEnd); }
 function fmtDateLong(iso){ return new Date(iso+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long', day:'numeric', month:'long', year:'numeric'}) }
+function minutesDiff(start,end){ const [h1,m1]=start.split(':').map(Number), [h2,m2]=end.split(':').map(Number); return (h2*60+m2)-(h1*60+m1); }
 function normalizePhoneForWA(phoneRaw){
   if (!phoneRaw) return '';
   let p = String(phoneRaw).replace(/[^\d]/g,'');
@@ -383,14 +406,16 @@ function buildWhatsAppMessage({pac, fechaISO, start, end, prof, centro, dir}){
   return `Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fecha} de ${hora} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;
 }
 
-/* ========== Estado ========== */
+/* ====== Estado ====== */
 let view = todayInfo();
 let currentProfesional = null;
 let duracionCfg = { nueva_consulta:15, recurrente:15, sobreturno:15 };
 let modalDateISO = null;
 let pacienteSeleccionado = null;
+let obrasSocialesCache = [];
+let reprogramState = null; // { turno, durMin }
 
-/* ========== Centros ========== */
+/* ====== Centros ====== */
 async function fetchCentroById(id){
   const { data } = await supabase.from('centros_medicos').select('nombre,direccion').eq('id', id).single();
   return { nombre: data?.nombre || '', direccion: data?.direccion || '' };
@@ -437,11 +462,11 @@ async function ensureCentroWidgets(){
   }
 }
 
-/* ========== Profesionales ========== */
+/* ====== Profesionales ====== */
 async function loadProfesionales(){
   const sel = UI.profesionalSelect;
 
-  // Si es médico: fijamos su propia opción con label correcto
+  // Médico: fija su propia opción
   if (userRole === 'medico' && loggedProfesionalId) {
     let label = null;
     try {
@@ -468,7 +493,7 @@ async function loadProfesionales(){
     return;
   }
 
-  // Si NO es médico (asistente/propietario): listamos profesionales asociados al centro
+  // Asistente/propietario: listar profesionales del centro
   sel.disabled = false;
 
   const { data: map, error: mapErr } = await supabase
@@ -507,7 +532,7 @@ async function loadProfesionales(){
   if (currentProfesional) sel.value = currentProfesional;
 }
 
-/* ========== Duraciones ========== */
+/* ====== Duraciones ====== */
 async function loadDuracionConfig(profesionalId){
   duracionCfg = { nueva_consulta:15, recurrente:15, sobreturno:15 };
   if (!profesionalId) return;
@@ -519,7 +544,27 @@ async function loadDuracionConfig(profesionalId){
   (data||[]).forEach(r=>{ if (r.tipo_turno && r.minutos) duracionCfg[r.tipo_turno] = r.minutos; });
 }
 
-/* ========== Pacientes (typeahead + crear) ========== */
+/* ====== Obras sociales (select por label) ====== */
+async function loadObrasSociales() {
+  const { data } = await supabase
+    .from('obras_sociales')
+    .select('id, obra_social, condicion_copago, valor_copago')
+    .order('obra_social', { ascending: true });
+
+  obrasSocialesCache = data || [];
+  UI.npObra.innerHTML =
+    '<option value="">(Sin obra social)</option>' +
+    obrasSocialesCache.map(o => `<option value="${o.obra_social}">${o.obra_social}</option>`).join('');
+}
+UI.npObra.addEventListener('change', () => {
+  const sel = obrasSocialesCache.find(o => o.obra_social === UI.npObra.value);
+  if (!sel) { UI.npObraInfo.textContent = ''; return; }
+  const cond = sel.condicion_copago ? `Condición: ${sel.condicion_copago}` : '';
+  const val  = (sel.valor_copago != null) ? ` · Copago: ${sel.valor_copago}` : '';
+  UI.npObraInfo.textContent = (cond || val) ? (cond + val) : '';
+});
+
+/* ====== Pacientes (typeahead + crear) ====== */
 let suggestTimer = null;
 function hideSuggest(){ UI.pacSuggest.style.display='none'; UI.pacSuggest.innerHTML=''; }
 function showSuggest(){ UI.pacSuggest.style.display='block'; }
@@ -585,14 +630,14 @@ async function fetchSuggestions(q){
 
 function bindSuggestHandlers(q, result){
   UI.pacSuggest.querySelectorAll('.s-item').forEach(el=>{
-    el.addEventListener('click', ()=>{
+    el.addEventListener('click', async ()=>{
       const act = el.getAttribute('data-act');
       if (act === 'select'){
         const id = el.getAttribute('data-id');
         const p = result.find(x=>x.id===id);
         if (p) selectPaciente(p);
       } else if (act === 'create'){
-        openPacienteModalPrefilled(q);
+        await openPacienteModalPrefilled(q);
       }
     });
   });
@@ -603,26 +648,53 @@ function selectPaciente(p){
   UI.pacChipText.textContent = `${p.apellido}, ${p.nombre} · DNI ${p.dni}`;
   UI.pacChip.style.display = 'flex';
   hideSuggest();
+  enforceTipoTurnoByPaciente(p.id);
 }
-UI.pacClear.addEventListener('click', ()=>{ pacienteSeleccionado=null; UI.pacChip.style.display='none'; });
+UI.pacClear.addEventListener('click', ()=>{
+  pacienteSeleccionado=null; UI.pacChip.style.display='none';
+  enforceTipoTurnoByPaciente(null);
+});
+
+/* Nueva política: bloquear "Nueva consulta" si ya tuvo turnos */
+async function enforceTipoTurnoByPaciente(pacienteId){
+  const optNueva = UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
+  if (!optNueva) return;
+  if (!pacienteId){ optNueva.disabled = false; return; } // sin paciente => no bloquear
+
+  const { count } = await supabase
+    .from('turnos')
+    .select('id', { count: 'exact', head: true })
+    .eq('paciente_id', pacienteId);
+
+  if ((count ?? 0) > 0){
+    optNueva.disabled = true;
+    if (UI.tipoTurno.value === 'nueva_consulta'){ UI.tipoTurno.value = 'recurrente'; }
+  } else {
+    // El paciente existe pero sin turnos previos: si querés bloquear igual,
+    // dejá disabled=true; si querés permitir, ponelo en false:
+    optNueva.disabled = true; // <- según lo pedido: SOLO al crear un paciente se habilita.
+  }
+}
 
 /* Modal Paciente */
-function openPacienteModalPrefilled(q){
+async function openPacienteModalPrefilled(q){
+  if (!obrasSocialesCache.length) await loadObrasSociales();
+
   UI.npDni.value = /^\d{6,}$/.test(q) ? q : '';
   const parts = q.split(/\s+/).filter(Boolean);
   UI.npApellido.value = parts[0] || '';
   UI.npNombre.value = parts[1] || '';
   UI.npFechaNac.value = '';
   UI.npTel.value = ''; UI.npEmail.value = '';
-  UI.npObra.value = ''; UI.npAfiliado.value = '';
+  UI.npObra.value = ''; UI.npObraInfo.textContent='';
+  UI.npAfiliado.value = '';
   UI.npConNom.value=''; UI.npConApe.value=''; UI.npConCel.value=''; UI.npVinculo.value='';
   UI.npHistoria.value=''; UI.npCredFile.value=''; UI.npCredPreview.style.display='none'; UI.npCredPreview.innerHTML='';
   UI.npMsg.textContent='';
-  document.getElementById('turnos-modal-paciente').style.display='flex';
+  UI.modalPac.style.display='flex';
 }
-UI.modalPacClose.addEventListener('click', ()=> document.getElementById('turnos-modal-paciente').style.display='none');
-window.addEventListener('click', (e)=>{ const b1=document.getElementById('turnos-modal-paciente'); if (e.target===b1) b1.style.display='none'; });
-
+UI.modalPacClose.addEventListener('click', ()=> UI.modalPac.style.display='none');
+window.addEventListener('click', (e)=>{ if (e.target===UI.modalPac) UI.modalPac.style.display='none'; });
 UI.npHistoriaOpen.addEventListener('click', (e)=>{ if(!UI.npHistoria.value){ e.preventDefault(); } });
 UI.npCredSelect.addEventListener('click', ()=> UI.npCredFile.click());
 UI.npCredFile.addEventListener('change', ()=>{
@@ -676,7 +748,7 @@ UI.npGuardar.addEventListener('click', async ()=>{
   const payload = {
     dni, nombre, apellido, fecha_nacimiento, telefono,
     email: UI.npEmail.value.trim() || null,
-    obra_social: UI.npObra.value.trim() || null,
+    obra_social: UI.npObra.value || null,               // ← texto (FK textual)
     numero_afiliado: UI.npAfiliado.value.trim() || null,
     contacto_nombre: UI.npConNom.value.trim() || null,
     contacto_apellido: UI.npConApe.value.trim() || null,
@@ -695,13 +767,16 @@ UI.npGuardar.addEventListener('click', async ()=>{
 
   if (error){ UI.npMsg.textContent = 'Error: ' + (error.message || 'no se pudo crear'); return; }
 
-  document.getElementById('turnos-modal-paciente').style.display='none';
+  UI.modalPac.style.display='none';
   selectPaciente(data);
-  UI.pacInput.value = `${data.apellido} ${data.nombre}`;
+
+  // Paciente recién creado ⇒ permitir "Nueva consulta" y setearla
+  const optNueva = UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
+  if (optNueva) { optNueva.disabled = false; }
   UI.tipoTurno.value = 'nueva_consulta';
 });
 
-/* ========== Agenda & Turnos ========== */
+/* ====== Agenda & Turnos ====== */
 function renderDowTurnos(){ UI.calDow.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
 
 async function fetchAgendaYTurnos(profesionalId, y, m){
@@ -713,7 +788,7 @@ async function fetchAgendaYTurnos(profesionalId, y, m){
       .eq('centro_id', currentCentroId).eq('profesional_id', profesionalId)
       .gte('fecha', start).lte('fecha', end).order('fecha',{ascending:true}),
     supabase.from('turnos')
-      .select('id, fecha, hora_inicio, hora_fin, estado, paciente_id, agenda_id')
+      .select('id, fecha, hora_inicio, hora_fin, estado, paciente_id, agenda_id, pacientes(id, apellido, nombre, dni, telefono)')
       .eq('centro_id', currentCentroId).eq('profesional_id', profesionalId)
       .gte('fecha', start).lte('fecha', end).order('hora_inicio',{ascending:true})
   ]);
@@ -792,23 +867,46 @@ async function renderCalendar(){
 }
 
 /* Modal día */
-async function openDayModal(isoDate, agendaDia, turnosDia){
+async function openDayModal(isoDate, agendaDia, turnosDiaRaw){
+  reprogramState = null;
   modalDateISO = isoDate;
   UI.modalTitle.textContent = `Turnos del ${new Date(isoDate).toLocaleDateString('es-AR')}`;
-  document.getElementById('turnos-modal').style.display = 'flex';
-  renderSlots(generarSlotsDeDia(agendaDia, turnosDia, UI.tipoTurno.value));
-  renderTurnosDelDia(turnosDia);
+  UI.modal.style.display = 'flex';
+
+  const slots = generarSlotsDeDia(agendaDia, turnosDiaRaw, UI.tipoTurno.value);
+  renderSlots(slots);
+  renderTurnosDelDia(turnosDiaRaw);
 }
-UI.modalClose.addEventListener('click', ()=> document.getElementById('turnos-modal').style.display='none');
-window.addEventListener('click', (e)=>{ const b=document.getElementById('turnos-modal'); if(e.target===b) b.style.display='none' });
+UI.modalClose.addEventListener('click', ()=> UI.modal.style.display='none');
+window.addEventListener('click', (e)=>{ if(e.target===UI.modal) UI.modal.style.display='none' });
 
 function renderTurnosDelDia(turnosDia){
   if (!turnosDia?.length){ UI.turnosDiaList.innerHTML = '<div class="footer-mini">No hay turnos en esta fecha.</div>'; return; }
-  UI.turnosDiaList.innerHTML = turnosDia.map(t=>`
-    <div class="slot">
-      <div><b>${toHM(t.hora_inicio)}</b> — ${toHM(t.hora_fin) || ''} <span class="footer-mini">(${t.estado})</span></div>
-      <div class="footer-mini">ID ${t.id}</div>
-    </div>`).join('');
+
+  const rows = turnosDia.map(t=>{
+    const pac = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre}` : `Paciente ${t.paciente_id.slice(0,6)}`;
+    const dni = t.pacientes?.dni || '—';
+    const tel = t.pacientes?.telefono || '—';
+    const dur = t.hora_fin ? minutesDiff(toHM(t.hora_inicio), toHM(t.hora_fin)) : (duracionCfg[UI.tipoTurno.value]||15);
+    return `
+      <div class="trow" style="display:grid;grid-template-columns:140px 1fr 120px 170px;gap:6px;align-items:center">
+        <div class="tcell"><b>${toHM(t.hora_inicio)}</b> — ${toHM(t.hora_fin) || ''}</div>
+        <div class="tcell">${pac} <span class="footer-mini">DNI ${dni} · ${tel}</span></div>
+        <div class="tcell"><span class="footer-mini">${t.estado}</span></div>
+        <div class="tcell actions">
+          <button class="icon-btn" data-id="${t.id}" data-dur="${dur}" data-tip="↪ Reprogramar" id="rep-${t.id}">↪️</button>
+          <button class="icon-btn" data-id="${t.id}" data-tip="🗑 Anular" id="del-${t.id}">🗑️</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  UI.turnosDiaList.innerHTML = rows;
+
+  // bind acciones
+  turnosDia.forEach(t=>{
+    document.getElementById(`del-${t.id}`).addEventListener('click', ()=> cancelarTurno(t));
+    document.getElementById(`rep-${t.id}`).addEventListener('click', ()=> startReprogram(t));
+  });
 }
 
 function renderSlots(slots){
@@ -816,17 +914,25 @@ function renderSlots(slots){
   UI.slotsList.innerHTML = '';
   for (const s of slots){
     const row = document.createElement('div');
-    row.className = 'slot' + (s.disponible ? '' : ' unavailable');
+    const dur = minutesDiff(s.start, s.end);
+    const reprogramando = !!reprogramState;
+    const sameDur = reprogramando ? (dur === reprogramState.durMin) : true;
+    const habil = s.disponible && (!reprogramando || sameDur);
+
+    row.className = 'slot' + (habil ? '' : ' unavailable');
     row.innerHTML = `
       <div>
         <div class="time">${s.start} — ${s.end}</div>
-        <div class="footer-mini">${s.agenda_id ? 'Agenda' : 'Libre'}</div>
+        <div class="mini">${s.agenda_id ? 'Agenda' : 'Libre'}${reprogramando && !sameDur ? ' · duración distinta' : ''}</div>
       </div>
-      <div>${s.disponible
-        ? `<button class="btn" data-start="${s.start}" data-end="${s.end}" data-agenda="${s.agenda_id||''}">Agendar</button>`
-        : `<button class="btn" disabled>Ocupado</button>`}
+      <div>
+        ${habil
+          ? `<button class="icon-btn" data-tip="${reprogramando ? 'Confirmar reprogramación' : 'Agendar turno'}" data-start="${s.start}" data-end="${s.end}" data-agenda="${s.agenda_id||''}">➕</button>`
+          : `<button class="icon-btn" disabled data-tip="No disponible">✖</button>`}
       </div>`;
-    if (s.disponible){ row.querySelector('button').addEventListener('click', () => tryAgendar(s)); }
+    if (habil){
+      row.querySelector('button').addEventListener('click', () => reprogramando ? confirmReprogram(s) : tryAgendar(s));
+    }
     UI.slotsList.appendChild(row);
   }
 }
@@ -855,10 +961,10 @@ function openOkModal({pac, fechaISO, start, end, profLabel}){
     navigator.clipboard.writeText(link).then(()=> UI.okMsg.textContent='Copiado').catch(()=> UI.okMsg.textContent='No se pudo copiar');
   };
 
-  document.getElementById('turnos-modal-ok').style.display = 'flex';
+  UI.okBackdrop.style.display = 'flex';
 }
-UI.okClose.addEventListener('click', ()=> document.getElementById('turnos-modal-ok').style.display='none');
-window.addEventListener('click', (e)=>{ const b=document.getElementById('turnos-modal-ok'); if (e.target===b) b.style.display='none'; });
+UI.okClose.addEventListener('click', ()=> UI.okBackdrop.style.display='none');
+window.addEventListener('click', (e)=>{ if (e.target===UI.okBackdrop) UI.okBackdrop.style.display='none'; });
 
 /* Agendar */
 async function tryAgendar(slot){
@@ -886,13 +992,59 @@ async function tryAgendar(slot){
     const profLabel = UI.profesionalSelect.options[UI.profesionalSelect.selectedIndex]?.textContent || 'Profesional';
     openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel });
   }
+  await refreshDayModal();
+}
 
+/* Anular turno */
+async function cancelarTurno(t){
+  if (!confirm('¿Anular este turno?')) return;
+  const { error } = await supabase.from('turnos').update({ estado:'cancelado' }).eq('id', t.id);
+  if (error) alert('No se pudo anular: ' + (error.message||'')); else await refreshDayModal();
+}
+
+/* Reprogramar turno: seleccionar duración y habilitar sólo slots compatibles */
+function startReprogram(t){
+  const start = toHM(t.hora_inicio), end = toHM(t.hora_fin);
+  const durMin = end ? minutesDiff(start,end) : (duracionCfg[UI.tipoTurno.value]||15);
+  reprogramState = { turno: t, durMin };
+  UI.status.textContent = `Reprogramando turno de ${durMin} min. Elegí un nuevo horario en la lista.`;
+  // Re-render slots para bloquear duraciones distintas
+  refreshSlotsOnly();
+}
+async function confirmReprogram(slot){
+  const t = reprogramState?.turno; if (!t) return;
+  const upd = {
+    fecha: modalDateISO,
+    hora_inicio: slot.start,
+    hora_fin: slot.end,
+    agenda_id: slot.agenda_id || null,
+    updated_at: new Date().toISOString()
+  };
+  const { error } = await supabase.from('turnos').update(upd).eq('id', t.id);
+  if (error){
+    const msg = (error.message||'').toLowerCase().includes('solap') ? 'El horario elegido se ocupó.' : (error.message || 'No se pudo reprogramar.');
+    alert(msg);
+  } else {
+    reprogramState = null;
+  }
+  UI.status.textContent = '';
+  await refreshDayModal();
+}
+
+async function refreshDayModal(){
+  // volver a consultar datos del día y refrescar
   const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, view.y, view.m);
   const agendaDia = (agenda||[]).filter(a=>a.fecha===modalDateISO);
   const turnosDia = (turnos||[]).filter(t=>t.fecha===modalDateISO);
   renderSlots(generarSlotsDeDia(agendaDia, turnosDia, UI.tipoTurno.value));
   renderTurnosDelDia(turnosDia);
   await renderCalendar();
+}
+async function refreshSlotsOnly(){
+  const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, view.y, view.m);
+  const agendaDia = (agenda||[]).filter(a=>a.fecha===modalDateISO);
+  const turnosDia = (turnos||[]).filter(t=>t.fecha===modalDateISO);
+  renderSlots(generarSlotsDeDia(agendaDia, turnosDia, UI.tipoTurno.value));
 }
 
 /* Eventos generales */
@@ -901,7 +1053,10 @@ UI.profesionalSelect.addEventListener('change', async ()=>{
   await loadDuracionConfig(currentProfesional);
   await renderCalendar();
 });
-UI.tipoTurno.addEventListener('change', renderCalendar);
+UI.tipoTurno.addEventListener('change', async ()=>{
+  await renderCalendar();
+  if (UI.modal.style.display==='flex') await refreshSlotsOnly();
+});
 UI.prevMonth.addEventListener('click', async ()=>{ if (view.m===0){ view.m=11; view.y--; } else view.m--; await renderCalendar(); });
 UI.nextMonth.addEventListener('click', async ()=>{ if (view.m===11){ view.m=0; view.y++; } else view.m++; await renderCalendar(); });
 UI.btnHoy.addEventListener('click', async ()=>{ const t=todayInfo(); view={ y:t.y, m:t.m, d:t.d }; await renderCalendar(); });
