@@ -26,6 +26,8 @@
    <img src="https://i.postimg.cc/ZY8mGGf2/Chat-GPT-Image-30-ago-2025-17-14-28.png" alt="EG Health Solutions Logo" class="logo" id="logo-img">
     <h2>EG Health Solutions</h2>
     <div class="subtitle">Iniciar sesión en el sistema</div>
+
+    <!-- Login -->
     <form id="login-form" autocomplete="off">
       <input type="email" id="email" placeholder="Correo electrónico" required>
       <input type="password" id="password" placeholder="Contraseña" required>
@@ -33,6 +35,8 @@
       <div class="error-message" id="error-message"></div>
       <span class="forgot-link" id="forgot-link">¿Olvidaste tu contraseña?</span>
     </form>
+
+    <!-- Forgot password -->
     <form id="forgot-form" class="hidden">
       <input type="email" id="forgot-email" placeholder="Correo para recuperar contraseña" required>
       <button type="submit" class="login-btn">Enviar recuperación</button>
@@ -40,12 +44,16 @@
       <div class="error-message" id="forgot-error"></div>
       <span class="forgot-link" id="volver-login">Volver al login</span>
     </form>
+
+    <!-- Selección de centro -->
     <form id="center-form" class="hidden">
       <div id="center-select-div"></div>
       <button type="submit" class="login-btn">Entrar al sistema</button>
       <div class="success-message" id="success-message"></div>
       <div class="error-message" id="center-error-message"></div>
     </form>
+
+    <!-- Asociar a centro existente -->
     <form id="associate-form" class="hidden">
       <div id="associate-select-div"></div>
       <button type="submit" class="login-btn">Asociar centro médico</button>
@@ -53,11 +61,9 @@
       <div class="error-message" id="associate-error-message"></div>
     </form>
   </div>
+
   <script type="module">
-    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-    const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    import supabase from "./supabaseClient.js";  // ✅ usamos cliente único
 
     let userEmail = null;
     let userRole = null;
@@ -66,60 +72,63 @@
     let centroAsignado = null;
     let userName = null;
 
-    // Login handler
+    // --- LOGIN ---
     document.getElementById('login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
       const errorMessage = document.getElementById('error-message');
       errorMessage.textContent = '';
-      // Iniciar sesión con Supabase Auth
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         errorMessage.textContent = 'Correo o contraseña incorrectos.';
         return;
       }
+
       userEmail = email;
-      // Buscar perfil y rol y display_name
+      // perfil + rol
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('role, profesional_id, id, email, display_name')
         .eq('email', email)
         .single();
+
       if (profileError || !profileData) {
         errorMessage.textContent = 'Perfil no encontrado.';
         return;
       }
+
       userRole = profileData.role;
       profesionalId = profileData.profesional_id;
-      userName = profileData.display_name || email; // fallback al email si no hay nombre
+      userName = profileData.display_name || email;
 
-      // Guardar datos básicos en localStorage
+      // Guardar en localStorage
       localStorage.setItem('usuario_id', profileData.id);
       localStorage.setItem('profesional_id', profesionalId);
       localStorage.setItem('email', userEmail);
       localStorage.setItem('user_role', userRole);
       localStorage.setItem('user_name', userName);
 
-      // Según el rol, buscar centros médicos
+      // Dependiendo del rol, carga centros o pide asociación
       if (userRole === 'propietario' || userRole === 'medico') {
-        // Buscar centros asociados
         const { data: centrosRel, error: centrosError } = await supabase
           .from('profesional_centro')
           .select('centro_id')
           .eq('profesional_id', profesionalId);
 
         if (centrosError) {
-          errorMessage.textContent = 'Error buscando centros médicos asociados: ' + centrosError.message;
+          errorMessage.textContent = 'Error buscando centros médicos asociados.';
           return;
         }
+
         if (!centrosRel || centrosRel.length === 0) {
-          // No tiene centros médicos asociados: mostrar todos los centros activos para asociar
+          // no tiene centros -> mostrar todos los activos
           const { data: allCentros, error: allCentrosError } = await supabase
             .from('centros_medicos')
             .select('id, nombre')
             .eq('activo', true);
-          if (allCentrosError || !allCentros || allCentros.length === 0) {
+          if (allCentrosError || !allCentros?.length) {
             errorMessage.textContent = 'No hay centros médicos disponibles.';
             return;
           }
@@ -133,25 +142,24 @@
           centros = allCentros;
           return;
         }
-        // Tiene centros asociados: buscar info de cada centro
+
+        // ya tiene centros -> mostrar selector
         const centroIds = centrosRel.map(c => c.centro_id);
-        const { data: centrosData, error: centrosDataError } = await supabase
+        const { data: centrosData } = await supabase
           .from('centros_medicos')
           .select('id, nombre')
           .in('id', centroIds)
           .eq('activo', true);
-        if (centrosDataError || !centrosData || centrosData.length === 0) {
-          errorMessage.textContent = 'No hay centros médicos activos asociados.';
-          return;
-        }
+
         centros = centrosData;
         document.getElementById('login-form').classList.add('hidden');
-        const selectHtml = `<label for="select-centro">Elige tu centro médico:</label>
+        document.getElementById('center-select-div').innerHTML = `
+          <label for="select-centro">Elige tu centro médico:</label>
           <select id="select-centro" required>
             ${centros.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')}
           </select>`;
-        document.getElementById('center-select-div').innerHTML = selectHtml;
         document.getElementById('center-form').classList.remove('hidden');
+
       } else if (userRole === 'asistente') {
         if (!profileData.profesional_id) {
           errorMessage.textContent = 'No tienes centro médico asignado.';
@@ -169,7 +177,8 @@
         }
         centroAsignado = centroData;
         document.getElementById('login-form').classList.add('hidden');
-        document.getElementById('center-select-div').innerHTML = `<label>Centro médico asignado:</label>
+        document.getElementById('center-select-div').innerHTML = `
+          <label>Centro médico asignado:</label>
           <div style="font-weight:600;color:#0055a5;padding:10px 0;">${centroAsignado.nombre}</div>`;
         document.getElementById('center-form').classList.remove('hidden');
         centros = [centroAsignado];
@@ -178,8 +187,8 @@
       }
     });
 
-    // Handler para seleccionar centro y entrar al sistema
-    document.getElementById('center-form').addEventListener('submit', async (e) => {
+    // --- Seleccionar centro ---
+    document.getElementById('center-form').addEventListener('submit', (e) => {
       e.preventDefault();
       let centroId = null;
       if (userRole === 'propietario' || userRole === 'medico') {
@@ -192,7 +201,7 @@
       window.location.href = "dashboard.html";
     });
 
-    // Handler para asociar centro médico si no tiene ninguno
+    // --- Asociar centro si no tiene ninguno ---
     document.getElementById('associate-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const centroId = document.getElementById('associate-centro').value;
@@ -200,7 +209,6 @@
       const errorMessage = document.getElementById('associate-error-message');
       successMessage.textContent = '';
       errorMessage.textContent = '';
-      // Insertar relación en profesional_centro
       const { error: insertError } = await supabase
         .from('profesional_centro')
         .insert([{ profesional_id: profesionalId, centro_id: centroId, activo: true }]);
@@ -211,9 +219,7 @@
       successMessage.textContent = 'Centro médico asociado con éxito. Redirigiendo...';
       localStorage.setItem('centro_medico_id', centroId);
       localStorage.setItem('centro_medico_nombre', centros.find(c => c.id === centroId)?.nombre);
-      setTimeout(() => {
-        window.location.href = "dashboard.html";
-      }, 1500);
+      setTimeout(() => window.location.href = "dashboard.html", 1500);
     });
 
     // --- Recuperar contraseña ---
@@ -221,6 +227,7 @@
     const forgotForm = document.getElementById('forgot-form');
     const loginForm = document.getElementById('login-form');
     const volverLogin = document.getElementById('volver-login');
+
     forgotLink.addEventListener('click', () => {
       loginForm.classList.add('hidden');
       forgotForm.classList.remove('hidden');
@@ -228,6 +235,7 @@
       document.getElementById('forgot-error').textContent = '';
       document.getElementById('forgot-email').value = '';
     });
+
     volverLogin.addEventListener('click', () => {
       forgotForm.classList.add('hidden');
       loginForm.classList.remove('hidden');
@@ -245,19 +253,15 @@
         errorDiv.textContent = 'Ingrese su correo electrónico.';
         return;
       }
-      // Enviar email de recuperación con Supabase
-      const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: window.location.origin + "/reset-password.html"
       });
       if (error) {
-        errorDiv.textContent = 'No se pudo enviar el correo de recuperación. Revise el email ingresado.';
+        errorDiv.textContent = 'No se pudo enviar el correo de recuperación.';
         return;
       }
       success.textContent = 'Correo de recuperación enviado. Revise su bandeja de entrada.';
     });
-
-    // Puedes luego cambiar el src de #logo-img por tu logo real
-    // document.getElementById('logo-img').src = "tu-logo.png";
   </script>
 </body>
 </html>
