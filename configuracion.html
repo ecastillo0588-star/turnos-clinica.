@@ -1,3 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Configuración - EG Health Solutions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { background: #f6f3fa;}
+    .card { background: #fff; padding: 27px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.10); }
+    .config-tabs { margin-bottom:22px; display:flex; gap:9px; }
+    .tab-btn { background:#ece3fa; border:none; border-radius:7px 7px 0 0; padding:8px 22px; font-size:16px; color:#7656b0; cursor:pointer; font-weight:500; }
+    .tab-btn.active { background:#fff; border-bottom:2px solid #7656b0; color:#381e60; }
+    .config-tab-content { background: #fff; border-radius:0 0 13px 13px; box-shadow:0 1px 6px rgba(80,60,160,.07); padding: 18px 16px 2px 16px; }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+    .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 3px;}
+    .btn.primary { background: #7656b0; }
+    .btn:hover { background: #7f62b6; }
+    .muted { color: #6b6480; font-size: 13px; }
+    input, select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 5px 8px; font-size:15px; }
+    form label { font-size:15px; color:#381e60; margin-bottom:3px; display:block; }
+  </style>
+</head>
+<body>
+
 <!-- Configuración EG Health Solutions - Menú Tabulado -->
 <div class="card config-grid" style="max-width: 900px; margin: 40px auto;">
   <h2 style="margin-bottom:18px;">Configuración</h2>
@@ -8,25 +33,25 @@
     <button class="tab-btn" data-tab="asistentes">Asistentes</button>
   </nav>
   <div class="config-tab-content">
-    <!-- Agenda: llama al generador externo -->
+    <!-- Agenda -->
     <section id="tab-agenda" class="tab-panel active">
       <div id="agenda-generador-html">
         <div class="muted">Cargando generador de agenda...</div>
       </div>
     </section>
-    <!-- Duración de Turnos: se carga desde un archivo externo -->
+    <!-- Duración de Turnos -->
     <section id="tab-duracion" class="tab-panel">
       <div id="duracion-turnos-html">
         <div class="muted">Cargando configuración de duración de turnos...</div>
       </div>
     </section>
-    <!-- Centros Médicos: se cargará desde un archivo externo -->
+    <!-- Centros Médicos -->
     <section id="tab-centros" class="tab-panel">
       <div id="centros-medicos-html">
         <div class="muted">Cargando configuración de centros médicos...</div>
       </div>
     </section>
-    <!-- Asistentes: se cargará desde un archivo externo -->
+    <!-- Asistentes -->
     <section id="tab-asistentes" class="tab-panel">
       <div id="asistentes-html">
         <div class="muted">Cargando configuración de asistentes...</div>
@@ -54,127 +79,64 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-// Cargar el generador de agenda externo SOLO cuando se muestra el tab correspondiente
+// --- Helpers de carga dinámica ---
+async function loadExternalHtml(url, targetId, errorMsg) {
+  const espacio = document.getElementById(targetId);
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      espacio.innerHTML = `<div class="muted" style="color:#b00020;">${errorMsg}</div>`;
+      return;
+    }
+    let html = await resp.text();
+    espacio.innerHTML = html;
+    // Re-ejecutar scripts tipo module embebidos
+    Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
+      const newScript = document.createElement('script');
+      newScript.type = 'module';
+      if (oldScript.src) newScript.src = oldScript.src;
+      else newScript.textContent = oldScript.textContent;
+      document.body.appendChild(newScript);
+    });
+  } catch (e) {
+    espacio.innerHTML = `<div class="muted" style="color:#b00020;">${errorMsg}</div>`;
+  }
+}
+
+// --- Cargas diferidas por tab ---
 let agendaCargada = false;
 async function cargarAgendaGenerador() {
   if (agendaCargada) return;
-  const espacio = document.getElementById('agenda-generador-html');
-  try {
-    const resp = await fetch('agenda-generador.html');
-    if (!resp.ok) {
-      espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error al cargar agenda-generador.html</div>';
-      return;
-    }
-    let html = await resp.text();
-    espacio.innerHTML = html;
-    Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
-      const newScript = document.createElement('script');
-      newScript.type = 'module';
-      if (oldScript.src) newScript.src = oldScript.src;
-      else newScript.textContent = oldScript.textContent;
-      document.body.appendChild(newScript);
-    });
-    agendaCargada = true;
-  } catch (e) {
-    espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error de conexión al cargar agenda-generador.html</div>';
-  }
+  await loadExternalHtml('agenda-generador.html', 'agenda-generador-html', 'Error al cargar agenda-generador.html');
+  agendaCargada = true;
 }
 
-// Cargar el configurador de duración de turnos solo cuando se muestra el tab correspondiente
 let duracionCargada = false;
 async function cargarDuracionTurnos() {
   if (duracionCargada) return;
-  const espacio = document.getElementById('duracion-turnos-html');
-  try {
-    const resp = await fetch('duracion-turnos.html');
-    if (!resp.ok) {
-      espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error al cargar duracion-turnos.html</div>';
-      return;
-    }
-    let html = await resp.text();
-    espacio.innerHTML = html;
-    Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
-      const newScript = document.createElement('script');
-      newScript.type = 'module';
-      if (oldScript.src) newScript.src = oldScript.src;
-      else newScript.textContent = oldScript.textContent;
-      document.body.appendChild(newScript);
-    });
-    duracionCargada = true;
-  } catch (e) {
-    espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error de conexión al cargar duracion-turnos.html</div>';
-  }
+  await loadExternalHtml('duracion-turnos.html', 'duracion-turnos-html', 'Error al cargar duracion-turnos.html');
+  duracionCargada = true;
 }
 
-// Cargar configuración de centros médicos solo cuando se muestra el tab correspondiente
 let centrosCargado = false;
 async function cargarCentrosMedicos() {
   if (centrosCargado) return;
-  const espacio = document.getElementById('centros-medicos-html');
-  try {
-    const resp = await fetch('centros-medicos.html');
-    if (!resp.ok) {
-      espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error al cargar centros-medicos.html</div>';
-      return;
-    }
-    let html = await resp.text();
-    espacio.innerHTML = html;
-    Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
-      const newScript = document.createElement('script');
-      newScript.type = 'module';
-      if (oldScript.src) newScript.src = oldScript.src;
-      else newScript.textContent = oldScript.textContent;
-      document.body.appendChild(newScript);
-    });
-    centrosCargado = true;
-  } catch (e) {
-    espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error de conexión al cargar centros-medicos.html</div>';
-  }
+  await loadExternalHtml('centros-medicos.html', 'centros-medicos-html', 'Error al cargar centros-medicos.html');
+  centrosCargado = true;
 }
 
-// Cargar configuración de asistentes solo cuando se muestra el tab correspondiente
 let asistentesCargado = false;
 async function cargarAsistentes() {
   if (asistentesCargado) return;
-  const espacio = document.getElementById('asistentes-html');
-  try {
-    const resp = await fetch('asistentes.html');
-    if (!resp.ok) {
-      espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error al cargar asistentes.html</div>';
-      return;
-    }
-    let html = await resp.text();
-    espacio.innerHTML = html;
-    Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
-      const newScript = document.createElement('script');
-      newScript.type = 'module';
-      if (oldScript.src) newScript.src = oldScript.src;
-      else newScript.textContent = oldScript.textContent;
-      document.body.appendChild(newScript);
-    });
-    asistentesCargado = true;
-  } catch (e) {
-    espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error de conexión al cargar asistentes.html</div>';
-  }
+  await loadExternalHtml('asistentes.html', 'asistentes-html', 'Error al cargar asistentes.html');
+  asistentesCargado = true;
 }
 
-// Llama agenda generador al inicio si agenda es el primer tab activo
-if(document.querySelector('.tab-btn.active').getAttribute('data-tab')==='agenda') cargarAgendaGenerador();
+// Cargar agenda por defecto al inicio
+if(document.querySelector('.tab-btn.active').getAttribute('data-tab')==='agenda') {
+  cargarAgendaGenerador();
+}
 </script>
 
-<style>
-body { background: #f6f3fa;}
-.card { background: #fff; padding: 27px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.10); }
-.config-tabs { margin-bottom:22px; display:flex; gap:9px; }
-.tab-btn { background:#ece3fa; border:none; border-radius:7px 7px 0 0; padding:8px 22px; font-size:16px; color:#7656b0; cursor:pointer; font-weight:500; }
-.tab-btn.active { background:#fff; border-bottom:2px solid #7656b0; color:#381e60; }
-.config-tab-content { background: #fff; border-radius:0 0 13px 13px; box-shadow:0 1px 6px rgba(80,60,160,.07); padding: 18px 16px 2px 16px; }
-.tab-panel { display:none; }
-.tab-panel.active { display:block; }
-.btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 3px;}
-.btn.primary { background: #7656b0; }
-.btn:hover { background: #7f62b6; }
-.muted { color: #6b6480; font-size: 13px; }
-input, select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 5px 8px; font-size:15px; }
-form label { font-size:15px; color:#381e60; margin-bottom:3px; display:block; }
-</style>
+</body>
+</html>
