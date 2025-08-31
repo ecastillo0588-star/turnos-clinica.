@@ -2,276 +2,120 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Gestión de Asistentes</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crear Asistente</title>
   <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f9fb; margin: 0; }
-    .container { max-width: 800px; margin: 36px auto; background: #fff; padding: 28px 22px 20px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
-    h3 { color:#381e60; margin-bottom:22px;}
-    .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 3px;}
-    .btn.primary { background: #7656b0; }
-    .btn:hover { background: #7f62b6; }
-    input, select, textarea { border: 1px solid #e3d8f6; border-radius: 6px; padding: 5px 8px; font-size:15px; background:#f7f9fb; }
-    label { color:#381e60;}
-    .muted { color: #6b6480; font-size: 13px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-    th, td { text-align:left; padding: 10px 8px; }
-    th { background: #e7e2fa; color: #381e60; font-size: 16px; }
-    td { font-size: 15px; border-bottom: 1px solid #ece5fc; }
-    .action-cell { text-align: right; }
-    .activo-tag {
-      display: inline-block;
-      min-width: 40px;
-      text-align: center;
-      font-weight: 500;
-      font-size: 14px;
-      border-radius: 12px;
-      padding: 2px 8px;
-      background: #e7e2fa;
-      color: #7656b0;
-    }
-    .activo-tag.no { background: #ffe1e1; color: #B00020;}
-    .modal { position:fixed; z-index:999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.18); display:flex; align-items:center; justify-content:center;}
-    .modal-content { background:#fff; padding:28px 22px 20px 22px; border-radius:14px; min-width:300px; max-width:400px; position:relative; box-shadow:0 2px 18px rgba(80,60,160,.18);}
-    .close { position:absolute; right:12px; top:10px; font-size:20px; color:#7656b0; cursor:pointer;}
-    .modal-content h4 { color:#381e60; margin-bottom:16px;}
-    .modal-content input, .modal-content select { width:100%; margin-bottom:10px; }
-    @media (max-width: 600px) {
-      .container { max-width: 98vw; padding: 10px 5px 10px 5px; border-radius: 10px;}
-      th, td { padding: 6px 2px; font-size:14px;}
-    }
+    body { font-family: Arial, sans-serif; }
+    .container { max-width: 400px; margin: 50px auto; padding: 24px; border: 1px solid #eee; border-radius: 8px;}
+    input, select { width: 100%; margin-bottom: 12px; padding: 8px; }
+    button { padding: 8px 16px; }
+    .status { margin-top: 16px; height: 24px; color: #006400; }
+    .error { color: #c00; }
   </style>
 </head>
 <body>
-<div class="container">
-  <h3>Asistentes</h3>
-  <button type="button" id="crear-asistente-btn" class="btn primary" style="margin-bottom:20px;">Crear asistente</button>
-  <table id="asistentes-table">
-    <thead>
-      <tr>
-        <th>Nombre</th>
-        <th>Email</th>
-        <th>Centro(s) Médico(s)</th>
-        <th>Activo</th>
-        <th class="action-cell">Acciones</th>
-      </tr>
-    </thead>
-    <tbody id="asistentes-tbody">
-      <!-- Asistentes se mostrarán aquí -->
-    </tbody>
-  </table>
-  <div id="status-msg" class="muted" style="margin-top:10px;"></div>
-</div>
+  <div class="container">
+    <h2>Crear Asistente</h2>
+    <form id="formAsistente">
+      <label for="display_name">Nombre Completo</label>
+      <input type="text" id="display_name" required placeholder="Ej: Ailin Frias">
+      
+      <label for="email">Email</label>
+      <input type="email" id="email" required placeholder="Ej: afrias@gmail.com">
 
-<!-- Modal para crear asistente -->
-<div id="modal-asistente" class="modal" style="display:none;">
-  <div class="modal-content">
-    <span class="close" id="cerrar-modal-asistente">&times;</span>
-    <h4 id="modal-title">Crear asistente</h4>
-    <form id="form-asistente">
-      <label for="display_name">Nombre:</label>
-      <input type="text" id="display_name" required placeholder="Nombre completo">
-      <label for="email">Email:</label>
-      <input type="email" id="email" required placeholder="Email">
-      <label for="password">Contraseña:</label>
-      <input type="password" id="password" required placeholder="Contraseña">
-      <label for="centro_id">Centro Médico:</label>
-      <select id="centro_id" required>
-        <option value="" disabled selected>Cargando centros...</option>
-      </select>
-      <label for="active">Activo:</label>
+      <label for="centro_id">Centro Médico (ID)</label>
+      <input type="text" id="centro_id" required placeholder="ID del centro médico">
+
+      <label for="active">Activo</label>
       <select id="active">
-        <option value="true">Sí</option>
-        <option value="false">No</option>
+        <option value="true" selected>Activo</option>
+        <option value="false">Inactivo</option>
       </select>
-      <button type="submit" class="btn primary" style="margin-top:10px;">Guardar asistente</button>
-      <div id="modal-asistente-status" class="muted" style="margin-top:10px;"></div>
+      <button type="submit">Crear Asistente</button>
     </form>
+    <div id="status" class="status"></div>
   </div>
-</div>
 
-<script type="module">
-// Configuración Supabase
-const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
+  <script type="module">
+    // Configuración Supabase
+    const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
+    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
 
-// Utilidad para fetch a la API REST
-async function supabaseFetch(endpoint, params = "", options = {}) {
-  const url = `${supabaseUrl}/rest/v1/${endpoint}${params}`;
-  const res = await fetch(url, {
-    headers: {
-      apikey: supabaseAnonKey,
-      Authorization: `Bearer ${supabaseAnonKey}`,
-      'Content-Type': 'application/json'
-    },
-    ...options
-  });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || res.statusText);
-  }
-  return await res.json();
-}
-
-// Elementos
-const asistentesTbody = document.getElementById('asistentes-tbody');
-const crearAsistenteBtn = document.getElementById('crear-asistente-btn');
-const modalAsistente = document.getElementById('modal-asistente');
-const cerrarModalAsistente = document.getElementById('cerrar-modal-asistente');
-const formAsistente = document.getElementById('form-asistente');
-const modalAsistenteStatus = document.getElementById('modal-asistente-status');
-const centroSelect = document.getElementById('centro_id');
-const modalTitle = document.getElementById('modal-title');
-const statusMsg = document.getElementById('status-msg');
-
-let centrosMedicos = [];
-
-// Cargar centros médicos desde la base
-async function cargarCentros() {
-  centroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
-  try {
-    const data = await supabaseFetch('centros_medicos', '?select=id,nombre');
-    centrosMedicos = data;
-    centroSelect.innerHTML = `<option value="" disabled selected>Seleccione centro médico</option>`;
-    centrosMedicos.forEach(c => {
-      const opt = document.createElement('option');
-      opt.value = c.id;
-      opt.textContent = c.nombre;
-      centroSelect.appendChild(opt);
-    });
-  } catch (error) {
-    centroSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
-  }
-}
-
-// Cargar asistentes y mostrar sus centros médicos asociados (usando profesional_centro)
-async function cargarAsistentes() {
-  asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Cargando asistentes...</td></tr>`;
-  try {
-    // Trae todos los asistentes
-    const asistentes = await supabaseFetch('profiles', '?select=id,email,display_name,role,active&role=eq.asistente');
-    if (!asistentes || asistentes.length === 0) {
-      asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Aún no tienes asistentes.</td></tr>`;
-      return;
+    // Función para generar UUID v4
+    function generateUUID() {
+      return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+        (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+      );
     }
 
-    asistentesTbody.innerHTML = "";
-    // Para cada asistente, buscar sus centros asociados en profesional_centro
-    for (const a of asistentes) {
-      // Busca los centros asociados en profesional_centro con join hacia centros_medicos
-      let centros = [];
+    document.getElementById('formAsistente').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const display_name = document.getElementById('display_name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const centro_id = document.getElementById('centro_id').value.trim();
+      const active = document.getElementById('active').value === 'true';
+      const statusDiv = document.getElementById('status');
+
+      if (!display_name || !email || !centro_id) {
+        statusDiv.textContent = 'Debe completar todos los campos obligatorios.';
+        statusDiv.className = 'status error';
+        return;
+      }
+
+      const id = generateUUID();
+
       try {
-        const rel = await supabaseFetch(
-          'profesional_centro',
-          `?select=centro_id,centros_medicos(nombre)&profesional_id=eq.${a.id}&activo=eq.true`
-        );
-        centros = rel.map(r => r.centros_medicos?.nombre).filter(Boolean);
-      } catch {}
-      const activoTxt = a.active ? 'Sí' : 'No';
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${a.display_name || '-'}</td>
-        <td>${a.email || '-'}</td>
-        <td>${centros.length ? centros.join(', ') : '-'}</td>
-        <td><span class="activo-tag${a.active ? '' : ' no'}">${activoTxt}</span></td>
-        <td class="action-cell"></td>
-      `;
-      asistentesTbody.appendChild(tr);
-    }
-  } catch (error) {
-    asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Error al cargar asistentes</td></tr>`;
-  }
-}
+        // 1. Crear asistente en profiles con id autogenerado
+        const body = JSON.stringify({
+          id,
+          email,
+          display_name,
+          role: 'asistente',
+          active
+        });
+        const res = await fetch(`${supabaseUrl}/rest/v1/profiles`, {
+          method: 'POST',
+          headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=representation'
+          },
+          body
+        });
+        if (!res.ok) {
+          const errorText = await res.text();
+          statusDiv.textContent = 'Error al crear asistente: ' + errorText;
+          statusDiv.className = 'status error';
+          return;
+        }
 
-// Abrir modal para crear asistente
-crearAsistenteBtn.addEventListener('click', async () => {
-  modalTitle.textContent = 'Crear asistente';
-  await cargarCentros();
-  formAsistente.reset();
-  document.getElementById('password').required = true;
-  modalAsistenteStatus.textContent = '';
-  modalAsistente.style.display = 'flex';
-});
+        // 2. Asociar al centro en profesional_centro
+        const assocBody = JSON.stringify({ profesional_id: id, centro_id, activo: true });
+        const assocRes = await fetch(`${supabaseUrl}/rest/v1/profesional_centro`, {
+          method: 'POST',
+          headers: {
+            apikey: supabaseAnonKey,
+            Authorization: `Bearer ${supabaseAnonKey}`,
+            'Content-Type': 'application/json',
+            Prefer: 'return=minimal'
+          },
+          body: assocBody
+        });
+        if (!assocRes.ok) {
+          const errorText = await assocRes.text();
+          statusDiv.textContent = 'Asistente creado, pero error al asociar al centro: ' + errorText;
+          statusDiv.className = 'status error';
+          return;
+        }
 
-cerrarModalAsistente.addEventListener('click', () => {
-  modalAsistente.style.display = 'none';
-});
-window.addEventListener('click', (e) => {
-  if (e.target === modalAsistente) modalAsistente.style.display = 'none';
-});
-
-// Guardar asistente y su asociación
-formAsistente.addEventListener('submit', async function(e) {
-  e.preventDefault();
-  const display_name = document.getElementById('display_name').value.trim();
-  const email = document.getElementById('email').value.trim();
-  const centro_id = centroSelect.value;
-  const active = document.getElementById('active').value === 'true';
-  const password = document.getElementById('password').value;
-
-  if (!display_name || !email || !centro_id) {
-    modalAsistenteStatus.textContent = 'Debe completar todos los campos obligatorios.';
-    return;
-  }
-
-  try {
-    // 1. Crear asistente en profiles
-    const body = JSON.stringify({
-      email,
-      display_name,
-      role: 'asistente',
-      active
+        statusDiv.textContent = '¡Asistente creado y asociado correctamente!';
+        statusDiv.className = 'status';
+        document.getElementById('formAsistente').reset();
+      } catch (error) {
+        statusDiv.textContent = 'Error al crear asistente: ' + error.message;
+        statusDiv.className = 'status error';
+      }
     });
-    const res = await fetch(`${supabaseUrl}/rest/v1/profiles`, {
-      method: 'POST',
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation' // Para obtener el id
-      },
-      body
-    });
-    if (!res.ok) {
-      const errorText = await res.text();
-      modalAsistenteStatus.textContent = 'Error al crear asistente: ' + errorText;
-      return;
-    }
-    const [nuevoAsistente] = await res.json();
-    if (!nuevoAsistente?.id) {
-      modalAsistenteStatus.textContent = 'No se pudo obtener el asistente creado.';
-      return;
-    }
-    // 2. Asociar al centro en profesional_centro
-    const assocBody = JSON.stringify({ profesional_id: nuevoAsistente.id, centro_id, activo: true });
-    const assocRes = await fetch(`${supabaseUrl}/rest/v1/profesional_centro`, {
-      method: 'POST',
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${supabaseAnonKey}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=minimal'
-      },
-      body: assocBody
-    });
-    if (!assocRes.ok) {
-      const errorText = await assocRes.text();
-      modalAsistenteStatus.textContent = 'Asistente creado, pero error al asociar al centro: ' + errorText;
-      return;
-    }
-    modalAsistenteStatus.textContent = '¡Asistente creado y asociado correctamente!';
-    await cargarAsistentes();
-    setTimeout(() => { modalAsistente.style.display = 'none'; }, 1200);
-  } catch (error) {
-    modalAsistenteStatus.textContent = 'Error al crear asistente: ' + error.message;
-  }
-});
-
-// Inicialización
-(async function init() {
-  await cargarCentros();
-  await cargarAsistentes();
-})();
-</script>
+  </script>
 </body>
 </html>
