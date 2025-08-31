@@ -100,23 +100,133 @@
   </div>
 </div>
 
-<!-- Modal para asociar a centro -->
-<div id="modal-cambio-centro" class="modal" style="display:none;">
-  <div class="modal-content">
-    <span class="close" id="cerrar-modal-cambio-centro">&times;</span>
-    <h4>Cambiar centro médico del asistente</h4>
-    <form id="form-cambio-centro">
-      <label for="cambio_centro_id">Centro Médico:</label>
-      <select id="cambio_centro_id" required></select>
-      <button type="submit" class="btn primary" style="margin-top:10px;">Actualizar</button>
-      <div id="modal-cambio-centro-status" class="muted" style="margin-top:10px;"></div>
-    </form>
-  </div>
-</div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Demo: tabla de asistentes de prueba
+  const asistentesDemo = [
+    { nombre: 'Laura Gómez', email: 'laura@gmail.com', centro: 'Centro Norte', activo: true },
+    { nombre: 'Juan Pérez', email: 'juan@correo.com', centro: 'Centro Sur', activo: false }
+  ];
+  const tbody = document.getElementById('asistentes-tbody');
+  const crearBtn = document.getElementById('crear-asistente-btn');
+  const modal = document.getElementById('modal-asistente');
+  const cerrarModal = document.getElementById('cerrar-modal-asistente');
+  const form = document.getElementById('form-asistente');
+  const modalStatus = document.getElementById('modal-asistente-status');
+  const modalTitle = document.getElementById('modal-title');
 
-<script type="module">
-// ... el mismo script que tienes, pero aquí está la vista arreglada ...
-// Si quieres mejoras en la lógica JS o UX, dime qué necesitas y lo ajusto.
+  // Render tabla demo
+  function renderTabla() {
+    tbody.innerHTML = '';
+    if(asistentesDemo.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="5" class="muted">No hay asistentes registrados aún.</td></tr>`;
+      return;
+    }
+    asistentesDemo.forEach((asistente, i) => {
+      tbody.innerHTML += `
+        <tr>
+          <td>${asistente.nombre}</td>
+          <td>${asistente.email}</td>
+          <td>${asistente.centro}</td>
+          <td>
+            <span class="activo-tag${asistente.activo ? '' : ' no'}">
+              ${asistente.activo ? 'Sí' : 'No'}
+            </span>
+          </td>
+          <td class="action-cell">
+            <button class="icon-btn edit-btn" title="Editar" data-index="${i}">
+              ✏️
+            </button>
+            <button class="icon-btn delete-btn" title="Eliminar" data-index="${i}">
+              🗑️
+            </button>
+          </td>
+        </tr>
+      `;
+    });
+
+    // Acción editar
+    Array.from(document.getElementsByClassName('edit-btn')).forEach(btn => {
+      btn.onclick = function() {
+        const idx = parseInt(btn.dataset.index, 10);
+        editarAsistente(idx);
+      }
+    });
+    // Acción eliminar
+    Array.from(document.getElementsByClassName('delete-btn')).forEach(btn => {
+      btn.onclick = function() {
+        const idx = parseInt(btn.dataset.index, 10);
+        if(confirm('¿Eliminar asistente?')) {
+          asistentesDemo.splice(idx, 1);
+          renderTabla();
+        }
+      }
+    });
+  }
+
+  renderTabla();
+
+  // Abrir modal crear asistente
+  crearBtn.onclick = function() {
+    form.reset();
+    modalTitle.textContent = 'Crear asistente';
+    modalStatus.textContent = '';
+    modal.style.display = 'flex';
+    document.getElementById('password').required = true;
+  };
+  cerrarModal.onclick = function() { modal.style.display = 'none'; };
+  window.onclick = function(e) { if(e.target == modal) modal.style.display = 'none'; };
+
+  // Guardar asistente (demo)
+  form.onsubmit = function(e) {
+    e.preventDefault();
+    const nombre = document.getElementById('display_name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const centro = document.getElementById('centro_id').value || 'Centro Norte';
+    const activo = document.getElementById('active').value === 'true';
+    if(!nombre || !email || !centro) {
+      modalStatus.textContent = 'Completa todos los campos.';
+      return;
+    }
+    if(modalTitle.textContent === 'Crear asistente') {
+      asistentesDemo.push({ nombre, email, centro, activo });
+      modalStatus.textContent = '¡Asistente creado!';
+      renderTabla();
+      setTimeout(()=>{modal.style.display='none'}, 800);
+    } else {
+      // Editar
+      const idx = form.dataset.editIndex;
+      if(idx !== undefined) {
+        asistentesDemo[idx] = { nombre, email, centro, activo };
+        modalStatus.textContent = '¡Asistente editado!';
+        renderTabla();
+        setTimeout(()=>{modal.style.display='none'}, 800);
+      }
+      form.dataset.editIndex = '';
+    }
+  }
+
+  // Demo: editar asistente
+  function editarAsistente(idx) {
+    const a = asistentesDemo[idx];
+    if(!a) return;
+    form.reset();
+    document.getElementById('display_name').value = a.nombre;
+    document.getElementById('email').value = a.email;
+    document.getElementById('centro_id').value = a.centro;
+    document.getElementById('active').value = a.activo ? 'true' : 'false';
+    modalTitle.textContent = 'Editar asistente';
+    modalStatus.textContent = '';
+    modal.style.display = 'flex';
+    form.dataset.editIndex = idx;
+    document.getElementById('password').required = false;
+  }
+
+  // Demo: centros médicos
+  const centros = ['Centro Norte', 'Centro Sur', 'Centro Este'];
+  const centroSelect = document.getElementById('centro_id');
+  centroSelect.innerHTML = '<option value="" disabled selected>Seleccione centro médico</option>' + centros.map(c=>`<option value="${c}">${c}</option>`).join('');
+});
 </script>
 </body>
 </html>
