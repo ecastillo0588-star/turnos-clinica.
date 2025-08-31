@@ -1,170 +1,74 @@
-<!-- Turnos (partial) - se inserta dentro de #main-content -->
-<style>
-  /* ====== TURNOS PARTIAL (namespaced con .tw-*) ====== */
-  :root {
-    --tw-brand:#7656b0; --tw-brand2:#a490d7; --tw-ink:#381e60; --tw-muted:#6b6480;
-    --tw-bg:#f7f9fb; --tw-card:#ffffff; --tw-line:#ece5fc;
-    --tw-accent:#0b5394; --tw-ok:#0a7d38; --tw-okbg:#e8fff0;
-    --tw-danger:#b00020; --tw-warn:#8a5800; --tw-warnbg:#fff4e6;
-  }
-  .tw-root{font-family:'Segoe UI',Arial,sans-serif;color:var(--tw-ink);}
-  .tw-toolbar{
-    display:grid;grid-template-columns:1.1fr 1.1fr 1.5fr 1fr auto;
-    gap:12px;align-items:end;margin-bottom:18px;
-    background:var(--tw-card);border:1px solid var(--tw-line);
-    border-radius:16px;padding:14px 16px;box-shadow:0 2px 10px rgba(80,60,160,.08);
-  }
-  .tw-field{display:flex;flex-direction:column;gap:6px;position:relative}
-  .tw-field label{font-size:12px;font-weight:600;color:var(--tw-muted);letter-spacing:.3px}
-  .tw-inp,.tw-sel{
-    background:#f8f9fc;border:1.5px solid var(--tw-line);border-radius:8px;
-    padding:8px 10px;font-size:14px;color:var(--tw-ink);outline:none;transition:border-color .15s,background .15s;
-    font-family:inherit;
-  }
-  .tw-inp:focus,.tw-sel:focus{border-color:var(--tw-brand2);background:#fff}
-  .tw-btn{
-    appearance:none;border:none;border-radius:9px;padding:10px 14px;
-    font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;
-    background:var(--tw-brand);color:#fff;display:inline-flex;align-items:center;gap:6px;
-    box-shadow:0 2px 4px rgba(0,0,0,.12);transition:filter .15s;
-  }
-  .tw-btn:hover{filter:brightness(.97)}
-  .tw-btn.secondary{background:#e8e1fc;color:#5a3e9a;box-shadow:none}
-  .tw-btn.ghost{background:#fff;color:var(--tw-ink);border:1px solid var(--tw-line);box-shadow:none}
-  .tw-btn.ok{background:var(--tw-ok)}
-  .tw-btn.danger{background:var(--tw-danger)}
-  .tw-chip{
-    position:absolute;right:8px;top:-20px;background:#e8e1fc;color:#5a3e9a;
-    border-radius:999px;padding:2px 8px;font-size:12px;display:flex;gap:6px;align-items:center;
-    box-shadow:0 2px 6px -2px rgba(0,0,0,.25);
-  }
-  .tw-chip button{all:unset;cursor:pointer;font-weight:600;}
-  .tw-suggest{
-    position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;
-    border:1px solid var(--tw-line);border-radius:12px;margin-top:6px;
-    box-shadow:0 10px 26px -4px rgba(0,0,0,.20);max-height:260px;overflow:auto;
-  }
-  .tw-s-item{padding:10px 12px;border-bottom:1px solid var(--tw-line);cursor:pointer;display:flex;justify-content:space-between;gap:10px}
-  .tw-s-item:last-child{border-bottom:none}
-  .tw-s-item:hover{background:#faf7ff}
-  .tw-s-title{font-weight:600;font-size:14px}
-  .tw-s-meta{font-size:12px;color:var(--tw-muted)}
-  .tw-s-item.tw-create{background:#faf7ff}
-  .tw-head{display:flex;justify-content:space-between;align-items:center;margin:6px 0 14px;}
-  .tw-head-left{display:flex;align-items:center;gap:8px}
-  .tw-head h2{margin:0;font-size:21px;font-weight:600}
-  .tw-legend{display:flex;gap:14px;align-items:center;font-size:13px;color:var(--tw-muted);flex-wrap:wrap}
-  .tw-dot{width:11px;height:11px;border-radius:50%;display:inline-block}
-  .tw-dot.free{background:#9ee6b7}
-  .tw-dot.busy{background:#ffc888}
-  .tw-dot.none{background:#d2c7eb}
+<!-- Vista TURNOS (partial) - se inyecta dentro de #main-content -->
+<div id="turnos-view" data-view="turnos">
+  <style>
+    :root {
+      --tw-brand:#7656b0; --tw-brand2:#a490d7; --tw-ink:#381e60; --tw-muted:#6b6480;
+      --tw-card:#fff; --tw-line:#ece5fc; --tw-accent:#0b5394;
+      --tw-ok:#0a7d38; --tw-okbg:#e8fff0; --tw-danger:#b00020;
+      --tw-warn:#8a5800; --tw-warnbg:#fff4e6;
+    }
+    #turnos-view{font-family:'Segoe UI',Arial,sans-serif;color:var(--tw-ink);}
+    .tw-toolbar{display:grid;grid-template-columns:1.1fr 1.1fr 1.5fr 1fr auto;gap:12px;align-items:end;margin-bottom:18px;background:var(--tw-card);border:1px solid var(--tw-line);border-radius:16px;padding:14px 16px;box-shadow:0 2px 10px rgba(80,60,160,.08);}
+    .tw-field{display:flex;flex-direction:column;gap:6px;position:relative}
+    .tw-field label{font-size:12px;font-weight:600;color:var(--tw-muted);letter-spacing:.3px}
+    .tw-inp,.tw-sel{background:#f8f9fc;border:1.5px solid var(--tw-line);border-radius:8px;padding:8px 10px;font-size:14px;color:var(--tw-ink);outline:none;transition:border-color .15s,background .15s;font-family:inherit;}
+    .tw-inp:focus,.tw-sel:focus{border-color:var(--tw-brand2);background:#fff}
+    .tw-btn{appearance:none;border:none;border-radius:9px;padding:10px 14px;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;background:var(--tw-brand);color:#fff;display:inline-flex;align-items:center;gap:6px;box-shadow:0 2px 4px rgba(0,0,0,.12);transition:filter .15s;}
+    .tw-btn:hover{filter:brightness(.97)} .tw-btn.secondary{background:#e8e1fc;color:#5a3e9a;box-shadow:none} .tw-btn.ghost{background:#fff;color:var(--tw-ink);border:1px solid var(--tw-line);box-shadow:none}
+    .tw-chip{position:absolute;right:8px;top:-20px;background:#e8e1fc;color:#5a3e9a;border-radius:999px;padding:2px 8px;font-size:12px;display:flex;gap:6px;align-items:center;box-shadow:0 2px 6px -2px rgba(0,0,0,.25);}
+    .tw-chip button{all:unset;cursor:pointer;font-weight:600;}
+    .tw-suggest{position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid var(--tw-line);border-radius:12px;margin-top:6px;box-shadow:0 10px 26px -4px rgba(0,0,0,.20);max-height:260px;overflow:auto}
+    .tw-s-item{padding:10px 12px;border-bottom:1px solid var(--tw-line);cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+    .tw-s-item:last-child{border-bottom:none} .tw-s-item:hover{background:#faf7ff}
+    .tw-s-title{font-weight:600;font-size:14px} .tw-s-meta{font-size:12px;color:var(--tw-muted)}
+    .tw-head{display:flex;justify-content:space-between;align-items:center;margin:6px 0 14px;}
+    .tw-head-left{display:flex;align-items:center;gap:8px} .tw-head h2{margin:0;font-size:21px;font-weight:600}
+    .tw-legend{display:flex;gap:14px;align-items:center;font-size:13px;color:var(--tw-muted);flex-wrap:wrap}
+    .tw-dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+    .tw-dot.free{background:#9ee6b7} .tw-dot.busy{background:#ffc888} .tw-dot.none{background:#d2c7eb}
+    .tw-cal{background:var(--tw-card);border:1px solid var(--tw-line);border-radius:18px;padding:16px 16px 18px;box-shadow:0 2px 12px rgba(80,60,160,.08);}
+    .tw-dow,.tw-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+    .tw-dow div{font-size:12px;text-align:center;color:var(--tw-muted);font-weight:600;letter-spacing:.5px}
+    .tw-day{background:#faf9ff;border:1px solid var(--tw-line);border-radius:14px;min-height:110px;padding:8px;display:flex;flex-direction:column;gap:6px;transition:transform .08s,box-shadow .15s}
+    .tw-day .num{font-weight:600;font-size:14px} .tw-day .badge{margin-top:auto;align-self:flex-start;font-size:11px;font-weight:600;padding:4px 8px;border-radius:999px;letter-spacing:.3px}
+    .tw-day.free .badge{background:#e9fff1;color:#0f6c36} .tw-day.busy .badge{background:#fff4e6;color:var(--tw-warn)} .tw-day.empty{opacity:.5}
+    .tw-day.clickable{cursor:pointer} .tw-day.clickable:hover{transform:translateY(-3px);box-shadow:0 6px 18px -6px rgba(0,0,0,.30)}
+    .tw-status{margin-top:10px;font-size:12.5px;color:var(--tw-muted);min-height:18px}
+    .tw-backdrop{position:fixed;inset:0;background:rgba(31,17,56,.40);backdrop-filter:blur(2px);display:none;align-items:center;justify-content:center;z-index:1500}
+    .tw-modal,.tw-modal-ok{width:min(900px,96vw);background:#fff;border-radius:20px;padding:20px 20px 26px;border:1px solid var(--tw-line);box-shadow:0 14px 40px -8px rgba(0,0,0,.35);max-height:92vh;overflow:auto;position:relative}
+    .tw-modal-wide{width:min(1120px,96vw)}
+    .tw-modal-header{display:flex;align-items:center;gap:12px;margin:0 0 14px}
+    .tw-modal-title{margin:0;font-size:19px;font-weight:700}
+    .tw-close{background:transparent;border:none;font-size:30px;color:var(--tw-brand);cursor:pointer;margin-left:auto;line-height:1;padding:0 4px}
+    .tw-day-nav{display:flex;align-items:center;gap:6px}
+    .tw-date{width:155px;padding:5px 8px;height:36px;font-size:13px}
+    .tw-slots{border:1px solid var(--tw-line);border-radius:16px;padding:12px 12px 6px;max-height:60vh;overflow:auto;background:#faf9ff}
+    .tw-slot{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid var(--tw-line);border-radius:12px;padding:10px 14px;margin:6px 0;background:#fff;font-size:14px;transition:background .12s,border-color .12s}
+    .tw-slot:hover{background:#fcfbff} .tw-slot.ocupado{background:#f4f0ff} .tw-slot.unavailable{opacity:.55}
+    .tw-slot .time{font-weight:700;color:var(--tw-accent);letter-spacing:.5px} .tw-slot .mini{font-size:12px;color:var(--tw-muted);margin-top:2px}
+    .tw-icon-btn{border:none;background:#f4f1ff;border:1px solid var(--tw-line);width:38px;height:38px;border-radius:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:#4a3870;transition:background .15s,border-color .15s}
+    .tw-icon-btn:hover{background:#efe8ff} .tw-icon-btn[disabled]{opacity:.4;cursor:not-allowed}
+    .tw-icon-btn[data-tip]{position:relative}
+    .tw-icon-btn[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:110%;left:50%;transform:translateX(-50%);background:#381e60;color:#fff;padding:5px 8px;border-radius:8px;font-size:11px;white-space:nowrap;box-shadow:0 4px 16px -6px rgba(0,0,0,.35)}
+    .tw-banner-rep{background:var(--tw-warnbg);border:1px solid #ffd197;padding:10px 12px;border-radius:12px;font-size:13px;color:var(--tw-warn);display:flex;align-items:center;justify-content:space-between;gap:10px;margin:2px 0 10px;font-weight:500}
+    .tw-linklike{background:none;border:none;color:var(--tw-danger);cursor:pointer;font-size:12px;text-decoration:underline;font-weight:600}
+    .tw-modal-ok{border:2px solid var(--tw-okbg)} .tw-ok-head{display:flex;align-items:center;gap:10px}
+    .tw-ok-badge{background:var(--tw-okbg);color:var(--tw-ok);border-radius:999px;padding:5px 10px;font-weight:700;font-size:13px}
+    .tw-ok-title{font-weight:600;font-size:16px}
+    .tw-ok-list{margin:14px 0 8px;padding-left:22px} .tw-ok-list li{margin:6px 0;font-size:14px}
+    .tw-ok-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px} .tw-hint{font-size:12px;color:var(--tw-muted)}
+    .tw-grid3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:16px;min-width:980px}
+    @media (max-width:1040px){ .tw-grid3{grid-template-columns:1fr;min-width:auto} .tw-span3{grid-column:auto} }
+    .tw-col{background:#faf9ff;border:1px solid var(--tw-line);border-radius:16px;padding:14px 14px 16px;display:flex;flex-direction:column;gap:6px}
+    .tw-col h4{margin:0 0 8px;font-size:15px} .tw-req{color:var(--tw-danger);margin-left:3px}
+    .tw-inline{display:flex;gap:10px;align-items:center}
+    .tw-upload-zone{background:#fff;border:2px dashed var(--tw-line);border-radius:14px;padding:14px;text-align:center}
+    .tw-upload-preview{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;align-items:center}
+    .tw-upload-preview img{width:62px;height:62px;object-fit:cover;border-radius:14px;border:1px solid var(--tw-line)}
+    .tw-actions{margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    @media (max-width:900px){ .tw-toolbar{grid-template-columns:1fr 1fr;row-gap:14px} .tw-toolbar .tw-field:nth-child(5){grid-column:1/3} }
+  </style>
 
-  .tw-cal{background:var(--tw-card);border:1px solid var(--tw-line);border-radius:18px;padding:16px 16px 18px;
-          box-shadow:0 2px 12px rgba(80,60,160,.08);}
-  .tw-dow,.tw-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
-  .tw-dow div{font-size:12px;text-align:center;color:var(--tw-muted);font-weight:600;letter-spacing:.5px}
-  .tw-day{
-    background:#faf9ff;border:1px solid var(--tw-line);border-radius:14px;min-height:110px;
-    padding:8px;display:flex;flex-direction:column;gap:6px;transition:transform .08s,box-shadow .15s;
-  }
-  .tw-day .num{font-weight:600;font-size:14px}
-  .tw-day .badge{margin-top:auto;align-self:flex-start;font-size:11px;font-weight:600;padding:4px 8px;border-radius:999px;letter-spacing:.3px}
-  .tw-day.free .badge{background:#e9fff1;color:#0f6c36}
-  .tw-day.busy .badge{background:#fff4e6;color:var(--tw-warn)}
-  .tw-day.empty{opacity:.5}
-  .tw-day.clickable{cursor:pointer}
-  .tw-day.clickable:hover{transform:translateY(-3px);box-shadow:0 6px 18px -6px rgba(0,0,0,.30)}
-  .tw-status{margin-top:10px;font-size:12.5px;color:var(--tw-muted);min-height:18px}
-
-  /* Modal */
-  .tw-backdrop{
-    position:fixed;inset:0;background:rgba(31,17,56,.40);backdrop-filter:blur(2px);
-    display:none;align-items:center;justify-content:center;z-index:1500;
-  }
-  .tw-modal,.tw-modal-ok{
-    width:min(900px,96vw);background:#fff;border-radius:20px;padding:20px 20px 26px;
-    border:1px solid var(--tw-line);box-shadow:0 14px 40px -8px rgba(0,0,0,.35);
-    max-height:92vh;overflow:auto;position:relative;
-  }
-  .tw-modal-wide{width:min(1120px,96vw)}
-  .tw-modal-header{display:flex;align-items:center;gap:12px;margin:0 0 14px}
-  .tw-modal-title{margin:0;font-size:19px;font-weight:700}
-  .tw-close{background:transparent;border:none;font-size:30px;color:var(--tw-brand);cursor:pointer;margin-left:auto;line-height:1;padding:0 4px}
-  .tw-close:hover{color:#4e2f84}
-  .tw-day-nav{display:flex;align-items:center;gap:6px}
-  .tw-date{width:155px;padding:5px 8px;height:36px;font-size:13px}
-
-  .tw-slots{border:1px solid var(--tw-line);border-radius:16px;padding:12px 12px 6px;max-height:60vh;overflow:auto;background:#faf9ff}
-  .tw-slots h4{margin:0 0 10px;font-size:15px;font-weight:600}
-  .tw-slot{
-    display:flex;align-items:center;justify-content:space-between;
-    gap:14px;border:1px solid var(--tw-line);border-radius:12px;
-    padding:10px 14px;margin:6px 0;background:#fff;position:relative;font-size:14px;
-    transition:background .12s,border-color .12s;
-  }
-  .tw-slot:hover{background:#fcfbff}
-  .tw-slot.ocupado{background:#f4f0ff}
-  .tw-slot.unavailable{opacity:.55}
-  .tw-slot .time{font-weight:700;color:var(--tw-accent);letter-spacing:.5px}
-  .tw-slot .mini{font-size:12px;color:var(--tw-muted);margin-top:2px}
-  .tw-icon-btn{
-    border:none;background:#f4f1ff;border:1px solid var(--tw-line);
-    width:38px;height:38px;border-radius:12px;cursor:pointer;
-    display:flex;align-items:center;justify-content:center;font-size:16px;color:#4a3870;
-    transition:background .15s,border-color .15s;
-  }
-  .tw-icon-btn:hover{background:#efe8ff}
-  .tw-icon-btn[disabled]{opacity:.4;cursor:not-allowed}
-  .tw-icon-btn[data-tip]{position:relative}
-  .tw-icon-btn[data-tip]:hover::after{
-    content:attr(data-tip);position:absolute;bottom:110%;left:50%;transform:translateX(-50%);
-    background:#381e60;color:#fff;padding:5px 8px;border-radius:8px;font-size:11px;white-space:nowrap;
-    box-shadow:0 4px 16px -6px rgba(0,0,0,.35);
-  }
-  .tw-banner-rep{
-    background:var(--tw-warnbg);border:1px solid #ffd197;
-    padding:10px 12px;border-radius:12px;font-size:13px;
-    color:var(--tw-warn);display:flex;align-items:center;justify-content:space-between;
-    gap:10px;margin:2px 0 10px;font-weight:500;
-  }
-  .tw-linklike{background:none;border:none;color:var(--tw-danger);cursor:pointer;font-size:12px;text-decoration:underline;font-weight:600}
-
-  /* OK modal */
-  .tw-modal-ok{border:2px solid var(--tw-okbg)}
-  .tw-ok-head{display:flex;align-items:center;gap:10px}
-  .tw-ok-badge{background:var(--tw-okbg);color:var(--tw-ok);border-radius:999px;padding:5px 10px;font-weight:700;font-size:13px}
-  .tw-ok-title{font-weight:600;font-size:16px}
-  .tw-ok-list{margin:14px 0 8px;padding-left:22px}
-  .tw-ok-list li{margin:6px 0;font-size:14px}
-  .tw-ok-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
-  .tw-hint{font-size:12px;color:var(--tw-muted)}
-
-  /* Paciente modal */
-  .tw-grid3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:16px;min-width:980px}
-  @media (max-width:1040px){ .tw-grid3{grid-template-columns:1fr;min-width:auto} .tw-span3{grid-column:auto} }
-  .tw-col{
-    background:#faf9ff;border:1px solid var(--tw-line);border-radius:16px;
-    padding:14px 14px 16px;display:flex;flex-direction:column;gap:6px;
-  }
-  .tw-col h4{margin:0 0 8px;font-size:15px;color:var(--tw-ink)}
-  .tw-req{color:var(--tw-danger);margin-left:3px}
-  .tw-inline{display:flex;gap:10px;align-items:center}
-  .tw-upload-zone{background:#fff;border:2px dashed var(--tw-line);border-radius:14px;padding:14px;text-align:center}
-  .tw-upload-preview{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;align-items:center}
-  .tw-upload-preview img{width:62px;height:62px;object-fit:cover;border-radius:14px;border:1px solid var(--tw-line)}
-  .tw-actions{margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
-
-  .tw-slots::-webkit-scrollbar{width:10px}
-  .tw-slots::-webkit-scrollbar-thumb{background:#d8cfff;border-radius:8px}
-
-  @media (max-width:900px){
-    .tw-toolbar{grid-template-columns:1fr 1fr;row-gap:14px}
-    .tw-toolbar .tw-field:nth-child(5){grid-column:1/3;justify-self:flex-start}
-  }
-</style>
-
-<div class="tw-root" id="turnos-view-root">
-  <!-- Toolbar -->
   <div class="tw-toolbar">
     <div class="tw-field">
       <label>Centro médico</label>
@@ -197,7 +101,6 @@
     </div>
   </div>
 
-  <!-- Encabezado y calendario -->
   <div class="tw-head">
     <div class="tw-head-left">
       <button id="turnos-prev-month" class="tw-btn secondary" title="Mes anterior">◀</button>
@@ -217,17 +120,17 @@
   <div class="tw-status" id="turnos-status"></div>
 </div>
 
-<!-- Modal Día -->
+<!-- Modales -->
 <div class="tw-backdrop" id="turnos-modal">
   <div class="tw-modal">
     <div class="tw-modal-header">
       <h3 id="turnos-modal-title" class="tw-modal-title">Turnos del día</h3>
       <div class="tw-day-nav">
-        <button class="tw-icon-btn" id="turnos-modal-prev-day" data-tip="Día anterior" aria-label="Día anterior">◀</button>
+        <button class="tw-icon-btn" id="turnos-modal-prev-day" data-tip="Día anterior">◀</button>
         <input type="date" id="turnos-modal-date" class="tw-inp tw-date">
-        <button class="tw-icon-btn" id="turnos-modal-next-day" data-tip="Día siguiente" aria-label="Día siguiente">▶</button>
+        <button class="tw-icon-btn" id="turnos-modal-next-day" data-tip="Día siguiente">▶</button>
       </div>
-      <button class="tw-close" id="turnos-modal-close" aria-label="Cerrar">×</button>
+      <button class="tw-close" id="turnos-modal-close">×</button>
     </div>
     <section class="tw-slots">
       <h4>Horarios</h4>
@@ -236,7 +139,6 @@
   </div>
 </div>
 
-<!-- Modal OK -->
 <div class="tw-backdrop" id="turnos-modal-ok" style="display:none;">
   <div class="tw-modal-ok">
     <div class="tw-modal-header">
@@ -244,7 +146,7 @@
         <div class="tw-ok-badge">✔ Turno asignado</div>
         <div id="ok-title" class="tw-ok-title"></div>
       </div>
-      <button class="tw-close" id="ok-close" aria-label="Cerrar">×</button>
+      <button class="tw-close" id="ok-close">×</button>
     </div>
     <ul class="tw-ok-list">
       <li><b>Paciente:</b> <span id="ok-paciente"></span></li>
@@ -262,38 +164,27 @@
   </div>
 </div>
 
-<!-- Modal Crear Paciente -->
 <div class="tw-backdrop" id="turnos-modal-paciente" style="display:none;">
   <div class="tw-modal tw-modal-wide">
     <div class="tw-modal-header">
       <h3 class="tw-modal-title">Crear nuevo paciente</h3>
-      <button class="tw-close" id="turnos-modal-paciente-close" aria-label="Cerrar">×</button>
+      <button class="tw-close" id="turnos-modal-paciente-close">×</button>
     </div>
     <div class="tw-grid3">
       <div class="tw-col">
         <h4>Datos del paciente</h4>
-        <label>DNI <span class="tw-req">*</span></label>
-        <input id="np-dni" class="tw-inp" required>
-        <label>Nombre <span class="tw-req">*</span></label>
-        <input id="np-nombre" class="tw-inp" required>
-        <label>Apellido <span class="tw-req">*</span></label>
-        <input id="np-apellido" class="tw-inp" required>
-        <label>Fecha de nacimiento <span class="tw-req">*</span></label>
-        <input id="np-fecha-nac" class="tw-inp" type="date" required>
-        <label>Teléfono <span class="tw-req">*</span></label>
-        <input id="np-telefono" class="tw-inp" required>
-        <label>Email</label>
-        <input id="np-email" class="tw-inp" type="email">
+        <label>DNI <span class="tw-req">*</span></label><input id="np-dni" class="tw-inp">
+        <label>Nombre <span class="tw-req">*</span></label><input id="np-nombre" class="tw-inp">
+        <label>Apellido <span class="tw-req">*</span></label><input id="np-apellido" class="tw-inp">
+        <label>Fecha de nacimiento <span class="tw-req">*</span></label><input id="np-fecha-nac" class="tw-inp" type="date">
+        <label>Teléfono <span class="tw-req">*</span></label><input id="np-telefono" class="tw-inp">
+        <label>Email</label><input id="np-email" class="tw-inp" type="email">
       </div>
       <div class="tw-col">
         <h4>Obra social</h4>
-        <label>Obra social</label>
-        <select id="np-obra" class="tw-sel">
-          <option value="">(Sin obra social)</option>
-        </select>
+        <label>Obra social</label><select id="np-obra" class="tw-sel"><option value="">(Sin obra social)</option></select>
         <div id="np-obra-info" class="tw-hint" style="min-height:18px;margin-top:6px;"></div>
-        <label>N° afiliado</label>
-        <input id="np-afiliado" class="tw-inp">
+        <label>N° afiliado</label><input id="np-afiliado" class="tw-inp">
         <label>Credencial (imagen)</label>
         <div class="tw-upload-zone">
           <input type="file" id="np-cred-file" accept="image/*,.pdf" style="display:none;">
@@ -303,14 +194,10 @@
       </div>
       <div class="tw-col">
         <h4>Contacto de emergencia</h4>
-        <label>Nombre</label>
-        <input id="np-contacto-nombre" class="tw-inp">
-        <label>Apellido</label>
-        <input id="np-contacto-apellido" class="tw-inp">
-        <label>Celular</label>
-        <input id="np-contacto-cel" class="tw-inp">
-        <label>Vínculo</label>
-        <input id="np-vinculo" class="tw-inp">
+        <label>Nombre</label><input id="np-contacto-nombre" class="tw-inp">
+        <label>Apellido</label><input id="np-contacto-apellido" class="tw-inp">
+        <label>Celular</label><input id="np-contacto-cel" class="tw-inp">
+        <label>Vínculo</label><input id="np-vinculo" class="tw-inp">
       </div>
       <div class="tw-col tw-span3">
         <h4>Historia clínica</h4>
@@ -329,15 +216,10 @@
 </div>
 
 <script type="module">
-/*
-  turnos.html (partial)
-  Cargado dinámicamente dentro del dashboard (#main-content)
-  Mantener supabaseClient.js y validators.js accesibles.
-*/
 import supabase from './supabaseClient.js';
 import { isValidHourRange } from './validators.js';
 
-/* ---- UI references ---- */
+/* ====== UI refs ====== */
 const UI = {
   centroSelect: document.getElementById('turnos-centro-select'),
   centroNombre: document.getElementById('turnos-centro-nombre'),
@@ -398,7 +280,7 @@ const UI = {
   npMsg: document.getElementById('turnos-np-msg'),
 };
 
-/* ---- State ---- */
+/* ====== State ====== */
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
 let currentCentroDireccion = '';
@@ -412,23 +294,23 @@ let pacienteSeleccionado = null;
 let obrasSocialesCache = [];
 let reprogramState = null; // { turno, durMin }
 
-/* ---- Date Helpers ---- */
-function todayInfo(){ const d=new Date(); return { y:d.getFullYear(), m:d.getMonth(), d:d.getDate() }; }
+/* ====== Helpers Fecha / Formato ====== */
+function todayInfo(){const d=new Date();return{y:d.getFullYear(),m:d.getMonth(),d:d.getDate()};}
 function pad(n){return n<10?'0'+n:''+n;}
 function toISODate(y,m,d){return `${y}-${pad(m+1)}-${pad(d)}`;}
-function addMinutes(hhmm,mm){const [h,m]=hhmm.split(':').map(Number);const base=new Date(2000,0,1,h,m);base.setMinutes(base.getMinutes()+mm);return `${pad(base.getHours())}:${pad(base.getMinutes())}`;}
+function addMinutes(hhmm,mm){const[h,m]=hhmm.split(':').map(Number);const base=new Date(2000,0,1,h,m);base.setMinutes(base.getMinutes()+mm);return `${pad(base.getHours())}:${pad(base.getMinutes())}`;}
 function groupByFecha(arr){const map=new Map();for(const x of arr){if(!map.has(x.fecha)) map.set(x.fecha,[]);map.get(x.fecha).push(x);}return map;}
 function toHM(t){return (t||'').substring(0,5);}
-function overlaps(aS,aE,bS,bE){return (aS < bE) && (bS < aE);}
+function overlaps(aS,aE,bS,bE){return(aS<bE)&&(bS<aE);}
 function fmtDateLong(iso){return new Date(iso+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}
-function minutesDiff(a,b){const [h1,m1]=a.split(':').map(Number);const [h2,m2]=b.split(':').map(Number);return (h2*60+m2)-(h1*60+m1);}
-function normalizePhoneForWA(raw){ if(!raw) return ''; let p=String(raw).replace(/[^\d]/g,''); if(p.startsWith('0')) p=p.slice(1); if(!p.startsWith('54')) p='54'+p; return p; }
-function buildWA({pac,fechaISO,start,end,prof,centro,dir}){return `Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fmtDateLong(fechaISO)} de ${start} a ${end} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;}
+function minutesDiff(a,b){const[h1,m1]=a.split(':').map(Number);const[h2,m2]=b.split(':').map(Number);return(h2*60+m2)-(h1*60+m1);}
+function normalizePhoneForWA(raw){if(!raw)return'';let p=String(raw).replace(/[^\d]/g,'');if(p.startsWith('0'))p=p.slice(1);if(!p.startsWith('54'))p='54'+p;return p;}
+function buildWA({pac,fechaISO,start,end,prof,centro,dir}){return`Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fmtDateLong(fechaISO)} de ${start} a ${end} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;}
 function dateToISO(d){return d.toISOString().slice(0,10);}
 const DOW=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 function nativeFirstDow(d){const g=d.getDay();return g===0?6:g-1;}
 
-/* ---- Centros / Profesionales ---- */
+/* ====== Centros / Profesionales ====== */
 async function fetchCentroById(id){
   const { data } = await supabase.from('centros_medicos').select('nombre,direccion').eq('id',id).single();
   return { nombre:data?.nombre||'', direccion:data?.direccion||'' };
@@ -442,27 +324,24 @@ async function getCentrosDeProfesional(pid){
   return data.filter(r=>r.centros_medicos).map(r=>({id:r.centros_medicos.id,nombre:r.centros_medicos.nombre}));
 }
 async function ensureCentro(){
-  if (userRole === 'asistente'){
+  if(userRole==='asistente'){
     UI.centroNombre.style.display='';
     UI.centroSelect.style.display='none';
     const c=await fetchCentroById(currentCentroId);
     currentCentroNombre=c.nombre||currentCentroNombre;
     currentCentroDireccion=c.direccion||'';
     UI.centroNombre.value=currentCentroNombre;
-  } else {
+  }else{
     UI.centroSelect.style.display='';
     UI.centroNombre.style.display='none';
     const centros=await getCentrosDeProfesional(loggedProfesionalId);
-    if(!centros.length){
-      UI.centroSelect.innerHTML='<option value="">Sin centros</option>';return;
-    }
+    if(!centros.length){UI.centroSelect.innerHTML='<option value="">Sin centros</option>';return;}
     UI.centroSelect.innerHTML=centros.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
-    if(currentCentroId && centros.some(c=>c.id===currentCentroId)){ UI.centroSelect.value=currentCentroId; }
-    else { currentCentroId=centros[0].id; UI.centroSelect.value=currentCentroId; }
+    if(currentCentroId && centros.some(c=>c.id===currentCentroId)){UI.centroSelect.value=currentCentroId;}else{currentCentroId=centros[0].id;UI.centroSelect.value=currentCentroId;}
     const c=await fetchCentroById(currentCentroId);
     currentCentroNombre=c.nombre||UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent||'';
     currentCentroDireccion=c.direccion||'';
-    UI.centroSelect.addEventListener('change', async ()=>{
+    UI.centroSelect.addEventListener('change',async()=>{
       currentCentroId=UI.centroSelect.value;
       const c2=await fetchCentroById(currentCentroId);
       currentCentroNombre=c2.nombre||UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent||'';
@@ -477,7 +356,7 @@ async function ensureCentro(){
 }
 async function loadProfesionales(){
   const sel=UI.profesionalSelect;
-  if (userRole==='medico' && loggedProfesionalId){
+  if(userRole==='medico' && loggedProfesionalId){
     let label=null;
     try{
       const { data } = await supabase.from('profesionales')
@@ -494,13 +373,13 @@ async function loadProfesionales(){
     return;
   }
   sel.disabled=false;
-  const { data: map } = await supabase.from('profesional_centro')
+  const { data: map } = await supabase
+    .from('profesional_centro')
     .select('profesional_id')
-    .eq('centro_id',currentCentroId).eq('activo',true);
+    .eq('centro_id',currentCentroId)
+    .eq('activo',true);
   const ids=[...new Set((map||[]).map(r=>r.profesional_id).filter(Boolean))];
-  if(!ids.length){
-    sel.innerHTML='<option value="">Sin profesionales</option>'; currentProfesional=null; return;
-  }
+  if(!ids.length){sel.innerHTML='<option value="">Sin profesionales</option>';currentProfesional=null;return;}
   const { data: profs } = await supabase.from('profesionales')
     .select('id,nombre,apellido,display_name')
     .in('id',ids)
@@ -513,8 +392,8 @@ async function loadProfesionales(){
   if(currentProfesional) sel.value=currentProfesional;
 }
 async function loadDuraciones(pid){
-  duracionCfg = { nueva_consulta:15, recurrente:15, sobreturno:15 };
-  if(!pid) return;
+  duracionCfg={nueva_consulta:15,recurrente:15,sobreturno:15};
+  if(!pid)return;
   const { data } = await supabase
     .from('config_duracion_turnos')
     .select('tipo_turno,minutos')
@@ -523,7 +402,7 @@ async function loadDuraciones(pid){
   (data||[]).forEach(r=>{ if(r.tipo_turno && r.minutos) duracionCfg[r.tipo_turno]=r.minutos; });
 }
 
-/* ---- Obras Sociales ---- */
+/* ====== Obras Sociales ====== */
 async function loadObrasSociales(){
   const { data } = await supabase.from('obras_sociales')
     .select('id,obra_social,condicion_copago,valor_copago')
@@ -534,26 +413,24 @@ async function loadObrasSociales(){
 }
 UI.npObra?.addEventListener('change',()=>{
   const sel=obrasSocialesCache.find(o=>o.obra_social===UI.npObra.value);
-  if(!sel){ UI.npObraInfo.textContent=''; return; }
-  const cond=sel.condicion_copago ? `Condición: ${sel.condicion_copago}` : '';
-  const val=(sel.valor_copago!=null)? ` · Copago: ${sel.valor_copago}` : '';
-  UI.npObraInfo.textContent = cond || val ? cond + val : '';
+  if(!sel){UI.npObraInfo.textContent='';return;}
+  const cond=sel.condicion_copago?`Condición: ${sel.condicion_copago}`:'';
+  const val=(sel.valor_copago!=null)?` · Copago: ${sel.valor_copago}`:'';
+  UI.npObraInfo.textContent=cond||val?cond+val:'';
 });
 
-/* ---- Pacientes: typeahead ---- */
+/* ====== Pacientes (typeahead) ====== */
 let suggestTimer=null;
-function hideSuggest(){ UI.pacSuggest.style.display='none'; UI.pacSuggest.innerHTML=''; }
-function showSuggest(){ UI.pacSuggest.style.display='block'; }
+function hideSuggest(){UI.pacSuggest.style.display='none';UI.pacSuggest.innerHTML='';}
+function showSuggest(){UI.pacSuggest.style.display='block';}
 UI.pacInput.addEventListener('input',()=>{
   clearTimeout(suggestTimer);
   const q=UI.pacInput.value.trim();
-  if(!q){ hideSuggest(); return; }
-  suggestTimer=setTimeout(()=> fetchSuggestions(q),180);
+  if(!q){hideSuggest();return;}
+  suggestTimer=setTimeout(()=>fetchSuggestions(q),180);
 });
 window.addEventListener('click',e=>{
-  if(!UI.pacSuggest.contains(e.target) && e.target!==UI.pacInput){
-    hideSuggest();
-  }
+  if(!UI.pacSuggest.contains(e.target)&&e.target!==UI.pacInput){hideSuggest();}
 });
 async function fetchSuggestions(q){
   let result=[];
@@ -562,27 +439,27 @@ async function fetchSuggestions(q){
       .select('id,dni,apellido,nombre,telefono,email')
       .eq('dni',q).limit(10);
     result=data||[];
-  }else{
+  } else {
     const parts=q.toLowerCase().split(/\s+/).filter(Boolean);
     let query=supabase.from('pacientes')
       .select('id,dni,apellido,nombre,telefono,email')
       .eq('activo',true)
       .limit(10)
       .order('apellido',{ascending:true});
-    if(parts[0]) query=query.ilike('apellido', `%${parts[0]}%`);
-    if(parts[1]) query=query.ilike('nombre', `%${parts[1]}%`);
+    if(parts[0]) query=query.ilike('apellido',`%${parts[0]}%`);
+    if(parts[1]) query=query.ilike('nombre',`%${parts[1]}%`);
     const { data } = await query;
     result=data||[];
   }
   if(!result.length){
     UI.pacSuggest.innerHTML=`
-      <div class="tw-s-item tw-create" data-act="create">
+      <div class="tw-s-item" data-act="create">
         <div>
           <div class="tw-s-title">+ Crear nuevo paciente</div>
           <div class="tw-s-meta">No se encontraron coincidencias para “${q}”.</div>
         </div>
       </div>`;
-    showSuggest(); bindSuggestHandlers(q,[]); return;
+    showSuggest();bindSuggestHandlers(q,[]);return;
   }
   UI.pacSuggest.innerHTML=
     result.map(p=>`
@@ -591,24 +468,24 @@ async function fetchSuggestions(q){
           <div class="tw-s-title">${p.apellido}, ${p.nombre}</div>
           <div class="tw-s-meta">DNI ${p.dni}${p.telefono?' · '+p.telefono:''}${p.email?' · '+p.email:''}</div>
         </div>
-      </div>`).join('') + `
-      <div class="tw-s-item tw-create" data-act="create">
-        <div>
-          <div class="tw-s-title">+ Crear nuevo paciente</div>
-          <div class="tw-s-meta">Agregar manualmente.</div>
-        </div>
-      </div>`;
-  showSuggest(); bindSuggestHandlers(q,result);
+      </div>`).join('')+
+    `<div class="tw-s-item" data-act="create">
+      <div>
+        <div class="tw-s-title">+ Crear nuevo paciente</div>
+        <div class="tw-s-meta">Agregar manualmente.</div>
+      </div>
+    </div>`;
+  showSuggest();bindSuggestHandlers(q,result);
 }
 function bindSuggestHandlers(q,result){
   UI.pacSuggest.querySelectorAll('.tw-s-item').forEach(el=>{
-    el.addEventListener('click', async ()=>{
+    el.addEventListener('click',async()=>{
       const act=el.getAttribute('data-act');
       if(act==='select'){
         const id=el.getAttribute('data-id');
         const p=result.find(r=>String(r.id)===id);
         if(p) selectPaciente(p);
-      }else if(act==='create'){
+      } else if(act==='create'){
         await openPacienteModalPrefilled(q);
       }
     });
@@ -622,19 +499,15 @@ function selectPaciente(p){
   enforceTipoTurnoByPaciente(p.id);
 }
 UI.pacClear.addEventListener('click',()=>{
-  pacienteSeleccionado=null;
-  UI.pacChip.style.display='none';
+  pacienteSeleccionado=null;UI.pacChip.style.display='none';
   enforceTipoTurnoByPaciente(null);
 });
-
-/* Bloqueo "nueva consulta" si ya tuvo turnos */
 async function enforceTipoTurnoByPaciente(pacienteId){
   const optNueva=UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
-  if(!optNueva) return;
-  if(!pacienteId){ optNueva.disabled=false; return; }
-  const { count } = await supabase
-    .from('turnos')
-    .select('id',{ count:'exact', head:true })
+  if(!optNueva)return;
+  if(!pacienteId){optNueva.disabled=false;return;}
+  const { count } = await supabase.from('turnos')
+    .select('id',{count:'exact',head:true})
     .eq('paciente_id',pacienteId);
   if((count??0)>0){
     optNueva.disabled=true;
@@ -644,34 +517,34 @@ async function enforceTipoTurnoByPaciente(pacienteId){
   }
 }
 
-/* Modal Paciente */
+/* ====== Modal Paciente ====== */
 async function openPacienteModalPrefilled(q){
   if(!obrasSocialesCache.length) await loadObrasSociales();
-  UI.npDni.value=/^\d{6,}$/.test(q)? q : '';
+  UI.npDni.value=/^\d{6,}$/.test(q)?q:'';
   const parts=q.split(/\s+/).filter(Boolean);
   UI.npApellido.value=parts[0]||'';
   UI.npNombre.value=parts[1]||'';
   UI.npFechaNac.value='';
-  UI.npTel.value=''; UI.npEmail.value='';
-  UI.npObra.value=''; UI.npObraInfo.textContent='';
+  UI.npTel.value='';UI.npEmail.value='';
+  UI.npObra.value='';UI.npObraInfo.textContent='';
   UI.npAfiliado.value='';
   UI.npConNom.value=UI.npConApe.value=UI.npConCel.value=UI.npVinculo.value='';
   UI.npHistoria.value='';
-  UI.npCredFile.value=''; UI.npCredPreview.style.display='none'; UI.npCredPreview.innerHTML='';
+  UI.npCredFile.value='';UI.npCredPreview.style.display='none';UI.npCredPreview.innerHTML='';
   UI.npMsg.textContent='';
   UI.modalPac.style.display='flex';
 }
-UI.modalPacClose.addEventListener('click',()=> UI.modalPac.style.display='none');
-window.addEventListener('click',e=>{ if(e.target===UI.modalPac) UI.modalPac.style.display='none'; });
-UI.npHistoriaOpen.addEventListener('click',e=>{ if(!UI.npHistoria.value){ e.preventDefault(); } });
-UI.npCredSelect.addEventListener('click',()=> UI.npCredFile.click());
+UI.modalPacClose.addEventListener('click',()=>UI.modalPac.style.display='none');
+window.addEventListener('click',e=>{if(e.target===UI.modalPac)UI.modalPac.style.display='none';});
+UI.npHistoriaOpen.addEventListener('click',e=>{if(!UI.npHistoria.value){e.preventDefault();}});
+UI.npCredSelect.addEventListener('click',()=>UI.npCredFile.click());
 UI.npCredFile.addEventListener('change',()=>{
   const f=UI.npCredFile.files?.[0];
   UI.npCredPreview.innerHTML='';
-  if(!f){ UI.npCredPreview.style.display='none';return; }
+  if(!f){UI.npCredPreview.style.display='none';return;}
   if(/^image\//.test(f.type)){
     const img=document.createElement('img');
-    img.src=URL.createObjectURL(f); img.alt='credencial';
+    img.src=URL.createObjectURL(f);img.alt='credencial';
     UI.npCredPreview.appendChild(img);
   }
   const meta=document.createElement('div');
@@ -680,17 +553,17 @@ UI.npCredFile.addEventListener('change',()=>{
   UI.npCredPreview.appendChild(meta);
   UI.npCredPreview.style.display='flex';
   meta.querySelector('#np-cred-remove').addEventListener('click',ev=>{
-    ev.preventDefault(); UI.npCredFile.value=''; UI.npCredPreview.style.display='none'; UI.npCredPreview.innerHTML='';
+    ev.preventDefault();UI.npCredFile.value='';UI.npCredPreview.style.display='none';UI.npCredPreview.innerHTML='';
   });
 });
-UI.npGuardar.addEventListener('click',async ()=>{
+UI.npGuardar.addEventListener('click',async()=>{
   const dni=UI.npDni.value.trim();
   const nombre=UI.npNombre.value.trim();
   const apellido=UI.npApellido.value.trim();
-  const fecha_nacimiento=UI.npFechaNac.value || '';
+  const fecha_nacimiento=UI.npFechaNac.value||'';
   const telefono=UI.npTel.value.trim();
   if(!dni||!nombre||!apellido||!fecha_nacimiento||!telefono){
-    UI.npMsg.textContent='Completá los campos obligatorios (*)'; return;
+    UI.npMsg.textContent='Completá los campos obligatorios (*)';return;
   }
   UI.npMsg.textContent='Guardando...';
   let credencialUrl=null;
@@ -700,8 +573,8 @@ UI.npGuardar.addEventListener('click',async ()=>{
     const path=`${dni}_${Date.now()}.${ext}`;
     const { data: up, error: upErr } = await supabase.storage
       .from('credenciales')
-      .upload(path,file,{ cacheControl:'3600', upsert:false, contentType:file.type });
-    if(upErr){ UI.npMsg.textContent='No se pudo subir credencial: '+(upErr.message||''); return; }
+      .upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type});
+    if(upErr){UI.npMsg.textContent='No se pudo subir credencial: '+(upErr.message||'');return;}
     const { data: pub } = supabase.storage.from('credenciales').getPublicUrl(up.path);
     credencialUrl=pub?.publicUrl||null;
   }
@@ -718,14 +591,11 @@ UI.npGuardar.addEventListener('click',async ()=>{
     historia_clinica:UI.npHistoria.value.trim()||null,
     activo:true
   };
-  const { data, error } = await supabase
-    .from('pacientes')
+  const { data, error } = await supabase.from('pacientes')
     .insert([payload])
     .select('id,dni,nombre,apellido,telefono')
     .single();
-  if(error){
-    UI.npMsg.textContent='Error: '+(error.message||'no se pudo crear'); return;
-  }
+  if(error){UI.npMsg.textContent='Error: '+(error.message||'no se pudo crear');return;}
   UI.modalPac.style.display='none';
   selectPaciente(data);
   const optNueva=UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
@@ -733,7 +603,7 @@ UI.npGuardar.addEventListener('click',async ()=>{
   UI.tipoTurno.value='nueva_consulta';
 });
 
-/* ---- Agenda / Turnos ---- */
+/* ====== Agenda / Turnos ====== */
 async function fetchAgendaYTurnos(pid,y,m){
   const first=new Date(y,m,1), last=new Date(y,m+1,0);
   const start=toISODate(y,m,1), end=toISODate(y,m,last.getDate());
@@ -755,9 +625,9 @@ async function fetchAgendaYTurnos(pid,y,m){
 }
 function generarSlots(agendaDia,turnosDia,tipo,excludeId){
   const dur=Number(duracionCfg[tipo]||15);
-  if(!dur||dur<=0) return [];
+  if(!dur||dur<=0)return[];
   const out=[];
-  const vivos=(turnosDia||[]).filter(t=>(t.estado||'').toLowerCase()!=='cancelado' && t.id!==excludeId);
+  const vivos=(turnosDia||[]).filter(t=>(t.estado||'').toLowerCase()!=='cancelado'&&t.id!==excludeId);
   for(const bloque of (agendaDia||[])){
     const bStart=toHM(bloque.hora_inicio), bEnd=toHM(bloque.hora_fin);
     let t=bStart;
@@ -773,14 +643,13 @@ function generarSlots(agendaDia,turnosDia,tipo,excludeId){
   }
   return out;
 }
-function renderDow(){ UI.calDow.innerHTML = DOW.map(d=>`<div>${d}</div>`).join(''); }
-
+function renderDow(){UI.calDow.innerHTML=DOW.map(d=>`<div>${d}</div>`).join('');}
 async function renderCalendar(){
   if(!currentProfesional){
-    UI.status.textContent='No hay profesional seleccionado.'; UI.calGrid.innerHTML=''; return;
+    UI.status.textContent='No hay profesional seleccionado.';UI.calGrid.innerHTML='';return;
   }
   UI.status.textContent='Cargando agenda...';
-  const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, view.y, view.m);
+  const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional,view.y,view.m);
   const gA=groupByFecha(agenda), gT=groupByFecha(turnos);
   const tipo=UI.tipoTurno.value;
   UI.calGrid.innerHTML='';
@@ -793,22 +662,22 @@ async function renderCalendar(){
   let day=1;
   for(let i=0;i<rows*7;i++){
     const cell=document.createElement('div');
-    if(i<offset || day>last.getDate()){
-      cell.className='tw-day empty'; UI.calGrid.appendChild(cell); continue;
+    if(i<offset||day>last.getDate()){
+      cell.className='tw-day empty';UI.calGrid.appendChild(cell);continue;
     }
     const iso=toISODate(view.y,view.m,day);
     const agendaDia=gA.get(iso)||[];
     const turnosDia=gT.get(iso)||[];
     const preview=generarSlots(agendaDia,turnosDia,tipo,null);
     const libres=preview.filter(s=>s.disponible).length;
-    let cls='tw-day'; let badge='sin agenda';
-    if(!agendaDia.length){ cls+=' empty'; }
-    else if(libres>0){ cls+=' free clickable'; badge=`${libres} libres`; }
-    else { cls+=' busy clickable'; badge='sin huecos'; }
+    let cls='tw-day';let badge='sin agenda';
+    if(!agendaDia.length){cls+=' empty';}
+    else if(libres>0){cls+=' free clickable';badge=`${libres} libres`;}
+    else{cls+=' busy clickable';badge='sin huecos';}
     cell.className=cls;
     cell.innerHTML=`<div class="num">${day}</div><div class="badge">${badge}</div>`;
     if(cls.includes('clickable')){
-      cell.addEventListener('click',()=> openDayModal(iso,agendaDia,turnosDia,{preserveReprogram:!!reprogramState}));
+      cell.addEventListener('click',()=>openDayModal(iso,agendaDia,turnosDia,{preserveReprogram:!!reprogramState}));
     }
     UI.calGrid.appendChild(cell);
     day++;
@@ -816,8 +685,9 @@ async function renderCalendar(){
   UI.status.textContent=agenda.length?'':'No hay agenda cargada para este mes.';
 }
 
+/* ====== Modal día ====== */
 async function openDayModal(isoDate,agendaDia,turnosDiaRaw,{preserveReprogram=false}={}){
-  if(!preserveReprogram) reprogramState=null;
+  if(!preserveReprogram)reprogramState=null;
   modalDateISO=isoDate;
   UI.modalTitle.textContent=`Turnos del ${new Date(isoDate).toLocaleDateString('es-AR')}`;
   UI.modalDateInput.value=isoDate;
@@ -826,24 +696,21 @@ async function openDayModal(isoDate,agendaDia,turnosDiaRaw,{preserveReprogram=fa
   const slots=generarSlots(agendaDia,turnosDiaRaw,UI.tipoTurno.value,exclude);
   renderSlots(slots);
 }
-UI.modalClose.addEventListener('click',()=> UI.modal.style.display='none');
+UI.modalClose.addEventListener('click',()=>UI.modal.style.display='none');
 window.addEventListener('click',e=>{
   if(e.target===UI.modal) UI.modal.style.display='none';
   if(e.target===UI.okBackdrop) UI.okBackdrop.style.display='none';
   if(e.target===UI.modalPac) UI.modalPac.style.display='none';
 });
-
 async function refreshDayModal(){
-  if(!modalDateISO) return;
-  const { data:agendaDia } = await supabase
-    .from('agenda')
+  if(!modalDateISO)return;
+  const { data:agendaDia } = await supabase.from('agenda')
     .select('id,fecha,hora_inicio,hora_fin')
     .eq('centro_id',currentCentroId)
     .eq('profesional_id',currentProfesional)
     .eq('fecha',modalDateISO)
     .order('hora_inicio',{ascending:true});
-  const { data:turnosDiaRaw } = await supabase
-    .from('turnos')
+  const { data:turnosDiaRaw } = await supabase.from('turnos')
     .select('id,fecha,hora_inicio,hora_fin,estado,paciente_id,agenda_id,pacientes(id,apellido,nombre,dni,telefono)')
     .eq('centro_id',currentCentroId)
     .eq('profesional_id',currentProfesional)
@@ -852,9 +719,8 @@ async function refreshDayModal(){
   const slots=generarSlots(agendaDia||[],turnosDiaRaw||[],UI.tipoTurno.value,reprogramState?.turno.id||null);
   renderSlots(slots);
 }
-
 function renderSlots(slots){
-  if(!slots.length){ UI.slotsList.innerHTML='<div class="tw-hint">No hay horarios disponibles.</div>'; return; }
+  if(!slots.length){UI.slotsList.innerHTML='<div class="tw-hint">No hay horarios disponibles.</div>';return;}
   UI.slotsList.innerHTML='';
   if(reprogramState){
     const banner=document.createElement('div');
@@ -865,14 +731,14 @@ function renderSlots(slots){
     </div><button class="tw-linklike" id="tw-cancel-rep">Cancelar</button>`;
     UI.slotsList.appendChild(banner);
     banner.querySelector('#tw-cancel-rep').addEventListener('click',()=>{
-      reprogramState=null; refreshDayModal();
+      reprogramState=null;refreshDayModal();
     });
   }
   for(const s of slots){
     const row=document.createElement('div');
     const dur=minutesDiff(s.start,s.end);
     const reprogramando=!!reprogramState;
-    const sameDur=reprogramando ? (dur===reprogramState.durMin) : true;
+    const sameDur=reprogramando?(dur===reprogramState.durMin):true;
     const habil=s.disponible && (!reprogramando || sameDur);
     const turno=s.turno;
     const ocupado=!!turno;
@@ -884,17 +750,15 @@ function renderSlots(slots){
           <div class="mini">${reprogramando?(sameDur?'Seleccionar nuevo horario':'Duración distinta'):'Agenda'}</div>
         </div>
         <div>
-          ${habil
-            ? `<button class="tw-icon-btn" data-tip="${reprogramando?'Mover aquí':'Agendar'}">${reprogramando?'✅':'➕'}</button>`
-            : `<button class="tw-icon-btn" disabled data-tip="No disponible">✖</button>`}
+          ${habil?`<button class="tw-icon-btn" data-tip="${reprogramando?'Mover aquí':'Agendar'}">${reprogramando?'✅':'➕'}</button>`:`<button class="tw-icon-btn" disabled data-tip="No disponible">✖</button>`}
         </div>`;
       if(habil){
-        row.querySelector('button').addEventListener('click',()=> reprogramando ? confirmReprogram(s) : tryAgendar(s));
+        row.querySelector('button').addEventListener('click',()=>reprogramando?confirmReprogram(s):tryAgendar(s));
       }
     } else {
-      const pac = turno.pacientes ? `${turno.pacientes.apellido}, ${turno.pacientes.nombre}` : 'Paciente';
-      const dni = turno.pacientes?.dni || '—';
-      const tel = turno.pacientes?.telefono || '—';
+      const pac=turno.pacientes?`${turno.pacientes.apellido}, ${turno.pacientes.nombre}`:'Paciente';
+      const dni=turno.pacientes?.dni||'—';
+      const tel=turno.pacientes?.telefono||'—';
       row.innerHTML=`
         <div>
           <div class="time">${toHM(turno.hora_inicio)} — ${toHM(turno.hora_fin)}</div>
@@ -904,14 +768,14 @@ function renderSlots(slots){
           <button class="tw-icon-btn" data-tip="Reprogramar" data-act="rep">↪️</button>
           <button class="tw-icon-btn" data-tip="Anular" data-act="del">🗑️</button>
         </div>`;
-      row.querySelector('[data-act="rep"]').addEventListener('click',()=> startReprogram(turno));
-      row.querySelector('[data-act="del"]').addEventListener('click',()=> cancelarTurno(turno));
+      row.querySelector('[data-act="rep"]').addEventListener('click',()=>startReprogram(turno));
+      row.querySelector('[data-act="del"]').addEventListener('click',()=>cancelarTurno(turno));
     }
     UI.slotsList.appendChild(row);
   }
 }
 
-/* OK modal */
+/* ====== OK Modal ====== */
 function openOkModal({pac,fechaISO,start,end,profLabel}){
   UI.okTitle.textContent=`${pac.apellido}, ${pac.nombre}`;
   UI.okPaciente.textContent=`${pac.apellido}, ${pac.nombre}`;
@@ -922,25 +786,25 @@ function openOkModal({pac,fechaISO,start,end,profLabel}){
   UI.okDir.textContent=currentCentroDireccion||'—';
   const msg=buildWA({pac,fechaISO,start,end,prof:profLabel,centro:currentCentroNombre||'',dir:currentCentroDireccion||''});
   const to=normalizePhoneForWA(pac.telefono||'');
-  const href=to? `https://wa.me/${to}?text=${encodeURIComponent(msg)}` : 'javascript:void(0)';
+  const href=to?`https://wa.me/${to}?text=${encodeURIComponent(msg)}`:'javascript:void(0)';
   UI.okWa.href=href;
   UI.okWa.textContent=to?'Enviar por WhatsApp':'WhatsApp (falta teléfono)';
   UI.okWa.style.pointerEvents=to?'auto':'none';
   UI.okMsg.textContent='';
   UI.okCopy.onclick=()=>{
-    const link=to? href : msg;
+    const link=to?href:msg;
     navigator.clipboard.writeText(link)
-      .then(()=> UI.okMsg.textContent='Copiado')
-      .catch(()=> UI.okMsg.textContent='No se pudo copiar');
+      .then(()=>UI.okMsg.textContent='Copiado')
+      .catch(()=>UI.okMsg.textContent='No se pudo copiar');
   };
   UI.okBackdrop.style.display='flex';
 }
-UI.okClose.addEventListener('click',()=> UI.okBackdrop.style.display='none');
+UI.okClose.addEventListener('click',()=>UI.okBackdrop.style.display='none');
 
-/* Acciones Turnos */
+/* ====== Acciones Turnos ====== */
 async function tryAgendar(slot){
-  if(!pacienteSeleccionado){ alert('Seleccioná un paciente primero.'); return; }
-  if(!isValidHourRange(slot.start,slot.end)){ alert('Rango horario inválido.'); return; }
+  if(!pacienteSeleccionado){alert('Seleccioná un paciente primero.');return;}
+  if(!isValidHourRange(slot.start,slot.end)){alert('Rango horario inválido.');return;}
   const { error } = await supabase.from('turnos').insert([{
     agenda_id:slot.agenda_id||null,
     centro_id:currentCentroId,
@@ -953,9 +817,9 @@ async function tryAgendar(slot){
     notas:(UI.tipoTurno.value==='sobreturno')?'Sobreturno':null
   }]);
   if(error){
-    const msg=(error.message||'').toLowerCase().includes('solap')? 'Ese horario se ocupó recién.' : (error.message||'No se pudo agendar.');
+    const msg=(error.message||'').toLowerCase().includes('solap')?'Ese horario se ocupó recién.':(error.message||'No se pudo agendar.');
     alert(msg);
-  } else {
+  }else{
     const profLabel=UI.profesionalSelect.options[UI.profesionalSelect.selectedIndex]?.textContent||'Profesional';
     openOkModal({pac:pacienteSeleccionado,fechaISO:modalDateISO,start:slot.start,end:slot.end,profLabel});
   }
@@ -964,87 +828,79 @@ async function tryAgendar(slot){
 }
 function startReprogram(turno){
   const durMin=minutesDiff(toHM(turno.hora_inicio),toHM(turno.hora_fin));
-  reprogramState={ turno, durMin };
+  reprogramState={turno,durMin};
   refreshDayModal();
 }
 async function confirmReprogram(slot){
-  if(!reprogramState) return;
+  if(!reprogramState)return;
   const t=reprogramState.turno;
-  if(!isValidHourRange(slot.start,slot.end)){ alert('Rango horario inválido.'); return; }
-  const { error } = await supabase
-    .from('turnos')
-    .update({
-      fecha:modalDateISO,
-      hora_inicio:slot.start,
-      hora_fin:slot.end,
-      agenda_id:slot.agenda_id||null
-    })
+  if(!isValidHourRange(slot.start,slot.end)){alert('Rango horario inválido.');return;}
+  const { error } = await supabase.from('turnos')
+    .update({fecha:modalDateISO,hora_inicio:slot.start,hora_fin:slot.end,agenda_id:slot.agenda_id||null})
     .eq('id',t.id);
-  if(error){ alert(error.message||'No se pudo reprogramar.'); }
+  if(error){alert(error.message||'No se pudo reprogramar.');}
   else reprogramState=null;
   await refreshDayModal();
   await renderCalendar();
 }
 async function cancelarTurno(t){
-  if(!confirm('¿Anular este turno?')) return;
-  const { error } = await supabase
-    .from('turnos')
-    .update({ estado:'cancelado' })
+  if(!confirm('¿Anular este turno?'))return;
+  const { error } = await supabase.from('turnos')
+    .update({estado:'cancelado'})
     .eq('id',t.id);
-  if(error){ alert(error.message||'No se pudo anular.'); }
+  if(error){alert(error.message||'No se pudo anular.');}
   else if(reprogramState?.turno.id===t.id) reprogramState=null;
   await refreshDayModal();
   await renderCalendar();
 }
 
-/* Navegación dentro de modal */
+/* ====== Navegación Modal Día ====== */
 async function loadModalDate(newISO){
   modalDateISO=newISO;
   UI.modalDateInput.value=newISO;
   UI.modalTitle.textContent=`Turnos del ${new Date(newISO).toLocaleDateString('es-AR')}`;
   await refreshDayModal();
 }
-UI.modalPrevDay.addEventListener('click',async ()=>{
-  if(!modalDateISO) return;
-  const d=new Date(modalDateISO+'T00:00:00'); d.setDate(d.getDate()-1);
+UI.modalPrevDay.addEventListener('click',async()=>{
+  if(!modalDateISO)return;
+  const d=new Date(modalDateISO+'T00:00:00');d.setDate(d.getDate()-1);
   await loadModalDate(dateToISO(d));
 });
-UI.modalNextDay.addEventListener('click',async ()=>{
-  if(!modalDateISO) return;
-  const d=new Date(modalDateISO+'T00:00:00'); d.setDate(d.getDate()+1);
+UI.modalNextDay.addEventListener('click',async()=>{
+  if(!modalDateISO)return;
+  const d=new Date(modalDateISO+'T00:00:00');d.setDate(d.getDate()+1);
   await loadModalDate(dateToISO(d));
 });
-UI.modalDateInput.addEventListener('change',async ()=>{
+UI.modalDateInput.addEventListener('change',async()=>{
   if(UI.modalDateInput.value) await loadModalDate(UI.modalDateInput.value);
 });
 
-/* Eventos globales */
-UI.tipoTurno.addEventListener('change',async ()=>{
+/* ====== Eventos globales ====== */
+UI.tipoTurno.addEventListener('change',async()=>{
   await renderCalendar();
   if(UI.modal.style.display==='flex') refreshDayModal();
 });
-UI.profesionalSelect.addEventListener('change',async ()=>{
+UI.profesionalSelect.addEventListener('change',async()=>{
   currentProfesional=UI.profesionalSelect.value||null;
   await loadDuraciones(currentProfesional);
   await renderCalendar();
   if(UI.modal.style.display==='flex') refreshDayModal();
 });
-UI.btnHoy.addEventListener('click',async ()=>{
-  view=todayInfo(); await renderCalendar();
+UI.btnHoy.addEventListener('click',async()=>{
+  view=todayInfo();await renderCalendar();
 });
-UI.prevMonth.addEventListener('click',async ()=>{
-  if(--view.m<0){ view.m=11; view.y--; }
+UI.prevMonth.addEventListener('click',async()=>{
+  if(--view.m<0){view.m=11;view.y--;}
   await renderCalendar();
 });
-UI.nextMonth.addEventListener('click',async ()=>{
-  if(++view.m>11){ view.m=0; view.y++; }
+UI.nextMonth.addEventListener('click',async()=>{
+  if(++view.m>11){view.m=0;view.y++;}
   await renderCalendar();
 });
 
-/* Init */
+/* ====== Init ====== */
 (async function init(){
   if(!currentCentroId){
-    // No hay centro: el dashboard se encarga de forzar selección en otra vista.
     UI.status.textContent='Seleccioná un centro para ver turnos.';
     return;
   }
