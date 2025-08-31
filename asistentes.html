@@ -2,51 +2,101 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Registrar Asistente y Vincular al Centro Médico</title>
+  <title>Asistentes vinculados a centro médico</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f9fb; margin: 0; }
-    .container { max-width: 480px; margin: 36px auto; background: #fff; padding: 28px 22px 20px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
+    .container { max-width: 820px; margin: 36px auto; background: #fff; padding: 28px 22px 20px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
     h3 { color:#381e60; margin-bottom:22px;}
     .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 3px;}
     .btn.primary { background: #7656b0; }
     .btn:hover { background: #7f62b6; }
-    input, select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 6px 10px; font-size:15px; background:#f7f9fb; margin-bottom:12px; width:100%; }
-    label { color:#381e60; display:block; margin-bottom:2px;}
-    .muted { color: #6b6480; font-size: 13px; }
+    input, select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 5px 8px; font-size:15px; background:#f7f9fb; }
+    label { color:#381e60;}
+    .muted { color: #6b6480; font-size: 14px; }
     .error { color: #b02525; font-size: 14px; margin-top:8px;}
-    .success { color: #267c30; font-size: 14px; margin-top:8px;}
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    th, td { text-align:left; padding: 10px 8px; }
+    th { background: #e7e2fa; color: #381e60; font-size: 16px; }
+    td { font-size: 15px; border-bottom: 1px solid #ece5fc; }
+    tr:last-child td { border-bottom: none; }
+    .action-cell { text-align: right; }
+    .modal { position:fixed; z-index:999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.18); display:flex; align-items:center; justify-content:center;}
+    .modal-content { background:#fff; padding:28px 22px 20px 22px; border-radius:14px; min-width:300px; max-width:350px; position:relative; box-shadow:0 2px 18px rgba(80,60,160,.18);}
+    .close { position:absolute; right:12px; top:10px; font-size:20px; color:#7656b0; cursor:pointer;}
+    .modal-content h4 { color:#381e60; margin-bottom:16px;}
+    .modal-content select { width:100%; margin-bottom:10px; }
+    .modal-content .btn { width:100%; }
   </style>
 </head>
 <body>
 <div class="container">
-  <h3>Registrar Asistente</h3>
-  <form id="asistente-form">
-    <label for="nombre">Nombre</label>
-    <input type="text" id="nombre" required>
-    <label for="apellido">Apellido</label>
-    <input type="text" id="apellido" required>
-    <label for="email">Email</label>
-    <input type="email" id="email" required>
-    <label for="centro_select">Centro Médico</label>
-    <select id="centro_select" required>
-      <option value="" disabled selected>Cargando centros...</option>
-    </select>
-    <button type="submit" class="btn primary" style="margin-top:10px;">Crear y vincular asistente</button>
-    <div id="form-status" style="margin-top:10px;"></div>
-  </form>
+  <h3>Asistentes vinculados a centro médico</h3>
+  <table id="asistentes-table">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Apellido</th>
+        <th>Email</th>
+        <th>Centro Médico</th>
+        <th>Activo</th>
+        <th class="action-cell">Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="asistentes-tbody">
+      <!-- Asistentes vinculados se mostrarán aquí -->
+    </tbody>
+  </table>
+  <div id="status-msg" class="muted" style="margin-top:10px;"></div>
+  <div style="margin-top:20px;">
+    <button type="button" id="vincular-btn" class="btn primary">Vincular asistente a centro médico</button>
+  </div>
 </div>
+
+<!-- Modal para vincular asistente -->
+<div id="vincular-modal" class="modal" style="display:none;">
+  <div class="modal-content">
+    <span class="close" id="cerrar-modal">&times;</span>
+    <h4 id="modal-title">Vincular asistente a centro médico</h4>
+    <form id="vincular-form">
+      <label for="asistente_select">Seleccione asistente</label>
+      <select id="asistente_select" required>
+        <option value="" disabled selected>Cargando asistentes...</option>
+      </select>
+      <label for="centro_select">Seleccione centro médico</label>
+      <select id="centro_select" required>
+        <option value="" disabled selected>Cargando centros...</option>
+      </select>
+      <label for="activo_select">Activo</label>
+      <select id="activo_select">
+        <option value="true" selected>Activo</option>
+        <option value="false">Inactivo</option>
+      </select>
+      <button type="submit" class="btn primary" style="margin-top:10px;">Vincular</button>
+      <div id="modal-status" class="muted" style="margin-top:10px;"></div>
+      <div id="modal-error" class="error" style="margin-top:6px;"></div>
+    </form>
+  </div>
+</div>
+
 <script type="module">
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const asistenteForm = document.getElementById('asistente-form');
+const asistentesTbody = document.getElementById('asistentes-tbody');
+const vincularBtn = document.getElementById('vincular-btn');
+const vincularModal = document.getElementById('vincular-modal');
+const cerrarModal = document.getElementById('cerrar-modal');
+const vincularForm = document.getElementById('vincular-form');
+const modalStatus = document.getElementById('modal-status');
+const modalError = document.getElementById('modal-error');
+const statusMsg = document.getElementById('status-msg');
 const centroSelect = document.getElementById('centro_select');
-const formStatus = document.getElementById('form-status');
+const asistenteSelect = document.getElementById('asistente_select');
 
-// Carga los centros médicos activos
+// Trae todos los centros médicos para el select
 async function cargarCentros() {
   centroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
   const { data, error } = await supabase
@@ -71,79 +121,194 @@ async function cargarCentros() {
   });
 }
 
-// Al cargar la página, carga los centros médicos
-cargarCentros();
+// Trae todos los asistentes (profesionales que tienen un usuario en profiles con role asistente)
+async function cargarAsistentes() {
+  asistenteSelect.innerHTML = `<option value="" disabled selected>Cargando asistentes...</option>`;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('profesional_id, display_name, email, role, active')
+    .eq('role', 'asistente')
+    .eq('active', true);
 
-// Evento submit para crear asistente y vincularlo
-asistenteForm.addEventListener('submit', async function(e) {
-  e.preventDefault();
-  formStatus.textContent = '';
-  formStatus.className = '';
-
-  const nombre = document.getElementById('nombre').value.trim();
-  const apellido = document.getElementById('apellido').value.trim();
-  const email = document.getElementById('email').value.trim();
-  const centro_id = centroSelect.value;
-
-  if (!nombre || !apellido || !email || !centro_id) {
-    formStatus.textContent = 'Todos los campos son obligatorios.';
-    formStatus.className = 'error';
+  if (error || !data) {
+    asistenteSelect.innerHTML = `<option value="" disabled>Error al cargar asistentes</option>`;
     return;
   }
-
-  // Verifica si existe ya el profesional con ese email
-  const { data: existe, error: errorBusca } = await supabase
+  if (data.length === 0) {
+    asistenteSelect.innerHTML = `<option value="" disabled>No hay asistentes registrados.</option>`;
+    return;
+  }
+  // Ahora traigo los datos de profesionales vinculados a esos ids
+  const profesionalIds = data.filter(a => !!a.profesional_id).map(a => a.profesional_id);
+  if (profesionalIds.length === 0) {
+    asistenteSelect.innerHTML = `<option value="" disabled>No hay asistentes registrados.</option>`;
+    return;
+  }
+  // Buscar los datos de cada profesional
+  const { data: profesionales, error: errorProfs } = await supabase
     .from('profesionales')
-    .select('id')
-    .eq('email', email)
-    .single();
+    .select('id, nombre, apellido, email')
+    .in('id', profesionalIds);
 
-  let profesional_id;
-  if (existe && existe.id) {
-    profesional_id = existe.id; // Si ya existe, lo usamos
-  } else {
-    // Crea el profesional
-    const { data: creado, error: errorInsert } = await supabase
-      .from('profesionales')
-      .insert({
-        nombre,
-        apellido,
-        email,
-        rol: 'asistente', // Si tienes el campo 'rol'
-        activo: true
-      })
-      .select('id')
-      .single();
+  asistenteSelect.innerHTML = `<option value="" disabled selected>Seleccione un asistente</option>`;
+  profesionales.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.nombre} ${p.apellido} (${p.email})`;
+    asistenteSelect.appendChild(opt);
+  });
+}
 
-    if (errorInsert || !creado) {
-      formStatus.textContent = 'Error al crear asistente: ' + (errorInsert?.message || JSON.stringify(errorInsert));
-      formStatus.className = 'error';
-      return;
-    }
-    profesional_id = creado.id;
-  }
-
-  // Vincula el asistente al centro médico
-  const { error: errorVinc } = await supabase
+// Carga la tabla de asistentes vinculados a centros médicos
+async function cargarTabla() {
+  asistentesTbody.innerHTML = `<tr><td colspan="6" class="muted">Cargando asistentes...</td></tr>`;
+  // Traer todas las vinculaciones activas
+  const { data: vinculaciones, error } = await supabase
     .from('profesional_centro')
-    .insert({
-      profesional_id,
-      centro_id,
-      activo: true,
-      prioridad: 1
-    });
+    .select(`
+      profesional_id, centro_id, activo,
+      profesionales(nombre, apellido, email),
+      centros_medicos(nombre)
+    `)
+    .eq('activo', true);
 
-  if (errorVinc) {
-    formStatus.textContent = 'Error al vincular asistente al centro: ' + (errorVinc.message || JSON.stringify(errorVinc));
-    formStatus.className = 'error';
+  if (error || !vinculaciones) {
+    asistentesTbody.innerHTML = `<tr><td colspan="6" class="muted">Error al cargar asistentes vinculados</td></tr>`;
+    return;
+  }
+  // Filtrar solo los que sean asistentes
+  // Traer los perfiles que tengan profesional_id igual a los vinculados y role = 'asistente'
+  const asistenteIds = vinculaciones.map(a => a.profesional_id);
+  const { data: perfiles, error: errorPerfil } = await supabase
+    .from('profiles')
+    .select('profesional_id, role')
+    .in('profesional_id', asistenteIds)
+    .eq('role', 'asistente')
+    .eq('active', true);
+
+  // Solo los profesional_id que sean asistentes
+  const idsAsistentes = perfiles?.map(p => p.profesional_id) ?? [];
+  const asistVinculados = vinculaciones.filter(a => idsAsistentes.includes(a.profesional_id));
+
+  if (asistVinculados.length === 0) {
+    asistentesTbody.innerHTML = `<tr><td colspan="6" class="muted">No hay asistentes vinculados.</td></tr>`;
+    return;
+  }
+  asistentesTbody.innerHTML = '';
+  asistVinculados.forEach(a => {
+    asistentesTbody.innerHTML += `
+      <tr>
+        <td>${a.profesionales?.nombre ?? ''}</td>
+        <td>${a.profesionales?.apellido ?? ''}</td>
+        <td>${a.profesionales?.email ?? ''}</td>
+        <td>${a.centros_medicos?.nombre ?? a.centro_id}</td>
+        <td>${a.activo ? 'Sí' : 'No'}</td>
+        <td class="action-cell">
+          <button class="btn" title="Desasociar" data-id="${a.profesional_id}" data-centro="${a.centro_id}">Desasociar</button>
+        </td>
+      </tr>
+    `;
+  });
+  // Listeners para desasociar
+  Array.from(document.getElementsByClassName('btn')).forEach(el => {
+    if (el.textContent === "Desasociar") {
+      el.addEventListener('click', () => {
+        desasociarAsistente(el.getAttribute('data-id'), el.getAttribute('data-centro'));
+      });
+    }
+  });
+}
+
+// Abrir modal para vincular asistente
+vincularBtn.addEventListener('click', async () => {
+  vincularForm.reset();
+  modalStatus.textContent = '';
+  modalError.textContent = '';
+  await cargarAsistentes();
+  await cargarCentros();
+  vincularModal.style.display = 'flex';
+});
+
+// Cerrar modal asistente
+cerrarModal.addEventListener('click', () => {
+  vincularModal.style.display = 'none';
+});
+window.addEventListener('click', (e) => {
+  if (e.target === vincularModal) vincularModal.style.display = 'none';
+});
+
+// Vincular asistente al centro médico
+vincularForm.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const profesional_id = asistenteSelect.value;
+  const centro_id = centroSelect.value;
+  const activo = document.getElementById('activo_select').value === 'true';
+
+  modalError.textContent = ''; // Limpia errores anteriores
+
+  if (!profesional_id || !centro_id) {
+    modalStatus.textContent = '';
+    modalError.textContent = 'Todos los campos son obligatorios.';
+    return;
+  }
+  modalStatus.textContent = 'Procesando...';
+
+  // Verifica si la vinculación ya existe
+  const { data: vinculosExist, error: errorVincCheck } = await supabase
+    .from('profesional_centro')
+    .select('*')
+    .eq('profesional_id', profesional_id)
+    .eq('centro_id', centro_id)
+    .eq('activo', true);
+
+  if (errorVincCheck) {
+    modalStatus.textContent = '';
+    modalError.textContent = 'Error al verificar vinculación: ' + (errorVincCheck.message || JSON.stringify(errorVincCheck));
     return;
   }
 
-  formStatus.textContent = '¡Asistente creado y vinculado exitosamente!';
-  formStatus.className = 'success';
-  asistenteForm.reset();
-  await cargarCentros();
+  if (vinculosExist && vinculosExist.length > 0) {
+    modalStatus.textContent = '';
+    modalError.textContent = 'Ya existe la vinculación de este asistente con ese centro.';
+    return;
+  }
+
+  // Vincular al centro
+  const { error: errorPC } = await supabase
+    .from('profesional_centro')
+    .insert({ profesional_id, centro_id, activo: activo, prioridad: 1 });
+
+  if (errorPC) {
+    modalStatus.textContent = '';
+    modalError.textContent = 'Error al asociar asistente a centro médico: ' +
+      (errorPC.details || errorPC.message || JSON.stringify(errorPC));
+    return;
+  }
+
+  modalError.textContent = '';
+  modalStatus.textContent = '¡Asistente vinculado exitosamente!';
+  await cargarTabla();
+  setTimeout(() => { vincularModal.style.display = 'none'; }, 1200);
 });
+
+// Desasociar asistente de centro médico
+async function desasociarAsistente(profesional_id, centro_id) {
+  if (!confirm('¿Seguro que quieres desasociar este asistente del centro médico?')) return;
+  const { error } = await supabase
+    .from('profesional_centro')
+    .update({ activo: false })
+    .eq('profesional_id', profesional_id)
+    .eq('centro_id', centro_id);
+  if (error) {
+    alert('Error al desasociar el asistente: ' + (error.message || JSON.stringify(error)));
+    return;
+  }
+  await cargarTabla();
+  await cargarAsistentes(); // Actualiza el select para el modal
+}
+
+// Inicialización
+cargarTabla();
 </script>
 </body>
 </html>
