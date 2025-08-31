@@ -2,100 +2,54 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Gestión de Asistentes</title>
+  <title>Alta de Asistentes</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f9fb; margin: 0; }
-    .container { max-width: 900px; margin: 36px auto; background: #fff; padding: 28px 22px 20px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
+    .container { max-width: 520px; margin: 44px auto; background: #fff; padding: 28px 22px 20px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
     h3 { color:#381e60; margin-bottom:22px;}
-    .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 3px;}
-    .btn.primary { background: #7656b0; }
-    .btn:hover { background: #7f62b6; }
-    input, select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 5px 8px; font-size:15px; background:#f7f9fb; }
     label { color:#381e60;}
+    input, select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 6px 10px; font-size:15px; background:#f7f9fb; margin-bottom:10px; width:100%; }
+    .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 8px 18px; cursor:pointer; margin-top:10px; width:100%;}
+    .btn:hover { background: #7f62b6; }
     .muted { color: #6b6480; font-size: 13px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-    th, td { text-align:left; padding: 10px 8px; }
-    th { background: #e7e2fa; color: #381e60; font-size: 16px; }
-    td { font-size: 15px; border-bottom: 1px solid #ece5fc; }
-    tr:last-child td { border-bottom: none; }
-    .action-cell { text-align: right; }
-    .modal { position:fixed; z-index:999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.18); display:flex; align-items:center; justify-content:center;}
-    .modal-content { background:#fff; padding:28px 22px 20px 22px; border-radius:14px; min-width:300px; max-width:350px; position:relative; box-shadow:0 2px 18px rgba(80,60,160,.18);}
-    .close { position:absolute; right:12px; top:10px; font-size:20px; color:#7656b0; cursor:pointer;}
-    .modal-content h4 { color:#381e60; margin-bottom:16px;}
-    .modal-content input, .modal-content select { width:100%; margin-bottom:10px; }
-    .modal-content .btn { width:100%; }
+    .success { color: #2e994e; font-size: 14px; margin-top:8px;}
+    .error { color: #b02525; font-size: 14px; margin-top:8px;}
+    .small { font-size: 12px; color: #6b6480; margin-top: 2px;}
   </style>
 </head>
 <body>
 <div class="container">
-  <h3>Gestión de Asistentes</h3>
-  <table id="tabla-asistentes">
-    <thead>
-      <tr>
-        <th>Nombre</th>
-        <th>Email</th>
-        <th>Centro Médico</th>
-        <th>Activo</th>
-      </tr>
-    </thead>
-    <tbody id="asistentes-tbody">
-      <!-- Asistentes asociados se mostrarán aquí -->
-    </tbody>
-  </table>
-  <div style="margin-top:20px;">
-    <button type="button" id="crear-asistente-btn" class="btn primary">Crear asistente</button>
-  </div>
-  <div id="status-msg-asistente" class="muted" style="margin-top:10px;"></div>
-</div>
-
-<!-- Modal para crear asistente -->
-<div id="modal-asistente" class="modal" style="display:none;">
-  <div class="modal-content">
-    <span class="close" id="cerrar-modal-asistente">&times;</span>
-    <h4 id="modal-title-asistente">Crear asistente</h4>
-    <form id="form-asistente">
-      <label for="asistente_nombre">Nombre Completo</label>
-      <input type="text" id="asistente_nombre" placeholder="Nombre del asistente" required>
-      <label for="asistente_email">Email</label>
-      <input type="email" id="asistente_email" placeholder="Email" required>
-      <label for="asistente_centro">Centro médico</label>
-      <select id="asistente_centro" required>
-        <option value="" disabled selected>Cargando centros...</option>
-      </select>
-      <label for="asistente_activo">Activo</label>
-      <select id="asistente_activo">
-        <option value="true" selected>Activo</option>
-        <option value="false">Inactivo</option>
-      </select>
-      <button type="submit" class="btn primary" style="margin-top:10px;">Guardar</button>
-      <div id="modal-asistente-status" class="muted" style="margin-top:10px;"></div>
-    </form>
-  </div>
+  <h3>Alta de Asistente</h3>
+  <form id="form-asistente">
+    <label for="asistente_nombre">Nombre Completo</label>
+    <input type="text" id="asistente_nombre" required>
+    <label for="asistente_email">Email</label>
+    <input type="email" id="asistente_email" required>
+    <label for="asistente_centro">Centro médico</label>
+    <select id="asistente_centro" required>
+      <option value="" disabled selected>Cargando centros...</option>
+    </select>
+    <button type="submit" class="btn">Crear asistente</button>
+    <div id="status-msg" class="muted"></div>
+    <div id="pass-msg" class="small"></div>
+  </form>
 </div>
 
 <script type="module">
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-
-// SOLO PARA FRONTEND CON ANON KEY (no puedes crear usuarios en Auth, solo en profiles)
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const profesionalId = localStorage.getItem('profesional_id');
-
-const asistentesTbody = document.getElementById('asistentes-tbody');
-const crearAsistenteBtn = document.getElementById('crear-asistente-btn');
-const modalAsistente = document.getElementById('modal-asistente');
-const cerrarModalAsistente = document.getElementById('cerrar-modal-asistente');
-const formAsistente = document.getElementById('form-asistente');
-const modalAsistenteStatus = document.getElementById('modal-asistente-status');
-const statusMsgAsistente = document.getElementById('status-msg-asistente');
 const asistenteCentroSelect = document.getElementById('asistente_centro');
+const formAsistente = document.getElementById('form-asistente');
+const statusMsg = document.getElementById('status-msg');
+const passMsg = document.getElementById('pass-msg');
 
-// Cargar centros médicos asociados al profesional para el select del asistente
-async function cargarCentrosAsistente() {
+// 1. Cargar centros médicos asociados al profesional
+async function cargarCentros() {
   asistenteCentroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
   const { data, error } = await supabase
     .from('profesional_centro')
@@ -107,7 +61,7 @@ async function cargarCentrosAsistente() {
     asistenteCentroSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
     return;
   }
-  // Filtrar duplicados por centro_id
+  // Filtrar duplicados
   const centrosUnicos = {};
   data.forEach(row => {
     if (row.centros_medicos && !centrosUnicos[row.centro_id]) {
@@ -117,13 +71,13 @@ async function cargarCentrosAsistente() {
       };
     }
   });
-  const centrosMedicosAsistente = Object.values(centrosUnicos);
-  if (centrosMedicosAsistente.length === 0) {
+  const centros = Object.values(centrosUnicos);
+  if (centros.length === 0) {
     asistenteCentroSelect.innerHTML = `<option value="" disabled>No tienes centros médicos asociados aún.</option>`;
     return;
   }
   asistenteCentroSelect.innerHTML = `<option value="" disabled selected>Seleccione un centro</option>`;
-  centrosMedicosAsistente.forEach(c => {
+  centros.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.id;
     opt.textContent = c.nombre;
@@ -131,127 +85,86 @@ async function cargarCentrosAsistente() {
   });
 }
 
-// Cargar asistentes asociados a los centros médicos del usuario
-async function cargarTablaAsistentes() {
-  asistentesTbody.innerHTML = `<tr><td colspan="4" class="muted">Cargando asistentes...</td></tr>`;
-  // Trae todos los centros médicos del profesional
-  const { data: centros } = await supabase
-    .from('profesional_centro')
-    .select('centro_id')
-    .eq('profesional_id', profesionalId)
-    .eq('activo', true);
-  const idsCentros = centros && centros.length ? centros.map(c => c.centro_id) : [];
-  let asistentes = [];
-  if (idsCentros.length) {
-    // Trae los usuarios con role 'asistente' asociados a los mismos centros
-    const { data } = await supabase
-      .from('profesional_centro')
-      .select(`
-        profesional_id, centro_id, activo,
-        profiles(display_name, email, role, active),
-        centros_medicos(nombre)
-      `)
-      .in('centro_id', idsCentros)
-      .eq('activo', true);
-    if (data) {
-      asistentes = data.filter(a => a.profiles && a.profiles.role === 'asistente');
-    }
-  }
-  asistentesTbody.innerHTML = '';
-  if (asistentes.length === 0) {
-    asistentesTbody.innerHTML = '<tr><td colspan="4" class="muted">No hay asistentes asociados.</td></tr>';
-    return;
-  }
-  asistentes.forEach(a => {
-    asistentesTbody.innerHTML += `
-      <tr>
-        <td>${a.profiles.display_name ?? ''}</td>
-        <td>${a.profiles.email ?? ''}</td>
-        <td>${a.centros_medicos?.nombre ?? a.centro_id}</td>
-        <td>${a.profiles.active ? 'Sí' : 'No'}</td>
-      </tr>
-    `;
-  });
-}
-
-// Abrir modal para crear asistente
-crearAsistenteBtn.addEventListener('click', async () => {
-  formAsistente.reset();
-  modalAsistenteStatus.textContent = '';
-  await cargarCentrosAsistente();
-  modalAsistente.style.display = 'flex';
-});
-
-// Cerrar modal asistente
-cerrarModalAsistente.addEventListener('click', () => {
-  modalAsistente.style.display = 'none';
-});
-window.addEventListener('click', (e) => {
-  if (e.target === modalAsistente) modalAsistente.style.display = 'none';
-});
-
-// Guardar asistente
+// 2. Crear asistente (registro + perfil + vinculación)
 formAsistente.addEventListener('submit', async function(e) {
   e.preventDefault();
+  statusMsg.textContent = '';
+  passMsg.textContent = '';
   const nombre = document.getElementById('asistente_nombre').value.trim();
   const email = document.getElementById('asistente_email').value.trim();
   const centro_id = document.getElementById('asistente_centro').value;
-  const activo = document.getElementById('asistente_activo').value === 'true';
 
   if (!nombre || !email || !centro_id) {
-    modalAsistenteStatus.textContent = 'Todos los campos son obligatorios.';
-    return;
-  }
-  modalAsistenteStatus.textContent = 'Guardando...';
-
-  // Verifica si el email ya existe en profiles
-  const { data: existentes, error: errorCheck } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('email', email);
-
-  if (errorCheck) {
-    modalAsistenteStatus.textContent = 'Error al verificar el email: ' + errorCheck.message;
+    statusMsg.textContent = 'Todos los campos son obligatorios.';
+    statusMsg.className = 'error';
     return;
   }
 
-  if (existentes && existentes.length > 0) {
-    modalAsistenteStatus.textContent = 'Ya existe un usuario con ese email.';
+  statusMsg.textContent = 'Creando asistente...';
+  statusMsg.className = 'muted';
+
+  // Genera contraseña temporal segura
+  const password = Math.random().toString(36).slice(-8) + 'A1!';
+  
+  // 2.1 Registrar usuario en Auth
+  let authResult;
+  try {
+    authResult = await supabase.auth.signUp({
+      email,
+      password,
+      options: { emailRedirectTo: window.location.origin }
+    });
+  } catch (err) {
+    statusMsg.textContent = "Error de conexión con Auth.";
+    statusMsg.className = 'error';
     return;
   }
 
-  // Crear el usuario en profiles con rol asistente
-  // Generar un UUID simple para id (no Auth): esto solo funciona si la tabla lo permite.
-  const uuid = crypto.randomUUID();
+  if (authResult.error) {
+    statusMsg.textContent = 'Error al crear usuario: ' + authResult.error.message;
+    statusMsg.className = 'error';
+    return;
+  }
+
+  const user = authResult.data.user;
+  if (!user) {
+    statusMsg.textContent = 'No se pudo obtener el usuario creado.';
+    statusMsg.className = 'error';
+    return;
+  }
+
+  // 2.2 Crear perfil en profiles
   const { error: errorProfile } = await supabase
     .from('profiles')
-    .insert([{ id: uuid, display_name: nombre, email, role: 'asistente', active: activo }]);
-
+    .insert([{ id: user.id, display_name: nombre, email: email, role: 'asistente', active: true }]);
   if (errorProfile) {
-    modalAsistenteStatus.textContent = 'Error al crear asistente: ' + errorProfile.message;
+    statusMsg.textContent = 'Error al crear perfil: ' + errorProfile.message;
+    statusMsg.className = 'error';
     return;
   }
 
-  // Asociar al centro
+  // 2.3 Vincular a centro médico
   const { error: errorPC } = await supabase
     .from('profesional_centro')
-    .insert({ profesional_id: uuid, centro_id, activo: true });
-
+    .insert({ profesional_id: user.id, centro_id, activo: true });
   if (errorPC) {
-    modalAsistenteStatus.textContent = 'Asistente creado, pero error al asociar al centro';
+    statusMsg.textContent = 'Perfil creado, pero error al asociar a centro médico.';
+    statusMsg.className = 'error';
     return;
   }
 
-  modalAsistenteStatus.textContent = 'Asistente creado y asociado exitosamente!';
-  await cargarTablaAsistentes();
-  setTimeout(() => { modalAsistente.style.display = 'none'; }, 1200);
+  statusMsg.textContent = '¡Asistente creado y vinculado exitosamente!';
+  statusMsg.className = 'success';
+  passMsg.textContent = `Contraseña temporal enviada al asistente: ${password}`;
+  formAsistente.reset();
 });
 
-// Inicialización
+// Inicializar
 if (profesionalId) {
-  cargarTablaAsistentes();
+  cargarCentros();
 } else {
-  statusMsgAsistente.textContent = 'No se detectó profesional en sesión.';
+  statusMsg.textContent = 'No se detectó profesional en sesión.';
+  statusMsg.className = 'error';
 }
 </script>
 </body>
