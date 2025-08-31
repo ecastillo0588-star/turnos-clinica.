@@ -65,7 +65,7 @@
           <th style="width:70px;">Mañana<br>Fin</th>
           <th style="width:70px;">Tarde<br>Inicio</th>
           <th style="width:70px;">Tarde<br>Fin</th>
-          <th style="width:55px;">Trabaja</th>
+          <th style="width:55px;">Habilitar</th>
         </tr>
       </thead>
       <tbody id="horarios-body">
@@ -271,16 +271,7 @@ function horarioValido() {
   return valido;
 }
 
-// --- Helpers ---
-function toMinutes(horaStr){
-  const [h,m] = horaStr.split(':'); return parseInt(h)*60+parseInt(m);
-}
-function toHoraStr(minutos){
-  const h = Math.floor(minutos/60), m = minutos%60;
-  return (h<10?'0':'')+h+':'+(m<10?'0':'')+m;
-}
-
-// --- Generar agenda ---
+// --- Generar agenda: inserta solo rangos de disponibilidad (NO slots divididos) ---
 document.getElementById('btn-generar-agenda').onclick = async function() {
   const msg = document.getElementById('msg-agenda');
   msg.textContent = '';
@@ -324,14 +315,12 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     return;
   }
 
-  // --- Generar turnos disponibles para cada día del rango ---
+  // --- Generar rangos de disponibilidad para cada día del rango ---
   msg.textContent = "Generando agenda...";
-  let totalSlots = 0;
+  let totalRangos = 0;
   let fechaActual = new Date(fecha_inicio);
   const fechaFin = new Date(fecha_fin);
 
-  // Slots de 15 minutos, ajusta según tu lógica/duración de turnos
-  const DURACION_SLOT = 15;
   while(fechaActual <= fechaFin){
     const diaSemanaNum = fechaActual.getDay(); // 0=domingo, 1=lunes, ..., 6=sábado
     const diaMap = {1:'lunes',2:'martes',3:'miercoles',4:'jueves',5:'viernes',6:'sabado'};
@@ -339,31 +328,26 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     if(!diaSemana) { fechaActual.setDate(fechaActual.getDate()+1); continue; }
     const bloquesDia = bloques.filter(b=>b.dia===diaSemana);
     for(const b of bloquesDia){
-      let hIni = toMinutes(b.hora_inicio);
-      let hFin = toMinutes(b.hora_fin);
-      for(let m=hIni; m+DURACION_SLOT<=hFin; m+=DURACION_SLOT){
-        const hora_inicio = toHoraStr(m);
-        const hora_fin = toHoraStr(m+DURACION_SLOT);
-        await supabase
-          .from('agenda')
-          .upsert({
-            centro_id,
-            profesional_id,
-            fecha: fechaActual.toISOString().slice(0,10),
-            hora_inicio,
-            hora_fin,
-            capacidad: 1,
-            estado: 'disponible',
-            notas: '',
-            "Nombre de Agenda": nombre_agenda,
-            tipo_turno: '', // Se asigna en la reserva
-          }, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
-        totalSlots++;
-      }
+      // Insertar UNA fila por rango horario
+      await supabase
+        .from('agenda')
+        .upsert({
+          centro_id,
+          profesional_id,
+          fecha: fechaActual.toISOString().slice(0,10),
+          hora_inicio: b.hora_inicio,
+          hora_fin: b.hora_fin,
+          capacidad: 1,
+          estado: 'disponible',
+          notas: '',
+          "Nombre de Agenda": nombre_agenda,
+          tipo_turno: '', // Se asigna en la reserva
+        }, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
+      totalRangos++;
     }
     fechaActual.setDate(fechaActual.getDate()+1);
   }
-  msg.textContent = `Agenda generada (${totalSlots} slots disponibles).`;
+  msg.textContent = `Agenda generada (${totalRangos} rangos de disponibilidad).`;
 
   // Actualizar el select de agendas para eliminar
   await cargarNombresAgendas();
@@ -404,7 +388,7 @@ document.getElementById('select-agenda').onchange = function() {
 document.getElementById('btn-eliminar-agenda').onclick = async function() {
   const selectAgenda = document.getElementById('select-agenda');
   if (!selectAgenda.value) return;
-  if (!confirm(`¿Seguro que deseas eliminar la agenda "${selectAgenda.value}" y todos sus turnos?`)) return;
+  if (!confirm(`¿Seguro que deseas eliminar la agenda "${selectAgenda.value}" y todos sus rangos?`)) return;
   const { error } = await supabase
     .from('agenda')
     .delete()
