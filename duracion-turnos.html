@@ -9,59 +9,35 @@
       padding: 22px;
       border-radius: 14px;
       box-shadow: 0 2px 8px rgba(80,60,160,0.08);
-      max-width: 700px;
+      max-width: 780px;
       margin: 0 auto;
     }
-    .duracion-card h2 {
-      margin-top: 0;
-      margin-bottom: 18px;
-      color: #381e60;
-    }
+    .duracion-card h2 { margin: 0 0 18px; color: #381e60; }
+    .selector-centro { margin-bottom: 18px; display:flex; align-items:center; gap:8px; }
+    .selector-centro label { font-weight: 600; color:#381e60; }
+    .selector-centro select { min-width: 260px; padding: 8px 10px; border:1px solid #e3d8f6; border-radius:8px; background:#f7f9fb; }
+
     .tipos-turno {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      margin-bottom: 18px;
+      display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;
     }
     .tipo-turno {
-      flex: 1 1 200px;
-      background: #f7f4fa;
-      border: 1px solid #ece3fa;
-      border-radius: 8px;
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      display:flex; align-items:center; justify-content: space-between;
+      background:#f7f4fa; border:1px solid #ece3fa; border-radius:10px; padding:12px 14px;
+      gap:12px;
     }
-    .tipo-turno label {
-      font-weight: 500;
-      color: #381e60;
-      font-size: 15px;
+    .tipo-turno .label-wrap {
+      display:flex; align-items:center; gap:6px; color:#381e60; font-weight:600;
     }
-    .tipo-turno input {
-      width: 70px;
-      padding: 5px;
-      font-size: 14px;
-      text-align: center;
-      border: 1px solid #d2c6ed;
-      border-radius: 6px;
+    .tipo-turno .label-wrap small { color:#6b6480; font-weight:500; }
+    .tipo-turno select {
+      min-width: 120px; padding:6px 10px; border:1px solid #d2c6ed; border-radius:8px; background:#fff;
+      font-size:14px;
     }
-    .btn {
-      background: #7656b0;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 8px 16px;
-      cursor: pointer;
-      font-size: 15px;
-      font-weight: 500;
-    }
-    .btn:hover { background: #7f62b6; }
-    #msg-duracion {
-      margin-left: 14px;
-      font-size: 14px;
-      color: #381e60;
-    }
+
+    .hint { color:#6b6480; font-size:13px; margin-top:2px; }
+    .btn { background:#7656b0; color:#fff; border:none; border-radius:8px; padding:9px 16px; cursor:pointer; font-size:15px; font-weight:600; }
+    .btn:hover { background:#7f62b6; }
+    #msg-duracion { margin-left:12px; font-size:14px; color:#381e60; }
   </style>
 </head>
 <body>
@@ -69,92 +45,201 @@
 <div class="duracion-card">
   <h2>Duración de Turnos</h2>
 
+  <div class="selector-centro">
+    <label for="select-centro">Aplicar a:</label>
+    <select id="select-centro">
+      <option value="todos">Todos mis centros</option>
+    </select>
+  </div>
+
   <div class="tipos-turno">
     <div class="tipo-turno">
-      <label for="duracion-nueva">Nueva consulta</label>
-      <input type="number" id="duracion-nueva" min="5" step="5"> 
+      <div class="label-wrap">
+        <span>Nueva consulta</span>
+        <small>(minutos)</small>
+      </div>
+      <select id="duracion-nueva">
+        <option value="">— seleccionar —</option>
+        <option>5</option><option>10</option><option>15</option><option>20</option>
+        <option>30</option><option>45</option><option>60</option>
+      </select>
     </div>
+
     <div class="tipo-turno">
-      <label for="duracion-recurrente">Recurrente</label>
-      <input type="number" id="duracion-recurrente" min="5" step="5"> 
+      <div class="label-wrap">
+        <span>Recurrente</span>
+        <small>(minutos)</small>
+      </div>
+      <select id="duracion-recurrente">
+        <option value="">— seleccionar —</option>
+        <option>5</option><option>10</option><option>15</option><option>20</option>
+        <option>30</option><option>45</option><option>60</option>
+      </select>
     </div>
+
     <div class="tipo-turno">
-      <label for="duracion-sobreturno">Sobreturno</label>
-      <input type="number" id="duracion-sobreturno" min="5" step="5"> 
+      <div class="label-wrap">
+        <span>Sobreturno</span>
+        <small>(minutos)</small>
+      </div>
+      <select id="duracion-sobreturno">
+        <option value="">— seleccionar —</option>
+        <option>5</option><option>10</option><option>15</option><option>20</option>
+        <option>30</option><option>45</option><option>60</option>
+      </select>
     </div>
   </div>
 
-  <button class="btn" id="guardar-duracion">Guardar configuración</button>
-  <span id="msg-duracion"></span>
+  <div class="hint">Tip: “Todos mis centros” aplica los mismos minutos a cada centro asociado a tu usuario.</div>
+
+  <div style="margin-top:12px;">
+    <button class="btn" id="guardar-duracion">Guardar configuración</button>
+    <span id="msg-duracion"></span>
+  </div>
 </div>
 
 <script type="module">
 import supabase from './supabaseClient.js';
 
-const profesional_id   = localStorage.getItem('profesional_id');
+const profesional_id    = localStorage.getItem('profesional_id');
 const centro_default_id = localStorage.getItem('centro_medico_id');
-if (!profesional_id || !centro_default_id) {
-  alert('Sesión no iniciada o datos incompletos. Redirigiendo a login.');
+
+if (!profesional_id) {
+  alert('Sesión no iniciada. Redirigiendo a login.');
   window.location.href = "index.html";
 }
 
-// Cargar duraciones guardadas
+const selectCentro = document.getElementById('select-centro');
+const NUEVA       = document.getElementById('duracion-nueva');
+const RECURRENTE  = document.getElementById('duracion-recurrente');
+const SOBRE       = document.getElementById('duracion-sobreturno');
+const msg         = document.getElementById('msg-duracion');
+
+let centrosAsociados = [];
+
+/** Carga los centros asociados al profesional (no todos los activos del sistema) */
+async function cargarCentrosAsociados() {
+  // profesional_centro → centros_medicos
+  const { data, error } = await supabase
+    .from('profesional_centro')
+    .select('centro_id, activo, centros_medicos(id, nombre)')
+    .eq('profesional_id', profesional_id)
+    .eq('activo', true);
+
+  if (error) {
+    console.error('Error cargando centros del profesional:', error);
+    return;
+  }
+
+  centrosAsociados = (data || [])
+    .filter(r => r.centros_medicos)
+    .map(r => ({ id: r.centros_medicos.id, nombre: r.centros_medicos.nombre }));
+
+  // construir combo
+  selectCentro.innerHTML = '<option value="todos">Todos mis centros</option>';
+  centrosAsociados.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.nombre;
+    selectCentro.appendChild(opt);
+  });
+
+  // seleccionar por defecto el centro elegido en login (si está)
+  if (centro_default_id && selectCentro.querySelector(`option[value="${centro_default_id}"]`)) {
+    selectCentro.value = centro_default_id;
+  }
+}
+
+/** Limpia los selects de minutos */
+function limpiarInputs() {
+  NUEVA.value = '';
+  RECURRENTE.value = '';
+  SOBRE.value = '';
+}
+
+/** Carga duraciones para el centro elegido (si es “todos”, limpia y muestra hint) */
 async function cargarDuraciones() {
+  msg.textContent = '';
+  const valor = selectCentro.value;
+
+  if (valor === 'todos') {
+    limpiarInputs();
+    return; // no cargamos valores porque podrían ser distintos entre centros
+  }
+
   const { data, error } = await supabase
     .from('duracion_turnos')
     .select('tipo_turno, minutos')
     .eq('profesional_id', profesional_id)
-    .eq('centro_id', centro_default_id);
+    .eq('centro_id', valor);
 
   if (error) {
-    console.error("Error cargando duraciones:", error);
+    console.error('Error cargando duraciones:', error);
     return;
   }
+
+  limpiarInputs();
   (data || []).forEach(d => {
-    if (d.tipo_turno === 'nueva_consulta') document.getElementById('duracion-nueva').value = d.minutos;
-    if (d.tipo_turno === 'recurrente') document.getElementById('duracion-recurrente').value = d.minutos;
-    if (d.tipo_turno === 'sobreturno') document.getElementById('duracion-sobreturno').value = d.minutos;
+    const v = String(d.minutos);
+    if (d.tipo_turno === 'nueva_consulta') NUEVA.value = v;
+    if (d.tipo_turno === 'recurrente')     RECURRENTE.value = v;
+    if (d.tipo_turno === 'sobreturno')     SOBRE.value = v;
   });
 }
 
-// Guardar cambios
-document.getElementById('guardar-duracion').onclick = async function() {
-  const msg = document.getElementById('msg-duracion');
-  msg.textContent = "";
+/** Toma los valores seleccionados (minutos) y arma registros válidos */
+function recogerRegistros() {
+  const toInt = v => (v && !isNaN(parseInt(v))) ? parseInt(v) : null;
+  const regs = [
+    { tipo_turno: 'nueva_consulta', minutos: toInt(NUEVA.value) },
+    { tipo_turno: 'recurrente',     minutos: toInt(RECURRENTE.value) },
+    { tipo_turno: 'sobreturno',     minutos: toInt(SOBRE.value) }
+  ].filter(r => r.minutos !== null);
+  return regs;
+}
 
-  const registros = [
-    { tipo_turno: 'nueva_consulta', minutos: parseInt(document.getElementById('duracion-nueva').value) || null },
-    { tipo_turno: 'recurrente', minutos: parseInt(document.getElementById('duracion-recurrente').value) || null },
-    { tipo_turno: 'sobreturno', minutos: parseInt(document.getElementById('duracion-sobreturno').value) || null }
-  ].filter(r => r.minutos);
-
-  if (registros.length === 0) {
-    msg.textContent = "Ingrese al menos una duración válida.";
+/** Guarda para el centro elegido o para todos los centros asociados */
+async function guardarDuraciones() {
+  msg.textContent = '';
+  const regs = recogerRegistros();
+  if (regs.length === 0) {
+    msg.textContent = 'Elegí al menos una duración (en minutos).';
     return;
   }
 
-  // upsert para cada tipo
-  const { error } = await supabase
-    .from('duracion_turnos')
-    .upsert(
-      registros.map(r => ({
-        ...r,
-        profesional_id,
-        centro_id: centro_default_id
-      })),
-      { onConflict: ['profesional_id', 'centro_id', 'tipo_turno'] }
-    );
+  let errorFinal = null;
 
-  if (error) {
-    console.error("Error guardando duraciones:", error);
-    msg.textContent = "Error al guardar.";
+  if (selectCentro.value === 'todos') {
+    // aplicar a cada centro asociado
+    for (const c of centrosAsociados) {
+      const { error } = await supabase
+        .from('duracion_turnos')
+        .upsert(
+          regs.map(r => ({ ...r, profesional_id, centro_id: c.id })),
+          { onConflict: ['profesional_id','centro_id','tipo_turno'] }
+        );
+      if (error) { errorFinal = error; console.error(error); }
+    }
   } else {
-    msg.textContent = "Duraciones guardadas correctamente.";
+    // solo al centro elegido
+    const { error } = await supabase
+      .from('duracion_turnos')
+      .upsert(
+        regs.map(r => ({ ...r, profesional_id, centro_id: selectCentro.value })),
+        { onConflict: ['profesional_id','centro_id','tipo_turno'] }
+      );
+    errorFinal = error;
   }
-};
 
-// Cargar al iniciar
-cargarDuraciones();
+  msg.textContent = errorFinal ? 'Error al guardar.' : 'Duraciones guardadas correctamente.';
+}
+
+// Init
+await cargarCentrosAsociados();
+await cargarDuraciones();
+
+selectCentro.addEventListener('change', cargarDuraciones);
+document.getElementById('guardar-duracion').addEventListener('click', guardarDuraciones);
 </script>
 </body>
 </html>
