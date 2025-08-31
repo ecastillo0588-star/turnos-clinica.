@@ -384,24 +384,43 @@ async function anularTurno(turnoId){
   await supabase.from('turnos').update({estado:EST.CANCELADO}).eq('id', turnoId);
   await refreshAll();
 }
-async function pasarAEnAtencion(turnoId){
-  const role = localStorage.getItem('user_role');
-  if (role !== 'medico') { alert('Solo los médicos pueden atender pacientes.'); return; }
-  await supabase.from('turnos').update({estado:EST.EN_ATENCION}).eq('id', turnoId);
-  window.location.href = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
-}
-
-/* Bloqueo extra por si alguien intenta forzar el click en asistentes */
-document.addEventListener('click', (e) => {
-  const btn = e.target.closest?.('[data-act="atender"]');
-  if (!btn) return;
+async function pasarAEnAtencion(turnoId, ev) {
+  if (ev) ev.preventDefault(); // evita navegaciones accidentales
   const role = localStorage.getItem('user_role');
   if (role !== 'medico') {
-    e.preventDefault();
-    e.stopPropagation();
     alert('Solo los médicos pueden atender pacientes.');
+    return;
   }
-});
+
+  // 1) Abrir la nueva pestaña PRIMERO para que el navegador no bloquee el pop-up
+  const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
+  const win = window.open('', '_blank', 'noopener,noreferrer'); // ventana en blanco
+
+  if (!win) {
+    // Si el bloqueador no deja abrir, caemos al mismo tab como último recurso
+    const { error } = await supabase.from('turnos')
+      .update({ estado: EST.EN_ATENCION })
+      .eq('id', turnoId);
+    if (error) { alert('No se pudo pasar a "En atención".'); return; }
+    window.location.href = fichaUrl;
+    return;
+  }
+
+  // 2) Actualizar estado del turno
+  const { error } = await supabase.from('turnos')
+    .update({ estado: EST.EN_ATENCION })
+    .eq('id', turnoId);
+
+  if (error) {
+    win.close(); // cerramos la pestaña vacía
+    alert('No se pudo pasar a "En atención".');
+    return;
+  }
+
+  // 3) Redirigir la pestaña nueva a la ficha
+  win.location.href = fichaUrl;
+}
+
 
 /* ===== KPIs ===== */
 function computeHorasDisponibles(agenda, turnos){
