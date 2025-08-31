@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Turnos — EG Health Solutions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root{
+      --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
+      --bg:#f7f9fb; --card:#fff; --line:#ece5fc; --ok:#008c4a; --warn:#b00020;
+      --accent:#0b5394;
+    }
+    body{margin:0;background:var(--bg);font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
+    .wrap{max-width:1100px;margin:0 auto}
+    .toolbar{display:grid;grid-template-columns: 1.2fr 1.2fr 1fr auto;gap:12px;align-items:end;margin-bottom:14px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    .field label{font-size:12px;color:var(--muted)}
+    .field input,.field select{
+      background:#f7f9fb;border:1.5px solid var(--line);border-radius:7px;padding:9px 10px;font-size:14px;color:var(--ink);outline:none
+    }
+    .field input:focus,.field select:focus{border-color:var(--brand-2)}
+    .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:10px 12px;
+      font-weight:600;cursor:pointer;transition:filter .15s}
+    .btn.secondary{background:#e7e2fa;color:#5a3e9a}
+    .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+    .btn:hover{filter:brightness(.98)}
+    .head{display:flex;align-items:center;justify-content:space-between;margin:10px 0 6px}
+    .head h2{margin:0;font-size:20px}
+    .cal{background:var(--card);border-radius:16px;box-shadow:0 2px 12px rgba(80,60,160,.10);padding:14px}
+    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+    .dow{font-size:12px;color:var(--muted);text-align:center;margin-bottom:6px}
+    .day{background:#faf9ff;border:1px solid var(--line);border-radius:10px;min-height:94px;padding:8px;display:flex;flex-direction:column;gap:6px}
+    .day .num{font-weight:600}
+    .day .badge{margin-top:auto;align-self:flex-start;font-size:12px;border-radius:999px;padding:2px 8px}
+    .day.free .badge{background:#e8fff0;color:#045c2b}
+    .day.busy .badge{background:#fff4e6;color:#8a5800}
+    .day.empty{opacity:.55}
+    .day.clickable{cursor:pointer;transition:transform .05s}
+    .day.clickable:hover{transform:translateY(-1px)}
+    .legend{display:flex;gap:12px;align-items:center;margin-top:10px;color:var(--muted);font-size:13px}
+    .legend .dot{width:10px;height:10px;border-radius:50%}
+    .dot.free{background:#9ee6b7}.dot.busy{background:#ffd8a9}.dot.none{background:#d9d2e9}
+
+    /* Modal */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.22);display:none;align-items:center;justify-content:center;z-index:1000}
+    .modal{width:min(900px,95vw);background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px}
+    .modal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+    .modal h3{margin:0;font-size:18px}
+    .close{background:transparent;border:none;font-size:24px;color:var(--brand);cursor:pointer}
+    .modal .grid{display:grid;grid-template-columns: 1.2fr .8fr; gap:14px}
+    .slots{border:1px solid var(--line);border-radius:10px;padding:10px;max-height:52vh;overflow:auto}
+    .slots h4{margin:0 0 10px;font-size:15px;color:var(--ink)}
+    .slot{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;background:#faf9ff}
+    .slot.unavailable{opacity:.45}
+    .slot .time{font-weight:600;color:var(--accent)}
+    .slot .mini{font-size:12px;color:var(--muted)}
+    .slot button{padding:6px 10px}
+    .side{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}
+    .search-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+    .list{border:1px solid var(--line);border-radius:10px;max-height:200px;overflow:auto}
+    .row{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-bottom:1px solid var(--line)}
+    .row:last-child{border-bottom:none}
+    .row .meta{font-size:12px;color:var(--muted)}
+    .muted{color:var(--muted)}
+    .ok{color:var(--ok)}
+    .warn{color:var(--warn)}
+    .pill{display:inline-flex;gap:6px;align-items:center;background:#e7e2fa;color:#5a3e9a;border-radius:999px;padding:3px 8px;font-size:12px}
+    .footer-mini{margin-top:8px;font-size:12px;color:var(--muted)}
+    .hr{height:1px;background:var(--line);margin:10px 0}
+    .empty{padding:10px;text-align:center;color:var(--muted)}
+    .ghostlink{background:none;border:none;color:var(--brand);text-decoration:underline;cursor:pointer;font-size:13px;padding:0}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="field">
+      <label>Centro médico</label>
+      <input id="centro-nombre" type="text" readonly />
+    </div>
+    <div class="field">
+      <label>Profesional</label>
+      <select id="profesional-select"></select>
+    </div>
+    <div class="field">
+      <label>Tipo de turno</label>
+      <select id="tipo-turno">
+        <option value="nueva_consulta">Nueva consulta</option>
+        <option value="recurrente">Recurrente</option>
+        <option value="sobreturno">Sobreturno</option>
+      </select>
+    </div>
+    <div class="field" style="align-items:flex-end">
+      <button id="btn-hoy" class="btn ghost">Hoy</button>
+    </div>
+  </div>
+
+  <!-- Header calendario -->
+  <div class="head">
+    <div style="display:flex;gap:8px;align-items:center">
+      <button id="prev-month" class="btn secondary">◀</button>
+      <h2 id="cal-title">Calendario</h2>
+      <button id="next-month" class="btn secondary">▶</button>
+    </div>
+    <div class="legend">
+      <span class="dot free"></span> con disponibilidad
+      <span class="dot busy"></span> sin hueco para este tipo
+      <span class="dot none"></span> sin agenda
+    </div>
+  </div>
+
+  <!-- Calendario -->
+  <div class="cal">
+    <div class="cal-grid" id="cal-dow"></div>
+    <div class="cal-grid" id="cal-grid"></div>
+  </div>
+  <div class="footer-mini" id="status"></div>
+</div>
+
+<!-- Modal Día -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal">
+    <header>
+      <h3 id="modal-title">Turnos del día</h3>
+      <button class="close" id="modal-close">&times;</button>
+    </header>
+    <div class="grid">
+      <section class="slots">
+        <h4>Horarios disponibles</h4>
+        <div id="slots-list"></div>
+        <div class="hr"></div>
+        <h4>Turnos del día</h4>
+        <div id="turnos-dia-list"></div>
+      </section>
+      <aside class="side">
+        <h4>Paciente</h4>
+        <div class="search-row">
+          <input id="paciente-buscar" placeholder="DNI o Apellido/Nombre" />
+          <button class="btn ghost" id="btn-buscar-pac">Buscar</button>
+        </div>
+        <div id="pacientes-list" class="list"></div>
+        <div class="hr"></div>
+        <details>
+          <summary class="pill">Crear paciente rápido</summary>
+          <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input id="p-dni" placeholder="DNI *"/>
+            <input id="p-nombre" placeholder="Nombre *"/>
+            <input id="p-apellido" placeholder="Apellido *"/>
+            <input id="p-telefono" placeholder="Teléfono"/>
+            <input id="p-email" placeholder="Email" style="grid-column: span 2"/>
+          </div>
+          <div style="margin-top:8px">
+            <button class="btn" id="btn-crear-pac">Crear paciente</button>
+            <span id="pac-create-msg" class="muted"></span>
+          </div>
+        </details>
+        <div class="hr"></div>
+        <div class="muted">Seleccioná un paciente y luego un horario para agendar.</div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import supabase from './supabaseClient.js';
+import { isValidHourRange } from './validators.js';
+
+/* ----------------------- Estado global ----------------------- */
+const centroId = localStorage.getItem('centro_medico_id');
+const centroNombre = localStorage.getItem('centro_medico_nombre') || '';
+if (!centroId) {
+  alert('No hay centro seleccionado. Volviendo al login.');
+  window.location.href = 'index.html';
+}
+
+const UI = {
+  centroNombre: document.getElementById('centro-nombre'),
+  profesionalSelect: document.getElementById('profesional-select'),
+  tipoTurno: document.getElementById('tipo-turno'),
+  btnHoy: document.getElementById('btn-hoy'),
+  prevMonth: document.getElementById('prev-month'),
+  nextMonth: document.getElementById('next-month'),
+  calTitle: document.getElementById('cal-title'),
+  calGrid: document.getElementById('cal-grid'),
+  calDow: document.getElementById('cal-dow'),
+  status: document.getElementById('status'),
+  modal: document.getElementById('modal'),
+  modalClose: document.getElementById('modal-close'),
+  modalTitle: document.getElementById('modal-title'),
+  slotsList: document.getElementById('slots-list'),
+  turnosDiaList: document.getElementById('turnos-dia-list'),
+  buscarInput: document.getElementById('paciente-buscar'),
+  btnBuscarPac: document.getElementById('btn-buscar-pac'),
+  pacList: document.getElementById('pacientes-list'),
+  pDni: document.getElementById('p-dni'),
+  pNombre: document.getElementById('p-nombre'),
+  pApellido: document.getElementById('p-apellido'),
+  pTel: document.getElementById('p-telefono'),
+  pEmail: document.getElementById('p-email'),
+  btnCrearPac: document.getElementById('btn-crear-pac'),
+  pacCreateMsg: document.getElementById('pac-create-msg'),
+};
+
+UI.centroNombre.value = centroNombre;
+
+/* Fecha visible del calendario */
+let view = todayInfo();
+let currentProfesional = null;
+let duracionCfg = { // fallback por si no hay config
+  nueva_consulta: 15,
+  recurrente: 15,
+  sobreturno: 15,
+};
+let pacientesCache = [];  // última búsqueda
+let pacienteSeleccionado = null; // {id, nombre}
+
+/* ----------------------- Helpers de tiempo ----------------------- */
+function todayInfo(){
+  const d = new Date();
+  return { y:d.getFullYear(), m:d.getMonth(), d:d.getDate() };
+}
+function pad(n){ return n<10 ? '0'+n : ''+n; }
+function toISODate(y,m,d){ // m 0-based
+  return `${y}-${pad(m+1)}-${pad(d)}`;
+}
+function addMinutes(hhmm, minutes){
+  const [h,m]=hhmm.split(':').map(Number);
+  const base=new Date(2000,0,1,h,m,0);
+  base.setMinutes(base.getMinutes()+minutes);
+  return `${pad(base.getHours())}:${pad(base.getMinutes())}`;
+}
+function cmpTime(a,b){ // returns -1,0,1 for "HH:MM"
+  if(a===b) return 0;
+  return a<b ? -1 : 1;
+}
+function overlap(aStart,aEnd,bStart,bEnd){
+  return aStart < bEnd && bStart < aEnd;
+}
+function monthRange(y,m){ // first/last date ISO for queries
+  const first = new Date(y,m,1);
+  const last = new Date(y,m+1,0);
+  return { start: toISODate(y,m,1), end: toISODate(y,m,last.getDate()) };
+}
+const DOW = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+
+/* ----------------------- Carga profesionales ----------------------- */
+/** Intenta obtener los profesionales asociados al centro actual */
+async function loadProfesionales(){
+  UI.profesionalSelect.innerHTML = '<option value="">Cargando profesionales...</option>';
+  // 1) Consultamos mapeo profesional_centro (activos)
+  const { data: map, error: e1 } = await supabase
+    .from('profesional_centro')
+    .select('profesional_id, activo, profesionales(id, nombre, apellido, display_name)')
+    .eq('centro_id', centroId)
+    .eq('activo', true);
+
+  let lista = [];
+  if (!e1 && map?.length){
+    lista = map
+      .filter(r=>r.profesionales)
+      .map(r=>{
+        const p = r.profesionales;
+        const nombre = p.display_name || [p.apellido,p.nombre].filter(Boolean).join(', ') || p.nombre || p.apellido || p.id;
+        return { id:p.id, nombre };
+      });
+  } else {
+    // Fallback: buscar directamente en profesionales con centro_id = centroId si existiera esa columna
+    const { data: profs } = await supabase
+      .from('profesionales')
+      .select('id, nombre, apellido, display_name');
+    lista = (profs||[]).map(p=>{
+      const nombre = p.display_name || [p.apellido,p.nombre].filter(Boolean).join(', ') || p.nombre || p.apellido || p.id;
+      return { id:p.id, nombre };
+    });
+  }
+
+  if (!lista.length){
+    UI.profesionalSelect.innerHTML = '<option value="">No hay profesionales</option>';
+    currentProfesional = null;
+    return;
+  }
+  UI.profesionalSelect.innerHTML = lista.map(p=>`<option value="${p.id}">${p.nombre}</option>`).join('');
+  currentProfesional = lista[0].id;
+  UI.profesionalSelect.value = currentProfesional;
+}
+
+/* ----------------------- Config duraciones ----------------------- */
+async function loadDuracionConfig(profesionalId){
+  duracionCfg = { nueva_consulta:15, recurrente:15, sobreturno:15 }; // reset
+  const { data, error } = await supabase
+    .from('config_duracion_turnos')
+    .select('tipo_turno, minutos')
+    .eq('profesional_id', profesionalId)
+    .eq('centro_id', centroId);
+
+  if (!error && data?.length){
+    for (const r of data){
+      if (r.tipo_turno && r.minutos){
+        duracionCfg[r.tipo_turno] = r.minutos;
+      }
+    }
+  }
+}
+
+/* ----------------------- Query mensual: agenda y turnos ----------------------- */
+async function fetchAgendaYTurnos(profesionalId, y, m){
+  const { start, end } = monthRange(y,m);
+
+  const [agendaRes, turnosRes] = await Promise.all([
+    supabase.from('agenda')
+      .select('id, fecha, hora_inicio, hora_fin')
+      .eq('centro_id', centroId)
+      .eq('profesional_id', profesionalId)
+      .gte('fecha', start).lte('fecha', end)
+      .order('fecha', { ascending: true }),
+    supabase.from('turnos')
+      .select('id, fecha, hora_inicio, hora_fin, estado, paciente_id, agenda_id, comprobante, hora_arribo, notas, importe, estado_pago, medio_pago')
+      .eq('centro_id', centroId)
+      .eq('profesional_id', profesionalId)
+      .gte('fecha', start).lte('fecha', end)
+      .order('hora_inicio', { ascending: true })
+  ]);
+
+  const agenda = agendaRes.data || [];
+  const turnos = turnosRes.data || [];
+  return { agenda, turnos };
+}
+
+/* ----------------------- Generación de slots ----------------------- */
+function generarSlotsDeDia(agendaDelDia, turnosDelDia, tipo){
+  const dur = Number(duracionCfg[tipo] || 15);
+  if (!dur || isNaN(dur) || dur<=0) return [];
+
+  // Índice rápido de inicios ocupados (mismo profesional/día)
+  const ocupados = new Set((turnosDelDia||[]).map(t=>t.hora_inicio));
+
+  const slots = [];
+  for (const bloque of agendaDelDia){
+    // Generamos slots exactos dentro del bloque (sólo los que entran completos)
+    let t = bloque.hora_inicio;
+    while (cmpTime(addMinutes(t,dur), bloque.hora_fin) <= 0){
+      const start = t;
+      const end = addMinutes(t,dur);
+      const disponible = !ocupados.has(start); // chequeo rápido
+      slots.push({
+        start, end,
+        agenda_id: bloque.id,
+        disponible
+      });
+      t = end;
+    }
+  }
+  // Orden por hora
+  slots.sort((a,b)=> a.start < b.start ? -1 : a.start > b.start ? 1 : 0);
+  return slots;
+}
+
+/* ----------------------- Render calendario ----------------------- */
+function renderDOW(){
+  UI.calDow.innerHTML = '';
+  for (const d of DOW){
+    const el = document.createElement('div');
+    el.className = 'dow';
+    el.textContent = d;
+    UI.calDow.appendChild(el);
+  }
+}
+
+function nativeFirstDow(date){
+  // JS getDay(): 0=Dom ... 6=Sab; queremos 0=Lun ... 6=Dom
+  const js = date.getDay(); // 0..6
+  return (js === 0) ? 6 : js-1;
+}
+
+function groupByFecha(arr){
+  const map = new Map();
+  for (const x of arr){
+    const key = x.fecha;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(x);
+  }
+  return map;
+}
+
+async function renderCalendar(){
+  if (!currentProfesional) return;
+  UI.status.textContent = 'Cargando agenda...';
+
+  const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, view.y, view.m);
+  const byFechaAgenda = groupByFecha(agenda);
+  const byFechaTurnos = groupByFecha(turnos);
+  const tipo = UI.tipoTurno.value;
+
+  UI.calGrid.innerHTML = '';
+  const first = new Date(view.y, view.m, 1);
+  const last = new Date(view.y, view.m+1, 0);
+  UI.calTitle.textContent = first.toLocaleString('es-AR', { month: 'long', year: 'numeric' });
+
+  // Offset de inicio (para cuadrícula lunes-domingo)
+  const startOffset = nativeFirstDow(first);
+  const totalCells = startOffset + last.getDate();
+  const rows = Math.ceil(totalCells / 7);
+  let dayNum = 1;
+
+  for (let r=0; r<rows*7; r++){
+    const cell = document.createElement('div');
+    if (r < startOffset || dayNum>last.getDate()){
+      cell.className = 'day empty';
+      UI.calGrid.appendChild(cell);
+      continue;
+    }
+
+    const iso = toISODate(view.y, view.m, dayNum);
+    const agendaDia = byFechaAgenda.get(iso) || [];
+    const turnosDia = byFechaTurnos.get(iso) || [];
+
+    // Para saber si hay slots para el TIPO elegido:
+    const slotsPreview = generarSlotsDeDia(agendaDia, turnosDia, tipo);
+    const libres = slotsPreview.filter(s=>s.disponible).length;
+
+    let classNames = ['day'];
+    let badgeText = 'sin agenda';
+    if (agendaDia.length === 0){
+      classNames.push('empty');
+      badgeText = 'sin agenda';
+    } else if (libres>0){
+      classNames.push('free','clickable');
+      badgeText = `${libres} libres`;
+    } else {
+      classNames.push('busy','clickable');
+      badgeText = 'sin huecos';
+    }
+
+    cell.className = classNames.join(' ');
+    cell.innerHTML = `
+      <div class="num">${dayNum}</div>
+      <div class="badge">${badgeText}</div>
+    `;
+    if (classNames.includes('clickable')){
+      cell.addEventListener('click', ()=> openDayModal(iso, agendaDia, turnosDia));
+    }
+    UI.calGrid.appendChild(cell);
+    dayNum++;
+  }
+  UI.status.textContent = '';
+}
+
+/* ----------------------- Modal día ----------------------- */
+function renderTurnosDelDia(turnosDia){
+  if (!turnosDia?.length){
+    UI.turnosDiaList.innerHTML = '<div class="empty">No hay turnos en esta fecha.</div>';
+    return;
+  }
+  UI.turnosDiaList.innerHTML = turnosDia.map(t=>{
+    const pago = t.estado_pago ? ` · Pago: ${t.estado_pago}` : '';
+    return `
+      <div class="row">
+        <div>
+          <div><b>${t.hora_inicio}</b> - ${t.hora_fin || ''} <span class="meta">(${t.estado})</span></div>
+          <div class="meta">Turno ID: ${t.id}${pago}</div>
+        </div>
+        <div><button class="ghostlink" data-id="${t.id}" data-act="ver">ver</button></div>
+      </div>`;
+  }).join('');
+}
+
+function renderSlots(slots){
+  if (!slots.length){
+    UI.slotsList.innerHTML = '<div class="empty">No hay horarios disponibles para el tipo seleccionado.</div>';
+    return;
+  }
+  UI.slotsList.innerHTML = '';
+  for (const s of slots){
+    const row = document.createElement('div');
+    row.className = 'slot' + (s.disponible ? '' : ' unavailable');
+    row.innerHTML = `
+      <div>
+        <div class="time">${s.start} — ${s.end}</div>
+        <div class="mini">${s.agenda_id ? 'Agenda' : 'Libre'}</div>
+      </div>
+      <div>
+        ${s.disponible
+          ? `<button class="btn" data-start="${s.start}" data-end="${s.end}" data-agenda="${s.agenda_id||''}">Agendar</button>`
+          : `<button class="btn" disabled>Ocupado</button>`}
+      </div>
+    `;
+    if (s.disponible){
+      row.querySelector('button').addEventListener('click', () => tryAgendar(s));
+    }
+    UI.slotsList.appendChild(row);
+  }
+}
+
+async function openDayModal(isoDate, agendaDia, turnosDia){
+  const tipo = UI.tipoTurno.value;
+  UI.modalTitle.textContent = `Turnos del ${new Date(isoDate).toLocaleDateString('es-AR')} · ${getProfesionalLabel()}`;
+  UI.modal.style.display = 'flex';
+
+  // Re-generar usando configuración actual
+  const slots = generarSlotsDeDia(agendaDia, turnosDia, tipo);
+  renderSlots(slots);
+  renderTurnosDelDia(turnosDia);
+  pacienteSeleccionado = null;
+  highlightPacienteSeleccionado();
+}
+
+UI.modalClose.addEventListener('click', ()=> UI.modal.style.display='none');
+window.addEventListener('click', (e)=>{ if(e.target===UI.modal) UI.modal.style.display='none' });
+
+/* ----------------------- Pacientes: búsqueda / alta ----------------------- */
+function pacienteCard(p){
+  const full = `${p.apellido}, ${p.nombre}`;
+  const sel = pacienteSeleccionado?.id === p.id ? 'style="outline:2px solid var(--brand);border-radius:6px;"' : '';
+  return `
+    <div class="row" ${sel}>
+      <div>
+        <div><b>${full}</b> <span class="meta">DNI ${p.dni}</span></div>
+        <div class="meta">${p.telefono||''} ${p.email? '· '+p.email : ''}</div>
+      </div>
+      <div>
+        <button class="btn ghost" data-id="${p.id}" data-act="select">Seleccionar</button>
+      </div>
+    </div>`;
+}
+function highlightPacienteSeleccionado(){
+  // simple hint
+  UI.pacList.style.borderColor = pacienteSeleccionado ? '#9ee6b7' : 'var(--line)';
+}
+
+async function buscarPacientes(){
+  const q = (UI.buscarInput.value||'').trim();
+  UI.pacList.innerHTML = '<div class="empty">Buscando...</div>';
+  let data = [];
+
+  if (!q){
+    // últimos 10 activos como ayuda
+    const res = await supabase
+      .from('pacientes')
+      .select('id, dni, apellido, nombre, telefono, email, activo')
+      .eq('activo', true)
+      .order('updated_at', { ascending:false })
+      .limit(10);
+    data = res.data || [];
+  } else if (/^\d{6,}$/.test(q)) {
+    // búsqueda por DNI
+    const res = await supabase
+      .from('pacientes')
+      .select('id, dni, apellido, nombre, telefono, email, activo')
+      .eq('dni', q)
+      .limit(10);
+    data = res.data || [];
+  } else {
+    // por nombre/apellido (case-insensitive)
+    const parts = q.toLowerCase().split(/\s+/).filter(Boolean);
+    let query = supabase.from('pacientes')
+      .select('id, dni, apellido, nombre, telefono, email, activo')
+      .eq('activo', true)
+      .limit(20);
+    // aplicamos filtros básicos
+    if (parts[0]) query = query.ilike('apellido', `%${parts[0]}%`);
+    if (parts[1]) query = query.ilike('nombre', `%${parts[1]}%`);
+    const res = await query;
+    data = res.data || [];
+  }
+
+  pacientesCache = data;
+  if (!data.length){
+    UI.pacList.innerHTML = '<div class="empty">Sin resultados.</div>';
+    return;
+  }
+  UI.pacList.innerHTML = data.map(p => pacienteCard(p)).join('');
+  Array.from(UI.pacList.querySelectorAll('button[data-act="select"]')).forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.getAttribute('data-id');
+      pacienteSeleccionado = pacientesCache.find(x=>x.id===id) || null;
+      buscarPacientes(); // re-render para resaltar
+      highlightPacienteSeleccionado();
+    });
+  });
+}
+
+UI.btnBuscarPac.addEventListener('click', buscarPacientes);
+
+UI.btnCrearPac.addEventListener('click', async ()=>{
+  UI.pacCreateMsg.textContent = '';
+  const dni = UI.pDni.value.trim();
+  const nombre = UI.pNombre.value.trim();
+  const apellido = UI.pApellido.value.trim();
+  if (!dni || !nombre || !apellido){
+    UI.pacCreateMsg.textContent = 'DNI, Nombre y Apellido son obligatorios.';
+    return;
+  }
+  UI.pacCreateMsg.textContent = 'Creando paciente...';
+  const { data, error } = await supabase
+    .from('pacientes')
+    .insert([{ dni, nombre, apellido, telefono:UI.pTel.value.trim(), email:UI.pEmail.value.trim(), activo:true }])
+    .select('id, dni, nombre, apellido, telefono, email')
+    .single();
+
+  if (error){
+    UI.pacCreateMsg.textContent = 'Error: ' + (error.message || 'no se pudo crear');
+    return;
+  }
+  UI.pacCreateMsg.textContent = 'Paciente creado.';
+  pacienteSeleccionado = data;
+  UI.buscarInput.value = dni;
+  await buscarPacientes();
+  highlightPacienteSeleccionado();
+});
+
+/* ----------------------- Agendar turno ----------------------- */
+async function tryAgendar(slot){
+  if (!pacienteSeleccionado){
+    alert('Seleccioná un paciente antes de agendar.');
+    return;
+  }
+  // Seguridad local: el rango debe ser válido
+  if (!isValidHourRange(slot.start, slot.end)){
+    alert('Rango horario inválido.');
+    return;
+  }
+
+  const fechaISO = UI.modalTitle.textContent.match(/\d{1,2}\/\d{1,2}\/\d{4}/)
+    ? toISOFromLocale(UI.modalTitle.textContent)
+    : null;
+
+  // Mejor: tomar del título que construimos con new Date(iso). Pasemos iso por closure:
+  // Para eso, guardamos la última fecha abierta:
+}
+let modalDateISO = null; // guardamos fecha del modal
+function toISOFromLocale(localeStr){
+  // no usado (mantenemos iso global)
+  return null;
+}
+
+/* Rehacemos openDayModal para guardar isoDate */
+async function openDayModal(isoDate, agendaDia, turnosDia){
+  modalDateISO = isoDate;
+  const tipo = UI.tipoTurno.value;
+  UI.modalTitle.textContent = `Turnos del ${new Date(isoDate).toLocaleDateString('es-AR')} · ${getProfesionalLabel()}`;
+  UI.modal.style.display = 'flex';
+  const slots = generarSlotsDeDia(agendaDia, turnosDia, tipo);
+  renderSlots(slots);
+  renderTurnosDelDia(turnosDia);
+  pacienteSeleccionado = null;
+  highlightPacienteSeleccionado();
+}
+
+/* Acción real de agendar */
+async function tryAgendar(slot){
+  if (!pacienteSeleccionado){
+    alert('Seleccioná un paciente antes de agendar.');
+    return;
+  }
+  if (!isValidHourRange(slot.start, slot.end)){
+    alert('Rango horario inválido.');
+    return;
+  }
+  const tipo = UI.tipoTurno.value;
+  const { data, error } = await supabase
+    .from('turnos')
+    .insert([{
+      agenda_id: slot.agenda_id || null,
+      centro_id: centroId,
+      profesional_id: currentProfesional,
+      paciente_id: pacienteSeleccionado.id,
+      fecha: modalDateISO,
+      hora_inicio: slot.start,
+      hora_fin: slot.end,
+      estado: 'asignado', // estado inicial
+      notas: tipo === 'sobreturno' ? 'Sobreturno' : null
+    }])
+    .select('id');
+
+  if (error){
+    // Mensajes amigables ante concurrencia/bloqueos
+    const msg = (error.message||'').toLowerCase().includes('solap')
+      ? 'Ese horario se ocupó recién por otro usuario.'
+      : error.message || 'No se pudo agendar.';
+    alert(msg);
+    // Refrescar día
+    await refreshModalDay();
+    return;
+  }
+  alert('Turno agendado correctamente.');
+  await refreshModalDay(true);
+}
+
+async function refreshModalDay(scrollToNew=false){
+  // Volvemos a pedir datos del mes y reconstruimos vista del día
+  const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, view.y, view.m);
+  const agendaDia = (agenda||[]).filter(a=>a.fecha===modalDateISO);
+  const turnosDia = (turnos||[]).filter(t=>t.fecha===modalDateISO);
+  const slots = generarSlotsDeDia(agendaDia, turnosDia, UI.tipoTurno.value);
+  renderSlots(slots);
+  renderTurnosDelDia(turnosDia);
+  await renderCalendar();
+}
+
+/* ----------------------- UX general ----------------------- */
+function getProfesionalLabel(){
+  const opt = UI.profesionalSelect.selectedOptions[0];
+  return opt ? opt.textContent : 'Profesional';
+}
+
+UI.profesionalSelect.addEventListener('change', async ()=>{
+  currentProfesional = UI.profesionalSelect.value || null;
+  await loadDuracionConfig(currentProfesional);
+  await renderCalendar();
+});
+
+UI.tipoTurno.addEventListener('change', async ()=>{
+  await renderCalendar();
+});
+
+UI.prevMonth.addEventListener('click', async ()=>{
+  if (view.m===0){ view.m=11; view.y--; } else view.m--;
+  await renderCalendar();
+});
+UI.nextMonth.addEventListener('click', async ()=>{
+  if (view.m===11){ view.m=0; view.y++; } else view.m++;
+  await renderCalendar();
+});
+UI.btnHoy.addEventListener('click', async ()=>{
+  const t = todayInfo();
+  view = { y:t.y, m:t.m, d:t.d };
+  await renderCalendar();
+});
+
+/* ----------------------- Init ----------------------- */
+async function init(){
+  renderDOW();
+  await loadProfesionales();
+  if (!currentProfesional) return;
+  await loadDuracionConfig(currentProfesional);
+  await renderCalendar();
+  // Búsqueda inicial de pacientes (ayuda)
+  await buscarPacientes();
+}
+await init();
+
+</script>
+</body>
+</html>
