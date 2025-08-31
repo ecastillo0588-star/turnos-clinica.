@@ -5,15 +5,17 @@
   <title>Turnos — EG Health Solutions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
+    /* Reset suave */
+    *{box-sizing:border-box}
     :root{
       --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
       --bg:#f7f9fb; --card:#fff; --line:#ece5fc; --accent:#0b5394;
       --ok:#0a7d38; --okbg:#e8fff0;
     }
     body{margin:0;background:var(--bg);font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
-    .wrap{max-width:1100px;margin:0 auto;padding:6px}
+    .wrap{max-width:1100px;margin:0 auto;padding:12px}
 
-    /* Toolbar */
+    /* Controles */
     .toolbar{display:grid;grid-template-columns: 1.1fr 1.1fr 1.4fr 1fr auto;gap:12px;align-items:end;margin-bottom:14px;
       background:var(--card);border-radius:16px;box-shadow:0 2px 12px rgba(80,60,160,.10);padding:14px}
     .field{display:flex;flex-direction:column;gap:6px;position:relative}
@@ -27,7 +29,7 @@
     .btn:hover{filter:brightness(.98)}
 
     /* chip paciente seleccionado */
-    .chip{position:absolute;right:8px;top:-18px;background:#e7e2fa;color:#5a3e9a;border-radius:999px;padding:2px 8px;font-size:12px;display:flex;gap:6px;align-items:center}
+    .chip{position:absolute;right:8px;top:-18px;background:#e7e2fa;color:#5a3e9a;border-radius:999px;padding:2px 8px;font-size:12px;display:flex;gap:6px;align-items:center;z-index:3}
     .chip button{all:unset;cursor:pointer}
 
     /* typeahead */
@@ -59,12 +61,18 @@
     .day.clickable:hover{transform:translateY(-1px)}
     .footer-mini{margin-top:8px;font-size:12px;color:var(--muted)}
 
-    /* Modal Día */
-    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.22);display:none;align-items:center;justify-content:center;z-index:1000}
-    .modal{width:min(900px,95vw);background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px}
+    /* Backdrops + modales */
+    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.22);display:none;align-items:center;justify-content:center;z-index:1000;overscroll-behavior:contain}
+    .modal{
+      width:min(900px,96vw);
+      background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px;
+      /* Scroll seguro para que NADA quede oculto */
+      max-height:92vh; overflow:auto; overflow-x:auto;
+    }
     .modal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
     .modal h3{margin:0;font-size:18px}
     .close{background:transparent;border:none;font-size:24px;color:var(--brand);cursor:pointer}
+
     .slots{border:1px solid var(--line);border-radius:10px;padding:10px;max-height:60vh;overflow:auto}
     .slot{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0;background:#faf9ff}
     .slot.unavailable{opacity:.45}
@@ -72,22 +80,27 @@
     .slot button{padding:6px 10px}
 
     /* Modal OK */
-    .modal-ok{width:min(640px,95vw);background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px;border:2px solid var(--okbg)}
+    .modal-ok{width:min(640px,96vw);background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px;border:2px solid var(--okbg);
+      max-height:92vh; overflow:auto}
     .ok-head{display:flex;gap:10px;align-items:center}
     .ok-badge{background:var(--okbg);color:var(--ok);border-radius:999px;padding:4px 10px;font-weight:700;font-size:13px}
     .ok-list{margin:12px 0 6px;padding-left:18px}
     .ok-list li{margin:6px 0}
 
-    /* --- Nuevo layout del modal de Paciente (3 columnas) --- */
-    .grid3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:12px}
+    /* Modal Paciente (3 columnas con scroll horizontal si no entra) */
+    .grid3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:12px; min-width:980px}
     .col-card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#faf9ff}
     .col-card h4{margin:0 0 8px;color:var(--ink)}
     .span3{grid-column:1/4}
-    @media (max-width:980px){ .grid3{grid-template-columns:1fr} .span3{grid-column:auto} }
+    @media (max-width:980px){ .grid3{ min-width:auto; grid-template-columns:1fr } .span3{ grid-column:auto } }
     .uploadzone{background:#fff;border:2px dashed var(--line);border-radius:12px;padding:12px;text-align:center}
     .uploadthumb{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:8px}
     .uploadthumb img{width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
     .badge-req{color:#b00020;margin-left:4px}
+
+    /* scrollbars más amables */
+    .modal::-webkit-scrollbar{ height:10px; width:10px }
+    .modal::-webkit-scrollbar-thumb{ background:#d8cfff; border-radius:8px }
   </style>
 </head>
 <body>
@@ -105,7 +118,7 @@
     <!-- Profesional -->
     <div class="field">
       <label>Profesional</label>
-      <select id="turnos-profesional-select" class="sel"></select>
+      <select id="turnos-profesional-select" class="sel"><option>Profesional</option></select>
     </div>
 
     <!-- Paciente -->
@@ -201,7 +214,7 @@
 
 <!-- Modal Crear Paciente (3 columnas) -->
 <div class="modal-backdrop" id="turnos-modal-paciente" style="display:none;">
-  <div class="modal" style="width:min(900px,95vw)">
+  <div class="modal">
     <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <h3 style="margin:0">Crear nuevo paciente</h3>
       <button class="close" id="turnos-modal-paciente-close">&times;</button>
@@ -213,19 +226,14 @@
         <h4>Datos del paciente</h4>
         <label>DNI <span class="badge-req">*</span></label>
         <input id="np-dni" class="inp" required />
-
         <label>Nombre <span class="badge-req">*</span></label>
         <input id="np-nombre" class="inp" required />
-
         <label>Apellido <span class="badge-req">*</span></label>
         <input id="np-apellido" class="inp" required />
-
         <label>Fecha de nacimiento <span class="badge-req">*</span></label>
         <input id="np-fecha-nac" class="inp" type="date" required />
-
         <label>Teléfono <span class="badge-req">*</span></label>
         <input id="np-telefono" class="inp" required />
-
         <label>Email</label>
         <input id="np-email" class="inp" type="email" />
       </div>
@@ -237,7 +245,6 @@
         <input id="np-obra" class="inp" />
         <label>N° afiliado</label>
         <input id="np-afiliado" class="inp" />
-
         <label>Credencial (imagen)</label>
         <div class="uploadzone">
           <input type="file" id="np-cred-file" accept="image/*,.pdf" style="display:none" />
@@ -363,6 +370,18 @@ function groupByFecha(arr){ const map=new Map(); for(const x of arr){ const k=x.
 function toHM(t){ return (t ?? '').toString().slice(0,5); }
 function overlaps(aStart,aEnd,bStart,bEnd){ return (aStart < bEnd) && (bStart < aEnd); }
 function fmtDateLong(iso){ return new Date(iso+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long', day:'numeric', month:'long', year:'numeric'}) }
+function normalizePhoneForWA(phoneRaw){
+  if (!phoneRaw) return '';
+  let p = String(phoneRaw).replace(/[^\d]/g,'');
+  if (p.startsWith('0')) p = p.slice(1);
+  if (!p.startsWith('54')) p = '54' + p; // ajustar si usás otro prefijo país
+  return p;
+}
+function buildWhatsAppMessage({pac, fechaISO, start, end, prof, centro, dir}){
+  const fecha = fmtDateLong(fechaISO);
+  const hora = `${start} a ${end}`;
+  return `Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fecha} de ${hora} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;
+}
 
 /* ========== Estado ========== */
 let view = todayInfo();
@@ -371,7 +390,7 @@ let duracionCfg = { nueva_consulta:15, recurrente:15, sobreturno:15 };
 let modalDateISO = null;
 let pacienteSeleccionado = null;
 
-/* ========== Centro ========== */
+/* ========== Centros ========== */
 async function fetchCentroById(id){
   const { data } = await supabase.from('centros_medicos').select('nombre,direccion').eq('id', id).single();
   return { nombre: data?.nombre || '', direccion: data?.direccion || '' };
@@ -387,17 +406,17 @@ async function getCentrosDeProfesional(profesionalId){
 }
 async function ensureCentroWidgets(){
   if (userRole === 'asistente'){
-    document.getElementById('turnos-centro-nombre').style.display = '';
-    document.getElementById('turnos-centro-select').style.display = 'none';
+    UI.centroNombre.style.display = '';
+    UI.centroSelect.style.display = 'none';
     const c = await fetchCentroById(currentCentroId);
     currentCentroNombre = c.nombre || currentCentroNombre;
     currentCentroDireccion = c.direccion || '';
-    document.getElementById('turnos-centro-nombre').value = currentCentroNombre || '(sin nombre)';
+    UI.centroNombre.value = currentCentroNombre || '(sin nombre)';
   } else {
-    document.getElementById('turnos-centro-select').style.display = '';
-    document.getElementById('turnos-centro-nombre').style.display = 'none';
+    UI.centroSelect.style.display = '';
+    UI.centroNombre.style.display = 'none';
     const centros = await getCentrosDeProfesional(loggedProfesionalId);
-    const sel = document.getElementById('turnos-centro-select');
+    const sel = UI.centroSelect;
     if (!centros.length){ sel.innerHTML = '<option value="">Sin centros</option>'; return; }
     sel.innerHTML = centros.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
     if (currentCentroId && centros.some(c=>c.id===currentCentroId)) sel.value = currentCentroId; else { currentCentroId = centros[0].id; sel.value = currentCentroId; }
@@ -420,23 +439,57 @@ async function ensureCentroWidgets(){
 
 /* ========== Profesionales ========== */
 async function loadProfesionales(){
-  const sel = document.getElementById('turnos-profesional-select');
+  const sel = UI.profesionalSelect;
+
+  // Si es médico: fijamos su propia opción con label correcto
   if (userRole === 'medico' && loggedProfesionalId) {
-    const { data } = await supabase.from('profesionales').select('id, nombre, apellido, display_name').eq('id', loggedProfesionalId).single();
-    const label = data ? (data.display_name || [data.apellido, data.nombre].filter(Boolean).join(', ') || data.nombre || data.apellido || data.id) : 'Profesional';
+    let label = null;
+    try {
+      const { data } = await supabase
+        .from('profesionales')
+        .select('id, nombre, apellido, display_name')
+        .eq('id', loggedProfesionalId)
+        .single();
+      if (data) {
+        label = data.display_name
+             || [data.apellido, data.nombre].filter(Boolean).join(', ')
+             || data.nombre || data.apellido || null;
+      }
+    } catch (_) {}
+    if (!label) {
+      label = localStorage.getItem('user_name')
+           || localStorage.getItem('email')
+           || 'Mi agenda';
+    }
     sel.innerHTML = `<option value="${loggedProfesionalId}">${label}</option>`;
+    sel.value = loggedProfesionalId;
     sel.disabled = true;
     currentProfesional = loggedProfesionalId;
     return;
   }
+
+  // Si NO es médico (asistente/propietario): listamos profesionales asociados al centro
   sel.disabled = false;
-  const { data: map } = await supabase
+
+  const { data: map, error: mapErr } = await supabase
     .from('profesional_centro')
     .select('profesional_id')
     .eq('centro_id', currentCentroId)
     .eq('activo', true);
+
+  if (mapErr) {
+    sel.innerHTML = '<option value="">(error al cargar)</option>';
+    currentProfesional = null;
+    return;
+  }
+
   const ids = [...new Set((map||[]).map(r=>r.profesional_id).filter(Boolean))];
-  if (!ids.length){ sel.innerHTML='<option value="">Sin profesionales</option>'; currentProfesional=null; return; }
+  if (!ids.length){
+    sel.innerHTML = '<option value="">Sin profesionales</option>';
+    currentProfesional = null;
+    return;
+  }
+
   const { data: profs } = await supabase
     .from('profesionales')
     .select('id, nombre, apellido, display_name')
@@ -444,10 +497,13 @@ async function loadProfesionales(){
     .order('apellido', { ascending:true });
 
   sel.innerHTML = (profs||[]).map(p=>{
-    const nombre = p.display_name || [p.apellido,p.nombre].filter(Boolean).join(', ') || p.nombre || p.apellido || p.id;
+    const nombre = p.display_name
+                || [p.apellido, p.nombre].filter(Boolean).join(', ')
+                || p.nombre || p.apellido || p.id;
     return `<option value="${p.id}">${nombre}</option>`;
   }).join('');
-  currentProfesional = (profs&&profs[0]) ? profs[0].id : null;
+
+  currentProfesional = (profs && profs[0]) ? profs[0].id : null;
   if (currentProfesional) sel.value = currentProfesional;
 }
 
@@ -550,7 +606,7 @@ function selectPaciente(p){
 }
 UI.pacClear.addEventListener('click', ()=>{ pacienteSeleccionado=null; UI.pacChip.style.display='none'; });
 
-/* ========== Modal Paciente (3 columnas) ========== */
+/* Modal Paciente */
 function openPacienteModalPrefilled(q){
   UI.npDni.value = /^\d{6,}$/.test(q) ? q : '';
   const parts = q.split(/\s+/).filter(Boolean);
@@ -562,10 +618,10 @@ function openPacienteModalPrefilled(q){
   UI.npConNom.value=''; UI.npConApe.value=''; UI.npConCel.value=''; UI.npVinculo.value='';
   UI.npHistoria.value=''; UI.npCredFile.value=''; UI.npCredPreview.style.display='none'; UI.npCredPreview.innerHTML='';
   UI.npMsg.textContent='';
-  UI.modalPac.style.display='flex';
+  document.getElementById('turnos-modal-paciente').style.display='flex';
 }
-UI.modalPacClose.addEventListener('click', ()=> UI.modalPac.style.display='none');
-window.addEventListener('click', (e)=>{ if (e.target===UI.modalPac) UI.modalPac.style.display='none'; });
+UI.modalPacClose.addEventListener('click', ()=> document.getElementById('turnos-modal-paciente').style.display='none');
+window.addEventListener('click', (e)=>{ const b1=document.getElementById('turnos-modal-paciente'); if (e.target===b1) b1.style.display='none'; });
 
 UI.npHistoriaOpen.addEventListener('click', (e)=>{ if(!UI.npHistoria.value){ e.preventDefault(); } });
 UI.npCredSelect.addEventListener('click', ()=> UI.npCredFile.click());
@@ -590,7 +646,7 @@ UI.npCredFile.addEventListener('change', ()=>{
   });
 });
 
-/* Guardar paciente con upload a Storage (bucket 'credenciales') */
+/* Guardar paciente (sube credencial a Storage) */
 UI.npGuardar.addEventListener('click', async ()=>{
   const dni = UI.npDni.value.trim();
   const nombre = UI.npNombre.value.trim();
@@ -610,7 +666,7 @@ UI.npGuardar.addEventListener('click', async ()=>{
     const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
     const path = `${dni}_${Date.now()}.${ext}`;
     const { data: up, error: upErr } = await supabase.storage
-      .from('credenciales') // <-- bucket público
+      .from('credenciales')
       .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
     if (upErr){ UI.npMsg.textContent = 'No se pudo subir la credencial: ' + (upErr.message || ''); return; }
     const { data: pub } = supabase.storage.from('credenciales').getPublicUrl(up.path);
@@ -639,7 +695,7 @@ UI.npGuardar.addEventListener('click', async ()=>{
 
   if (error){ UI.npMsg.textContent = 'Error: ' + (error.message || 'no se pudo crear'); return; }
 
-  UI.modalPac.style.display='none';
+  document.getElementById('turnos-modal-paciente').style.display='none';
   selectPaciente(data);
   UI.pacInput.value = `${data.apellido} ${data.nombre}`;
   UI.tipoTurno.value = 'nueva_consulta';
@@ -647,18 +703,6 @@ UI.npGuardar.addEventListener('click', async ()=>{
 
 /* ========== Agenda & Turnos ========== */
 function renderDowTurnos(){ UI.calDow.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
-function normalizePhoneForWA(phoneRaw){
-  if (!phoneRaw) return '';
-  let p = String(phoneRaw).replace(/[^\d]/g,'');
-  if (p.startsWith('0')) p = p.slice(1);
-  if (!p.startsWith('54')) p = '54' + p; // ajustá si necesitás otro país
-  return p;
-}
-function buildWhatsAppMessage({pac, fechaISO, start, end, prof, centro, dir}){
-  const fecha = fmtDateLong(fechaISO);
-  const hora = `${start} a ${end}`;
-  return `Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fecha} de ${hora} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;
-}
 
 async function fetchAgendaYTurnos(profesionalId, y, m){
   const first = new Date(y,m,1), last = new Date(y,m+1,0);
@@ -751,12 +795,12 @@ async function renderCalendar(){
 async function openDayModal(isoDate, agendaDia, turnosDia){
   modalDateISO = isoDate;
   UI.modalTitle.textContent = `Turnos del ${new Date(isoDate).toLocaleDateString('es-AR')}`;
-  UI.modal.style.display = 'flex';
+  document.getElementById('turnos-modal').style.display = 'flex';
   renderSlots(generarSlotsDeDia(agendaDia, turnosDia, UI.tipoTurno.value));
   renderTurnosDelDia(turnosDia);
 }
-UI.modalClose.addEventListener('click', ()=> UI.modal.style.display='none');
-window.addEventListener('click', (e)=>{ if(e.target===UI.modal) UI.modal.style.display='none' });
+UI.modalClose.addEventListener('click', ()=> document.getElementById('turnos-modal').style.display='none');
+window.addEventListener('click', (e)=>{ const b=document.getElementById('turnos-modal'); if(e.target===b) b.style.display='none' });
 
 function renderTurnosDelDia(turnosDia){
   if (!turnosDia?.length){ UI.turnosDiaList.innerHTML = '<div class="footer-mini">No hay turnos en esta fecha.</div>'; return; }
@@ -811,10 +855,10 @@ function openOkModal({pac, fechaISO, start, end, profLabel}){
     navigator.clipboard.writeText(link).then(()=> UI.okMsg.textContent='Copiado').catch(()=> UI.okMsg.textContent='No se pudo copiar');
   };
 
-  UI.okBackdrop.style.display = 'flex';
+  document.getElementById('turnos-modal-ok').style.display = 'flex';
 }
-UI.okClose.addEventListener('click', ()=> UI.okBackdrop.style.display='none');
-window.addEventListener('click', (e)=>{ if (e.target===UI.okBackdrop) UI.okBackdrop.style.display='none'; });
+UI.okClose.addEventListener('click', ()=> document.getElementById('turnos-modal-ok').style.display='none');
+window.addEventListener('click', (e)=>{ const b=document.getElementById('turnos-modal-ok'); if (e.target===b) b.style.display='none'; });
 
 /* Agendar */
 async function tryAgendar(slot){
@@ -839,7 +883,7 @@ async function tryAgendar(slot){
     const msg = (error.message||'').toLowerCase().includes('solap') ? 'Ese horario se ocupó recién por otro usuario.' : (error.message || 'No se pudo agendar.');
     alert(msg);
   } else {
-    const profLabel = document.getElementById('turnos-profesional-select').options[document.getElementById('turnos-profesional-select').selectedIndex]?.textContent || 'Profesional';
+    const profLabel = UI.profesionalSelect.options[UI.profesionalSelect.selectedIndex]?.textContent || 'Profesional';
     openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel });
   }
 
@@ -852,8 +896,8 @@ async function tryAgendar(slot){
 }
 
 /* Eventos generales */
-document.getElementById('turnos-profesional-select').addEventListener('change', async ()=>{
-  currentProfesional = document.getElementById('turnos-profesional-select').value || null;
+UI.profesionalSelect.addEventListener('change', async ()=>{
+  currentProfesional = UI.profesionalSelect.value || null;
   await loadDuracionConfig(currentProfesional);
   await renderCalendar();
 });
@@ -863,8 +907,9 @@ UI.nextMonth.addEventListener('click', async ()=>{ if (view.m===11){ view.m=0; v
 UI.btnHoy.addEventListener('click', async ()=>{ const t=todayInfo(); view={ y:t.y, m:t.m, d:t.d }; await renderCalendar(); });
 
 /* Init */
+function renderDow(){ UI.calDow.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
 async function initTurnos(){
-  renderDowTurnos();
+  renderDow();
   await ensureCentroWidgets();
   await loadProfesionales();
   if (!currentProfesional){ UI.status.textContent='No hay profesional seleccionado.'; return; }
