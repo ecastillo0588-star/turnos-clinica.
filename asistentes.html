@@ -49,32 +49,32 @@
     </tbody>
   </table>
   <div style="margin-top:20px;">
-    <button type="button" id="crear-asistente-btn" class="btn primary">Vincular asistente a centro médico</button>
+    <button type="button" id="asistentes-crear-btn" class="btn primary">Vincular asistente a centro médico</button>
   </div>
-  <div id="status-msg-asistente" class="muted" style="margin-top:10px;"></div>
+  <div id="asistentes-status-msg" class="muted" style="margin-top:10px;"></div>
 </div>
 
 <!-- Modal para vincular asistente -->
-<div id="modal-asistente" class="modal" style="display:none;">
+<div id="asistentes-modal" class="modal" style="display:none;">
   <div class="modal-content">
-    <span class="close" id="cerrar-modal-asistente">&times;</span>
-    <h4 id="modal-title-asistente">Vincular asistente a centro médico</h4>
-    <form id="form-asistente">
-      <label for="asistente_select">Seleccione un asistente</label>
-      <select id="asistente_select" required>
+    <span class="close" id="asistentes-cerrar-modal">&times;</span>
+    <h4 id="asistentes-modal-title">Vincular asistente a centro médico</h4>
+    <form id="asistentes-form">
+      <label for="asistentes_select">Seleccione un asistente</label>
+      <select id="asistentes_select" required>
         <option value="" disabled selected>Cargando asistentes...</option>
       </select>
-      <label for="asistente_centro">Centro médico</label>
-      <select id="asistente_centro" required>
+      <label for="asistentes_centro">Centro médico</label>
+      <select id="asistentes_centro" required>
         <option value="" disabled selected>Cargando centros...</option>
       </select>
-      <label for="asistente_activo">Activo</label>
-      <select id="asistente_activo">
+      <label for="asistentes_activo">Activo</label>
+      <select id="asistentes_activo">
         <option value="true" selected>Activo</option>
         <option value="false">Inactivo</option>
       </select>
       <button type="submit" class="btn primary" style="margin-top:10px;">Vincular</button>
-      <div id="modal-asistente-status" class="muted" style="margin-top:10px;"></div>
+      <div id="asistentes-modal-status" class="muted" style="margin-top:10px;"></div>
     </form>
   </div>
 </div>
@@ -87,18 +87,18 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 const profesionalId = localStorage.getItem('profesional_id');
 const asistentesTbody = document.getElementById('asistentes-tbody');
-const crearAsistenteBtn = document.getElementById('crear-asistente-btn');
-const modalAsistente = document.getElementById('modal-asistente');
-const cerrarModalAsistente = document.getElementById('cerrar-modal-asistente');
-const formAsistente = document.getElementById('form-asistente');
-const modalAsistenteStatus = document.getElementById('modal-asistente-status');
-const statusMsgAsistente = document.getElementById('status-msg-asistente');
-const asistenteCentroSelect = document.getElementById('asistente_centro');
-const asistenteSelect = document.getElementById('asistente_select');
+const asistentesCrearBtn = document.getElementById('asistentes-crear-btn');
+const asistentesModal = document.getElementById('asistentes-modal');
+const asistentesCerrarModal = document.getElementById('asistentes-cerrar-modal');
+const asistentesForm = document.getElementById('asistentes-form');
+const asistentesModalStatus = document.getElementById('asistentes-modal-status');
+const asistentesStatusMsg = document.getElementById('asistentes-status-msg');
+const asistentesCentroSelect = document.getElementById('asistentes_centro');
+const asistentesSelect = document.getElementById('asistentes_select');
 
-// Cargar centros médicos asociados al profesional para el select del asistente
-async function cargarCentrosAsistente() {
-  asistenteCentroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
+// Trae los centros médicos asociados al profesional para el select
+async function asistentesCargarCentros() {
+  asistentesCentroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
   const { data, error } = await supabase
     .from('profesional_centro')
     .select('centro_id, centros_medicos(id, nombre)')
@@ -106,7 +106,7 @@ async function cargarCentrosAsistente() {
     .eq('activo', true);
 
   if (error || !data) {
-    asistenteCentroSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
+    asistentesCentroSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
     return;
   }
   const centrosUnicos = {};
@@ -118,23 +118,23 @@ async function cargarCentrosAsistente() {
       };
     }
   });
-  const centrosMedicosAsistente = Object.values(centrosUnicos);
-  if (centrosMedicosAsistente.length === 0) {
-    asistenteCentroSelect.innerHTML = `<option value="" disabled>No tienes centros médicos asociados aún.</option>`;
+  const centros = Object.values(centrosUnicos);
+  if (centros.length === 0) {
+    asistentesCentroSelect.innerHTML = `<option value="" disabled>No tienes centros médicos asociados aún.</option>`;
     return;
   }
-  asistenteCentroSelect.innerHTML = `<option value="" disabled selected>Seleccione un centro</option>`;
-  centrosMedicosAsistente.forEach(c => {
+  asistentesCentroSelect.innerHTML = `<option value="" disabled selected>Seleccione un centro</option>`;
+  centros.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.id;
     opt.textContent = c.nombre;
-    asistenteCentroSelect.appendChild(opt);
+    asistentesCentroSelect.appendChild(opt);
   });
 }
 
-// Cargar asistentes no vinculados a ningún centro activo
-async function cargarAsistentesLibres() {
-  asistenteSelect.innerHTML = `<option value="" disabled selected>Cargando asistentes...</option>`;
+// Trae los asistentes no vinculados a ningún centro activo
+async function asistentesCargarLibres() {
+  asistentesSelect.innerHTML = `<option value="" disabled selected>Cargando asistentes...</option>`;
   // 1. Traer todos los asistentes
   const { data: asistentes } = await supabase
     .from('profiles')
@@ -152,26 +152,27 @@ async function cargarAsistentesLibres() {
   const asistentesLibres = asistentes.filter(a => !idsVinculados.includes(a.id));
 
   if (!asistentesLibres.length) {
-    asistenteSelect.innerHTML = `<option value="" disabled>No hay asistentes libres</option>`;
+    asistentesSelect.innerHTML = `<option value="" disabled>No hay asistentes libres</option>`;
     return;
   }
-  asistenteSelect.innerHTML = `<option value="" disabled selected>Seleccione un asistente</option>`;
+  asistentesSelect.innerHTML = `<option value="" disabled selected>Seleccione un asistente</option>`;
   asistentesLibres.forEach(a => {
     const opt = document.createElement('option');
     opt.value = a.id;
     opt.textContent = `${a.display_name} (${a.email})`;
-    asistenteSelect.appendChild(opt);
+    asistentesSelect.appendChild(opt);
   });
 }
 
-// Cargar asistentes asociados a los centros médicos del usuario
-async function cargarTablaAsistentes() {
+// Carga la tabla de asistentes asociados a los centros médicos del usuario
+async function asistentesCargarTabla() {
   asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Cargando asistentes...</td></tr>`;
   const { data: centros } = await supabase
     .from('profesional_centro')
     .select('centro_id')
     .eq('profesional_id', profesionalId)
     .eq('activo', true);
+
   const idsCentros = centros && centros.length ? centros.map(c => c.centro_id) : [];
   let asistentes = [];
   if (idsCentros.length) {
@@ -211,40 +212,40 @@ async function cargarTablaAsistentes() {
   // Listeners para desasociar
   Array.from(document.getElementsByClassName('desasociar-btn')).forEach(el => {
     el.addEventListener('click', () => {
-      desasociarAsistente(el.getAttribute('data-id'), el.getAttribute('data-centro'));
+      asistentesDesasociar(el.getAttribute('data-id'), el.getAttribute('data-centro'));
     });
   });
 }
 
 // Abrir modal para vincular asistente
-crearAsistenteBtn.addEventListener('click', async () => {
-  formAsistente.reset();
-  modalAsistenteStatus.textContent = '';
-  await cargarAsistentesLibres();
-  await cargarCentrosAsistente();
-  modalAsistente.style.display = 'flex';
+asistentesCrearBtn.addEventListener('click', async () => {
+  asistentesForm.reset();
+  asistentesModalStatus.textContent = '';
+  await asistentesCargarLibres();
+  await asistentesCargarCentros();
+  asistentesModal.style.display = 'flex';
 });
 
 // Cerrar modal asistente
-cerrarModalAsistente.addEventListener('click', () => {
-  modalAsistente.style.display = 'none';
+asistentesCerrarModal.addEventListener('click', () => {
+  asistentesModal.style.display = 'none';
 });
 window.addEventListener('click', (e) => {
-  if (e.target === modalAsistente) modalAsistente.style.display = 'none';
+  if (e.target === asistentesModal) asistentesModal.style.display = 'none';
 });
 
-// Guardar asistente (solo vinculación, asume que el perfil ya existe)
-formAsistente.addEventListener('submit', async function(e) {
+// Vincular asistente al centro médico
+asistentesForm.addEventListener('submit', async function(e) {
   e.preventDefault();
-  const auth_id = asistenteSelect.value;
-  const centro_id = asistenteCentroSelect.value;
-  const activo = document.getElementById('asistente_activo').value === 'true';
+  const auth_id = asistentesSelect.value;
+  const centro_id = asistentesCentroSelect.value;
+  const activo = document.getElementById('asistentes_activo').value === 'true';
 
   if (!auth_id || !centro_id) {
-    modalAsistenteStatus.textContent = 'Todos los campos son obligatorios.';
+    asistentesModalStatus.textContent = 'Todos los campos son obligatorios.';
     return;
   }
-  modalAsistenteStatus.textContent = 'Procesando...';
+  asistentesModalStatus.textContent = 'Procesando...';
 
   // Verifica si la vinculación ya existe
   const { data: vinculosExist, error: errorVincCheck } = await supabase
@@ -255,12 +256,12 @@ formAsistente.addEventListener('submit', async function(e) {
     .eq('activo', true);
 
   if (errorVincCheck) {
-    modalAsistenteStatus.textContent = 'Error al verificar vinculación: ' + errorVincCheck.message;
+    asistentesModalStatus.textContent = 'Error al verificar vinculación: ' + errorVincCheck.message;
     return;
   }
 
   if (vinculosExist && vinculosExist.length > 0) {
-    modalAsistenteStatus.textContent = 'Ya existe la vinculación de este asistente con ese centro.';
+    asistentesModalStatus.textContent = 'Ya existe la vinculación de este asistente con ese centro.';
     return;
   }
 
@@ -270,17 +271,17 @@ formAsistente.addEventListener('submit', async function(e) {
     .insert({ profesional_id: auth_id, centro_id, activo: activo });
 
   if (errorPC) {
-    modalAsistenteStatus.textContent = 'Error al asociar asistente a centro médico';
+    asistentesModalStatus.textContent = 'Error al asociar asistente a centro médico';
     return;
   }
 
-  modalAsistenteStatus.textContent = '¡Asistente vinculado exitosamente!';
-  await cargarTablaAsistentes();
-  setTimeout(() => { modalAsistente.style.display = 'none'; }, 1200);
+  asistentesModalStatus.textContent = '¡Asistente vinculado exitosamente!';
+  await asistentesCargarTabla();
+  setTimeout(() => { asistentesModal.style.display = 'none'; }, 1200);
 });
 
 // Desasociar asistente de centro médico
-async function desasociarAsistente(auth_id, centro_id) {
+async function asistentesDesasociar(auth_id, centro_id) {
   if (!confirm('¿Seguro que quieres desasociar este asistente del centro médico?')) return;
   const { error } = await supabase
     .from('profesional_centro')
@@ -291,15 +292,15 @@ async function desasociarAsistente(auth_id, centro_id) {
     alert('Error al desasociar el asistente');
     return;
   }
-  await cargarTablaAsistentes();
-  await cargarAsistentesLibres(); // Para actualizar el select del modal
+  await asistentesCargarTabla();
+  await asistentesCargarLibres(); // Actualiza el select para el modal
 }
 
 // Inicialización
 if (profesionalId) {
-  cargarTablaAsistentes();
+  asistentesCargarTabla();
 } else {
-  statusMsgAsistente.textContent = 'No se detectó profesional en sesión.';
+  asistentesStatusMsg.textContent = 'No se detectó profesional en sesión.';
 }
 </script>
 </body>
