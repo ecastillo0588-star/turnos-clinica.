@@ -372,23 +372,34 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
 };
 
 // --- Cargar nombres de agendas en el select para eliminar ---
+
 async function cargarNombresAgendas() {
   const selectAgenda = document.getElementById('select-agenda');
   selectAgenda.innerHTML = '<option value="">-- Seleccione agenda --</option>';
+
   const { data, error } = await supabase
     .from('agenda')
-    .select('"Nombre de Agenda"')
+    .select('"Nombre de Agenda"')   // 👈 respetamos comillas dobles
     .eq('profesional_id', profesional_id);
+
   if (error) {
+    console.error("Error al cargar agendas:", error);
     document.getElementById('msg-eliminar-agenda').textContent = 'Error al cargar agendas.';
     return;
   }
-  const nombresUnicos = [...new Set(data.map(a => a['Nombre de Agenda']).filter(n => n && n.trim() !== ''))];
+
+  console.log("Agendas obtenidas:", data);
+
+  const nombresUnicos = [...new Set(
+    data.map(a => a['Nombre de Agenda']).filter(n => n && n.trim() !== '')
+  )];
+
   if (nombresUnicos.length === 0) {
     selectAgenda.innerHTML += '<option value="">(No hay agendas)</option>';
     document.getElementById('btn-eliminar-agenda').disabled = true;
     return;
   }
+
   nombresUnicos.forEach(nombre => {
     const opt = document.createElement('option');
     opt.value = nombre;
@@ -396,40 +407,24 @@ async function cargarNombresAgendas() {
     selectAgenda.appendChild(opt);
   });
 }
-cargarNombresAgendas();
-
-document.getElementById('select-agenda').onchange = function() {
-  document.getElementById('btn-eliminar-agenda').disabled = !this.value;
-  document.getElementById('msg-eliminar-agenda').textContent = '';
-};
 
 document.getElementById('btn-eliminar-agenda').onclick = async function() {
   const selectAgenda = document.getElementById('select-agenda');
   if (!selectAgenda.value) return;
 
-  // 👀 Debug: qué valor se intenta borrar
-  console.log("Intentando borrar agenda con nombre:", selectAgenda.value, "y profesional_id:", profesional_id);
-
-  // 👀 Debug: mostrar registros existentes antes de borrar
-  const { data: checkData, error: checkError } = await supabase
-    .from('agenda')
-    .select('id, "Nombre de Agenda", profesional_id')
-    .eq('profesional_id', profesional_id);
-
-  console.log("Registros actuales en agenda:", checkData, "Error:", checkError);
-
   if (!confirm(`¿Seguro que deseas eliminar la agenda "${selectAgenda.value}" y todos sus rangos?`)) return;
 
-  // Intento de borrado
+  console.log("Intentando eliminar agenda:", selectAgenda.value);
+
   const { error } = await supabase
     .from('agenda')
     .delete()
     .eq('profesional_id', profesional_id)
-    .eq('"Nombre de Agenda"', selectAgenda.value);
+    .eq('"Nombre de Agenda"', selectAgenda.value); // 👈 respetamos comillas dobles
 
   if (error) {
-    console.error("Error en delete:", error);
-    document.getElementById('msg-eliminar-agenda').textContent = 'Error al eliminar la agenda: ' + error.message;
+    console.error("Error al eliminar agenda:", error);
+    document.getElementById('msg-eliminar-agenda').textContent = 'Error al eliminar la agenda.';
   } else {
     document.getElementById('msg-eliminar-agenda').textContent = 'Agenda eliminada correctamente.';
     await cargarNombresAgendas();
@@ -437,6 +432,7 @@ document.getElementById('btn-eliminar-agenda').onclick = async function() {
     document.getElementById('btn-eliminar-agenda').disabled = true;
   }
 };
+
 
 </script>
 </body>
