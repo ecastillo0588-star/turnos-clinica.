@@ -168,7 +168,7 @@ async function cargarAsistentes() {
         <span class="activo-tag${a.active ? '' : ' no'}">${activoTxt}</span>
       </td>
       <td class="action-cell">
-        <!-- Puedes agregar acciones aquí -->
+        <!-- Aquí puedes agregar los botones de editar/eliminar si lo necesitas -->
       </td>
     `;
     asistentesTbody.appendChild(tr);
@@ -207,8 +207,7 @@ formAsistente.addEventListener('submit', async function(e) {
     return;
   }
 
-  // Crear usuario en auth (requiere configuración especial de Supabase)
-  // Para demo: solo crea el registro en profiles
+  // Solo crea el registro en profiles (no en auth, para evitar errores de permisos)
   const { error: errorProfile } = await supabase
     .from('profiles')
     .insert({
