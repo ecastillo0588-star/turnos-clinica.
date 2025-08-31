@@ -1,0 +1,65 @@
+// profesionalCentroService.js
+import supabase from './supabaseClient.js';
+
+/**
+ * Lista centros asociados (activos) al profesional con los datos del centro.
+ */
+export async function listarCentrosDeProfesional(profesionalId) {
+  return await supabase
+    .from('profesional_centro')
+    .select('centro_id, activo, centros_medicos(id, nombre, direccion, telefono, email, notas)')
+    .eq('profesional_id', profesionalId)
+    .eq('activo', true);
+}
+
+/**
+ * Asocia un profesional a un centro.
+ * - Evita duplicados activos.
+ * - Si existía la relación inactiva, la reactiva.
+ */
+export async function asociarProfesionalACentro({ profesional_id, centro_id }) {
+  // ¿Existe ya activo?
+  const { count, error: dupErr } = await supabase
+    .from('profesional_centro')
+    .select('profesional_id', { count: 'exact', head: true })
+    .eq('profesional_id', profesional_id)
+    .eq('centro_id', centro_id)
+    .eq('activo', true);
+  if (dupErr) return { error: dupErr };
+  if ((count ?? 0) > 0) return { error: { message: 'Ya estás asociado a ese centro.' } };
+
+  // ¿Existe inactivo? -> reactivar
+  const { data: inactivos, error: qErr } = await supabase
+    .from('profesional_centro')
+    .select('profesional_id, centro_id, activo')
+    .eq('profesional_id', profesional_id)
+    .eq('centro_id', centro_id)
+    .eq('activo', false);
+  if (qErr) return { error: qErr };
+
+  if (inactivos && inactivos.length > 0) {
+    const { error: upErr } = await supabase
+      .from('profesional_centro')
+      .update({ activo: true })
+      .eq('profesional_id', profesional_id)
+      .eq('centro_id', centro_id);
+    return { error: upErr || null };
+  }
+
+  // Crear nueva relación
+  const { error: insErr } = await supabase
+    .from('profesional_centro')
+    .insert({ profesional_id, centro_id, activo: true });
+  return { error: insErr || null };
+}
+
+/**
+ * Desasocia (marca inactiva) la relación profesional-centro.
+ */
+export async function desasociarProfesionalDeCentro({ profesional_id, centro_id }) {
+  return await supabase
+    .from('profesional_centro')
+    .update({ activo: false })
+    .eq('profesional_id', profesional_id)
+    .eq('centro_id', centro_id);
+}
