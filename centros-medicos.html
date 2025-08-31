@@ -94,12 +94,19 @@
 </div>
 
 <script type="module">
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+/**
+ * IMPORTA TUS HELPERS (no se repiten keys ni URLs acá)
+ */
+import supabase from './supabaseClient.js';
+import {
+  getCentrosByProfesional,      // (profesionalId) -> [{id, nombre, direccion, telefono, email, notas}]
+  getCentrosActivos,            // () -> [{id, nombre}]
+  createCentro,                 // (payload) -> centro creado
+  updateCentro,                 // (id, payload)
+  linkProfesionalToCentro,      // (profesionalId, centroId, activo=true)
+  unlinkProfesionalFromCentro   // (profesionalId, centroId) => set activo=false
+} from './centrosService.js';
 
-// ---- DATOS DE SESIÓN ----
 const profesionalId = localStorage.getItem('profesional_id');
 
 const centrosTbody = document.getElementById('centros-tbody');
@@ -119,44 +126,34 @@ const centroExistenteSelect = document.getElementById('centro-existente');
 const modalAsociarStatus = document.getElementById('modal-asociar-status');
 
 let centrosMedicos = [];
-let centroEditId = null; // Si se está editando
+let centroEditId = null;
 
-// Cargar centros médicos asociados al profesional
+/* ---------- LISTADO ---------- */
 async function cargarCentros() {
   centrosTbody.innerHTML = `<tr><td colspan="6" class="muted">Cargando centros...</td></tr>`;
-  let { data, error } = await supabase
-    .from('profesional_centro')
-    .select('centro_id, centros_medicos(id, nombre, direccion, telefono, email, notas)')
-    .eq('profesional_id', profesionalId)
-    .eq('activo', true);
-
-  if (error || !data) {
+  try {
+    const lista = await getCentrosByProfesional(profesionalId);
+    centrosMedicos = Array.isArray(lista) ? lista : [];
+  } catch (e) {
     centrosTbody.innerHTML = `<tr><td colspan="6" class="muted">Error al cargar centros médicos</td></tr>`;
+    console.error(e);
     return;
   }
-  centrosMedicos = data
-    .filter(row => row.centros_medicos)
-    .map(row => ({
-      id: row.centros_medicos.id,
-      nombre: row.centros_medicos.nombre,
-      direccion: row.centros_medicos.direccion || '',
-      telefono: row.centros_medicos.telefono || '',
-      email: row.centros_medicos.email || '',
-      notas: row.centros_medicos.notas || ''
-    }));
+
   if (centrosMedicos.length === 0) {
     centrosTbody.innerHTML = `<tr><td colspan="6" class="muted">No tienes centros médicos asociados aún.</td></tr>`;
     return;
   }
+
   centrosTbody.innerHTML = '';
   centrosMedicos.forEach(c => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${c.nombre}</td>
-      <td>${c.direccion || '-'}</td>
-      <td>${c.telefono || '-'}</td>
-      <td>${c.email || '-'}</td>
-      <td>${c.notas || '-'}</td>
+      <td>${c.nombre ?? '-'}</td>
+      <td>${c.direccion ?? '-'}</td>
+      <td>${c.telefono ?? '-'}</td>
+      <td>${c.email ?? '-'}</td>
+      <td>${c.notas ?? '-'}</td>
       <td class="action-cell">
         <button class="icon-btn edit-btn" title="Editar" data-id="${c.id}">
           <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" stroke="currentColor" fill="none"><path d="M16.475 3.975a3.047 3.047 0 1 1 4.305 4.304l-12.144 12.14-4.3.001.001-4.3z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m15.5 6.5 2 2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -168,21 +165,17 @@ async function cargarCentros() {
     `;
     centrosTbody.appendChild(tr);
   });
-  // Listeners para editar
-  Array.from(document.getElementsByClassName('edit-btn')).forEach(el => {
-    el.addEventListener('click', () => {
-      openEditCentro(el.getAttribute('data-id'));
-    });
-  });
-  // Listeners para desasociar
-  Array.from(document.getElementsByClassName('desasociar-btn')).forEach(el => {
-    el.addEventListener('click', () => {
-      desasociarCentro(el.getAttribute('data-id'));
-    });
-  });
+
+  // Listeners
+  document.querySelectorAll('.edit-btn').forEach(el =>
+    el.addEventListener('click', () => openEditCentro(el.getAttribute('data-id')))
+  );
+  document.querySelectorAll('.desasociar-btn').forEach(el =>
+    el.addEventListener('click', () => desasociarCentro(el.getAttribute('data-id')))
+  );
 }
 
-// Abrir modal para crear nuevo centro
+/* ---------- CREAR / EDITAR ---------- */
 crearCentroBtn.addEventListener('click', () => {
   centroEditId = null;
   modalTitle.textContent = 'Crear centro médico';
@@ -191,117 +184,89 @@ crearCentroBtn.addEventListener('click', () => {
   modalCentro.style.display = 'flex';
 });
 
-// Abrir modal para editar centro
 function openEditCentro(id) {
   const centro = centrosMedicos.find(c => c.id == id);
   if (!centro) return;
   centroEditId = id;
   modalTitle.textContent = 'Editar centro médico';
-  document.getElementById('centro_nombre').value = centro.nombre;
-  document.getElementById('centro_direccion').value = centro.direccion;
-  document.getElementById('centro_telefono').value = centro.telefono;
-  document.getElementById('centro_email').value = centro.email;
-  document.getElementById('centro_notas').value = centro.notas;
+  document.getElementById('centro_nombre').value = centro.nombre || '';
+  document.getElementById('centro_direccion').value = centro.direccion || '';
+  document.getElementById('centro_telefono').value = centro.telefono || '';
+  document.getElementById('centro_email').value = centro.email || '';
+  document.getElementById('centro_notas').value = centro.notas || '';
   modalCentroStatus.textContent = '';
   modalCentro.style.display = 'flex';
 }
 
-cerrarModalCentro.addEventListener('click', () => {
-  modalCentro.style.display = 'none';
-});
+cerrarModalCentro.addEventListener('click', () => { modalCentro.style.display = 'none'; });
 window.addEventListener('click', (e) => {
   if (e.target === modalCentro) modalCentro.style.display = 'none';
   if (e.target === modalAsociar) modalAsociar.style.display = 'none';
 });
 
-// Guardar centro médico (crear o editar)
 formCentro.addEventListener('submit', async function(e) {
   e.preventDefault();
-  const nombre = document.getElementById('centro_nombre').value.trim();
-  const direccion = document.getElementById('centro_direccion').value.trim();
-  const telefono = document.getElementById('centro_telefono').value.trim();
-  const email = document.getElementById('centro_email').value.trim();
-  const notas = document.getElementById('centro_notas').value.trim();
-
-  if (!nombre) {
+  const payload = {
+    nombre: document.getElementById('centro_nombre').value.trim(),
+    direccion: document.getElementById('centro_direccion').value.trim(),
+    telefono: document.getElementById('centro_telefono').value.trim(),
+    email: document.getElementById('centro_email').value.trim(),
+    notas: document.getElementById('centro_notas').value.trim()
+  };
+  if (!payload.nombre) {
     modalCentroStatus.textContent = 'El nombre es obligatorio.';
     return;
   }
   modalCentroStatus.textContent = 'Guardando...';
 
-  if (!centroEditId) {
-    // Crear centro
-    const { data: centro, error: errorCentro } = await supabase
-      .from('centros_medicos')
-      .insert([{ nombre, direccion, telefono, email, notas }])
-      .select();
-    if (errorCentro || !centro || !centro[0]) {
-      modalCentroStatus.textContent = 'Error al crear centro médico';
-      return;
+  try {
+    if (!centroEditId) {
+      // Crear y asociar
+      const nuevo = await createCentro(payload);
+      await linkProfesionalToCentro(profesionalId, nuevo.id, true);
+      modalCentroStatus.textContent = 'Centro creado y asociado exitosamente!';
+    } else {
+      await updateCentro(centroEditId, payload);
+      modalCentroStatus.textContent = 'Centro actualizado!';
     }
-    // Asociar centro al profesional
-    const { error: errorPC } = await supabase
-      .from('profesional_centro')
-      .insert({ profesional_id: profesionalId, centro_id: centro[0].id });
-    if (errorPC) {
-      modalCentroStatus.textContent = 'Error al asociar centro médico';
-      return;
-    }
-    modalCentroStatus.textContent = 'Centro creado y asociado exitosamente!';
-    await cargarCentros();
-    setTimeout(() => { modalCentro.style.display = 'none'; }, 1200);
-  } else {
-    // Editar centro
-    const { error: errorUpdate } = await supabase
-      .from('centros_medicos')
-      .update({ nombre, direccion, telefono, email, notas })
-      .eq('id', centroEditId);
-    if (errorUpdate) {
-      modalCentroStatus.textContent = 'Error al actualizar centro médico';
-      return;
-    }
-    modalCentroStatus.textContent = 'Centro actualizado!';
     await cargarCentros();
     setTimeout(() => { modalCentro.style.display = 'none'; }, 900);
+  } catch (err) {
+    console.error(err);
+    modalCentroStatus.textContent = 'Ocurrió un error al guardar.';
   }
 });
 
-// ------- Asociarse a centro médico existente --------
+/* ---------- ASOCIAR EXISTENTE ---------- */
 asociarCentroBtn.addEventListener('click', async () => {
   modalAsociarStatus.textContent = '';
   centroExistenteSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
   modalAsociar.style.display = 'flex';
-  // Traer todos los centros médicos activos no asociados al profesional
-  let { data, error } = await supabase
-    .from('centros_medicos')
-    .select('id, nombre')
-    .eq('activo', true);
-  if (error || !data) {
+
+  try {
+    const todosActivos = await getCentrosActivos(); // [{id,nombre}]
+    const asociadosIds = new Set(centrosMedicos.map(c => c.id));
+    const disponibles = (todosActivos || []).filter(c => !asociadosIds.has(c.id));
+
+    if (disponibles.length === 0) {
+      centroExistenteSelect.innerHTML = `<option value="" disabled>No hay centros disponibles</option>`;
+      return;
+    }
+    centroExistenteSelect.innerHTML = `<option value="" disabled selected>Seleccione un centro</option>`;
+    disponibles.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nombre;
+      centroExistenteSelect.appendChild(opt);
+    });
+  } catch (e) {
+    console.error(e);
     centroExistenteSelect.innerHTML = `<option value="" disabled>Error al cargar</option>`;
-    return;
   }
-  // Filtrar los centros NO asociados (no están en centrosMedicos)
-  const asociadosIds = centrosMedicos.map(c=>c.id);
-  const disponibles = data.filter(c=> !asociadosIds.includes(c.id));
-  if (disponibles.length === 0) {
-    centroExistenteSelect.innerHTML = `<option value="" disabled>No hay centros disponibles</option>`;
-    return;
-  }
-  centroExistenteSelect.innerHTML = `<option value="" disabled selected>Seleccione un centro</option>`;
-  disponibles.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = c.nombre;
-    centroExistenteSelect.appendChild(opt);
-  });
 });
 
-// Cerrar modal asociar
-cerrarModalAsociar.addEventListener('click', () => {
-  modalAsociar.style.display = 'none';
-});
+cerrarModalAsociar.addEventListener('click', () => { modalAsociar.style.display = 'none'; });
 
-// Asociar centro médico existente
 formAsociarCentro.addEventListener('submit', async function(e) {
   e.preventDefault();
   const centroId = centroExistenteSelect.value;
@@ -309,36 +274,30 @@ formAsociarCentro.addEventListener('submit', async function(e) {
     modalAsociarStatus.textContent = 'Seleccione un centro';
     return;
   }
-  // Crear relación en profesional_centro
-  const { error } = await supabase
-    .from('profesional_centro')
-    .insert({ profesional_id: profesionalId, centro_id: centroId, activo: true });
-  if (error) {
+  try {
+    await linkProfesionalToCentro(profesionalId, centroId, true);
+    modalAsociarStatus.textContent = 'Centro asociado correctamente';
+    await cargarCentros();
+    setTimeout(() => { modalAsociar.style.display = 'none'; }, 900);
+  } catch (err) {
+    console.error(err);
     modalAsociarStatus.textContent = 'Error al asociar centro médico';
-    return;
   }
-  modalAsociarStatus.textContent = 'Centro asociado correctamente';
-  await cargarCentros();
-  setTimeout(() => { modalAsociar.style.display = 'none'; }, 1000);
 });
 
-// --------- DESASOCIAR CENTRO MÉDICO ----------
+/* ---------- DESASOCIAR (activo=false) ---------- */
 async function desasociarCentro(centroId) {
   if (!confirm('¿Seguro que quieres desasociar este centro médico?')) return;
-  // Puedes hacer un delete o update (activo=false) según el modelo
-  const { error } = await supabase
-    .from('profesional_centro')
-    .update({ activo: false })
-    .eq('profesional_id', profesionalId)
-    .eq('centro_id', centroId);
-  if (error) {
+  try {
+    await unlinkProfesionalFromCentro(profesionalId, centroId);
+    await cargarCentros();
+  } catch (err) {
+    console.error(err);
     alert('Error al desasociar el centro médico');
-    return;
   }
-  await cargarCentros();
 }
 
-// Inicialización
+/* ---------- INIT ---------- */
 if (profesionalId) {
   await cargarCentros();
 } else {
