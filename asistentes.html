@@ -97,14 +97,27 @@
 </div>
 
 <script type="module">
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Simula el profesionalId, deberías obtenerlo de la sesión real
-const profesionalId = localStorage.getItem('profesional_id') || 'test-profesional-id';
+// Función para hacer consultas seguras a la API REST de Supabase
+async function supabaseFetch(endpoint, params = "") {
+  const url = `${supabaseUrl}/rest/v1/${endpoint}${params}`;
+  const res = await fetch(url, {
+    headers: {
+      apikey: supabaseAnonKey,
+      Authorization: `Bearer ${supabaseAnonKey}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || res.statusText);
+  }
+  return await res.json();
+}
 
+// Elementos
 const asistentesTbody = document.getElementById('asistentes-tbody');
 const crearAsistenteBtn = document.getElementById('crear-asistente-btn');
 const modalAsistente = document.getElementById('modal-asistente');
@@ -115,69 +128,60 @@ const centroSelect = document.getElementById('centro_id');
 const modalTitle = document.getElementById('modal-title');
 const statusMsg = document.getElementById('status-msg');
 
-let asistentes = [];
 let centrosMedicos = [];
-let asistenteEditId = null;
 
 // Cargar centros médicos desde la base
 async function cargarCentros() {
   centroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
-  let { data, error } = await supabase
-    .from('centros_medicos')
-    .select('id, nombre');
-  if (error || !data) {
+  try {
+    const data = await supabaseFetch('centros_medicos', '?select=id,nombre');
+    centrosMedicos = data;
+    centroSelect.innerHTML = `<option value="" disabled selected>Seleccione centro médico</option>`;
+    centrosMedicos.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nombre;
+      centroSelect.appendChild(opt);
+    });
+  } catch (error) {
     centroSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
-    return;
   }
-  centrosMedicos = data;
-  centroSelect.innerHTML = `<option value="" disabled selected>Seleccione centro médico</option>`;
-  centrosMedicos.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = c.nombre;
-    centroSelect.appendChild(opt);
-  });
 }
 
 // Cargar asistentes desde la base
 async function cargarAsistentes() {
   asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Cargando asistentes...</td></tr>`;
-  let { data, error } = await supabase
-    .from('profiles')
-    .select('id, email, display_name, role, active, centro_id')
-    .eq('role', 'asistente');
-  if (error || !data) {
+  try {
+    // Filtro correcto: role=eq.asistente
+    const params = '?select=id,email,display_name,role,active,centro_id&role=eq.asistente';
+    const data = await supabaseFetch('profiles', params);
+    if (data.length === 0) {
+      asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">No tienes asistentes creados aún.</td></tr>`;
+      return;
+    }
+    asistentesTbody.innerHTML = "";
+    data.forEach((a) => {
+      const centroNombre = centrosMedicos.find(c => c.id === a.centro_id)?.nombre || '-';
+      const activoTxt = a.active ? 'Sí' : 'No';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${a.display_name || '-'}</td>
+        <td>${a.email || '-'}</td>
+        <td>${centroNombre}</td>
+        <td>
+          <span class="activo-tag${a.active ? '' : ' no'}">${activoTxt}</span>
+        </td>
+        <td class="action-cell"></td>
+      `;
+      asistentesTbody.appendChild(tr);
+    });
+  } catch (error) {
     asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Error al cargar asistentes</td></tr>`;
-    return;
   }
-  asistentes = data;
-  if (data.length === 0) {
-    asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">No tienes asistentes creados aún.</td></tr>`;
-    return;
-  }
-  asistentesTbody.innerHTML = "";
-  data.forEach((a) => {
-    const centroNombre = centrosMedicos.find(c => c.id === a.centro_id)?.nombre || '-';
-    const activoTxt = a.active ? 'Sí' : 'No';
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${a.display_name || '-'}</td>
-      <td>${a.email || '-'}</td>
-      <td>${centroNombre}</td>
-      <td>
-        <span class="activo-tag${a.active ? '' : ' no'}">${activoTxt}</span>
-      </td>
-      <td class="action-cell">
-        <!-- Aquí puedes agregar los botones de editar/eliminar si lo necesitas -->
-      </td>
-    `;
-    asistentesTbody.appendChild(tr);
-  });
 }
 
 // Abrir modal para crear asistente
 crearAsistenteBtn.addEventListener('click', async () => {
-  asistenteEditId = null;
   modalTitle.textContent = 'Crear asistente';
   await cargarCentros();
   formAsistente.reset();
@@ -207,24 +211,36 @@ formAsistente.addEventListener('submit', async function(e) {
     return;
   }
 
-  // Solo crea el registro en profiles (no en auth, para evitar errores de permisos)
-  const { error: errorProfile } = await supabase
-    .from('profiles')
-    .insert({
+  try {
+    // Solo crea el registro en profiles (no en auth, para evitar errores de permisos)
+    const body = JSON.stringify({
       email,
       display_name,
       role: 'asistente',
       active,
       centro_id
     });
-  if (errorProfile) {
-    modalAsistenteStatus.textContent = 'Error al crear asistente: ' + errorProfile.message;
-    return;
+    const res = await fetch(`${supabaseUrl}/rest/v1/profiles`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body
+    });
+    if (!res.ok) {
+      const errorText = await res.text();
+      modalAsistenteStatus.textContent = 'Error al crear asistente: ' + errorText;
+      return;
+    }
+    modalAsistenteStatus.textContent = '¡Asistente creado correctamente!';
+    await cargarAsistentes();
+    setTimeout(() => { modalAsistente.style.display = 'none'; }, 1200);
+  } catch (error) {
+    modalAsistenteStatus.textContent = 'Error al crear asistente: ' + error.message;
   }
-
-  modalAsistenteStatus.textContent = '¡Asistente creado correctamente!';
-  await cargarAsistentes();
-  setTimeout(() => { modalAsistente.style.display = 'none'; }, 1200);
 });
 
 // Inicialización
