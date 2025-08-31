@@ -20,9 +20,12 @@
     td { font-size: 15px; border-bottom: 1px solid #ece5fc; }
     tr:last-child td { border-bottom: none; }
     .icon-btn { background: none; border: none; cursor: pointer; padding: 0; margin-left: 6px;}
-    .icon-btn img { vertical-align: middle; width: 22px; height: 22px;}
+    .icon-btn svg { vertical-align: middle; width: 22px; height: 22px;}
+    .icon-btn.edit-btn svg { stroke: #7656b0; }
+    .icon-btn.desasociar-btn svg { stroke: #B00020; }
+    .icon-btn.edit-btn:hover svg { stroke: #381e60; }
+    .icon-btn.desasociar-btn:hover svg { stroke: #8e0c2f; }
     .action-cell { text-align: right; }
-    .association-row { margin-top: 30px; padding-top:30px; border-top: 1px solid #ece5fc;}
     .modal { position:fixed; z-index:999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.18); display:flex; align-items:center; justify-content:center;}
     .modal-content { background:#fff; padding:28px 22px 20px 22px; border-radius:14px; min-width:300px; max-width:350px; position:relative; box-shadow:0 2px 18px rgba(80,60,160,.18);}
     .close { position:absolute; right:12px; top:10px; font-size:20px; color:#7656b0; cursor:pointer;}
@@ -156,7 +159,10 @@ async function cargarCentros() {
       <td>${c.notas || '-'}</td>
       <td class="action-cell">
         <button class="icon-btn edit-btn" title="Editar" data-id="${c.id}">
-          <img src="https://cdn.jsdelivr.net/gh/tabler/tabler-icons/icons/edit.svg" alt="Editar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" stroke="currentColor" fill="none"><path d="M16.475 3.975a3.047 3.047 0 1 1 4.305 4.304l-12.144 12.14-4.3.001.001-4.3z" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="m15.5 6.5 2 2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="icon-btn desasociar-btn" title="Desasociar" data-id="${c.id}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" stroke="currentColor" fill="none"><path d="M5 11V7a7 7 0 0 1 14 0v4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="11" width="14" height="8" rx="2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 17v-2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
       </td>
     `;
@@ -166,6 +172,12 @@ async function cargarCentros() {
   Array.from(document.getElementsByClassName('edit-btn')).forEach(el => {
     el.addEventListener('click', () => {
       openEditCentro(el.getAttribute('data-id'));
+    });
+  });
+  // Listeners para desasociar
+  Array.from(document.getElementsByClassName('desasociar-btn')).forEach(el => {
+    el.addEventListener('click', () => {
+      desasociarCentro(el.getAttribute('data-id'));
     });
   });
 }
@@ -309,6 +321,22 @@ formAsociarCentro.addEventListener('submit', async function(e) {
   await cargarCentros();
   setTimeout(() => { modalAsociar.style.display = 'none'; }, 1000);
 });
+
+// --------- DESASOCIAR CENTRO MÉDICO ----------
+async function desasociarCentro(centroId) {
+  if (!confirm('¿Seguro que quieres desasociar este centro médico?')) return;
+  // Puedes hacer un delete o update (activo=false) según el modelo
+  const { error } = await supabase
+    .from('profesional_centro')
+    .update({ activo: false })
+    .eq('profesional_id', profesionalId)
+    .eq('centro_id', centroId);
+  if (error) {
+    alert('Error al desasociar el centro médico');
+    return;
+  }
+  await cargarCentros();
+}
 
 // Inicialización
 if (profesionalId) {
