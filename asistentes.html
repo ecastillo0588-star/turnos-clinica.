@@ -2,14 +2,17 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Crear Asistente</title>
+  <title>Gestión de Asistentes</title>
   <style>
     body { font-family: Arial, sans-serif; }
-    .container { max-width: 400px; margin: 50px auto; padding: 24px; border: 1px solid #eee; border-radius: 8px;}
+    .container { max-width: 600px; margin: 36px auto; padding: 24px; border: 1px solid #eee; border-radius: 8px;}
     input, select { width: 100%; margin-bottom: 12px; padding: 8px; }
     button { padding: 8px 16px; }
     .status { margin-top: 16px; height: 24px; color: #006400; }
     .error { color: #c00; }
+    table { width: 100%; border-collapse: collapse; margin-top: 24px;}
+    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
+    th { background: #fafafa; }
   </style>
 </head>
 <body>
@@ -17,13 +20,15 @@
     <h2>Crear Asistente</h2>
     <form id="formAsistente">
       <label for="display_name">Nombre Completo</label>
-      <input type="text" id="display_name" required placeholder="Ej: Ailin Frias">
-      
+      <input type="text" id="display_name" required placeholder="Ej: ailin frias">
+
       <label for="email">Email</label>
       <input type="email" id="email" required placeholder="Ej: afrias@gmail.com">
 
-      <label for="centro_id">Centro Médico (ID)</label>
-      <input type="text" id="centro_id" required placeholder="ID del centro médico">
+      <label for="centro_id">Centro Médico</label>
+      <select id="centro_id" required>
+        <option value="">Seleccione un centro...</option>
+      </select>
 
       <label for="active">Activo</label>
       <select id="active">
@@ -33,12 +38,29 @@
       <button type="submit">Crear Asistente</button>
     </form>
     <div id="status" class="status"></div>
+
+    <h2>Asistentes Existentes</h2>
+    <table id="tablaAsistentes">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Email</th>
+          <th>Centro Médico</th>
+          <th>Activo</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- Aquí se cargan los asistentes -->
+      </tbody>
+    </table>
   </div>
 
   <script type="module">
-    // Configuración Supabase
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
     const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
     // Función para generar UUID v4
     function generateUUID() {
@@ -47,11 +69,88 @@
       );
     }
 
+    // Cargar centros médicos asociados al usuario logueado
+    async function cargarCentros() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      // Consulta los centros médicos asociados al profesional logueado
+      // Suponemos que la tabla profesional_centro enlaza profesional_id y centro_id
+      const { data, error } = await supabase
+        .from('profesional_centro')
+        .select('centro_id, centros(nombre)')
+        .eq('profesional_id', user.id)
+        .eq('activo', true);
+      const select = document.getElementById('centro_id');
+      select.innerHTML = '<option value="">Seleccione un centro...</option>';
+      if (data) {
+        data.forEach((row) => {
+          select.innerHTML += `<option value="${row.centro_id}">${row.centros?.nombre ?? row.centro_id}</option>`;
+        });
+      }
+    }
+
+    // Cargar asistentes existentes asociados al usuario logueado
+    async function cargarAsistentes() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      // Consulta los asistentes asociados a los mismos centros médicos que el profesional
+      // Suponemos que el campo profesional_id en profesional_centro es el id del asistente
+      // y que los asistentes tienen role = 'asistente'
+      const { data: centros } = await supabase
+        .from('profesional_centro')
+        .select('centro_id')
+        .eq('profesional_id', user.id)
+        .eq('activo', true);
+
+      if (!centros || !centros.length) return;
+      const idsCentros = centros.map(c => c.centro_id);
+
+      // Buscar asistentes en esos centros
+      const { data: asistentes } = await supabase
+        .from('profesional_centro')
+        .select('profesional_id, centro_id, activo, profiles(display_name, email, role), centros(nombre)')
+        .in('centro_id', idsCentros)
+        .eq('activo', true);
+
+      const tbody = document.querySelector('#tablaAsistentes tbody');
+      tbody.innerHTML = '';
+      if (asistentes) {
+        asistentes
+          .filter(a => a.profiles && a.profiles.role === 'asistente')
+          .forEach(a => {
+            tbody.innerHTML += `
+              <tr>
+                <td>${a.profiles.display_name ?? ''}</td>
+                <td>${a.profiles.email ?? ''}</td>
+                <td>${a.centros?.nombre ?? a.centro_id}</td>
+                <td>${a.activo ? 'Sí' : 'No'}</td>
+              </tr>
+            `;
+          });
+      }
+    }
+
+    // Al iniciar, cargar centros y asistentes
+    supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session && session.user) {
+        await cargarCentros();
+        await cargarAsistentes();
+      }
+    });
+    window.addEventListener('DOMContentLoaded', async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await cargarCentros();
+        await cargarAsistentes();
+      }
+    });
+
+    // Formulario de creación de asistentes
     document.getElementById('formAsistente').addEventListener('submit', async function(e) {
       e.preventDefault();
       const display_name = document.getElementById('display_name').value.trim();
       const email = document.getElementById('email').value.trim();
-      const centro_id = document.getElementById('centro_id').value.trim();
+      const centro_id = document.getElementById('centro_id').value;
       const active = document.getElementById('active').value === 'true';
       const statusDiv = document.getElementById('status');
 
@@ -111,6 +210,7 @@
         statusDiv.textContent = '¡Asistente creado y asociado correctamente!';
         statusDiv.className = 'status';
         document.getElementById('formAsistente').reset();
+        await cargarAsistentes();
       } catch (error) {
         statusDiv.textContent = 'Error al crear asistente: ' + error.message;
         statusDiv.className = 'status error';
