@@ -5,6 +5,91 @@
   <title>Panel - EG Health Solutions</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="app.css">
+  <style>
+    /* Extra estilos para el botón de apagar y el topbar */
+    .power-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      margin: 0;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      transition: background 0.18s;
+      position: relative;
+    }
+    .power-btn:hover {
+      background: rgba(220,0,40,0.08);
+    }
+    .power-btn svg {
+      width: 28px;
+      height: 28px;
+      stroke: #b00020;
+      transition: stroke 0.18s;
+    }
+    .power-btn:hover svg {
+      stroke: #8e0c2f;
+    }
+    .power-btn .tooltip {
+      display: none;
+      position: absolute;
+      left: 42px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: #381e60;
+      color: #fff;
+      padding: 4px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      white-space: nowrap;
+      z-index: 999;
+    }
+    .power-btn:hover .tooltip {
+      display: block;
+    }
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-start;
+      height: 100vh;
+    }
+    .sidebar .settings-slot {
+      margin-top: auto;
+      margin-bottom: 8px;
+    }
+    .sidebar .logout-slot {
+      margin-bottom: 18px;
+      margin-top: 8px;
+      display: flex;
+      justify-content: center;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 18px;
+      padding: 8px 0 10px 0;
+      border-bottom: 1px solid #ece5fc;
+      background: #f7f9fb;
+    }
+    .user-info {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 18px;
+      font-size: 16px;
+      color: #381e60;
+    }
+    .user-info .user-name { font-weight: 500; }
+    .user-info .user-rol { background: #7656b0; color: #fff; border-radius: 6px; padding: 2px 10px; font-size: 14px;}
+    #centro-select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 2px 8px; font-size: 15px; background: #fff;}
+    #centro-nombre-top { font-weight: 500; }
+  </style>
 </head>
 <body>
   <div class="app">
@@ -30,13 +115,26 @@
       <div class="settings-slot">
         <button class="settings-btn btn" id="btn-config">Configuración</button>
       </div>
+      <div class="logout-slot">
+        <button class="power-btn" id="btn-logout" tabindex="0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path d="M12 2v10" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="12" r="9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span class="tooltip">Cerrar sesión</span>
+        </button>
+      </div>
     </aside>
     <main class="main">
       <div class="topbar">
-        <div>
-          <span class="badge" id="user-rol"></span>
+        <div class="user-info">
+          <span class="user-name" id="user-name"></span>
+          <span class="user-rol" id="user-rol"></span>
+          <span id="centro-label">
+            <span id="centro-nombre-top"></span>
+            <select id="centro-select" style="display:none;"></select>
+          </span>
         </div>
-        <button class="btn" id="btn-logout">Cerrar sesión</button>
       </div>
       <div id="main-content" class="card">
         <h2>Bienvenido</h2>
@@ -47,9 +145,80 @@
     </main>
   </div>
   <script type="module">
-    // Datos básicos
-    document.getElementById('centro-nombre').textContent = localStorage.getItem('centro_medico_nombre') || 'No asignado';
-    document.getElementById('user-rol').textContent = localStorage.getItem('user_rol') || '';
+    // Datos básicos de usuario y centros
+    const userName = localStorage.getItem('user_name') || 'Sin usuario';
+    const userRol = localStorage.getItem('user_rol') || '';
+    const centroNombre = localStorage.getItem('centro_medico_nombre') || '';
+    const centroId = localStorage.getItem('centro_medico_id');
+    const profesionalId = localStorage.getItem('profesional_id');
+
+    // Carga centros médicos asociados (usando Supabase)
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+    const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
+    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
+    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+    // Mostrar datos en la barra superior
+    document.getElementById('user-name').textContent = userName;
+    document.getElementById('user-rol').textContent = userRol;
+
+    // Manejo de centros médicos
+    async function cargarCentrosUsuario() {
+      let centros = [];
+      if (profesionalId) {
+        let { data, error } = await supabase
+          .from('profesional_centro')
+          .select('centro_id, centros_medicos(id, nombre)')
+          .eq('profesional_id', profesionalId)
+          .eq('activo', true);
+        if (!error && data) {
+          centros = data.filter(row=>row.centros_medicos).map(row=>({
+            id: row.centros_medicos.id,
+            nombre: row.centros_medicos.nombre
+          }));
+        }
+      }
+      return centros;
+    }
+
+    async function inicializarCentros() {
+      const centros = await cargarCentrosUsuario();
+      const centroNombreTop = document.getElementById('centro-nombre-top');
+      const centroSelect = document.getElementById('centro-select');
+      if (centros.length <= 1) {
+        // Solo uno o ninguno: mostrar nombre simple
+        centroSelect.style.display = 'none';
+        centroNombreTop.style.display = 'inline';
+        centroNombreTop.textContent = centros[0]?.nombre || centroNombre || 'No asignado';
+      } else {
+        // Varios: mostrar <select>
+        centroNombreTop.style.display = 'none';
+        centroSelect.style.display = 'inline-block';
+        centroSelect.innerHTML = '';
+        centros.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = c.nombre;
+          centroSelect.appendChild(opt);
+        });
+        // Selección actual
+        centroSelect.value = centroId || centros[0].id;
+      }
+      // Actualizar también el nombre en el sidebar
+      document.getElementById('centro-nombre').textContent = centros.find(c=>c.id === centroSelect.value)?.nombre || centroNombre || 'No asignado';
+
+      // Cambiar centro en tiempo real
+      centroSelect.onchange = function() {
+        const seleccionado = centros.find(c=>c.id === this.value);
+        localStorage.setItem('centro_medico_id', seleccionado.id);
+        localStorage.setItem('centro_medico_nombre', seleccionado.nombre);
+        document.getElementById('centro-nombre-top').textContent = seleccionado.nombre;
+        document.getElementById('centro-nombre').textContent = seleccionado.nombre;
+        // Aquí podrías recargar paneles o datos según el nuevo centro
+      }
+    }
+
+    await inicializarCentros();
 
     // Sidebar submenu toggle
     const submenuToggle = document.getElementById('submenu-toggle');
@@ -96,6 +265,8 @@
       showPanel('config');
       await cargarPanelConfiguracion();
     });
+
+    // Nuevo botón de logout (power)
     document.getElementById('btn-logout').addEventListener('click', function() {
       localStorage.clear();
       window.location.href = "index.html";
@@ -114,13 +285,10 @@
 
     // Panel de configuración: carga el archivo configuracion.html y lo inserta en el div
     async function cargarPanelConfiguracion() {
-      // Solicita el archivo configuracion.html vía fetch
       const resp = await fetch('configuracion.html');
       let html = await resp.text();
-      // Inserta el HTML en el panel
       document.getElementById('configuracion-panel').innerHTML = html;
-      // Los <script type="module"> internos de configuracion.html NO se ejecutan automáticamente,
-      // así que detecta y evalúa los scripts (solo si son de tipo module)
+      // Ejecutar los <script type="module"> internos
       const panel = document.getElementById('configuracion-panel');
       Array.from(panel.querySelectorAll('script[type="module"]')).forEach(oldScript => {
         const newScript = document.createElement('script');
