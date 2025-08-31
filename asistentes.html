@@ -74,53 +74,42 @@
 
     // --------------- FUNCIONES AUXILIARES -----------------
     // Función para generar UUID v4
-    function generateUUID() {
+    function generarUUIDAsistente() {
       return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
         (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
       );
     }
 
-    // ----- Usar cargarCentros del JS de centros médicos -----
-    // Si cargarCentros() ya existe en window, la llamamos y usamos centrosMedicos
-    async function cargarCentrosAsistentes() {
-      // Esperar a que la variable centrosMedicos esté cargada por cargarCentros()
-      if (typeof window.cargarCentros === 'function') {
-        await window.cargarCentros();
-        // centrosMedicos debe estar en window
-        if (window.centrosMedicos && Array.isArray(window.centrosMedicos)) {
-          const centros = window.centrosMedicos;
-          const select = document.getElementById('centro_id');
-          select.innerHTML = '<option value="">Seleccione un centro...</option>';
-          centros.forEach(c => {
-            select.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
-          });
-        }
-      } else {
-        // Si no existe, lo hacemos local (por si no está cargado el JS de centros médicos)
-        const { data, error } = await supabase
-          .from('profesional_centro')
-          .select('centro_id, centros_medicos(nombre)')
-          .eq('profesional_id', profesionalId)
-          .eq('activo', true);
-        const select = document.getElementById('centro_id');
-        select.innerHTML = '<option value="">Seleccione un centro...</option>';
-        if (data) {
-          data.forEach(row => {
-            select.innerHTML += `<option value="${row.centro_id}">${row.centros_medicos?.nombre ?? row.centro_id}</option>`;
-          });
-        }
+    // ----- Cargar centros médicos para el select de asistentes -----
+    async function cargarCentrosAsistente() {
+      const { data, error } = await supabase
+        .from('profesional_centro')
+        .select('centro_id, centros_medicos(nombre)')
+        .eq('profesional_id', profesionalId)
+        .eq('activo', true);
+      const select = document.getElementById('centro_id');
+      select.innerHTML = '<option value="">Seleccione un centro...</option>';
+      if (data) {
+        data.forEach(row => {
+          select.innerHTML += `<option value="${row.centro_id}">${row.centros_medicos?.nombre ?? row.centro_id}</option>`;
+        });
       }
     }
 
     // Cargar asistentes existentes asociados a los centros médicos del usuario
-    async function cargarAsistentes() {
-      const centros = window.centrosMedicos && Array.isArray(window.centrosMedicos) ? window.centrosMedicos : [];
-      const idsCentros = centros.length ? centros.map(c => c.id) : [];
-      // Si no hay centros, consulta igual desde profesional_centro
+    async function cargarTablaAsistentes() {
+      // Primero obtener los centros médicos asociados
+      const { data: centros } = await supabase
+        .from('profesional_centro')
+        .select('centro_id')
+        .eq('profesional_id', profesionalId)
+        .eq('activo', true);
+
+      const idsCentros = centros && centros.length ? centros.map(c => c.centro_id) : [];
       let asistentes = [];
       if (idsCentros.length) {
         // Buscar asistentes asociados a estos centros (role = 'asistente')
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('profesional_centro')
           .select(`
             profesional_id, centro_id, activo,
@@ -154,8 +143,8 @@
     }
 
     // ----------------- FORMULARIO CREAR ASISTENTE -----------------
-    document.getElementById('formAsistente').addEventListener('submit', async function(e) {
-      e.preventDefault();
+    async function crearAsistente(event) {
+      event.preventDefault();
       const display_name = document.getElementById('display_name').value.trim();
       const email = document.getElementById('email').value.trim();
       const centro_id = document.getElementById('centro_id').value;
@@ -168,7 +157,7 @@
         return;
       }
 
-      const id = generateUUID();
+      const id = generarUUIDAsistente();
 
       try {
         // 1. Crear asistente en profiles con id autogenerado
@@ -218,19 +207,20 @@
         statusDiv.textContent = '¡Asistente creado y asociado correctamente!';
         statusDiv.className = 'status';
         document.getElementById('formAsistente').reset();
-        await cargarCentrosAsistentes(); // Por si cambian los centros
-        await cargarAsistentes();
+        await cargarCentrosAsistente();
+        await cargarTablaAsistentes();
       } catch (error) {
         statusDiv.textContent = 'Error al crear asistente: ' + error.message;
         statusDiv.className = 'status error';
       }
-    });
+    }
 
     // ------------- INICIALIZACIÓN ---------------
     window.addEventListener('DOMContentLoaded', async () => {
       if (profesionalId) {
-        await cargarCentrosAsistentes();
-        await cargarAsistentes();
+        await cargarCentrosAsistente();
+        await cargarTablaAsistentes();
+        document.getElementById('formAsistente').addEventListener('submit', crearAsistente);
       } else {
         document.getElementById('status').textContent = 'No se detectó profesional en sesión.';
         document.getElementById('status').className = 'status error';
