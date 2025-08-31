@@ -21,15 +21,13 @@
     tr:last-child td { border-bottom: none; }
     .action-cell { text-align: right; }
     .icon-btn { background: none; border: none; cursor: pointer; padding: 0; margin-left: 6px;}
-    .icon-btn.edit-btn svg { stroke: #7656b0; }
     .icon-btn.desasociar-btn svg { stroke: #B00020; }
-    .icon-btn.edit-btn:hover svg { stroke: #381e60; }
     .icon-btn.desasociar-btn:hover svg { stroke: #8e0c2f; }
     .modal { position:fixed; z-index:999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.18); display:flex; align-items:center; justify-content:center;}
     .modal-content { background:#fff; padding:28px 22px 20px 22px; border-radius:14px; min-width:300px; max-width:350px; position:relative; box-shadow:0 2px 18px rgba(80,60,160,.18);}
     .close { position:absolute; right:12px; top:10px; font-size:20px; color:#7656b0; cursor:pointer;}
     .modal-content h4 { color:#381e60; margin-bottom:16px;}
-    .modal-content input, .modal-content select { width:100%; margin-bottom:10px; }
+    .modal-content select { width:100%; margin-bottom:10px; }
     .modal-content .btn { width:100%; }
   </style>
 </head>
@@ -62,12 +60,10 @@
     <span class="close" id="cerrar-modal-asistente">&times;</span>
     <h4 id="modal-title-asistente">Vincular asistente a centro médico</h4>
     <form id="form-asistente">
-      <label for="asistente_auth_id">ID de usuario (Auth)</label>
-      <input type="text" id="asistente_auth_id" placeholder="UUID del usuario asistente" required>
-      <label for="asistente_nombre">Nombre Completo</label>
-      <input type="text" id="asistente_nombre" placeholder="Nombre del asistente" required>
-      <label for="asistente_email">Email</label>
-      <input type="email" id="asistente_email" placeholder="Email" required>
+      <label for="asistente_select">Seleccione un asistente</label>
+      <select id="asistente_select" required>
+        <option value="" disabled selected>Cargando asistentes...</option>
+      </select>
       <label for="asistente_centro">Centro médico</label>
       <select id="asistente_centro" required>
         <option value="" disabled selected>Cargando centros...</option>
@@ -98,6 +94,7 @@ const formAsistente = document.getElementById('form-asistente');
 const modalAsistenteStatus = document.getElementById('modal-asistente-status');
 const statusMsgAsistente = document.getElementById('status-msg-asistente');
 const asistenteCentroSelect = document.getElementById('asistente_centro');
+const asistenteSelect = document.getElementById('asistente_select');
 
 // Cargar centros médicos asociados al profesional para el select del asistente
 async function cargarCentrosAsistente() {
@@ -132,6 +129,38 @@ async function cargarCentrosAsistente() {
     opt.value = c.id;
     opt.textContent = c.nombre;
     asistenteCentroSelect.appendChild(opt);
+  });
+}
+
+// Cargar asistentes no vinculados a ningún centro activo
+async function cargarAsistentesLibres() {
+  asistenteSelect.innerHTML = `<option value="" disabled selected>Cargando asistentes...</option>`;
+  // 1. Traer todos los asistentes
+  const { data: asistentes } = await supabase
+    .from('profiles')
+    .select('id, display_name, email')
+    .eq('role', 'asistente');
+
+  // 2. Traer todas las vinculaciones activas
+  const { data: vinculaciones } = await supabase
+    .from('profesional_centro')
+    .select('profesional_id')
+    .eq('activo', true);
+
+  const idsVinculados = vinculaciones.map(v => v.profesional_id);
+  // 3. Filtrar asistentes no vinculados
+  const asistentesLibres = asistentes.filter(a => !idsVinculados.includes(a.id));
+
+  if (!asistentesLibres.length) {
+    asistenteSelect.innerHTML = `<option value="" disabled>No hay asistentes libres</option>`;
+    return;
+  }
+  asistenteSelect.innerHTML = `<option value="" disabled selected>Seleccione un asistente</option>`;
+  asistentesLibres.forEach(a => {
+    const opt = document.createElement('option');
+    opt.value = a.id;
+    opt.textContent = `${a.display_name} (${a.email})`;
+    asistenteSelect.appendChild(opt);
   });
 }
 
@@ -191,6 +220,7 @@ async function cargarTablaAsistentes() {
 crearAsistenteBtn.addEventListener('click', async () => {
   formAsistente.reset();
   modalAsistenteStatus.textContent = '';
+  await cargarAsistentesLibres();
   await cargarCentrosAsistente();
   modalAsistente.style.display = 'flex';
 });
@@ -203,47 +233,23 @@ window.addEventListener('click', (e) => {
   if (e.target === modalAsistente) modalAsistente.style.display = 'none';
 });
 
-// Guardar asistente (solo vinculación, y crea perfil si no existe)
+// Guardar asistente (solo vinculación, asume que el perfil ya existe)
 formAsistente.addEventListener('submit', async function(e) {
   e.preventDefault();
-  const auth_id = document.getElementById('asistente_auth_id').value.trim();
-  const nombre = document.getElementById('asistente_nombre').value.trim();
-  const email = document.getElementById('asistente_email').value.trim();
-  const centro_id = document.getElementById('asistente_centro').value;
+  const auth_id = asistenteSelect.value;
+  const centro_id = asistenteCentroSelect.value;
   const activo = document.getElementById('asistente_activo').value === 'true';
 
-  if (!auth_id || !nombre || !email || !centro_id) {
+  if (!auth_id || !centro_id) {
     modalAsistenteStatus.textContent = 'Todos los campos son obligatorios.';
     return;
   }
   modalAsistenteStatus.textContent = 'Procesando...';
 
-  // Verifica si el perfil ya existe
-  const { data: existentes, error: errorCheck } = await supabase
-    .from('profiles')
-    .select('id')
-    .eq('id', auth_id);
-
-  if (errorCheck) {
-    modalAsistenteStatus.textContent = 'Error al verificar el asistente: ' + errorCheck.message;
-    return;
-  }
-
-  if (!existentes || existentes.length === 0) {
-    // Crear el perfil
-    const { error: errorProfile } = await supabase
-      .from('profiles')
-      .insert([{ id: auth_id, display_name: nombre, email, role: 'asistente', active: activo }]);
-    if (errorProfile) {
-      modalAsistenteStatus.textContent = 'Error al crear perfil: ' + errorProfile.message;
-      return;
-    }
-  }
-
-  // Vincular al centro
+  // Verifica si la vinculación ya existe
   const { data: vinculosExist, error: errorVincCheck } = await supabase
     .from('profesional_centro')
-    .select('id')
+    .select('*')
     .eq('profesional_id', auth_id)
     .eq('centro_id', centro_id)
     .eq('activo', true);
@@ -258,9 +264,10 @@ formAsistente.addEventListener('submit', async function(e) {
     return;
   }
 
+  // Vincular al centro
   const { error: errorPC } = await supabase
     .from('profesional_centro')
-    .insert({ profesional_id: auth_id, centro_id, activo: true });
+    .insert({ profesional_id: auth_id, centro_id, activo: activo });
 
   if (errorPC) {
     modalAsistenteStatus.textContent = 'Error al asociar asistente a centro médico';
@@ -285,6 +292,7 @@ async function desasociarAsistente(auth_id, centro_id) {
     return;
   }
   await cargarTablaAsistentes();
+  await cargarAsistentesLibres(); // Para actualizar el select del modal
 }
 
 // Inicialización
