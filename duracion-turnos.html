@@ -1,136 +1,85 @@
+<!-- ... contenido anterior ... -->
+
 <div class="duracion-turnos-card" style="max-width: 650px; margin: 30px auto;">
   <h3>Duración de Turnos</h3>
   
-  <!-- Selector de centros médicos y creación inline -->
   <div style="margin-bottom:24px;">
     <label for="centro_id"><b>Centro Médico</b></label>
     <div style="display:flex; gap:12px; align-items: center;">
       <select id="centro_id" name="centro_id" required style="max-width:240px;">
         <option disabled selected value="">Cargando centros...</option>
       </select>
-      <input type="text" id="nuevo_centro_nombre" placeholder="Nuevo centro..." style="max-width:160px;">
-      <button type="button" id="agregar_centro" class="btn">Agregar</button>
+      <button type="button" id="crear-centro-btn" class="btn">Crear centro médico</button>
     </div>
     <span id="centros-status" class="muted" style="margin-left:12px;"></span>
   </div>
 
-  <!-- Formulario de duración de turnos -->
-  <form id="duracion-form" style="margin-bottom:20px; display:none;">
-    <div style="margin-bottom:16px;">
-      <label><b>Duración turno nueva consulta</b></label>
-      <select name="duracion_nueva" required style="max-width:120px; margin-left:12px;">
-        <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
-        <option value="20">20 min</option><option value="30">30 min</option>
-        <option value="45">45 min</option><option value="60">60 min</option>
-      </select>
-    </div>
-    <div style="margin-bottom:16px;">
-      <label><b>Duración turno consulta recurrente</b></label>
-      <select name="duracion_recurrente" required style="max-width:120px; margin-left:12px;">
-        <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
-        <option value="20">20 min</option><option value="30">30 min</option>
-        <option value="45">45 min</option><option value="60">60 min</option>
-      </select>
-    </div>
-    <div style="margin-bottom:16px;">
-      <label><b>Duración de sobreturnos</b></label>
-      <select name="duracion_sobreturno" required style="max-width:120px; margin-left:12px;">
-        <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
-        <option value="20">20 min</option><option value="30">30 min</option>
-        <option value="45">45 min</option><option value="60">60 min</option>
-      </select>
-    </div>
-    <div style="display:flex; align-items:center; gap:16px; margin-top:18px;">
-      <button type="submit" class="btn primary">Guardar duraciones</button>
-      <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
-        <input type="checkbox" id="aplicar-todos" style="accent-color:#7656b0;">
-        <span>Aplicar a todos los centros</span>
-      </label>
-    </div>
-  </form>
-  <div id="duracion-status" class="muted" style="margin-bottom:10px;"></div>
+  <!-- ... formulario de duración ... -->
+</div>
+
+<!-- Modal para crear centro médico -->
+<div id="modal-centro" class="modal" style="display:none;">
+  <div class="modal-content">
+    <span class="close" id="cerrar-modal-centro">&times;</span>
+    <h4>Crear nuevo centro médico</h4>
+    <form id="form-crear-centro">
+      <input type="text" id="nuevo_centro_nombre" placeholder="Nombre del centro" required>
+      <input type="text" id="nuevo_centro_direccion" placeholder="Dirección">
+      <input type="text" id="nuevo_centro_telefono" placeholder="Teléfono">
+      <input type="email" id="nuevo_centro_email" placeholder="Email">
+      <textarea id="nuevo_centro_notas" placeholder="Notas"></textarea>
+      <button type="submit" class="btn primary" style="margin-top:10px;">Guardar centro</button>
+      <div id="modal-centro-status" class="muted" style="margin-top:10px;"></div>
+    </form>
+  </div>
 </div>
 
 <script type="module">
-// Supabase config
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// ... config y funciones previas ...
 
-// ---- DATOS DE SESIÓN ----
-const profesionalId = localStorage.getItem('profesional_id');
-const centroMedicoId = localStorage.getItem('centro_medico_id'); // El centro elegido en login
-const centroMedicoNombre = localStorage.getItem('centro_medico_nombre');
+const crearCentroBtn = document.getElementById('crear-centro-btn');
+const modalCentro = document.getElementById('modal-centro');
+const cerrarModalCentro = document.getElementById('cerrar-modal-centro');
+const formCrearCentro = document.getElementById('form-crear-centro');
+const modalCentroStatus = document.getElementById('modal-centro-status');
 
-// UI Elements
-const centroSelect = document.getElementById('centro_id');
-const nuevoCentroInput = document.getElementById('nuevo_centro_nombre');
-const agregarCentroBtn = document.getElementById('agregar_centro');
-const centrosStatusDiv = document.getElementById('centros-status');
-const duracionForm = document.getElementById('duracion-form');
-const statusDiv = document.getElementById('duracion-status');
-const aplicarTodosCheckbox = document.getElementById('aplicar-todos');
+// Abrir modal
+crearCentroBtn.addEventListener('click', () => {
+  modalCentro.style.display = 'block';
+  modalCentroStatus.textContent = '';
+  formCrearCentro.reset();
+});
 
-let centrosMedicos = [];
+// Cerrar modal
+cerrarModalCentro.addEventListener('click', () => {
+  modalCentro.style.display = 'none';
+});
+window.addEventListener('click', (e) => {
+  if (e.target === modalCentro) modalCentro.style.display = 'none';
+});
 
-// Cargar centros médicos asociados al profesional
-async function cargarCentros() {
-  centroSelect.innerHTML = '<option disabled selected value="">Cargando centros...</option>';
-  centrosMedicos = [];
-  let { data, error } = await supabase
-    .from('profesional_centro')
-    .select('centro_id, centros_medicos(id, nombre)')
-    .eq('profesional_id', profesionalId)
-    .eq('activo', true);
+// Crear centro médico y asociar al profesional
+formCrearCentro.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const nombre = document.getElementById('nuevo_centro_nombre').value.trim();
+  const direccion = document.getElementById('nuevo_centro_direccion').value.trim();
+  const telefono = document.getElementById('nuevo_centro_telefono').value.trim();
+  const email = document.getElementById('nuevo_centro_email').value.trim();
+  const notas = document.getElementById('nuevo_centro_notas').value.trim();
 
-  if (error || !data) {
-    centroSelect.innerHTML = '<option disabled>Error al cargar centros</option>';
-    centrosStatusDiv.textContent = 'Error al cargar centros médicos';
-    duracionForm.style.display = 'none';
+  if (!nombre) {
+    modalCentroStatus.textContent = 'El nombre es obligatorio.';
     return;
   }
-  centrosMedicos = data.map(row => ({
-    id: row.centros_medicos.id,
-    nombre: row.centros_medicos.nombre
-  }));
-  centroSelect.innerHTML = '';
-  if (centrosMedicos.length === 0) {
-    centroSelect.innerHTML = '<option disabled selected value="">No tienes centros asociados</option>';
-    centrosStatusDiv.textContent = 'No hay centros médicos agregados.';
-    duracionForm.style.display = 'none';
-    return;
-  }
-  centrosMedicos.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = c.nombre;
-    centroSelect.appendChild(opt);
-  });
-  centrosStatusDiv.textContent = '';
-  if (centroMedicoId && centrosMedicos.some(c => c.id === centroMedicoId)) {
-    centroSelect.value = centroMedicoId;
-  } else {
-    centroSelect.value = centrosMedicos[0].id;
-  }
-  await cargarConfiguracionDuracion(centroSelect.value);
-  duracionForm.style.display = '';
-}
+  modalCentroStatus.textContent = 'Guardando centro...';
 
-// Crear nuevo centro médico y asociar al profesional
-agregarCentroBtn.addEventListener('click', async function() {
-  const nombre = nuevoCentroInput.value.trim();
-  if (!nombre) return;
-  agregarCentroBtn.disabled = true;
-  centrosStatusDiv.textContent = 'Agregando centro...';
   // Crear centro
   const { data: centro, error: errorCentro } = await supabase
     .from('centros_medicos')
-    .insert({ nombre })
+    .insert([{ nombre, direccion, telefono, email, notas }])
     .select();
   if (errorCentro || !centro || !centro[0]) {
-    centrosStatusDiv.textContent = 'Error al agregar centro';
-    agregarCentroBtn.disabled = false;
+    modalCentroStatus.textContent = 'Error al crear centro médico';
     return;
   }
   // Asociar centro al profesional
@@ -138,116 +87,23 @@ agregarCentroBtn.addEventListener('click', async function() {
     .from('profesional_centro')
     .insert({ profesional_id: profesionalId, centro_id: centro[0].id });
   if (errorPC) {
-    centrosStatusDiv.textContent = 'Error al asociar centro';
-    agregarCentroBtn.disabled = false;
+    modalCentroStatus.textContent = 'Error al asociar centro médico';
     return;
   }
-  centrosStatusDiv.textContent = 'Centro agregado';
-  nuevoCentroInput.value = '';
+  modalCentroStatus.textContent = 'Centro creado y asociado exitosamente!';
+  // Recargar lista de centros
   await cargarCentros();
   centroSelect.value = centro[0].id;
   await cargarConfiguracionDuracion(centro[0].id);
-  agregarCentroBtn.disabled = false;
+  setTimeout(() => { modalCentro.style.display = 'none'; }, 1200);
 });
-
-// Cambio de centro médico
-centroSelect.addEventListener('change', async function() {
-  await cargarConfiguracionDuracion(this.value);
-});
-
-// Cargar configuración de duración para centro médico
-async function cargarConfiguracionDuracion(centro_id) {
-  let { data, error } = await supabase
-    .from('config_duracion_turnos')
-    .select('tipo_turno, minutos')
-    .eq('profesional_id', profesionalId)
-    .eq('centro_id', centro_id);
-
-  if (error || !data) {
-    statusDiv.textContent = 'Error al cargar configuración';
-    duracionForm.style.display = '';
-    return;
-  }
-  if (data.length === 0) {
-    statusDiv.textContent = 'No hay configuración previa para este centro médico. Completa y guarda para configurar.';
-    duracionForm.style.display = '';
-    duracionForm.reset();
-    return;
-  }
-  let configActual = {};
-  data.forEach(cfg => {
-    configActual[cfg.tipo_turno] = cfg.minutos;
-  });
-  duracionForm.duracion_nueva.value = configActual['nueva_consulta'] || '15';
-  duracionForm.duracion_recurrente.value = configActual['recurrente'] || '15';
-  duracionForm.duracion_sobreturno.value = configActual['sobreturno'] || '15';
-  statusDiv.textContent = 'Configuración cargada.';
-  duracionForm.style.display = '';
-}
-
-// Guardar configuración
-duracionForm.addEventListener('submit', async function(e) {
-  e.preventDefault();
-  const centro_id = centroSelect.value;
-  if (!centro_id) {
-    statusDiv.textContent = 'Selecciona un centro médico';
-    return;
-  }
-  const duraciones = [
-    { profesional_id: profesionalId, centro_id, tipo_turno: 'nueva_consulta', minutos: parseInt(this.duracion_nueva.value) },
-    { profesional_id: profesionalId, centro_id, tipo_turno: 'recurrente', minutos: parseInt(this.duracion_recurrente.value) },
-    { profesional_id: profesionalId, centro_id, tipo_turno: 'sobreturno', minutos: parseInt(this.duracion_sobreturno.value) }
-  ];
-
-  if (aplicarTodosCheckbox.checked) {
-    // Aplica a todos los centros
-    let duracionesAll = [];
-    centrosMedicos.forEach(c=>{
-      duracionesAll.push(
-        { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'nueva_consulta', minutos: parseInt(this.duracion_nueva.value) },
-        { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'recurrente', minutos: parseInt(this.duracion_recurrente.value) },
-        { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'sobreturno', minutos: parseInt(this.duracion_sobreturno.value) }
-      );
-    });
-    const { error } = await supabase
-      .from('config_duracion_turnos')
-      .upsert(duracionesAll, { onConflict: ['profesional_id', 'centro_id', 'tipo_turno'] });
-    if (error) {
-      statusDiv.textContent = 'Error al aplicar a todos los centros: ' + error.message;
-    } else {
-      statusDiv.textContent = 'Configuración aplicada a todos los centros médicos';
-      await cargarConfiguracionDuracion(centroSelect.value);
-    }
-  } else {
-    // Solo al centro actual
-    const { error } = await supabase
-      .from('config_duracion_turnos')
-      .upsert(duraciones, { onConflict: ['profesional_id', 'centro_id', 'tipo_turno'] });
-    if (error) {
-      statusDiv.textContent = 'Error al guardar la configuración: ' + error.message;
-    } else {
-      statusDiv.textContent = 'Duración guardada exitosamente';
-      await cargarConfiguracionDuracion(centro_id);
-    }
-  }
-});
-
-// Inicialización
-if (profesionalId) {
-  await cargarCentros();
-} else {
-  statusDiv.textContent = 'No se detectó profesional en sesión.';
-}
 </script>
 
 <style>
-.duracion-turnos-card { background: #fff; padding: 24px 20px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
-.duracion-turnos-card h3 { color:#381e60; margin-bottom:22px;}
-label { color:#381e60;}
-.btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 3px;}
-.btn.primary { background: #7656b0; }
-.btn:hover { background: #7f62b6; }
-.muted { color: #6b6480; font-size: 13px; }
-input, select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 5px 8px; font-size:15px; }
-form label { font-size:15px; margin-bottom:3px; display:block; }
+/* ... estilos previos ... */
+.modal { position:fixed; z-index:999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.18); display:flex; align-items:center; justify-content:center;}
+.modal-content { background:#fff; padding:28px 22px 20px 22px; border-radius:14px; min-width:300px; max-width:350px; position:relative; box-shadow:0 2px 18px rgba(80,60,160,.18);}
+.close { position:absolute; right:12px; top:10px; font-size:20px; color:#7656b0; cursor:pointer;}
+.modal-content h4 { color:#381e60; margin-bottom:16px;}
+.modal-content input, .modal-content textarea { width:100%; margin-bottom:10px; }
 </style>
