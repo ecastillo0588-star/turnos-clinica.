@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Gestión de Asistentes</title>
+  <title>Vinculación Profesional - Centro Médico</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f9fb; margin: 0; }
@@ -34,49 +34,49 @@
 </head>
 <body>
 <div class="container">
-  <h3>Gestión de Asistentes</h3>
-  <table id="asistentes-table">
+  <h3>Vinculación Profesional - Centro Médico</h3>
+  <table id="profesionales-table">
     <thead>
       <tr>
         <th>Nombre</th>
-        <th>Email</th>
+        <th>Rol</th>
         <th>Centro Médico</th>
         <th>Activo</th>
         <th class="action-cell">Acciones</th>
       </tr>
     </thead>
-    <tbody id="asistentes-tbody">
-      <!-- Asistentes asociados se mostrarán aquí -->
+    <tbody id="profesionales-tbody">
+      <!-- Profesionales asociados se mostrarán aquí -->
     </tbody>
   </table>
   <div style="margin-top:20px;">
-    <button type="button" id="asistentes-crear-btn" class="btn primary">Vincular asistente a centro médico</button>
+    <button type="button" id="vincular-btn" class="btn primary">Vincular profesional a centro médico</button>
   </div>
-  <div id="asistentes-status-msg" class="muted" style="margin-top:10px;"></div>
+  <div id="status-msg" class="muted" style="margin-top:10px;"></div>
 </div>
 
-<!-- Modal para vincular asistente -->
-<div id="asistentes-modal" class="modal" style="display:none;">
+<!-- Modal para vincular profesional -->
+<div id="vincular-modal" class="modal" style="display:none;">
   <div class="modal-content">
-    <span class="close" id="asistentes-cerrar-modal">&times;</span>
-    <h4 id="asistentes-modal-title">Vincular asistente a centro médico</h4>
-    <form id="asistentes-form">
-      <label for="asistentes_select">Seleccione un asistente</label>
-      <select id="asistentes_select" required>
-        <option value="" disabled selected>Cargando asistentes...</option>
+    <span class="close" id="cerrar-modal">&times;</span>
+    <h4 id="modal-title">Vincular profesional a centro médico</h4>
+    <form id="vincular-form">
+      <label for="profesional_select">Seleccione profesional</label>
+      <select id="profesional_select" required>
+        <option value="" disabled selected>Cargando profesionales...</option>
       </select>
-      <label for="asistentes_centro">Centro médico</label>
-      <select id="asistentes_centro" required>
+      <label for="centro_select">Seleccione centro médico</label>
+      <select id="centro_select" required>
         <option value="" disabled selected>Cargando centros...</option>
       </select>
-      <label for="asistentes_activo">Activo</label>
-      <select id="asistentes_activo">
+      <label for="activo_select">Activo</label>
+      <select id="activo_select">
         <option value="true" selected>Activo</option>
         <option value="false">Inactivo</option>
       </select>
       <button type="submit" class="btn primary" style="margin-top:10px;">Vincular</button>
-      <div id="asistentes-modal-status" class="muted" style="margin-top:10px;"></div>
-      <div id="asistentes-modal-error" class="error" style="margin-top:6px;"></div>
+      <div id="modal-status" class="muted" style="margin-top:10px;"></div>
+      <div id="modal-error" class="error" style="margin-top:6px;"></div>
     </form>
   </div>
 </div>
@@ -87,146 +87,95 @@ const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-const profesionalId = localStorage.getItem('profesional_id');
-const asistentesTbody = document.getElementById('asistentes-tbody');
-const asistentesCrearBtn = document.getElementById('asistentes-crear-btn');
-const asistentesModal = document.getElementById('asistentes-modal');
-const asistentesCerrarModal = document.getElementById('asistentes-cerrar-modal');
-const asistentesForm = document.getElementById('asistentes-form');
-const asistentesModalStatus = document.getElementById('asistentes-modal-status');
-const asistentesModalError = document.getElementById('asistentes-modal-error');
-const asistentesStatusMsg = document.getElementById('asistentes-status-msg');
-const asistentesCentroSelect = document.getElementById('asistentes_centro');
-const asistentesSelect = document.getElementById('asistentes_select');
+const profesionalesTbody = document.getElementById('profesionales-tbody');
+const vincularBtn = document.getElementById('vincular-btn');
+const vincularModal = document.getElementById('vincular-modal');
+const cerrarModal = document.getElementById('cerrar-modal');
+const vincularForm = document.getElementById('vincular-form');
+const modalStatus = document.getElementById('modal-status');
+const modalError = document.getElementById('modal-error');
+const statusMsg = document.getElementById('status-msg');
+const centroSelect = document.getElementById('centro_select');
+const profesionalSelect = document.getElementById('profesional_select');
 
-// Trae los centros médicos asociados al profesional para el select
-async function asistentesCargarCentros() {
-  asistentesCentroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
+// Trae todos los centros médicos para el select
+async function cargarCentros() {
+  centroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
   const { data, error } = await supabase
-    .from('profesional_centro')
-    .select('centro_id, centros_medicos(id, nombre)')
-    .eq('profesional_id', profesionalId)
+    .from('centros_medicos')
+    .select('id, nombre')
     .eq('activo', true);
 
   if (error || !data) {
-    asistentesCentroSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
+    centroSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
     return;
   }
-  const centrosUnicos = {};
-  data.forEach(row => {
-    if (row.centros_medicos && !centrosUnicos[row.centro_id]) {
-      centrosUnicos[row.centro_id] = {
-        id: row.centros_medicos.id,
-        nombre: row.centros_medicos.nombre
-      };
-    }
-  });
-  const centros = Object.values(centrosUnicos);
-  if (centros.length === 0) {
-    asistentesCentroSelect.innerHTML = `<option value="" disabled>No tienes centros médicos asociados aún.</option>`;
+  if (data.length === 0) {
+    centroSelect.innerHTML = `<option value="" disabled>No hay centros médicos activos.</option>`;
     return;
   }
-  asistentesCentroSelect.innerHTML = `<option value="" disabled selected>Seleccione un centro</option>`;
-  centros.forEach(c => {
+  centroSelect.innerHTML = `<option value="" disabled selected>Seleccione un centro</option>`;
+  data.forEach(c => {
     const opt = document.createElement('option');
     opt.value = c.id;
     opt.textContent = c.nombre;
-    asistentesCentroSelect.appendChild(opt);
+    centroSelect.appendChild(opt);
   });
 }
 
-// Trae los asistentes no vinculados a ningún centro activo
-async function asistentesCargarLibres() {
-  asistentesSelect.innerHTML = `<option value="" disabled selected>Cargando asistentes...</option>`;
-  // 1. Traer todos los asistentes
-  const { data: asistentes, error: errorAsist } = await supabase
-    .from('profiles')
-    .select('id, display_name, email')
-    .eq('role', 'asistente');
+// Trae todos los profesionales
+async function cargarProfesionales() {
+  profesionalSelect.innerHTML = `<option value="" disabled selected>Cargando profesionales...</option>`;
+  const { data, error } = await supabase
+    .from('profesionales')
+    .select('id, nombre, rol, activo');
 
-  if (errorAsist) {
-    asistentesSelect.innerHTML = `<option value="" disabled>Error al cargar asistentes</option>`;
+  if (error || !data) {
+    profesionalSelect.innerHTML = `<option value="" disabled>Error al cargar profesionales</option>`;
     return;
   }
-
-  // 2. Traer todas las vinculaciones activas
-  const { data: vinculaciones, error: errorVinc } = await supabase
-    .from('profesional_centro')
-    .select('profesional_id')
-    .eq('activo', true);
-
-  if (errorVinc) {
-    asistentesSelect.innerHTML = `<option value="" disabled>Error al cargar vinculaciones</option>`;
+  if (data.length === 0) {
+    profesionalSelect.innerHTML = `<option value="" disabled>No hay profesionales registrados.</option>`;
     return;
   }
-
-  const idsVinculados = vinculaciones.map(v => v.profesional_id);
-  // 3. Filtrar asistentes no vinculados
-  const asistentesLibres = asistentes.filter(a => !idsVinculados.includes(a.id));
-
-  if (!asistentesLibres.length) {
-    asistentesSelect.innerHTML = `<option value="" disabled>No hay asistentes libres</option>`;
-    return;
-  }
-  asistentesSelect.innerHTML = `<option value="" disabled selected>Seleccione un asistente</option>`;
-  asistentesLibres.forEach(a => {
+  profesionalSelect.innerHTML = `<option value="" disabled selected>Seleccione un profesional</option>`;
+  data.forEach(p => {
     const opt = document.createElement('option');
-    opt.value = a.id;
-    opt.textContent = `${a.display_name} (${a.email})`;
-    asistentesSelect.appendChild(opt);
+    opt.value = p.id;
+    opt.textContent = `${p.nombre} (${p.rol})`;
+    profesionalSelect.appendChild(opt);
   });
 }
 
-// Carga la tabla de asistentes asociados a los centros médicos del usuario
-async function asistentesCargarTabla() {
-  asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Cargando asistentes...</td></tr>`;
-  // Traer todos los centros médicos asociados al profesional
-  const { data: centros, error: errorCentros } = await supabase
+// Carga la tabla de profesionales vinculados a centros médicos
+async function cargarTabla() {
+  profesionalesTbody.innerHTML = `<tr><td colspan="5" class="muted">Cargando profesionales...</td></tr>`;
+  // Traer todas las vinculaciones
+  const { data, error } = await supabase
     .from('profesional_centro')
-    .select('centro_id')
-    .eq('profesional_id', profesionalId)
+    .select(`
+      profesional_id, centro_id, activo,
+      profesionales(nombre, rol, activo),
+      centros_medicos(nombre)
+    `)
     .eq('activo', true);
 
-  if (errorCentros) {
-    asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Error al cargar centros médicos</td></tr>`;
+  if (error || !data) {
+    profesionalesTbody.innerHTML = `<tr><td colspan="5" class="muted">Error al cargar vinculaciones</td></tr>`;
     return;
   }
-
-  const idsCentros = centros && centros.length ? centros.map(c => c.centro_id) : [];
-  let asistentes = [];
-  if (idsCentros.length) {
-    // Trae todos los asistentes vinculados a esos centros
-    const { data, error } = await supabase
-      .from('profesional_centro')
-      .select(`
-        profesional_id, centro_id, activo,
-        profiles(display_name, email, role, active),
-        centros_medicos(nombre)
-      `)
-      .in('centro_id', idsCentros)
-      .eq('activo', true);
-
-    if (error) {
-      asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Error: ${error.message || JSON.stringify(error)}</td></tr>`;
-      return;
-    }
-
-    if (data) {
-      asistentes = data.filter(a => a.profiles && a.profiles.role === 'asistente');
-    }
-  }
-  asistentesTbody.innerHTML = '';
-  if (asistentes.length === 0) {
-    asistentesTbody.innerHTML = '<tr><td colspan="5" class="muted">No hay asistentes asociados.</td></tr>';
+  if (data.length === 0) {
+    profesionalesTbody.innerHTML = '<tr><td colspan="5" class="muted">No hay profesionales vinculados.</td></tr>';
     return;
   }
-  asistentes.forEach(a => {
-    asistentesTbody.innerHTML += `
+  profesionalesTbody.innerHTML = '';
+  data.forEach(a => {
+    profesionalesTbody.innerHTML += `
       <tr>
-        <td>${a.profiles.display_name ?? ''}</td>
-        <td>${a.profiles.email ?? ''}</td>
+        <td>${a.profesionales?.nombre ?? ''}</td>
+        <td>${a.profesionales?.rol ?? ''}</td>
         <td>${a.centros_medicos?.nombre ?? a.centro_id}</td>
-        <td>${a.profiles.active ? 'Sí' : 'No'}</td>
+        <td>${a.profesionales?.activo ? 'Sí' : 'No'}</td>
         <td class="action-cell">
           <button class="icon-btn desasociar-btn" title="Desasociar" data-id="${a.profesional_id}" data-centro="${a.centro_id}">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" stroke="currentColor" fill="none"><path d="M5 11V7a7 7 0 0 1 14 0v4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="11" width="14" height="8" rx="2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 17v-2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -238,106 +187,102 @@ async function asistentesCargarTabla() {
   // Listeners para desasociar
   Array.from(document.getElementsByClassName('desasociar-btn')).forEach(el => {
     el.addEventListener('click', () => {
-      asistentesDesasociar(el.getAttribute('data-id'), el.getAttribute('data-centro'));
+      desasociarProfesional(el.getAttribute('data-id'), el.getAttribute('data-centro'));
     });
   });
 }
 
-// Abrir modal para vincular asistente
-asistentesCrearBtn.addEventListener('click', async () => {
-  asistentesForm.reset();
-  asistentesModalStatus.textContent = '';
-  asistentesModalError.textContent = '';
-  await asistentesCargarLibres();
-  await asistentesCargarCentros();
-  asistentesModal.style.display = 'flex';
+// Abrir modal para vincular profesional
+vincularBtn.addEventListener('click', async () => {
+  vincularForm.reset();
+  modalStatus.textContent = '';
+  modalError.textContent = '';
+  await cargarProfesionales();
+  await cargarCentros();
+  vincularModal.style.display = 'flex';
 });
 
-// Cerrar modal asistente
-asistentesCerrarModal.addEventListener('click', () => {
-  asistentesModal.style.display = 'none';
+// Cerrar modal profesional
+cerrarModal.addEventListener('click', () => {
+  vincularModal.style.display = 'none';
 });
 window.addEventListener('click', (e) => {
-  if (e.target === asistentesModal) asistentesModal.style.display = 'none';
+  if (e.target === vincularModal) vincularModal.style.display = 'none';
 });
 
-// Vincular asistente al centro médico
-asistentesForm.addEventListener('submit', async function(e) {
+// Vincular profesional al centro médico
+vincularForm.addEventListener('submit', async function(e) {
   e.preventDefault();
-  const auth_id = asistentesSelect.value;
-  const centro_id = asistentesCentroSelect.value;
-  const activo = document.getElementById('asistentes_activo').value === 'true';
+  const profesional_id = profesionalSelect.value;
+  const centro_id = centroSelect.value;
+  const activo = document.getElementById('activo_select').value === 'true';
 
-  asistentesModalError.textContent = ''; // Limpia errores anteriores
+  modalError.textContent = ''; // Limpia errores anteriores
 
-  if (!auth_id || !centro_id) {
-    asistentesModalStatus.textContent = '';
-    asistentesModalError.textContent = 'Todos los campos son obligatorios.';
+  if (!profesional_id || !centro_id) {
+    modalStatus.textContent = '';
+    modalError.textContent = 'Todos los campos son obligatorios.';
     return;
   }
-  asistentesModalStatus.textContent = 'Procesando...';
+  modalStatus.textContent = 'Procesando...';
 
   // Verifica si la vinculación ya existe
   const { data: vinculosExist, error: errorVincCheck } = await supabase
     .from('profesional_centro')
     .select('*')
-    .eq('profesional_id', auth_id)
+    .eq('profesional_id', profesional_id)
     .eq('centro_id', centro_id)
     .eq('activo', true);
 
   if (errorVincCheck) {
-    asistentesModalStatus.textContent = '';
-    asistentesModalError.textContent = 'Error al verificar vinculación: ' + (errorVincCheck.message || JSON.stringify(errorVincCheck));
+    modalStatus.textContent = '';
+    modalError.textContent = 'Error al verificar vinculación: ' + (errorVincCheck.message || JSON.stringify(errorVincCheck));
     return;
   }
 
   if (vinculosExist && vinculosExist.length > 0) {
-    asistentesModalStatus.textContent = '';
-    asistentesModalError.textContent = 'Ya existe la vinculación de este asistente con ese centro.';
+    modalStatus.textContent = '';
+    modalError.textContent = 'Ya existe la vinculación de este profesional con ese centro.';
     return;
   }
 
   // Vincular al centro
   const { error: errorPC } = await supabase
     .from('profesional_centro')
-    .insert({ profesional_id: auth_id, centro_id, activo: activo });
+    .insert({ profesional_id, centro_id, activo: activo, prioridad: 1 });
 
   if (errorPC) {
-    asistentesModalStatus.textContent = '';
+    modalStatus.textContent = '';
     // Mostramos todo el error para debug
-    asistentesModalError.textContent = 'Error al asociar asistente a centro médico: ' +
+    modalError.textContent = 'Error al asociar profesional a centro médico: ' +
       (errorPC.details || errorPC.message || JSON.stringify(errorPC));
     return;
   }
 
-  asistentesModalError.textContent = '';
-  asistentesModalStatus.textContent = '¡Asistente vinculado exitosamente!';
-  await asistentesCargarTabla();
-  setTimeout(() => { asistentesModal.style.display = 'none'; }, 1200);
+  modalError.textContent = '';
+  modalStatus.textContent = '¡Profesional vinculado exitosamente!';
+  await cargarTabla();
+  setTimeout(() => { vincularModal.style.display = 'none'; }, 1200);
 });
 
-// Desasociar asistente de centro médico
-async function asistentesDesasociar(auth_id, centro_id) {
-  if (!confirm('¿Seguro que quieres desasociar este asistente del centro médico?')) return;
+// Desasociar profesional de centro médico
+async function desasociarProfesional(profesional_id, centro_id) {
+  if (!confirm('¿Seguro que quieres desasociar este profesional del centro médico?')) return;
   const { error } = await supabase
     .from('profesional_centro')
     .update({ activo: false })
-    .eq('profesional_id', auth_id)
+    .eq('profesional_id', profesional_id)
     .eq('centro_id', centro_id);
   if (error) {
-    alert('Error al desasociar el asistente: ' + (error.message || JSON.stringify(error)));
+    alert('Error al desasociar el profesional: ' + (error.message || JSON.stringify(error)));
     return;
   }
-  await asistentesCargarTabla();
-  await asistentesCargarLibres(); // Actualiza el select para el modal
+  await cargarTabla();
+  await cargarProfesionales(); // Actualiza el select para el modal
 }
 
 // Inicialización
-if (profesionalId) {
-  asistentesCargarTabla();
-} else {
-  asistentesStatusMsg.textContent = 'No se detectó profesional en sesión.';
-}
+cargarTabla();
 </script>
 </body>
 </html>
