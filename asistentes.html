@@ -78,7 +78,7 @@
 <script type="module">
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
-// IMPORTANTE: Para crear usuarios en Auth necesitas la "service key" de Supabase (NO el anon key).
+// AVISO: Para crear usuarios en Auth necesitas la "service key" de Supabase (NO el anon key).
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 // Reemplaza esta clave por tu Supabase service key (NO la anon key)
 const supabaseServiceKey = 'TU_SERVICE_KEY_AQUI';
@@ -100,80 +100,106 @@ let centrosMedicosAsistente = [];
 // Cargar centros médicos asociados al profesional para el select del asistente
 async function cargarCentrosAsistente() {
   asistenteCentroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
-  // Trae los centros médicos asociados al profesional actual
-  const { data, error } = await supabase
-    .from('profesional_centro')
-    .select('centro_id, centros_medicos(id, nombre)')
-    .eq('profesional_id', profesionalId)
-    .eq('activo', true);
+  if (!profesionalId) {
+    asistenteCentroSelect.innerHTML = `<option value="" disabled>No se detectó profesional en sesión.</option>`;
+    return;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('profesional_centro')
+      .select('centro_id, centros_medicos(id, nombre)')
+      .eq('profesional_id', profesionalId)
+      .eq('activo', true);
 
-  if (error || !data) {
-    asistenteCentroSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
-    return;
-  }
-  // Filtrar duplicados por centro_id
-  const centrosUnicos = {};
-  data.forEach(row => {
-    if (row.centros_medicos && !centrosUnicos[row.centro_id]) {
-      centrosUnicos[row.centro_id] = {
-        id: row.centros_medicos.id,
-        nombre: row.centros_medicos.nombre
-      };
+    if (error || !data) {
+      asistenteCentroSelect.innerHTML = `<option value="" disabled>Error al cargar centros: ${error ? error.message : "Sin datos"}</option>`;
+      console.error(error);
+      return;
     }
-  });
-  centrosMedicosAsistente = Object.values(centrosUnicos);
-  if (centrosMedicosAsistente.length === 0) {
-    asistenteCentroSelect.innerHTML = `<option value="" disabled>No tienes centros médicos asociados aún.</option>`;
-    return;
+    // Filtrar duplicados por centro_id
+    const centrosUnicos = {};
+    data.forEach(row => {
+      if (row.centros_medicos && !centrosUnicos[row.centro_id]) {
+        centrosUnicos[row.centro_id] = {
+          id: row.centros_medicos.id,
+          nombre: row.centros_medicos.nombre
+        };
+      }
+    });
+    centrosMedicosAsistente = Object.values(centrosUnicos);
+    if (centrosMedicosAsistente.length === 0) {
+      asistenteCentroSelect.innerHTML = `<option value="" disabled>No tienes centros médicos asociados aún.</option>`;
+      return;
+    }
+    asistenteCentroSelect.innerHTML = `<option value="" disabled selected>Seleccione un centro</option>`;
+    centrosMedicosAsistente.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nombre;
+      asistenteCentroSelect.appendChild(opt);
+    });
+  } catch (err) {
+    asistenteCentroSelect.innerHTML = `<option value="" disabled>Error inesperado al cargar centros.</option>`;
+    console.error(err);
   }
-  asistenteCentroSelect.innerHTML = `<option value="" disabled selected>Seleccione un centro</option>`;
-  centrosMedicosAsistente.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = c.nombre;
-    asistenteCentroSelect.appendChild(opt);
-  });
 }
 
 // Cargar asistentes asociados a los centros médicos del usuario
 async function cargarTablaAsistentes() {
   asistentesTbody.innerHTML = `<tr><td colspan="4" class="muted">Cargando asistentes...</td></tr>`;
-  const { data: centros } = await supabase
-    .from('profesional_centro')
-    .select('centro_id')
-    .eq('profesional_id', profesionalId)
-    .eq('activo', true);
-  const idsCentros = centros && centros.length ? centros.map(c => c.centro_id) : [];
-  let asistentes = [];
-  if (idsCentros.length) {
-    const { data } = await supabase
-      .from('profesional_centro')
-      .select(`
-        profesional_id, centro_id, activo,
-        profiles(display_name, email, role),
-        centros_medicos(nombre)
-      `)
-      .in('centro_id', idsCentros)
-      .eq('activo', true);
-    if (data) {
-      asistentes = data.filter(a => a.profiles && a.profiles.role === 'asistente');
-    }
-  }
-  asistentesTbody.innerHTML = '';
-  if (asistentes.length === 0) {
-    asistentesTbody.innerHTML = '<tr><td colspan="4" class="muted">No hay asistentes asociados.</td></tr>';
+  if (!profesionalId) {
+    asistentesTbody.innerHTML = '<tr><td colspan="4" class="muted">No se detectó profesional en sesión.</td></tr>';
     return;
   }
-  asistentes.forEach(a => {
-    asistentesTbody.innerHTML += `
-      <tr>
-        <td>${a.profiles.display_name ?? ''}</td>
-        <td>${a.profiles.email ?? ''}</td>
-        <td>${a.centros_medicos?.nombre ?? a.centro_id}</td>
-        <td>${a.activo ? 'Sí' : 'No'}</td>
-      </tr>
-    `;
-  });
+  try {
+    const { data: centros, error: errorCentros } = await supabase
+      .from('profesional_centro')
+      .select('centro_id')
+      .eq('profesional_id', profesionalId)
+      .eq('activo', true);
+    if (errorCentros) {
+      asistentesTbody.innerHTML = `<tr><td colspan="4" class="muted">Error al cargar centros: ${errorCentros.message}</td></tr>`;
+      return;
+    }
+    const idsCentros = centros && centros.length ? centros.map(c => c.centro_id) : [];
+    let asistentes = [];
+    if (idsCentros.length) {
+      const { data, error } = await supabase
+        .from('profesional_centro')
+        .select(`
+          profesional_id, centro_id, activo,
+          profiles(display_name, email, role),
+          centros_medicos(nombre)
+        `)
+        .in('centro_id', idsCentros)
+        .eq('activo', true);
+      if (error) {
+        asistentesTbody.innerHTML = `<tr><td colspan="4" class="muted">Error al cargar asistentes: ${error.message}</td></tr>`;
+        return;
+      }
+      if (data) {
+        asistentes = data.filter(a => a.profiles && a.profiles.role === 'asistente');
+      }
+    }
+    asistentesTbody.innerHTML = '';
+    if (asistentes.length === 0) {
+      asistentesTbody.innerHTML = '<tr><td colspan="4" class="muted">No hay asistentes asociados.</td></tr>';
+      return;
+    }
+    asistentes.forEach(a => {
+      asistentesTbody.innerHTML += `
+        <tr>
+          <td>${a.profiles.display_name ?? ''}</td>
+          <td>${a.profiles.email ?? ''}</td>
+          <td>${a.centros_medicos?.nombre ?? a.centro_id}</td>
+          <td>${a.activo ? 'Sí' : 'No'}</td>
+        </tr>
+      `;
+    });
+  } catch (err) {
+    asistentesTbody.innerHTML = `<tr><td colspan="4" class="muted">Error inesperado al cargar asistentes.</td></tr>`;
+    console.error(err);
+  }
 }
 
 // Abrir modal para crear asistente
@@ -206,34 +232,52 @@ formAsistente.addEventListener('submit', async function(e) {
   }
   modalAsistenteStatus.textContent = 'Guardando...';
 
-  // Verifica si el email ya existe en Auth (opcional: podrías usar supabase.auth.admin.listUsers())
-  // 1. Crear el usuario en Auth
-  const { data: user, error: errorUser } = await supabase.auth.admin.createUser({
-    email,
-    password: 'Asistente_' + Math.random().toString(36).slice(-8), // contraseña temporal
-    email_confirm: true
-  });
-  if (errorUser) {
-    modalAsistenteStatus.textContent = 'Error al crear usuario en Auth: ' + errorUser.message;
+  // 1. Crear el usuario en Auth (requiere service key, solo backend seguro)
+  let userId = null;
+  try {
+    const { data: user, error: errorUser } = await supabase.auth.admin.createUser({
+      email,
+      password: 'Asistente_' + Math.random().toString(36).slice(-8), // contraseña temporal
+      email_confirm: true
+    });
+    if (errorUser) {
+      modalAsistenteStatus.textContent = 'Error al crear usuario en Auth: ' + errorUser.message;
+      return;
+    }
+    userId = user.user.id;
+  } catch (err) {
+    modalAsistenteStatus.textContent = 'Error inesperado al crear usuario en Auth.';
+    console.error(err);
     return;
   }
 
   // 2. Crear el registro en profiles usando el id del usuario Auth
-  const userId = user.user.id;
-  const { error: errorProfile } = await supabase
-    .from('profiles')
-    .insert([{ id: userId, email, display_name: nombre, role: 'asistente', active: activo }]);
-  if (errorProfile) {
-    modalAsistenteStatus.textContent = 'Error al crear asistente: ' + errorProfile.message;
+  try {
+    const { error: errorProfile } = await supabase
+      .from('profiles')
+      .insert([{ id: userId, email, display_name: nombre, role: 'asistente', active: activo }]);
+    if (errorProfile) {
+      modalAsistenteStatus.textContent = 'Error al crear asistente: ' + errorProfile.message;
+      return;
+    }
+  } catch (err) {
+    modalAsistenteStatus.textContent = 'Error inesperado al crear asistente en profiles.';
+    console.error(err);
     return;
   }
 
   // 3. Asociar al centro
-  const { error: errorPC } = await supabase
-    .from('profesional_centro')
-    .insert({ profesional_id: userId, centro_id, activo: true });
-  if (errorPC) {
-    modalAsistenteStatus.textContent = 'Asistente creado, pero error al asociar al centro';
+  try {
+    const { error: errorPC } = await supabase
+      .from('profesional_centro')
+      .insert({ profesional_id: userId, centro_id, activo: true });
+    if (errorPC) {
+      modalAsistenteStatus.textContent = 'Asistente creado, pero error al asociar al centro: ' + errorPC.message;
+      return;
+    }
+  } catch (err) {
+    modalAsistenteStatus.textContent = 'Asistente creado, pero error inesperado al asociar al centro.';
+    console.error(err);
     return;
   }
 
