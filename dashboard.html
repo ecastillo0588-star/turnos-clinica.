@@ -6,15 +6,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="app.css">
   <style>
-    /* Extra estilos para el botón de apagar y el topbar */
     .power-btn {
       background: none;
       border: none;
       cursor: pointer;
       padding: 0;
       margin: 0;
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -26,8 +25,8 @@
       background: rgba(220,0,40,0.08);
     }
     .power-btn svg {
-      width: 28px;
-      height: 28px;
+      width: 30px;
+      height: 30px;
       stroke: #b00020;
       transition: stroke 0.18s;
     }
@@ -37,7 +36,7 @@
     .power-btn .tooltip {
       display: none;
       position: absolute;
-      left: 42px;
+      left: 44px;
       top: 50%;
       transform: translateY(-50%);
       background: #381e60;
@@ -89,6 +88,8 @@
     .user-info .user-rol { background: #7656b0; color: #fff; border-radius: 6px; padding: 2px 10px; font-size: 14px;}
     #centro-select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 2px 8px; font-size: 15px; background: #fff;}
     #centro-nombre-top { font-weight: 500; }
+    .brand-title { font-weight: bold; font-size: 21px; color: #381e60; margin-top: 18px; margin-bottom: 8px;}
+    .brand-sub { font-size: 15px; color: #6b6480; margin-bottom: 12px;}
   </style>
 </head>
 <body>
@@ -145,12 +146,17 @@
     </main>
   </div>
   <script type="module">
-    // Datos básicos de usuario y centros
+    // Datos de usuario y centros
     const userName = localStorage.getItem('user_name') || 'Sin usuario';
     const userRol = localStorage.getItem('user_rol') || '';
     const centroNombre = localStorage.getItem('centro_medico_nombre') || '';
     const centroId = localStorage.getItem('centro_medico_id');
     const profesionalId = localStorage.getItem('profesional_id');
+
+    // Ocultar botón configuración para asistentes
+    if (userRol === "asistente") {
+      document.getElementById('btn-config').style.display = 'none';
+    }
 
     // Carga centros médicos asociados (usando Supabase)
     import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
@@ -186,12 +192,11 @@
       const centroNombreTop = document.getElementById('centro-nombre-top');
       const centroSelect = document.getElementById('centro-select');
       if (centros.length <= 1) {
-        // Solo uno o ninguno: mostrar nombre simple
         centroSelect.style.display = 'none';
         centroNombreTop.style.display = 'inline';
         centroNombreTop.textContent = centros[0]?.nombre || centroNombre || 'No asignado';
+        document.getElementById('centro-nombre').textContent = centros[0]?.nombre || centroNombre || 'No asignado';
       } else {
-        // Varios: mostrar <select>
         centroNombreTop.style.display = 'none';
         centroSelect.style.display = 'inline-block';
         centroSelect.innerHTML = '';
@@ -201,13 +206,10 @@
           opt.textContent = c.nombre;
           centroSelect.appendChild(opt);
         });
-        // Selección actual
         centroSelect.value = centroId || centros[0].id;
+        document.getElementById('centro-nombre').textContent = centros.find(c=>c.id === centroSelect.value)?.nombre || centroNombre || 'No asignado';
       }
-      // Actualizar también el nombre en el sidebar
-      document.getElementById('centro-nombre').textContent = centros.find(c=>c.id === centroSelect.value)?.nombre || centroNombre || 'No asignado';
 
-      // Cambiar centro en tiempo real
       centroSelect.onchange = function() {
         const seleccionado = centros.find(c=>c.id === this.value);
         localStorage.setItem('centro_medico_id', seleccionado.id);
@@ -266,7 +268,6 @@
       await cargarPanelConfiguracion();
     });
 
-    // Nuevo botón de logout (power)
     document.getElementById('btn-logout').addEventListener('click', function() {
       localStorage.clear();
       window.location.href = "index.html";
@@ -288,7 +289,6 @@
       const resp = await fetch('configuracion.html');
       let html = await resp.text();
       document.getElementById('configuracion-panel').innerHTML = html;
-      // Ejecutar los <script type="module"> internos
       const panel = document.getElementById('configuracion-panel');
       Array.from(panel.querySelectorAll('script[type="module"]')).forEach(oldScript => {
         const newScript = document.createElement('script');
