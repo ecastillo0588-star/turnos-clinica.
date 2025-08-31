@@ -88,6 +88,8 @@
       background:#381e60;color:#fff;padding:4px 8px;border-radius:8px;font-size:12px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;
     }
     .icon-btn:hover::after{opacity:1}
+    .icon-btn.small{width:34px;height:34px;padding:0;font-size:14px}
+    .icon-btn.small::after{bottom:120%}
 
     /* Modal OK */
     .modal-ok{width:min(640px,96vw);background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px;border:2px solid var(--okbg);
@@ -187,7 +189,12 @@
 <div class="modal-backdrop" id="turnos-modal">
   <div class="modal">
     <header>
-      <h3 id="turnos-modal-title">Turnos del día</h3>
+      <h3 id="turnos-modal-title" style="margin-right:auto">Turnos del día</h3>
+      <div class="day-nav" style="display:flex;align-items:center;gap:6px;margin-right:12px">
+        <button class="icon-btn small" id="turnos-modal-prev-day" data-tip="Día anterior">◀</button>
+        <input type="date" id="turnos-modal-date" class="inp" style="width:150px;padding:4px 6px;height:34px;font-size:13px">
+        <button class="icon-btn small" id="turnos-modal-next-day" data-tip="Día siguiente">▶</button>
+      </div>
       <button class="close" id="turnos-modal-close">&times;</button>
     </header>
 
@@ -265,7 +272,7 @@
         <label>Credencial (imagen)</label>
         <div class="uploadzone">
           <input type="file" id="np-cred-file" accept="image/*,.pdf" style="display:none" />
-          <button type="button" id="np-cred-select" class="btn ghost">Seleccionar archivo</button>
+            <button type="button" id="np-cred-select" class="btn ghost">Seleccionar archivo</button>
           <div id="np-cred-preview" class="uploadthumb" style="display:none"></div>
         </div>
       </div>
@@ -304,13 +311,10 @@
 <script type="module">
 /*
   CAMBIO PRINCIPAL:
-  Se unificó la visualización de horarios y turnos.
-  Ahora cada slot (horario) muestra directamente:
-   - Si está libre: botón ➕
-   - Si está ocupado: datos del paciente + botones ↪ (reprogramar) y 🗑 (anular)
-  Durante reprogramación:
-   - El turno original queda liberado temporalmente (aparece como libre con botón "Mover aquí")
-   - Se muestra un banner para cancelar la reprogramación.
+  1) Lista unificada de horarios: libres (➕) y ocupados (datos paciente + ↪ + 🗑).
+  2) Reprogramación mantiene turno original hasta confirmar y muestra banner.
+  3) Navegación de fecha dentro del modal: día anterior / siguiente / date picker.
+  4) Posibilidad de cambiar de día mientras reprogramo (preserva estado).
 */
 
 import supabase from './supabaseClient.js';
@@ -332,6 +336,9 @@ const UI = {
   modal: document.getElementById('turnos-modal'),
   modalClose: document.getElementById('turnos-modal-close'),
   modalTitle: document.getElementById('turnos-modal-title'),
+  modalDateInput: document.getElementById('turnos-modal-date'),
+  modalPrevDay: document.getElementById('turnos-modal-prev-day'),
+  modalNextDay: document.getElementById('turnos-modal-next-day'),
   slotsList: document.getElementById('turnos-slots-list'),
   // Typeahead
   pacInput: document.getElementById('turnos-paciente-input'),
@@ -381,7 +388,7 @@ const UI = {
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
 let currentCentroDireccion = '';
-const userRole = localStorage.getItem('user_role');     // 'medico' | 'asistente' | 'propietario'
+const userRole = localStorage.getItem('user_role'); // 'medico' | 'asistente' | 'propietario'
 const loggedProfesionalId = localStorage.getItem('profesional_id');
 if (!currentCentroId) { alert('No hay centro seleccionado. Volviendo al login.'); window.location.href='index.html'; }
 
@@ -410,6 +417,7 @@ function buildWhatsAppMessage({pac, fechaISO, start, end, prof, centro, dir}){
   const hora = `${start} a ${end}`;
   return `Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fecha} de ${hora} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;
 }
+function dateToISO(d){ return d.toISOString().slice(0,10); }
 
 /* ====== Estado ====== */
 let view = todayInfo();
@@ -470,7 +478,6 @@ async function ensureCentroWidgets(){
 /* ====== Profesionales ====== */
 async function loadProfesionales(){
   const sel = UI.profesionalSelect;
-
   if (userRole === 'medico' && loggedProfesionalId) {
     let label = null;
     try {
@@ -658,7 +665,7 @@ UI.pacClear.addEventListener('click', ()=>{
   enforceTipoTurnoByPaciente(null);
 });
 
-/* Nueva política: bloquear "Nueva consulta" si ya tuvo turnos */
+/* Política: bloquear "Nueva consulta" si ya tuvo turnos */
 async function enforceTipoTurnoByPaciente(pacienteId){
   const optNueva = UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
   if (!optNueva) return;
@@ -794,7 +801,7 @@ async function fetchAgendaYTurnos(profesionalId, y, m){
   return { agenda: agendaRes.data || [], turnos: turnosRes.data || [] };
 }
 
-/* Generar slots con info de ocupación. Excluye un turno (en reprogramación) si se pasa su id */
+/* Generar slots (excluye un turno si está en reprogramación) */
 function generarSlotsDeDia(agendaDelDia, turnosDelDia, tipo, excludeTurnoId){
   const dur = Number(duracionCfg[tipo] || 15);
   if (!dur || isNaN(dur) || dur<=0) return [];
@@ -862,7 +869,7 @@ async function renderCalendar(){
     cell.className = classNames.join(' ');
     cell.innerHTML = `<div class="num">${dayNum}</div><div class="badge">${badgeText}</div>`;
     if (classNames.includes('clickable')){
-      cell.addEventListener('click', ()=> openDayModal(iso, agendaDia, turnosDia));
+      cell.addEventListener('click', ()=> openDayModal(iso, agendaDia, turnosDia, { preserveReprogram: !!reprogramState }));
     }
     grid.appendChild(cell);
     dayNum++;
@@ -872,19 +879,20 @@ async function renderCalendar(){
 }
 
 /* Modal día */
-async function openDayModal(isoDate, agendaDia, turnosDiaRaw){
-  reprogramState = null;
+async function openDayModal(isoDate, agendaDia, turnosDiaRaw, { preserveReprogram = false } = {}){
+  if (!preserveReprogram) reprogramState = null;
   modalDateISO = isoDate;
   UI.modalTitle.textContent = `Turnos del ${new Date(isoDate).toLocaleDateString('es-AR')}`;
+  UI.modalDateInput.value = isoDate;
   UI.modal.style.display = 'flex';
-
-  const slots = generarSlotsDeDia(agendaDia, turnosDiaRaw, UI.tipoTurno.value, null);
+  const excludeId = reprogramState?.turno.id || null;
+  const slots = generarSlotsDeDia(agendaDia, turnosDiaRaw, UI.tipoTurno.value, excludeId);
   renderSlots(slots, agendaDia, turnosDiaRaw);
 }
 UI.modalClose.addEventListener('click', ()=> UI.modal.style.display='none');
 window.addEventListener('click', (e)=>{ if(e.target===UI.modal) UI.modal.style.display='none' });
 
-/* Refrescar modal día (fetch de datos actualizados) */
+/* Refrescar modal día (fetch actualizado) */
 async function refreshDayModal(){
   if (!modalDateISO) return;
   const { data: agendaDia } = await supabase
@@ -903,7 +911,12 @@ async function refreshDayModal(){
     .eq('fecha', modalDateISO)
     .order('hora_inicio',{ascending:true});
 
-  const slots = generarSlotsDeDia(agendaDia||[], turnosDiaRaw||[], UI.tipoTurno.value, reprogramState?.turno.id || null);
+  const slots = generarSlotsDeDia(
+    agendaDia||[],
+    turnosDiaRaw||[],
+    UI.tipoTurno.value,
+    reprogramState?.turno.id || null
+  );
   renderSlots(slots, agendaDia||[], turnosDiaRaw||[]);
 }
 
@@ -1030,7 +1043,7 @@ async function tryAgendar(slot){
     openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel });
   }
   await refreshDayModal();
-  await renderCalendar(); // actualizar badges del mes
+  await renderCalendar(); // actualizar badges
 }
 
 /* Iniciar reprogramación */
@@ -1078,6 +1091,29 @@ async function cancelarTurno(t){
   await refreshDayModal();
   await renderCalendar();
 }
+
+/* Navegación dentro del modal (día anterior / siguiente / picker) */
+async function loadModalDate(newISO){
+  modalDateISO = newISO;
+  UI.modalDateInput.value = newISO;
+  UI.modalTitle.textContent = `Turnos del ${new Date(newISO).toLocaleDateString('es-AR')}`;
+  await refreshDayModal();
+}
+UI.modalPrevDay.addEventListener('click', async ()=>{
+  if (!modalDateISO) return;
+  const d = new Date(modalDateISO+'T00:00:00');
+  d.setDate(d.getDate()-1);
+  await loadModalDate(dateToISO(d));
+});
+UI.modalNextDay.addEventListener('click', async ()=>{
+  if (!modalDateISO) return;
+  const d = new Date(modalDateISO+'T00:00:00');
+  d.setDate(d.getDate()+1);
+  await loadModalDate(dateToISO(d));
+});
+UI.modalDateInput.addEventListener('change', async ()=>{
+  if (UI.modalDateInput.value) await loadModalDate(UI.modalDateInput.value);
+});
 
 /* ====== Eventos globales ====== */
 UI.tipoTurno.addEventListener('change', async ()=>{
