@@ -126,7 +126,7 @@
   </section>
 </div>
 
-<!-- Botón SIEMPRE visible y sticky, con tooltip -->
+<!-- Botón SIEMPRE visible y sticky -->
 <div class="agenda-footer-sticky">
   <button class="btn primary" id="btn-generar-agenda" disabled
     title="Debe completar los campos obligatorios*">Generar agenda</button>
@@ -145,13 +145,9 @@
 </div>
 
 <script type="module">
-// Supabase config
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import supabase from './supabaseClient.js';
+import { isValidMorning, isValidAfternoon } from './validators.js';
 
-// Validación de sesión
 const profesional_id = localStorage.getItem('profesional_id');
 const centro_default_id = localStorage.getItem('centro_medico_id');
 if (!profesional_id || !centro_default_id) {
@@ -198,16 +194,11 @@ function renderTablaHorarios() {
   DIAS.forEach((dia, idx)=>{
     document.querySelector(`[name="hab_${idx}"]`).onchange = function() {
       const disabled = !this.checked;
-      document.querySelector(`[name="tm_ini_${idx}"]`).disabled = disabled;
-      document.querySelector(`[name="tm_fin_${idx}"]`).disabled = disabled;
-      document.querySelector(`[name="tt_ini_${idx}"]`).disabled = disabled;
-      document.querySelector(`[name="tt_fin_${idx}"]`).disabled = disabled;
-      if (disabled) {
-        document.querySelector(`[name="tm_ini_${idx}"]`).value = "";
-        document.querySelector(`[name="tm_fin_${idx}"]`).value = "";
-        document.querySelector(`[name="tt_ini_${idx}"]`).value = "";
-        document.querySelector(`[name="tt_fin_${idx}"]`).value = "";
-      }
+      ['tm_ini','tm_fin','tt_ini','tt_fin'].forEach(prefix=>{
+        const sel = document.querySelector(`[name="${prefix}_${idx}"]`);
+        sel.disabled = disabled;
+        if (disabled) sel.value = "";
+      });
     };
   });
 }
@@ -243,25 +234,27 @@ async function cargarCentros() {
 }
 cargarCentros();
 
-document.getElementById('btn-nuevo-centro').onclick = function() {
+// Mostrar/ocultar form nuevo centro
+document.getElementById('btn-nuevo-centro').onclick = () =>
   document.getElementById('nuevo-centro-form').classList.remove('hidden');
-};
-document.getElementById('cancelar-nuevo-centro').onclick = function() {
+document.getElementById('cancelar-nuevo-centro').onclick = () =>
   document.getElementById('nuevo-centro-form').classList.add('hidden');
-};
 
 // Guardar nuevo centro médico
 document.getElementById('guardar-nuevo-centro').onclick = async function() {
   const nombre = document.getElementById('nuevo-centro-nombre').value.trim();
-  const direccion = document.getElementById('nuevo-centro-direccion').value.trim();
-  const telefono = document.getElementById('nuevo-centro-telefono').value.trim();
-  const email = document.getElementById('nuevo-centro-email').value.trim();
-  const notas = document.getElementById('nuevo-centro-notas').value.trim();
   if (!nombre) return alert("El nombre es obligatorio");
 
   const { data, error } = await supabase
     .from('centros_medicos')
-    .insert([{ nombre, direccion, telefono, email, notas, activo: true }])
+    .insert([{ 
+      nombre,
+      direccion: document.getElementById('nuevo-centro-direccion').value.trim(),
+      telefono: document.getElementById('nuevo-centro-telefono').value.trim(),
+      email: document.getElementById('nuevo-centro-email').value.trim(),
+      notas: document.getElementById('nuevo-centro-notas').value.trim(),
+      activo: true 
+    }])
     .select('id, nombre')
     .single();
 
@@ -269,11 +262,8 @@ document.getElementById('guardar-nuevo-centro').onclick = async function() {
     await cargarCentros();
     document.getElementById('centro-agenda').value = data.id;
     document.getElementById('nuevo-centro-form').classList.add('hidden');
-    document.getElementById('nuevo-centro-nombre').value = '';
-    document.getElementById('nuevo-centro-direccion').value = '';
-    document.getElementById('nuevo-centro-telefono').value = '';
-    document.getElementById('nuevo-centro-email').value = '';
-    document.getElementById('nuevo-centro-notas').value = '';
+    ['nuevo-centro-nombre','nuevo-centro-direccion','nuevo-centro-telefono','nuevo-centro-email','nuevo-centro-notas']
+      .forEach(id=> document.getElementById(id).value = '');
     validarCamposAgenda();
   } else {
     alert('Error al crear centro médico');
@@ -281,19 +271,12 @@ document.getElementById('guardar-nuevo-centro').onclick = async function() {
 };
 
 // --- Validaciones en tiempo real ---
-const campos_requeridos = [
-  'nombre-agenda', 'fecha-inicio', 'fecha-fin',
-  'centro-agenda'
-];
+const campos_requeridos = ['nombre-agenda', 'fecha-inicio', 'fecha-fin','centro-agenda'];
 campos_requeridos.forEach(id => {
   document.getElementById(id).addEventListener('input', validarCamposAgenda);
 });
 function validarCamposAgenda() {
-  let valido = true;
-  campos_requeridos.forEach(id => {
-    const el = document.getElementById(id);
-    if (!el.value || el.value === "") valido = false;
-  });
+  let valido = campos_requeridos.every(id => document.getElementById(id).value);
   const btn = document.getElementById('btn-generar-agenda');
   btn.disabled = !valido;
   btn.title = valido ? "" : "Debe completar los campos obligatorios*";
@@ -309,10 +292,9 @@ function horarioValido() {
     const tm_fin = document.querySelector(`[name="tm_fin_${idx}"]`).value;
     const tt_ini = document.querySelector(`[name="tt_ini_${idx}"]`).value;
     const tt_fin = document.querySelector(`[name="tt_fin_${idx}"]`).value;
-    if (tm_ini && tm_fin && tm_ini >= tm_fin) valido = false;
-    if (tt_ini && tt_fin && tt_ini >= tt_fin) valido = false;
-    if(tm_fin && tm_fin > '13:00') valido = false;
-    if(tt_ini && tt_ini < '13:00') valido = false;
+
+    if (tm_ini && tm_fin && !isValidMorning(tm_ini, tm_fin)) valido = false;
+    if (tt_ini && tt_fin && !isValidAfternoon(tt_ini, tt_fin)) valido = false;
   });
   return valido;
 }
@@ -330,36 +312,26 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
   const fecha_fin = document.getElementById('fecha-fin').value;
   const centro_id = document.getElementById('centro-agenda').value;
 
-  // Recopilar solo los días y horarios ACTIVOS
   const bloques = [];
   DIAS.forEach((dia, idx)=>{
-    const habilitado = document.querySelector(`[name="hab_${idx}"]`).checked;
-    if(!habilitado) return;
+    if(!document.querySelector(`[name="hab_${idx}"]`).checked) return;
     const tm_ini = document.querySelector(`[name="tm_ini_${idx}"]`).value;
     const tm_fin = document.querySelector(`[name="tm_fin_${idx}"]`).value;
-    if(tm_ini && tm_fin && tm_ini < tm_fin && tm_fin <= '13:00'){
-      bloques.push({
-        dia:dia.nombre,
-        hora_inicio:tm_ini,
-        hora_fin:tm_fin,
-      });
+    if(tm_ini && tm_fin && isValidMorning(tm_ini, tm_fin)){
+      bloques.push({ dia:dia.nombre, hora_inicio:tm_ini, hora_fin:tm_fin });
     }
     const tt_ini = document.querySelector(`[name="tt_ini_${idx}"]`).value;
     const tt_fin = document.querySelector(`[name="tt_fin_${idx}"]`).value;
-    if(tt_ini && tt_fin && tt_ini < tt_fin && tt_ini >= '13:00'){
-      bloques.push({
-        dia:dia.nombre,
-        hora_inicio:tt_ini,
-        hora_fin:tt_fin,
-      });
+    if(tt_ini && tt_fin && isValidAfternoon(tt_ini, tt_fin)){
+      bloques.push({ dia:dia.nombre, hora_inicio:tt_ini, hora_fin:tt_fin });
     }
   });
+
   if(bloques.length===0){
     msg.textContent = "Seleccione al menos un día y un horario válido.";
     return;
   }
 
-  // --- Generar rangos de disponibilidad para cada día del rango ---
   msg.textContent = "Generando agenda...";
   let totalRangos = 0;
   let fechaActual = new Date(fecha_inicio);
@@ -372,7 +344,6 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     if(!diaSemana) { fechaActual.setDate(fechaActual.getDate()+1); continue; }
     const bloquesDia = bloques.filter(b=>b.dia===diaSemana);
     for(const b of bloquesDia){
-      // --- DEPURACIÓN: Verifica los datos antes de enviar a Supabase ---
       const registro = {
         centro_id,
         profesional_id,
@@ -383,16 +354,12 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
         estado: 'disponible',
         notas: '',
         "Nombre de Agenda": nombre_agenda,
-        tipo_turno: 'null', // Usa valor válido de tu enum
+        tipo_turno: 'null',
       };
-      console.log("Registro a insertar en agenda:", registro);
-
       const { error: upsertError } = await supabase
         .from('agenda')
         .upsert(registro, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
-
       if (upsertError) {
-        console.error("Supabase error:", upsertError);
         msg.textContent = "Error al crear agenda: " + upsertError.message;
         return;
       }
@@ -401,7 +368,6 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     fechaActual.setDate(fechaActual.getDate()+1);
   }
   msg.textContent = `Agenda generada (${totalRangos} rangos de disponibilidad).`;
-
   await cargarNombresAgendas();
 };
 
