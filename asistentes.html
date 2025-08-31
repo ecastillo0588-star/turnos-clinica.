@@ -19,12 +19,6 @@
     th { background: #e7e2fa; color: #381e60; font-size: 16px; }
     td { font-size: 15px; border-bottom: 1px solid #ece5fc; }
     .action-cell { text-align: right; }
-    .icon-btn { background: none; border: none; cursor: pointer; padding: 0; margin-left: 6px;}
-    .icon-btn svg { vertical-align: middle; width: 22px; height: 22px;}
-    .icon-btn.edit-btn svg { stroke: #7656b0; }
-    .icon-btn.delete-btn svg { stroke: #B00020; }
-    .icon-btn.edit-btn:hover svg { stroke: #381e60; }
-    .icon-btn.delete-btn:hover svg { stroke: #8e0c2f; }
     .activo-tag {
       display: inline-block;
       min-width: 40px;
@@ -57,7 +51,7 @@
       <tr>
         <th>Nombre</th>
         <th>Email</th>
-        <th>Centro Médico</th>
+        <th>Centro(s) Médico(s)</th>
         <th>Activo</th>
         <th class="action-cell">Acciones</th>
       </tr>
@@ -69,7 +63,7 @@
   <div id="status-msg" class="muted" style="margin-top:10px;"></div>
 </div>
 
-<!-- Modal para crear/editar asistente -->
+<!-- Modal para crear asistente -->
 <div id="modal-asistente" class="modal" style="display:none;">
   <div class="modal-content">
     <span class="close" id="cerrar-modal-asistente">&times;</span>
@@ -97,18 +91,20 @@
 </div>
 
 <script type="module">
+// Configuración Supabase
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
 
-// Función para hacer consultas seguras a la API REST de Supabase
-async function supabaseFetch(endpoint, params = "") {
+// Utilidad para fetch a la API REST
+async function supabaseFetch(endpoint, params = "", options = {}) {
   const url = `${supabaseUrl}/rest/v1/${endpoint}${params}`;
   const res = await fetch(url, {
     headers: {
       apikey: supabaseAnonKey,
       Authorization: `Bearer ${supabaseAnonKey}`,
       'Content-Type': 'application/json'
-    }
+    },
+    ...options
   });
   if (!res.ok) {
     const text = await res.text();
@@ -148,33 +144,40 @@ async function cargarCentros() {
   }
 }
 
-// Cargar asistentes desde la base
+// Cargar asistentes y mostrar sus centros médicos asociados (usando profesional_centro)
 async function cargarAsistentes() {
   asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Cargando asistentes...</td></tr>`;
   try {
-    // Filtro correcto: role=eq.asistente
-    const params = '?select=id,email,display_name,role,active,centro_id&role=eq.asistente';
-    const data = await supabaseFetch('profiles', params);
-    if (!data || data.length === 0) {
+    // Trae todos los asistentes
+    const asistentes = await supabaseFetch('profiles', '?select=id,email,display_name,role,active&role=eq.asistente');
+    if (!asistentes || asistentes.length === 0) {
       asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Aún no tienes asistentes.</td></tr>`;
       return;
     }
+
     asistentesTbody.innerHTML = "";
-    data.forEach((a) => {
-      const centroNombre = centrosMedicos.find(c => c.id === a.centro_id)?.nombre || '-';
+    // Para cada asistente, buscar sus centros asociados en profesional_centro
+    for (const a of asistentes) {
+      // Busca los centros asociados en profesional_centro con join hacia centros_medicos
+      let centros = [];
+      try {
+        const rel = await supabaseFetch(
+          'profesional_centro',
+          `?select=centro_id,centros_medicos(nombre)&profesional_id=eq.${a.id}&activo=eq.true`
+        );
+        centros = rel.map(r => r.centros_medicos?.nombre).filter(Boolean);
+      } catch {}
       const activoTxt = a.active ? 'Sí' : 'No';
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${a.display_name || '-'}</td>
         <td>${a.email || '-'}</td>
-        <td>${centroNombre}</td>
-        <td>
-          <span class="activo-tag${a.active ? '' : ' no'}">${activoTxt}</span>
-        </td>
+        <td>${centros.length ? centros.join(', ') : '-'}</td>
+        <td><span class="activo-tag${a.active ? '' : ' no'}">${activoTxt}</span></td>
         <td class="action-cell"></td>
       `;
       asistentesTbody.appendChild(tr);
-    });
+    }
   } catch (error) {
     asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Error al cargar asistentes</td></tr>`;
   }
@@ -197,7 +200,7 @@ window.addEventListener('click', (e) => {
   if (e.target === modalAsistente) modalAsistente.style.display = 'none';
 });
 
-// Guardar asistente (solo crear, no editar)
+// Guardar asistente y su asociación
 formAsistente.addEventListener('submit', async function(e) {
   e.preventDefault();
   const display_name = document.getElementById('display_name').value.trim();
@@ -212,13 +215,12 @@ formAsistente.addEventListener('submit', async function(e) {
   }
 
   try {
-    // Solo crea el registro en profiles (no en auth, para evitar errores de permisos)
+    // 1. Crear asistente en profiles
     const body = JSON.stringify({
       email,
       display_name,
       role: 'asistente',
-      active,
-      centro_id
+      active
     });
     const res = await fetch(`${supabaseUrl}/rest/v1/profiles`, {
       method: 'POST',
@@ -226,7 +228,7 @@ formAsistente.addEventListener('submit', async function(e) {
         apikey: supabaseAnonKey,
         Authorization: `Bearer ${supabaseAnonKey}`,
         'Content-Type': 'application/json',
-        Prefer: 'return=minimal'
+        Prefer: 'return=representation' // Para obtener el id
       },
       body
     });
@@ -235,7 +237,29 @@ formAsistente.addEventListener('submit', async function(e) {
       modalAsistenteStatus.textContent = 'Error al crear asistente: ' + errorText;
       return;
     }
-    modalAsistenteStatus.textContent = '¡Asistente creado correctamente!';
+    const [nuevoAsistente] = await res.json();
+    if (!nuevoAsistente?.id) {
+      modalAsistenteStatus.textContent = 'No se pudo obtener el asistente creado.';
+      return;
+    }
+    // 2. Asociar al centro en profesional_centro
+    const assocBody = JSON.stringify({ profesional_id: nuevoAsistente.id, centro_id, activo: true });
+    const assocRes = await fetch(`${supabaseUrl}/rest/v1/profesional_centro`, {
+      method: 'POST',
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: assocBody
+    });
+    if (!assocRes.ok) {
+      const errorText = await assocRes.text();
+      modalAsistenteStatus.textContent = 'Asistente creado, pero error al asociar al centro: ' + errorText;
+      return;
+    }
+    modalAsistenteStatus.textContent = '¡Asistente creado y asociado correctamente!';
     await cargarAsistentes();
     setTimeout(() => { modalAsistente.style.display = 'none'; }, 1200);
   } catch (error) {
