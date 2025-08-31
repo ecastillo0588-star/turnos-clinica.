@@ -55,6 +55,11 @@ const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// ---- DATOS DE SESIÓN ----
+const profesionalId = localStorage.getItem('profesional_id');
+const centroMedicoId = localStorage.getItem('centro_medico_id'); // El centro elegido en login
+const centroMedicoNombre = localStorage.getItem('centro_medico_nombre');
+
 // UI Elements
 const centroSelect = document.getElementById('centro_id');
 const nuevoCentroInput = document.getElementById('nuevo_centro_nombre');
@@ -66,26 +71,15 @@ const aplicarTodosBtn = document.getElementById('aplicar-todos');
 
 // Estado global
 let centrosMedicos = [];
-let profesional_id = null;
 
-// Obtener UUID del profesional autenticado
-async function obtenerProfesionalId() {
-  try {
-    const { data: user } = await supabase.auth.getUser();
-    profesional_id = user?.user?.id || null;
-  } catch (e) {
-    profesional_id = null;
-  }
-}
-
-// Cargar centros médicos asociados al profesional (join)
+// Cargar centros médicos asociados al profesional
 async function cargarCentros() {
   centroSelect.innerHTML = '<option disabled selected value="">Cargando centros...</option>';
   centrosMedicos = [];
   let { data, error } = await supabase
     .from('profesional_centro')
     .select('centro_id, centros_medicos(id, nombre)')
-    .eq('profesional_id', profesional_id)
+    .eq('profesional_id', profesionalId)
     .eq('activo', true);
 
   if (error || !data) {
@@ -112,7 +106,12 @@ async function cargarCentros() {
     centroSelect.appendChild(opt);
   });
   centrosStatusDiv.textContent = '';
-  centroSelect.value = centrosMedicos[0].id;
+  // Selecciona el centro médico elegido en login, si existe
+  if (centroMedicoId && centrosMedicos.some(c => c.id === centroMedicoId)) {
+    centroSelect.value = centroMedicoId;
+  } else {
+    centroSelect.value = centrosMedicos[0].id;
+  }
   await cargarConfiguracionDuracion(centroSelect.value);
   duracionForm.style.display = '';
 }
@@ -136,7 +135,7 @@ agregarCentroBtn.addEventListener('click', async function() {
   // Asociar centro al profesional
   const { error: errorPC } = await supabase
     .from('profesional_centro')
-    .insert({ profesional_id, centro_id: centro[0].id });
+    .insert({ profesional_id: profesionalId, centro_id: centro[0].id });
   if (errorPC) {
     centrosStatusDiv.textContent = 'Error al asociar centro';
     agregarCentroBtn.disabled = false;
@@ -160,7 +159,7 @@ async function cargarConfiguracionDuracion(centro_id) {
   let { data, error } = await supabase
     .from('config_duracion_turnos')
     .select('tipo_turno, minutos')
-    .eq('profesional_id', profesional_id)
+    .eq('profesional_id', profesionalId)
     .eq('centro_id', centro_id);
 
   if (error || !data) {
@@ -195,9 +194,9 @@ duracionForm.addEventListener('submit', async function(e) {
     return;
   }
   const duraciones = [
-    { profesional_id, centro_id, tipo_turno: 'nueva_consulta', minutos: parseInt(this.duracion_nueva.value) },
-    { profesional_id, centro_id, tipo_turno: 'recurrente', minutos: parseInt(this.duracion_recurrente.value) },
-    { profesional_id, centro_id, tipo_turno: 'sobreturno', minutos: parseInt(this.duracion_sobreturno.value) }
+    { profesional_id: profesionalId, centro_id, tipo_turno: 'nueva_consulta', minutos: parseInt(this.duracion_nueva.value) },
+    { profesional_id: profesionalId, centro_id, tipo_turno: 'recurrente', minutos: parseInt(this.duracion_recurrente.value) },
+    { profesional_id: profesionalId, centro_id, tipo_turno: 'sobreturno', minutos: parseInt(this.duracion_sobreturno.value) }
   ];
   const { error } = await supabase
     .from('config_duracion_turnos')
@@ -217,9 +216,9 @@ aplicarTodosBtn.addEventListener('click', async function() {
   const duracionesAll = [];
   centrosMedicos.forEach(c=> {
     duracionesAll.push(
-      { profesional_id, centro_id: c.id, tipo_turno: 'nueva_consulta', minutos: parseInt(duracionForm.duracion_nueva.value) },
-      { profesional_id, centro_id: c.id, tipo_turno: 'recurrente', minutos: parseInt(duracionForm.duracion_recurrente.value) },
-      { profesional_id, centro_id: c.id, tipo_turno: 'sobreturno', minutos: parseInt(duracionForm.duracion_sobreturno.value) }
+      { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'nueva_consulta', minutos: parseInt(duracionForm.duracion_nueva.value) },
+      { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'recurrente', minutos: parseInt(duracionForm.duracion_recurrente.value) },
+      { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'sobreturno', minutos: parseInt(duracionForm.duracion_sobreturno.value) }
     );
   });
   const { error } = await supabase
@@ -235,11 +234,10 @@ aplicarTodosBtn.addEventListener('click', async function() {
 });
 
 // Inicialización
-await obtenerProfesionalId();
-if (profesional_id) {
+if (profesionalId) {
   await cargarCentros();
 } else {
-  statusDiv.textContent = 'No se detectó usuario autenticado.';
+  statusDiv.textContent = 'No se detectó profesional en sesión.';
 }
 </script>
 
