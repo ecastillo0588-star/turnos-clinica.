@@ -81,7 +81,6 @@ const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// ---- DATOS DE SESIÓN ----
 const profesionalId = localStorage.getItem('profesional_id');
 
 const asistentesTbody = document.getElementById('asistentes-tbody');
@@ -98,7 +97,8 @@ let centrosMedicosAsistente = [];
 // Cargar centros médicos asociados al profesional para el select del asistente
 async function cargarCentrosAsistente() {
   asistenteCentroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
-  let { data, error } = await supabase
+  // Trae los centros médicos asociados al profesional actual
+  const { data, error } = await supabase
     .from('profesional_centro')
     .select('centro_id, centros_medicos(id, nombre)')
     .eq('profesional_id', profesionalId)
@@ -224,7 +224,7 @@ formAsistente.addEventListener('submit', async function(e) {
     (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
   );
 
-  // Crear asistente en profiles
+  // Crear asistente en profiles usando supabase-js (NO fetch directo)
   const { error: errorAsistente } = await supabase
     .from('profiles')
     .insert([{ id, email, display_name: nombre, role: 'asistente', active: activo }]);
@@ -247,7 +247,7 @@ formAsistente.addEventListener('submit', async function(e) {
 
 // Inicialización
 if (profesionalId) {
-  await cargarTablaAsistentes();
+  cargarTablaAsistentes();
 } else {
   statusMsgAsistente.textContent = 'No se detectó profesional en sesión.';
 }
