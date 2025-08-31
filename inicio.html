@@ -5,76 +5,71 @@
   <title>Inicio — EG Health Solutions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    /* Liberar ancho del contenedor host del dashboard */
     :where(#main-content.card){
-      max-width:none!important; width:100%!important; padding:0!important;
-      background:transparent!important; box-shadow:none!important; border-radius:0!important;
+      max-width:none!important;width:100%!important;padding:0!important;background:transparent!important;box-shadow:none!important;border-radius:0!important;
     }
-
     *{box-sizing:border-box}
     :root{
       --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
       --bg:#f7f9fb; --card:#fff; --line:#ece5fc; --ok:#0a7d38; --danger:#b00020;
     }
     body{background:var(--bg);margin:0;font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
-    .shell{padding:18px}
-    .panel{background:var(--card);border-radius:18px;box-shadow:0 2px 14px rgba(80,60,160,.10);
-      padding:18px;display:flex;flex-direction:column;gap:16px;min-height:calc(100vh - 36px)}
+    .shell{padding:12px}
+    .panel{background:var(--card);border-radius:14px;box-shadow:0 1px 10px rgba(80,60,160,.08);
+      padding:12px;display:flex;flex-direction:column;gap:10px;min-height:calc(100vh - 24px)}
 
-    /* Toolbar */
+    /* Toolbar compacta */
     .toolbar{
-      display:grid;grid-template-columns:minmax(240px,1fr) minmax(260px,1.1fr) minmax(220px,.9fr) auto auto;
-      gap:12px 14px;align-items:end
+      display:grid;
+      grid-template-columns: minmax(220px,1fr) minmax(260px,1.2fr) minmax(200px,.9fr) auto auto;
+      gap:10px 12px; align-items:end;
     }
-    .field{display:flex;flex-direction:column;gap:6px;min-width:0}
-    .field label{font-size:12px;color:var(--muted)}
-    .inp,.sel{background:#f7f9fb;border:1.5px solid var(--line);border-radius:10px;
-      padding:10px 12px;font-size:14px;color:var(--ink);outline:none;width:100%}
+    .field{display:flex;flex-direction:column;gap:4px;min-width:0}
+    .field label{font-size:11px;color:var(--muted)}
+    .inp,.sel{background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--ink);outline:none;width:100%}
     .inp:focus,.sel:focus{border-color:var(--brand-2)}
-    .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:10px;
-      padding:10px 14px;font-weight:600;cursor:pointer;transition:filter .15s;white-space:nowrap}
-    .btn:hover{filter:brightness(.98)}
+    .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:8px 10px;font-weight:600;cursor:pointer}
     .btn.secondary{background:#e7e2fa;color:#5a3e9a}
     .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
+    .pill{display:inline-flex;align-items:center;gap:6px;background:#f2effc;border:1px solid var(--line);color:#4b3a78;padding:6px 10px;border-radius:999px;font-size:13px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-    /* KPIs */
-    .kpis{display:grid;gap:14px;grid-template-columns:repeat(3,minmax(260px,1fr))}
-    .kpi{background:#f3f1fb;border:1px solid var(--line);border-radius:14px;padding:14px 16px}
-    .kpi .label{font-size:12px;color:var(--muted)}
-    .kpi .value{font-size:28px;font-weight:800;line-height:1.1}
+    /* Chips KPI */
+    .stats{display:flex;flex-wrap:wrap;gap:8px}
+    .chip{
+      display:flex;align-items:baseline;gap:6px;background:#f3f1fb;border:1px solid var(--line);
+      padding:8px 10px;border-radius:999px;font-size:12px;white-space:nowrap
+    }
+    .chip .v{font-size:18px;font-weight:800;line-height:1}
 
-    /* Boards */
-    .boards{display:grid;gap:16px;grid-template-columns:1fr 1fr;min-height:0}
-    .board{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;min-height:520px}
-    .board h3{margin:4px 6px 8px}
-    .board-body{position:relative;overflow:auto;flex:1;padding:0 4px 8px}
+    /* Boards compactos */
+    .boards{display:grid;gap:12px;grid-template-columns:1fr 1fr;min-height:0}
+    .board{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;min-height:420px}
+    .board h3{margin:2px 4px 6px;font-size:15px}
+    .board-body{position:relative;overflow:auto;flex:1;padding:0 2px 6px}
 
-    /* Tabla compacta */
-    .table{width:100%;border-collapse:separate;border-spacing:0 8px;min-width:860px}
+    /* Tablas compactas */
+    .table{width:100%;border-collapse:separate;border-spacing:0 6px;min-width:760px;font-size:13px}
     .thead{position:sticky;top:0;z-index:2;background:#fff}
-    .hrow,.row{display:grid;gap:0;align-items:center;border:1px solid var(--line);padding:8px 10px;border-radius:12px}
+    .hrow,.row{display:grid;gap:0;align-items:center;border:1px solid var(--line);padding:6px 8px;border-radius:10px}
     .hrow{background:#f4f1ff;color:#5a3e9a;font-weight:700}
     .row{background:#faf9ff}
-    .cell{padding:2px 6px;font-size:14px;min-width:0}
+    .cell{padding:0 4px;min-width:0}
     .right{text-align:right} .nowrap{white-space:nowrap}
+    .actions{display:flex;gap:6px;justify-content:flex-end}
+    .icon{border:none;background:#f4f1ff;border:1px solid var(--line);width:30px;height:30px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 
-    .actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}
-    .icon{border:none;background:#f4f1ff;border:1px solid var(--line);width:34px;height:34px;border-radius:9px;cursor:pointer;display:flex;align-items:center;justify-content:center}
-    .icon:hover{filter:brightness(.97)}
-
-    .wait{display:inline-block;font-size:12px;padding:3px 8px;border-radius:999px;background:#fff4e6;border:1px solid #ffe0b3;color:#8a5800}
-    .copago{display:inline-block;font-size:12px;padding:3px 8px;border-radius:999px;background:#e8fff0;border:1px solid #b9f0cb;color:#0a7d38}
+    .wait{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;background:#fff4e6;border:1px solid #ffe0b3;color:#8a5800}
+    .copago{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;background:#e8fff0;border:1px solid #b9f0cb;color:#0a7d38}
     .copago.none{background:#f1f1f1;border-color:#e0e0e0;color:#666}
 
-    /* Scrollbars */
-    .board-body::-webkit-scrollbar{height:10px;width:10px}
+    /* Scrollbars suaves */
+    .board-body::-webkit-scrollbar{height:8px;width:8px}
     .board-body::-webkit-scrollbar-thumb{background:#d8cfff;border-radius:8px}
 
-    @media (max-width:1200px){
-      .toolbar{grid-template-columns:1fr 1fr}
-      .kpis{grid-template-columns:1fr}
+    @media (max-width:1100px){
+      .toolbar{grid-template-columns:1fr 1fr;grid-auto-rows:auto}
       .boards{grid-template-columns:1fr}
-      .table{min-width:720px}
+      .table{min-width:680px}
     }
   </style>
 </head>
@@ -84,19 +79,24 @@
 
     <!-- Toolbar -->
     <div class="toolbar">
-      <div class="field" id="centro-field">
+      <!-- Centro médico (chip, sincronizado con sidebar) -->
+      <div class="field">
         <label>Centro médico</label>
-        <select id="centro-select" class="sel" style="display:none;"></select>
-        <input id="centro-nombre" class="inp" readonly style="display:none;">
+        <div class="pill" id="centro-chip">—</div>
       </div>
+
+      <!-- Profesional -->
       <div class="field">
         <label>Profesional</label>
         <select id="prof-select" class="sel"><option>Profesional</option></select>
       </div>
+
+      <!-- Fecha -->
       <div class="field">
         <label>Fecha</label>
         <input id="fecha" type="date" class="inp"/>
       </div>
+
       <div class="field" style="align-items:flex-end">
         <button id="btn-turnos" class="btn ghost">Ir a Turnos</button>
       </div>
@@ -105,11 +105,12 @@
       </div>
     </div>
 
-    <!-- KPIs -->
-    <div class="kpis">
-      <div class="kpi"><div class="label">Pendientes de arribo</div><div class="value" id="kpi-pend">0</div><div class="label" id="kpi-pend-sub"></div></div>
-      <div class="kpi"><div class="label">Presentes (en espera)</div><div class="value" id="kpi-esp">0</div><div class="label" id="kpi-esp-sub"></div></div>
-      <div class="kpi"><div class="label">Horas disponibles hoy</div><div class="value" id="kpi-free">0.0 h</div><div class="label" id="kpi-free-sub"></div></div>
+    <!-- KPIs como chips -->
+    <div class="stats">
+      <div class="chip"><span>Pendientes</span> <span class="v" id="kpi-pend">0</span></div>
+      <div class="chip"><span>Presentes</span> <span class="v" id="kpi-esp">0</span></div>
+      <div class="chip"><span>Horas libres</span> <span class="v" id="kpi-free">0.0 h</span></div>
+      <div class="chip" id="kpi-sub" style="opacity:.8"></div>
     </div>
 
     <!-- Boards -->
@@ -133,8 +134,7 @@ import supabase from './supabaseClient.js';
 const EST = { ASIGNADO:'asignado', EN_ESPERA:'en_espera', EN_ATENCION:'en_atencion', CANCELADO:'cancelado' };
 
 const UI = {
-  centroSelect: document.getElementById('centro-select'),
-  centroNombre: document.getElementById('centro-nombre'),
+  centroChip: document.getElementById('centro-chip'),
   profSelect: document.getElementById('prof-select'),
   fecha: document.getElementById('fecha'),
   btnHoy: document.getElementById('btn-hoy'),
@@ -142,11 +142,9 @@ const UI = {
   tblPend: document.getElementById('tbl-pend'),
   tblEsp: document.getElementById('tbl-esp'),
   kpiPend: document.getElementById('kpi-pend'),
-  kpiPendSub: document.getElementById('kpi-pend-sub'),
   kpiEsp: document.getElementById('kpi-esp'),
-  kpiEspSub: document.getElementById('kpi-esp-sub'),
   kpiFree: document.getElementById('kpi-free'),
-  kpiFreeSub: document.getElementById('kpi-free-sub'),
+  kpiSub: document.getElementById('kpi-sub'),
 };
 
 let currentCentroId = localStorage.getItem('centro_medico_id');
@@ -155,6 +153,7 @@ const userRole = localStorage.getItem('user_role');
 const loggedProfesionalId = localStorage.getItem('profesional_id');
 let currentProfesional = null;
 let currentFechaISO = null;
+let centroWatchTimer = null;
 
 function pad(n){return n<10?'0'+n:''+n}
 function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
@@ -164,71 +163,80 @@ function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.get
 function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
 
 async function fetchCentroById(id){
-  const { data } = await supabase.from('centros_medicos').select('nombre,direccion').eq('id', id).single();
-  return { nombre: data?.nombre || '', direccion: data?.direccion || '' };
-}
-async function getCentrosDeProfesional(profesionalId){
-  const { data, error } = await supabase
-    .from('profesional_centro').select('centro_id, activo, centros_medicos(id, nombre)')
-    .eq('profesional_id', profesionalId).eq('activo', true);
-  if (error || !data) return [];
-  return data.filter(r=>r.centros_medicos).map(r=>({ id:r.centros_medicos.id, nombre:r.centros_medicos.nombre }));
+  const { data } = await supabase.from('centros_medicos').select('nombre').eq('id', id).maybeSingle();
+  return data?.nombre || '';
 }
 
-/* ===== Profesionales ===== */
+/* ====== sincronicemos el centro con el sidebar ====== */
+function renderCentroChip(){
+  UI.centroChip.textContent = currentCentroNombre || '—';
+}
+async function syncCentroFromStorage(force=false){
+  const id = localStorage.getItem('centro_medico_id');
+  const nom = localStorage.getItem('centro_medico_nombre') || currentCentroNombre;
+  if (force || id !== currentCentroId || nom !== currentCentroNombre){
+    currentCentroId = id;
+    currentCentroNombre = nom || await fetchCentroById(id);
+    localStorage.setItem('centro_medico_nombre', currentCentroNombre);
+    renderCentroChip();
+    await loadProfesionales();
+    await refreshAll();
+  }
+}
+function startCentroWatcher(){
+  if (centroWatchTimer) clearInterval(centroWatchTimer);
+  centroWatchTimer = setInterval(()=>syncCentroFromStorage(false), 1000);
+}
+
+/* ====== Profesionales ====== */
 async function loadProfesionales(){
   const sel=UI.profSelect;
+
   if (userRole==='medico' && loggedProfesionalId){
     let label=null;
     try{
       const { data }=await supabase.from('profesionales').select('id,nombre,apellido,display_name').eq('id',loggedProfesionalId).single();
-      if (data) label=data.display_name || [data.apellido,data.nombre].filter(Boolean).join(', ') || data.nombre || data.apellido;
+      if (data) label = data.display_name || [data.apellido,data.nombre].filter(Boolean).join(', ') || data.nombre || data.apellido;
     }catch(_){}
-    if (!label) label=localStorage.getItem('user_name')||localStorage.getItem('email')||'Mi agenda';
-    sel.innerHTML=`<option value="${loggedProfesionalId}">${label}</option>`;
-    sel.value=loggedProfesionalId; sel.disabled=true; currentProfesional=loggedProfesionalId; return;
+    if (!label) label = localStorage.getItem('user_name') || localStorage.getItem('email') || 'Mi agenda';
+    sel.innerHTML = `<option value="${loggedProfesionalId}">${label}</option>`;
+    sel.value = loggedProfesionalId; sel.disabled = true; currentProfesional = loggedProfesionalId; return;
   }
-  sel.disabled=false;
-  const { data: map } = await supabase.from('profesional_centro').select('profesional_id').eq('centro_id', currentCentroId).eq('activo', true);
-  const ids=[...new Set((map||[]).map(r=>r.profesional_id).filter(Boolean))];
+
+  sel.disabled = false;
+
+  const { data: map } = await supabase
+    .from('profesional_centro')
+    .select('profesional_id')
+    .eq('centro_id', currentCentroId)
+    .eq('activo', true);
+
+  const ids = [...new Set((map||[]).map(r=>r.profesional_id).filter(Boolean))];
   if (!ids.length){ sel.innerHTML='<option value="">Sin profesionales</option>'; currentProfesional=null; return; }
-  const { data: profs } = await supabase.from('profesionales').select('id,nombre,apellido,display_name').in('id',ids).order('apellido',{ascending:true});
-  sel.innerHTML=(profs||[]).map(p=>{
+
+  const { data: profs } = await supabase
+    .from('profesionales')
+    .select('id,nombre,apellido,display_name')
+    .in('id', ids)
+    .order('apellido', {ascending:true});
+
+  sel.innerHTML = (profs||[]).map(p=>{
     const n=p.display_name||[p.apellido,p.nombre].filter(Boolean).join(', ')||p.nombre||p.apellido||p.id;
     return `<option value="${p.id}">${n}</option>`;
   }).join('');
-  currentProfesional=(profs&&profs[0])?profs[0].id:null; if(currentProfesional) sel.value=currentProfesional;
-}
-UI.profSelect.addEventListener('change', async ()=>{ currentProfesional=UI.profSelect.value||null; await refreshAll(); });
 
-/* ===== Centros ===== */
-async function ensureCentroWidgets(){
-  if(!currentCentroId){ alert('No hay centro seleccionado'); window.location.href='index.html'; return; }
-  if (userRole==='asistente'){
-    UI.centroNombre.style.display=''; UI.centroSelect.style.display='none';
-    const c = await fetchCentroById(currentCentroId); currentCentroNombre=c.nombre||currentCentroNombre; UI.centroNombre.value=currentCentroNombre||'(sin nombre)';
-  } else {
-    UI.centroSelect.style.display=''; UI.centroNombre.style.display='none';
-    const centros = await getCentrosDeProfesional(loggedProfesionalId);
-    const sel=UI.centroSelect;
-    if(!centros.length){ sel.innerHTML='<option value="">Sin centros</option>'; return; }
-    sel.innerHTML=centros.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
-    if(currentCentroId && centros.some(c=>c.id===currentCentroId)) sel.value=currentCentroId; else { currentCentroId=centros[0].id; sel.value=currentCentroId; }
-    sel.addEventListener('change', async ()=>{
-      currentCentroId=sel.value; localStorage.setItem('centro_medico_id', currentCentroId);
-      const c=await fetchCentroById(currentCentroId); currentCentroNombre=c.nombre||sel.options[sel.selectedIndex]?.textContent||''; localStorage.setItem('centro_medico_nombre', currentCentroNombre);
-      await loadProfesionales(); await refreshAll();
-    });
-  }
+  currentProfesional = (profs && profs[0]) ? profs[0].id : null;
+  if (currentProfesional) sel.value = currentProfesional;
 }
+UI.profSelect.addEventListener('change', async ()=>{ currentProfesional = UI.profSelect.value || null; await refreshAll(); });
 
-/* ===== Fecha & botones ===== */
+/* ====== Fecha & botones ====== */
 UI.fecha.value=todayISO(); currentFechaISO=UI.fecha.value;
 UI.fecha.addEventListener('change', ()=>{ currentFechaISO=UI.fecha.value||todayISO(); refreshAll(); });
 UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
 UI.btnTurnos.addEventListener('click', ()=>{ window.location.href='turnos.html'; });
 
-/* ===== Data día ===== */
+/* ====== Data del día ====== */
 async function fetchDiaData(){
   if(!currentProfesional) return { pendientes:[], presentes:[], agenda:[], turnos:[] };
   const common={centro_id:currentCentroId, profesional_id:currentProfesional, fecha:currentFechaISO};
@@ -248,14 +256,12 @@ async function fetchDiaData(){
       .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
   ]);
 
-  return {
-    pendientes: pend.data||[], presentes: pres.data||[], agenda: agenda.data||[], turnos: turnos.data||[],
-  };
+  return { pendientes: pend.data||[], presentes: pres.data||[], agenda: agenda.data||[], turnos: turnos.data||[] };
 }
 
-/* ===== Render compacto ===== */
+/* ====== Render compacto ====== */
 function renderPendientes(list){
-  const grid='40px 120px 140px 1fr 1fr 1.1fr 160px';
+  const grid='34px 100px 120px 1fr 1fr 1.1fr 140px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">✔</th><th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
@@ -280,7 +286,6 @@ function renderPendientes(list){
   }).join('');
   UI.tblPend.innerHTML=head+'<tbody>'+rows+'</tbody>';
 
-  // binds
   UI.tblPend.querySelectorAll('[data-arribo]').forEach(cb=>{
     cb.addEventListener('change', async ()=>{
       if(!cb.checked) return;
@@ -300,8 +305,7 @@ function updateWaitBadges(){
   const nodes=document.querySelectorAll('[data-arribo-ts]');
   const now=new Date();
   nodes.forEach(n=>{
-    const ts=n.getAttribute('data-arribo-ts');
-    if(!ts) return;
+    const ts=n.getAttribute('data-arribo-ts'); if(!ts) return;
     const ms= now - new Date(ts);
     const mins=Math.max(0, Math.round(ms/60000));
     const hh=Math.floor(mins/60), mm=mins%60;
@@ -310,18 +314,16 @@ function updateWaitBadges(){
 }
 
 function renderPresentes(list){
-  const grid='120px 140px 1fr 1fr 1.1fr 140px 220px';
+  const grid='110px 100px 1fr 1fr 1.1fr 120px 200px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
-      <th class="cell">Apellido</th><th class="cell">Obra social</th>
-      <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
+      <th class="cell">Apellido</th><th class="cell">Obra social</th><th class="cell">Copago</th>
+      <th class="cell right">Acciones</th></tr></thead>`;
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const arriboISO=`${currentFechaISO}T${toHM(t.hora_arribo)||'00:00'}:00`;
-    const copBadge = (t.copago && Number(t.copago)>0)
-      ? `<span class="copago">${fmtMoney(t.copago)}</span>`
-      : `<span class="copago none">Sin copago</span>`;
+    const copBadge=(t.copago && Number(t.copago)>0)?`<span class="copago">${fmtMoney(t.copago)}</span>`:`<span class="copago none">Sin copago</span>`;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell"><span class="wait" data-arribo-ts="${arriboISO}">—</span></td>
       <td class="cell nowrap">${hora}</td>
@@ -341,7 +343,6 @@ function renderPresentes(list){
   }).join('');
   UI.tblEsp.innerHTML=head+'<tbody>'+rows+'</tbody>';
 
-  // binds
   UI.tblEsp.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='volver') btn.onclick=async()=>{ await supabase.from('turnos').update({estado:EST.ASIGNADO, hora_arribo:null}).eq('id',id); await refreshAll(); };
@@ -350,32 +351,25 @@ function renderPresentes(list){
     if(act==='atender') btn.onclick=()=> pasarAEnAtencion(id);
   });
 
-  // inicializar/tick espera
   updateWaitBadges(); startWaitTicker();
 }
 
 /* ===== Llegada + Copago ===== */
 async function marcarLlegadaYCopago(turnoId){
-  // buscamos obra social del paciente de ese turno
-  const { data: turno } = await supabase
+  const { data: t } = await supabase
     .from('turnos')
-    .select('id, paciente_id, pacientes(obra_social)')
+    .select('id, pacientes(obra_social)')
     .eq('id', turnoId)
     .single();
 
-  let copago = null;
-  const obra = turno?.pacientes?.obra_social || null;
-
+  let copago=null, obra=t?.pacientes?.obra_social||null;
   if (obra){
     const { data: os } = await supabase
       .from('obras_sociales')
       .select('condicion_copago, valor_copago')
       .eq('obra_social', obra)
-      .maybeSingle(); // puede que no exista
-
-    if (os && os.condicion_copago === true && os.valor_copago != null){
-      copago = os.valor_copago;
-    }
+      .maybeSingle();
+    if (os && os.condicion_copago===true && os.valor_copago!=null) copago=os.valor_copago;
   }
 
   await supabase.from('turnos')
@@ -411,25 +405,28 @@ function computeHorasDisponibles(agenda, turnos){
 }
 function renderKPIs({pendientes, presentes, agenda, turnos}){
   UI.kpiPend.textContent=pendientes.length;
-  UI.kpiPendSub.textContent=`${currentCentroNombre||''} · ${UI.profSelect.options[UI.profSelect.selectedIndex]?.textContent||''}`;
-  UI.kpiEsp.textContent=presentes.length; UI.kpiEspSub.textContent=`${currentFechaISO}`;
+  UI.kpiEsp.textContent=presentes.length;
   const free=computeHorasDisponibles(agenda, turnos);
-  UI.kpiFree.textContent=`${free.horas} h`; UI.kpiFreeSub.textContent=`Agenda: ${(free.totalAgendaMin/60).toFixed(1)} h`;
+  UI.kpiFree.textContent=`${free.horas} h`;
+  UI.kpiSub.textContent = `${currentCentroNombre || ''} · ${UI.profSelect.options[UI.profSelect.selectedIndex]?.textContent || ''} · ${currentFechaISO}`;
 }
 
 /* ===== Refresh & Init ===== */
 async function refreshAll(){
-  if(!currentProfesional){ UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; return; }
+  if(!currentProfesional){ UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.kpiSub.textContent=`${currentCentroNombre||''} · ${currentFechaISO}`; return; }
   const data = await fetchDiaData();
   renderPendientes(data.pendientes);
   renderPresentes(data.presentes);
   renderKPIs(data);
 }
 async function initInicio(){
-  await ensureCentroWidgets();
+  currentCentroId = localStorage.getItem('centro_medico_id');
+  currentCentroNombre = localStorage.getItem('centro_medico_nombre') || (await fetchCentroById(currentCentroId));
+  renderCentroChip();
   await loadProfesionales();
   currentFechaISO = UI.fecha.value || todayISO();
   await refreshAll();
+  startCentroWatcher(); // escucha cambios del sidebar
 }
 await initInicio();
 </script>
