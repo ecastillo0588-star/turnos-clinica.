@@ -80,10 +80,10 @@
         return;
       }
       userEmail = email;
-      // Buscar perfil y rol y nombre
+      // Buscar perfil y rol y display_name
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('role, profesional_id, id, email, nombre')
+        .select('role, profesional_id, id, email, display_name')
         .eq('email', email)
         .single();
       if (profileError || !profileData) {
@@ -92,7 +92,7 @@
       }
       userRole = profileData.role;
       profesionalId = profileData.profesional_id;
-      userName = profileData.nombre || profileData.name || email; // fallback al email si no hay nombre
+      userName = profileData.display_name || email; // fallback al email si no hay nombre
 
       // Guardar datos básicos en localStorage
       localStorage.setItem('usuario_id', profileData.id);
@@ -172,6 +172,7 @@
         document.getElementById('center-select-div').innerHTML = `<label>Centro médico asignado:</label>
           <div style="font-weight:600;color:#0055a5;padding:10px 0;">${centroAsignado.nombre}</div>`;
         document.getElementById('center-form').classList.remove('hidden');
+        centros = [centroAsignado];
       } else {
         errorMessage.textContent = 'Rol no reconocido.';
       }
@@ -184,10 +185,10 @@
       if (userRole === 'propietario' || userRole === 'medico') {
         centroId = document.getElementById('select-centro').value;
       } else if (userRole === 'asistente') {
-        centroId = centroAsignado.id;
+        centroId = centros[0].id;
       }
       localStorage.setItem('centro_medico_id', centroId);
-      localStorage.setItem('centro_medico_nombre', centros.find(c => c.id === centroId)?.nombre || centroAsignado?.nombre);
+      localStorage.setItem('centro_medico_nombre', centros.find(c => c.id === centroId)?.nombre || centros[0]?.nombre);
       window.location.href = "dashboard.html";
     });
 
