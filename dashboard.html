@@ -63,8 +63,6 @@
     }
     .custom-select select {
       appearance: none;
-      -webkit-appearance: none;
-      -moz-appearance: none;
       background: #f7f9fb;
       border: 1.5px solid #ece5fc;
       border-radius: 7px;
@@ -78,9 +76,7 @@
       outline: none;
       box-shadow: none;
     }
-    .custom-select select:focus {
-      border-color: #a490d7;
-    }
+    .custom-select select:focus { border-color: #a490d7; }
     .custom-select::after {
       content: '';
       position: absolute;
@@ -150,13 +146,14 @@
       </div>
     </aside>
     <main class="main">
-      <div id="main-content" class="card">
-        <!-- El contenido inicial se carga desde inicio.html -->
-      </div>
+      <div id="main-content" class="card"></div>
       <div id="configuracion-panel" class="hidden"></div>
     </main>
   </div>
+
   <script type="module">
+    import supabase from "./supabaseClient.js";  // ✅ cliente centralizado
+
     const userName = localStorage.getItem('user_name') || 'Sin usuario';
     const userRol = localStorage.getItem('user_role') || '';
     const centroId = localStorage.getItem('centro_medico_id');
@@ -169,11 +166,6 @@
       document.getElementById('btn-config').style.display = 'none';
     }
 
-    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-    const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
     async function cargarCentroDashboard() {
       const centroSelect = document.getElementById('centro-select');
       centroSelect.innerHTML = '<option disabled selected>Cargando...</option>';
@@ -185,18 +177,15 @@
           .eq('profesional_id', profesionalId)
           .eq('activo', true);
 
-        if (!error && data && data.length > 0) {
+        if (!error && data?.length) {
           centros = data
             .filter(row => row.centros_medicos)
-            .map(row => ({
-              id: row.centros_medicos.id,
-              nombre: row.centros_medicos.nombre
-            }));
+            .map(row => ({ id: row.centros_medicos.id, nombre: row.centros_medicos.nombre }));
         }
       }
 
       centroSelect.innerHTML = '';
-      if (centros.length === 0) {
+      if (!centros.length) {
         centroSelect.innerHTML = '<option disabled selected>No hay centros</option>';
         localStorage.removeItem('centro_medico_id');
         localStorage.removeItem('centro_medico_nombre');
@@ -221,22 +210,22 @@
 
     await cargarCentroDashboard();
 
-    // Carga dinámica de html externo en el main-content
+    // Carga dinámica en main-content
     async function cargarPanelHtml(url) {
       const resp = await fetch(url);
-      let html = await resp.text();
+      const html = await resp.text();
       document.getElementById('main-content').innerHTML = html;
-      // Ejecutar scripts de tipo module si existen en el html cargado
-      Array.from(document.getElementById('main-content').querySelectorAll('script[type="module"]')).forEach(oldScript => {
-        const newScript = document.createElement('script');
-        newScript.type = 'module';
-        if (oldScript.src) newScript.src = oldScript.src;
-        else newScript.textContent = oldScript.textContent;
-        document.body.appendChild(newScript);
-      });
+      Array.from(document.getElementById('main-content').querySelectorAll('script[type="module"]'))
+        .forEach(oldScript => {
+          const newScript = document.createElement('script');
+          newScript.type = 'module';
+          if (oldScript.src) newScript.src = oldScript.src;
+          else newScript.textContent = oldScript.textContent;
+          document.body.appendChild(newScript);
+        });
     }
 
-    // Cargar inicio.html al cargar la página
+    // Inicio por defecto
     await cargarPanelHtml('inicio.html');
 
     document.getElementById('btn-inicio').addEventListener('click', async function() {
@@ -257,7 +246,7 @@
       document.getElementById('configuracion-panel').classList.remove('hidden');
       await cargarPanelConfiguracion();
     });
-    document.getElementById('btn-logout').addEventListener('click', function() {
+    document.getElementById('btn-logout').addEventListener('click', () => {
       localStorage.clear();
       window.location.href = "index.html";
     });
@@ -269,9 +258,9 @@
 
     async function cargarPanelConfiguracion() {
       const resp = await fetch('configuracion.html');
-      let html = await resp.text();
-      document.getElementById('configuracion-panel').innerHTML = html;
+      const html = await resp.text();
       const panel = document.getElementById('configuracion-panel');
+      panel.innerHTML = html;
       Array.from(panel.querySelectorAll('script[type="module"]')).forEach(oldScript => {
         const newScript = document.createElement('script');
         newScript.type = 'module';
