@@ -1,219 +1,367 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Turnos — EG Health Solutions</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8"/>
+  <title>Turnos | Panel</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <!--
+    NOTAS:
+    1. Este archivo incluye el layout completo con sidebar SIEMPRE visible.
+    2. Ajustá las rutas (dashboard.html, pacientes.html, etc.) a tu estructura real.
+    3. Si ya tenés estilos globales para el layout y sidebar, podés eliminar la sección CSS correspondiente
+       (buscá comentarios ===== LAYOUT / SIDEBAR ===== y deja solo lo que necesites).
+    4. El contenido de Turnos mantiene:
+       - Lista unificada de slots (libres/ocupados).
+       - Reprogramación con banner y navegación de días dentro del modal.
+       - Cambio de día desde el calendario preservando reprogramación (si se hace clic en otro día).
+  -->
   <style>
-    *{box-sizing:border-box}
+    *{box-sizing:border-box;margin:0;padding:0}
     :root{
       --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
-      --bg:#f7f9fb; --card:#fff; --line:#ece5fc; --accent:#0b5394;
-      --ok:#0a7d38; --okbg:#e8fff0; --danger:#b00020; --dangerbg:#fde7eb;
+      --bg:#f5f7fb; --card:#fff; --line:#e6dcf9; --accent:#0b5394;
+      --ok:#0a7d38; --okbg:#e8fff0; --danger:#b00020; --warn:#8a5800; --warnbg:#fff4e6;
+      --sidebar-bg:#311b53; --sidebar-bg-alt:#3c2366; --sidebar-link:#d9cef3; --sidebar-link-act:#ffffff;
     }
-    body{margin:0;background:var(--bg);font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
-    .wrap{max-width:1100px;margin:0 auto;padding:12px}
 
-    /* Contenedor superior */
-    .toolbar{display:grid;grid-template-columns: 1.1fr 1.1fr 1.4fr 1fr auto;gap:12px;align-items:end;margin-bottom:14px;
-      background:var(--card);border-radius:16px;box-shadow:0 2px 12px rgba(80,60,160,.10);padding:14px}
-    .field{display:flex;flex-direction:column;gap:6px;position:relative}
-    .field label{font-size:12px;color:var(--muted)}
-    .inp,.sel{background:#f7f9fb;border:1.5px solid var(--line);border-radius:7px;padding:9px 10px;font-size:14px;color:var(--ink);outline:none;width:100%}
-    .inp:focus,.sel:focus{border-color:var(--brand-2)}
-    .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:10px 12px;font-weight:600;cursor:pointer;transition:filter .15s}
-    .btn.secondary{background:#e7e2fa;color:#5a3e9a}
-    .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
-    .btn.ok{background:var(--ok)} .btn.danger{background:var(--danger)}
-    .btn:hover{filter:brightness(.98)}
+    body,html{height:100%;font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);background:var(--bg);}
 
-    /* Chip paciente seleccionado */
-    .chip{position:absolute;right:8px;top:-18px;background:#e7e2fa;color:#5a3e9a;border-radius:999px;padding:2px 8px;font-size:12px;display:flex;gap:6px;align-items:center;z-index:3}
-    .chip button{all:unset;cursor:pointer}
+    /* ===== LAYOUT / SIDEBAR ===== */
+    .layout{display:flex;min-height:100vh;width:100%;}
+    aside.sidebar{
+      width:250px;flex:0 0 250px;
+      background:linear-gradient(180deg,var(--sidebar-bg) 0%, var(--sidebar-bg-alt) 100%);
+      color:#fff;display:flex;flex-direction:column;gap:16px;
+      padding:18px 16px 24px;position:sticky;top:0;height:100vh;overflow-y:auto;
+    }
+    .sb-logo{font-size:18px;font-weight:600;letter-spacing:.5px;display:flex;align-items:center;gap:8px;}
+    .sb-logo span{background:#fff2;border-radius:8px;padding:4px 8px;font-size:12px;}
+    nav.sb-menu{display:flex;flex-direction:column;gap:4px;margin-top:8px;}
+    nav.sb-menu a{
+      text-decoration:none;color:var(--sidebar-link);font-size:14px;font-weight:500;
+      padding:10px 12px;border-radius:10px;display:flex;align-items:center;gap:10px;
+      transition:background .15s,color .15s;
+    }
+    nav.sb-menu a.active, nav.sb-menu a:hover{
+      background:#ffffff22;color:var(--sidebar-link-act);
+    }
+    .sb-section-title{margin:14px 6px 4px;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#c2b4df}
+    .sb-footer{margin-top:auto;font-size:11px;color:#c8bfe0;line-height:1.4;padding-top:12px;border-top:1px solid #ffffff22;}
 
-    /* Typeahead */
-    .suggest{position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid var(--line);border-radius:10px;margin-top:6px;box-shadow:0 6px 18px rgba(0,0,0,.08);z-index:20;max-height:260px;overflow:auto}
-    .s-item{padding:10px 12px;display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);cursor:pointer}
+    /* MAIN AREA */
+    .main-area{flex:1;display:flex;flex-direction:column;min-width:0;max-width:100%;overflow:hidden;}
+    .main-scroll{flex:1;overflow:auto;padding:18px 20px 40px;}
+    .page-title{font-size:20px;font-weight:600;margin:0 0 14px;display:flex;align-items:center;gap:10px;}
+
+    /* ===== Turnos (namespaced para evitar colisiones) ===== */
+    .turnos-wrap{max-width:1180px;margin:0 auto;}
+    .t-toolbar{
+      display:grid;grid-template-columns:1.1fr 1.1fr 1.5fr 1fr auto;
+      gap:12px;align-items:end;margin-bottom:16px;
+      background:var(--card);border-radius:18px;padding:16px 16px 18px;
+      box-shadow:0 2px 14px -2px rgba(80,60,160,.18);
+      border:1px solid var(--line);
+    }
+    .t-field{display:flex;flex-direction:column;gap:6px;position:relative}
+    .t-field label{font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.3px}
+    .t-inp,.t-sel{
+      background:#f8f9fc;border:1.5px solid var(--line);border-radius:8px;
+      padding:9px 10px;font-size:14px;outline:none;color:var(--ink);transition:border-color .15s, background .15s;
+    }
+    .t-inp:focus,.t-sel:focus{border-color:var(--brand-2);background:#fff}
+    .t-btn{
+      appearance:none;border:none;cursor:pointer;border-radius:10px;
+      font-size:14px;font-weight:600;padding:10px 14px;font-family:inherit;
+      background:var(--brand);color:#fff;display:inline-flex;align-items:center;gap:6px;
+      box-shadow:0 2px 4px rgba(0,0,0,.14);transition:filter .15s;
+    }
+    .t-btn:hover{filter:brightness(.97)}
+    .t-btn.secondary{background:#e8e1fc;color:#5a3e9a;box-shadow:none}
+    .t-btn.ghost{background:#fff;color:var(--ink);border:1px solid var(--line);box-shadow:none}
+    .t-btn.ok{background:var(--ok)}
+    .t-btn.danger{background:var(--danger)}
+    .t-btn.wide{width:100%;justify-content:center}
+    .t-chip{
+      position:absolute;right:8px;top:-19px;background:#e8e1fc;color:#5a3e9a;
+      border-radius:999px;padding:2px 8px;font-size:12px;display:flex;gap:6px;align-items:center;
+      box-shadow:0 2px 6px -2px rgba(0,0,0,.25);
+    }
+    .t-chip button{all:unset;cursor:pointer;font-weight:600;}
+    .t-suggest{
+      position:absolute;top:100%;left:0;right:0;background:#fff;
+      border:1px solid var(--line);border-radius:12px;margin-top:6px;box-shadow:0 10px 28px -4px rgba(0,0,0,.20);
+      z-index:40;max-height:280px;overflow:auto;
+    }
+    .s-item{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;gap:10px;justify-content:space-between;cursor:pointer}
     .s-item:last-child{border-bottom:none}
-    .s-title{font-weight:600}
+    .s-item:hover{background:#faf7ff}
+    .s-title{font-weight:600;font-size:14px}
     .s-meta{font-size:12px;color:var(--muted)}
     .s-create{background:#faf7ff}
 
-    /* Encabezado calendario */
-    .head{display:flex;align-items:center;justify-content:space-between;margin:12px 0 6px}
-    .head h2{margin:0;font-size:20px}
-    .legend{display:flex;gap:12px;align-items:center;margin-top:10px;color:var(--muted);font-size:13px}
-    .legend .dot{width:10px;height:10px;border-radius:50%}
-    .dot.free{background:#9ee6b7}.dot.busy{background:#ffd8a9}.dot.none{background:#d9d2e9}
+    .t-head{display:flex;justify-content:space-between;align-items:center;margin:10px 0 12px;}
+    .t-head-left{display:flex;align-items:center;gap:8px}
+    .t-head h2{margin:0;font-size:22px;font-weight:600;letter-spacing:.5px}
+    .t-legend{display:flex;gap:14px;align-items:center;font-size:13px;color:var(--muted);flex-wrap:wrap}
+    .t-dot{width:11px;height:11px;border-radius:50%;display:inline-block}
+    .t-dot.free{background:#9ee6b7}
+    .t-dot.busy{background:#ffc888}
+    .t-dot.none{background:#d2c7eb}
 
-    /* Calendario */
-    .cal{background:var(--card);border-radius:16px;box-shadow:0 2px 12px rgba(80,60,160,.10);padding:14px}
-    .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
-    .dow{font-size:12px;color:var(--muted);text-align:center;margin-bottom:6px}
-    .day{background:#faf9ff;border:1px solid var(--line);border-radius:12px;min-height:110px;padding:8px;display:flex;flex-direction:column;gap:6px}
-    .day .num{font-weight:600}
-    .day .badge{margin-top:auto;align-self:flex-start;font-size:12px;border-radius:999px;padding:2px 8px}
-    .day.free .badge{background:#e8fff0;color:#045c2b}
-    .day.busy .badge{background:#fff4e6;color:#8a5800}
-    .day.empty{opacity:.55}
-    .day.clickable{cursor:pointer;transition:transform .05s}
-    .day.clickable:hover{transform:translateY(-1px)}
-    .footer-mini{margin-top:8px;font-size:12px;color:var(--muted)}
-
-    /* Backdrops + modales */
-    .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.22);display:none;align-items:center;justify-content:center;z-index:1000;overscroll-behavior:contain}
-    .modal{
-      width:min(900px,96vw);
-      background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px;border:1px solid var(--line);
-      max-height:92vh; overflow:auto; overflow-x:auto;
+    .t-cal{
+      background:var(--card);border-radius:20px;padding:18px;border:1px solid var(--line);
+      box-shadow:0 2px 14px -2px rgba(80,60,160,.18);
     }
-    .modal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-    .modal h3{margin:0;font-size:18px}
-    .close{background:transparent;border:none;font-size:24px;color:var(--brand);cursor:pointer}
-
-    .slots{border:1px solid var(--line);border-radius:10px;padding:10px;max-height:60vh;overflow:auto}
-    .slot{display:flex;align-items:center;gap:10px;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0;background:#faf9ff;position:relative}
-    .slot.unavailable{opacity:.70}
-    .slot .time{font-weight:700;color:var(--accent)}
-    .slot .mini{font-size:12px;color:var(--muted)}
-    .slot button{padding:6px 10px}
-    .slot.ocupado{background:#f5f0ff}
-    .slot.reprogram-target{outline:2px dashed var(--brand);}
-
-    .icon-btn{border:none;background:#f4f1ff;border:1px solid var(--line);width:34px;height:34px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative}
-    .icon-btn:hover{filter:brightness(.98)}
-    .icon-btn[disabled]{opacity:.4;cursor:not-allowed}
-    .icon-btn[data-tip]::after{
-      content:attr(data-tip); position:absolute; bottom:110%; left:50%; transform:translateX(-50%);
-      background:#381e60;color:#fff;padding:4px 8px;border-radius:8px;font-size:12px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;
+    .t-cal-dow,.t-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
+    .t-cal-dow .dow{font-size:12px;color:var(--muted);text-align:center;letter-spacing:.5px;font-weight:600}
+    .t-day{
+      background:#faf9ff;border:1px solid var(--line);border-radius:14px;min-height:110px;
+      padding:8px;display:flex;flex-direction:column;gap:6px;position:relative;
+      transition:transform .08s, box-shadow .15s;
     }
-    .icon-btn:hover::after{opacity:1}
-    .icon-btn.small{width:34px;height:34px;padding:0;font-size:14px}
-    .icon-btn.small::after{bottom:120%}
+    .t-day .num{font-weight:600;font-size:14px}
+    .t-day .badge{margin-top:auto;align-self:flex-start;font-size:11px;font-weight:600;padding:4px 8px;border-radius:999px;letter-spacing:.3px}
+    .t-day.free .badge{background:#e9fff1;color:#0f6c36}
+    .t-day.busy .badge{background:#fff4e6;color:#8a5800}
+    .t-day.empty{opacity:.50}
+    .t-day.clickable{cursor:pointer}
+    .t-day.clickable:hover{transform:translateY(-3px);box-shadow:0 6px 18px -6px rgba(0,0,0,.30)}
+    .t-status{margin-top:10px;font-size:12.5px;color:var(--muted);min-height:18px}
 
-    /* Modal OK */
-    .modal-ok{width:min(640px,96vw);background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px;border:2px solid var(--okbg);
-      max-height:92vh; overflow:auto}
-    .ok-head{display:flex;gap:10px;align-items:center}
-    .ok-badge{background:var(--okbg);color:var(--ok);border-radius:999px;padding:4px 10px;font-weight:700;font-size:13px}
-    .ok-list{margin:12px 0 6px;padding-left:18px}
-    .ok-list li{margin:6px 0}
+    /* Modal base */
+    .t-modal-backdrop{
+      position:fixed;inset:0;background:rgba(31,17,56,.40);
+      display:none;align-items:center;justify-content:center;z-index:1000;
+      backdrop-filter:blur(2px);
+    }
+    .t-modal, .t-modal-ok{
+      width:min(920px,96vw);background:#fff;border-radius:20px;padding:20px 20px 28px;
+      border:1px solid var(--line);box-shadow:0 14px 40px -8px rgba(0,0,0,.35);
+      max-height:92vh;overflow:auto;position:relative;
+    }
+    .t-modal::-webkit-scrollbar,.t-modal-ok::-webkit-scrollbar{width:10px}
+    .t-modal::-webkit-scrollbar-thumb,.t-modal-ok::-webkit-scrollbar-thumb{background:#d8cfff;border-radius:8px}
+    .t-modal-header{display:flex;align-items:center;gap:12px;margin:0 0 14px}
+    .t-modal-title{margin:0;font-size:19px;font-weight:700;color:var(--ink);letter-spacing:.3px}
+    .t-close{background:transparent;border:none;font-size:30px;font-weight:400;color:var(--brand);cursor:pointer;line-height:1;padding:0 4px;margin-left:auto;transition:color .15s}
+    .t-close:hover{color:#4e2f84}
 
-    /* Modal Paciente (3 columnas + scroll X si no entra) */
-    .grid3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:12px; min-width:980px}
-    .col-card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#faf9ff}
-    .col-card h4{margin:0 0 8px;color:var(--ink)}
-    .span3{grid-column:1/4}
-    @media (max-width:980px){ .grid3{ min-width:auto; grid-template-columns:1fr } .span3{ grid-column:auto } }
-    .uploadzone{background:#fff;border:2px dashed var(--line);border-radius:12px;padding:12px;text-align:center}
-    .uploadthumb{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:8px}
-    .uploadthumb img{width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
-    .badge-req{color:#b00020;margin-left:4px}
+    .t-day-nav{display:flex;align-items:center;gap:6px}
+    .t-inp-date{width:155px;padding:5px 8px;height:36px;font-size:13px}
 
-    /* scrollbars */
-    .modal::-webkit-scrollbar{ height:10px; width:10px }
-    .modal::-webkit-scrollbar-thumb{ background:#d8cfff; border-radius:8px }
+    .t-slots{border:1px solid var(--line);border-radius:16px;padding:12px 12px 6px;max-height:60vh;overflow:auto;background:#faf9ff}
+    .t-slots-title{margin:0 0 10px;font-size:15px;font-weight:600;letter-spacing:.4px}
+    .t-slot{
+      display:flex;align-items:center;justify-content:space-between;
+      gap:14px;border:1px solid var(--line);border-radius:12px;
+      padding:10px 14px;margin:6px 0;background:#fff;position:relative;
+      font-size:14px;
+      transition:background .12s,border-color .12s;
+    }
+    .t-slot:hover{background:#fcfbff}
+    .t-slot.ocupado{background:#f4f0ff}
+    .t-slot.unavailable{opacity:.55}
+    .t-slot .time{font-weight:700;color:var(--accent);letter-spacing:.5px}
+    .t-slot .mini{font-size:12px;color:var(--muted);margin-top:2px}
+    .t-icon-btn{
+      border:none;background:#f4f1ff;border:1px solid var(--line);
+      width:38px;height:38px;border-radius:12px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;
+      font-size:16px;position:relative;color:#4a3870;transition:background .15s,border-color .15s;
+    }
+    .t-icon-btn:hover{background:#efe8ff}
+    .t-icon-btn[disabled]{opacity:.4;cursor:not-allowed}
+    .t-icon-btn[data-tip]::after{
+      content:attr(data-tip);position:absolute;bottom:110%;left:50%;transform:translateX(-50%);
+      background:#381e60;color:#fff;padding:5px 8px;border-radius:8px;font-size:11px;white-space:nowrap;
+      opacity:0;pointer-events:none;transition:opacity .15s;
+    }
+    .t-icon-btn:hover::after{opacity:1}
+    .t-icon-btn.small{width:38px;height:38px;font-size:16px;padding:0}
 
-    .banner-reprogram{background:#fff4e6;border:1px solid #ffd8a9;padding:8px 10px;border-radius:10px;font-size:13px;color:#8a5800;margin:4px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-    .linklike{background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;text-decoration:underline}
+    .banner-reprogram{
+      background:var(--warnbg);border:1px solid #ffd197;padding:10px 12px;
+      border-radius:12px;font-size:13px;color:var(--warn);display:flex;
+      align-items:center;justify-content:space-between;gap:10px;margin:2px 0 10px;
+      font-weight:500;
+    }
+    .linklike{background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;text-decoration:underline;font-weight:600}
+
+    /* OK modal */
+    .t-modal-ok{border:2px solid var(--okbg)}
+    .ok-head{display:flex;align-items:center;gap:10px}
+    .ok-badge{background:var(--okbg);color:var(--ok);border-radius:999px;padding:5px 10px;font-weight:700;font-size:13px}
+    .ok-title-text{font-weight:600;font-size:16px}
+    .ok-list{margin:14px 0 8px;padding-left:22px}
+    .ok-list li{margin:6px 0;font-size:14px}
+    .ok-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+    .t-hint{font-size:12px;color:var(--muted)}
+
+    /* Paciente modal */
+    .t-modal-wide{width:min(1120px,96vw)}
+    .t-grid3{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:16px;min-width:980px}
+    @media (max-width:1040px){ .t-grid3{grid-template-columns:1fr;min-width:auto} .span3{grid-column:auto} }
+    .t-col{
+      background:#faf9ff;border:1px solid var(--line);border-radius:16px;
+      padding:14px 14px 16px;display:flex;flex-direction:column;gap:6px;
+    }
+    .t-col h4{margin:0 0 8px;font-size:15px;color:var(--ink)}
+    .req{color:var(--danger);margin-left:3px}
+    .inline{display:flex;gap:10px;align-items:center}
+    .upload-zone{background:#fff;border:2px dashed var(--line);border-radius:14px;padding:14px;text-align:center}
+    .upload-preview{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;align-items:center}
+    .upload-preview img{width:62px;height:62px;object-fit:cover;border-radius:14px;border:1px solid var(--line)}
+    .t-actions{margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+
+    /* Scrollbars (WebKit) */
+    .t-slots::-webkit-scrollbar{width:10px}
+    .t-slots::-webkit-scrollbar-thumb{background:#d8cfff;border-radius:8px}
+
+    /* Utilidades responsive / helpers */
+    @media (max-width:940px){
+      .t-toolbar{grid-template-columns:1fr 1fr; padding:14px 14px 18px;}
+      .t-field:nth-child(5){grid-column:1/3;justify-self:flex-start}
+    }
+    @media (max-width:640px){
+      aside.sidebar{position:fixed;z-index:1200;left:0;top:0;transform:translateX(-100%);transition:transform .25s}
+      aside.sidebar.open{transform:translateX(0)}
+      .sidebar-toggle{
+        position:fixed;top:10px;left:10px;width:42px;height:42px;
+        border-radius:10px;background:var(--brand);color:#fff;font-size:20px;
+        border:none;z-index:1300;cursor:pointer;display:flex;align-items:center;justify-content:center;
+        box-shadow:0 4px 16px -4px rgba(0,0,0,.35);
+      }
+      .main-scroll{padding-top:70px}
+    }
   </style>
 </head>
 <body>
-<div class="wrap">
+<div class="layout">
 
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <!-- Centro -->
-    <div class="field" id="centro-field">
-      <label>Centro médico</label>
-      <select id="turnos-centro-select" class="sel" style="display:none;"></select>
-      <input id="turnos-centro-nombre" class="inp" type="text" readonly style="display:none;"/>
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-logo">
+      <strong>EG Health</strong>
+      <span>Panel</span>
     </div>
 
-    <!-- Profesional -->
-    <div class="field">
-      <label>Profesional</label>
-      <select id="turnos-profesional-select" class="sel"><option>Profesional</option></select>
-    </div>
+    <div class="sb-section-title">Navegación</div>
+    <nav class="sb-menu">
+      <a href="dashboard.html"><span>🏠</span> Dashboard</a>
+      <a href="pacientes.html"><span>🧑‍⚕️</span> Pacientes</a>
+      <a href="turnos.html" class="active"><span>📅</span> Turnos</a>
+      <a href="reportes.html"><span>📊</span> Reportes</a>
+      <a href="configuracion.html"><span>⚙️</span> Configuración</a>
+    </nav>
 
-    <!-- Paciente -->
-    <div class="field" id="turnos-paciente-field">
-      <label>Paciente</label>
-      <input id="turnos-paciente-input" class="inp" placeholder="Apellido Nombre o DNI" autocomplete="off"/>
-      <div id="turnos-paciente-suggest" class="suggest" style="display:none;"></div>
-      <div id="turnos-paciente-chip" class="chip" style="display:none;">
-        <span id="turnos-paciente-chip-text"></span>
-        <button id="turnos-paciente-clear">✕</button>
+    <div class="sb-section-title">Atajos</div>
+    <nav class="sb-menu">
+      <a href="javascript:void(0)" id="sb-new-patient"><span>➕</span> Nuevo Paciente</a>
+      <a href="javascript:void(0)" id="sb-go-today"><span>🗓️</span> Ver hoy</a>
+    </nav>
+
+    <div class="sb-footer">
+      <div><strong>Usuario:</strong> <span id="sb-user-name">(cargando)</span></div>
+      <div style="margin-top:4px;">© <span id="year"></span> EG Health Solutions</div>
+    </div>
+  </aside>
+
+  <!-- (MOBILE) toggle -->
+  <button class="sidebar-toggle" id="sidebar-toggle" aria-label="Abrir menú" style="display:none;">☰</button>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <div class="main-area">
+    <div class="main-scroll">
+      <div class="turnos-wrap">
+        <h1 class="page-title">Gestión de Turnos</h1>
+
+        <!-- Toolbar -->
+        <div class="t-toolbar">
+          <div class="t-field" id="centro-field">
+            <label>Centro médico</label>
+            <select id="turnos-centro-select" class="t-sel" style="display:none;"></select>
+            <input id="turnos-centro-nombre" class="t-inp" type="text" readonly style="display:none;"/>
+          </div>
+          <div class="t-field">
+            <label>Profesional</label>
+            <select id="turnos-profesional-select" class="t-sel"><option>Profesional</option></select>
+          </div>
+            <div class="t-field" id="turnos-paciente-field">
+            <label>Paciente</label>
+            <input id="turnos-paciente-input" class="t-inp" placeholder="Apellido Nombre o DNI" autocomplete="off"/>
+            <div id="turnos-paciente-suggest" class="t-suggest" style="display:none;"></div>
+            <div id="turnos-paciente-chip" class="t-chip" style="display:none;">
+              <span id="turnos-paciente-chip-text"></span>
+              <button id="turnos-paciente-clear" title="Quitar">✕</button>
+            </div>
+          </div>
+          <div class="t-field">
+            <label>Tipo de turno</label>
+            <select id="turnos-tipo" class="t-sel">
+              <option value="nueva_consulta">Nueva consulta</option>
+              <option value="recurrente">Recurrente</option>
+              <option value="sobreturno">Sobreturno</option>
+            </select>
+          </div>
+          <div class="t-field" style="align-items:flex-end">
+            <button id="turnos-btn-hoy" class="t-btn ghost">Hoy</button>
+          </div>
+        </div>
+
+        <!-- Encabezado calendario -->
+        <div class="t-head">
+          <div class="t-head-left">
+            <button id="turnos-prev-month" class="t-btn secondary" title="Mes anterior">◀</button>
+            <h2 id="turnos-cal-title">Calendario</h2>
+            <button id="turnos-next-month" class="t-btn secondary" title="Mes siguiente">▶</button>
+          </div>
+          <div class="t-legend">
+            <span class="t-dot free"></span> con disponibilidad
+            <span class="t-dot busy"></span> sin hueco
+            <span class="t-dot none"></span> sin agenda
+          </div>
+        </div>
+
+        <!-- Calendario -->
+        <div class="t-cal">
+          <div class="t-cal-dow" id="turnos-cal-dow"></div>
+          <div class="t-cal-grid" id="turnos-cal-grid"></div>
+        </div>
+        <div class="t-status" id="turnos-status"></div>
       </div>
     </div>
-
-    <!-- Tipo turno -->
-    <div class="field">
-      <label>Tipo de turno</label>
-      <select id="turnos-tipo" class="sel">
-        <option value="nueva_consulta">Nueva consulta</option>
-        <option value="recurrente">Recurrente</option>
-        <option value="sobreturno">Sobreturno</option>
-      </select>
-    </div>
-
-    <!-- Hoy -->
-    <div class="field" style="align-items:flex-end">
-      <button id="turnos-btn-hoy" class="btn ghost">Hoy</button>
-    </div>
   </div>
-
-  <!-- Header calendario -->
-  <div class="head">
-    <div style="display:flex;gap:8px;align-items:center">
-      <button id="turnos-prev-month" class="btn secondary">◀</button>
-      <h2 id="turnos-cal-title">Calendario</h2>
-      <button id="turnos-next-month" class="btn secondary">▶</button>
-    </div>
-    <div class="legend">
-      <span class="dot free"></span> con disponibilidad
-      <span class="dot busy"></span> sin hueco para este tipo
-      <span class="dot none"></span> sin agenda
-    </div>
-  </div>
-
-  <!-- Calendario -->
-  <div class="cal">
-    <div class="cal-grid" id="turnos-cal-dow"></div>
-    <div class="cal-grid" id="turnos-cal-grid"></div>
-  </div>
-  <div class="footer-mini" id="turnos-status"></div>
 </div>
 
+<!-- ==== MODALES (fuera de main-area para evitar clipping) ==== -->
 <!-- Modal Día -->
-<div class="modal-backdrop" id="turnos-modal">
-  <div class="modal">
-    <header>
-      <h3 id="turnos-modal-title" style="margin-right:auto">Turnos del día</h3>
-      <div class="day-nav" style="display:flex;align-items:center;gap:6px;margin-right:12px">
-        <button class="icon-btn small" id="turnos-modal-prev-day" data-tip="Día anterior">◀</button>
-        <input type="date" id="turnos-modal-date" class="inp" style="width:150px;padding:4px 6px;height:34px;font-size:13px">
-        <button class="icon-btn small" id="turnos-modal-next-day" data-tip="Día siguiente">▶</button>
+<div class="t-modal-backdrop" id="turnos-modal">
+  <div class="t-modal">
+    <header class="t-modal-header">
+      <h3 id="turnos-modal-title" class="t-modal-title">Turnos del día</h3>
+      <div class="t-day-nav">
+        <button class="t-icon-btn small" id="turnos-modal-prev-day" data-tip="Día anterior" aria-label="Día anterior">◀</button>
+        <input type="date" id="turnos-modal-date" class="t-inp t-inp-date">
+        <button class="t-icon-btn small" id="turnos-modal-next-day" data-tip="Día siguiente" aria-label="Día siguiente">▶</button>
       </div>
-      <button class="close" id="turnos-modal-close">&times;</button>
+      <button class="t-close" id="turnos-modal-close" aria-label="Cerrar">×</button>
     </header>
-
-    <section class="slots">
-      <h4 style="margin:0 0 8px">Horarios</h4>
+    <section class="t-slots">
+      <h4 class="t-slots-title">Horarios</h4>
       <div id="turnos-slots-list"></div>
     </section>
   </div>
 </div>
 
 <!-- Modal OK -->
-<div class="modal-backdrop" id="turnos-modal-ok" style="display:none;">
-  <div class="modal-ok">
-    <header style="display:flex;justify-content:space-between;align-items:center">
+<div class="t-modal-backdrop" id="turnos-modal-ok" style="display:none;">
+  <div class="t-modal-ok">
+    <header class="t-modal-header">
       <div class="ok-head">
         <div class="ok-badge">✔ Turno asignado</div>
-        <div id="ok-title" style="font-weight:700"></div>
+        <div id="ok-title" class="ok-title-text"></div>
       </div>
-      <button class="close" id="ok-close">&times;</button>
+      <button class="t-close" id="ok-close" aria-label="Cerrar">×</button>
     </header>
     <ul class="ok-list">
       <li><b>Paciente:</b> <span id="ok-paciente"></span></li>
@@ -223,129 +371,130 @@
       <li><b>Centro:</b> <span id="ok-centro"></span></li>
       <li><b>Dirección:</b> <span id="ok-direccion"></span></li>
     </ul>
-    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
-      <a id="ok-wa-link" class="btn ok" target="_blank" rel="noopener">Enviar por WhatsApp</a>
-      <button id="ok-copy" class="btn ghost">Copiar link</button>
-      <span id="ok-msg" class="footer-mini"></span>
+    <div class="ok-actions">
+      <a id="ok-wa-link" class="t-btn ok" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+      <button id="ok-copy" class="t-btn ghost">Copiar link</button>
+      <span id="ok-msg" class="t-hint"></span>
     </div>
   </div>
 </div>
 
 <!-- Modal Crear Paciente -->
-<div class="modal-backdrop" id="turnos-modal-paciente" style="display:none;">
-  <div class="modal">
-    <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <h3 style="margin:0">Crear nuevo paciente</h3>
-      <button class="close" id="turnos-modal-paciente-close">&times;</button>
+<div class="t-modal-backdrop" id="turnos-modal-paciente" style="display:none;">
+  <div class="t-modal t-modal-wide">
+    <header class="t-modal-header">
+      <h3 class="t-modal-title">Crear nuevo paciente</h3>
+      <button class="t-close" id="turnos-modal-paciente-close" aria-label="Cerrar">×</button>
     </header>
-
-    <div class="grid3">
+    <div class="t-grid3">
       <!-- Col 1 -->
-      <div class="col-card">
+      <div class="t-col">
         <h4>Datos del paciente</h4>
-        <label>DNI <span class="badge-req">*</span></label>
-        <input id="np-dni" class="inp" required />
-        <label>Nombre <span class="badge-req">*</span></label>
-        <input id="np-nombre" class="inp" required />
-        <label>Apellido <span class="badge-req">*</span></label>
-        <input id="np-apellido" class="inp" required />
-        <label>Fecha de nacimiento <span class="badge-req">*</span></label>
-        <input id="np-fecha-nac" class="inp" type="date" required />
-        <label>Teléfono <span class="badge-req">*</span></label>
-        <input id="np-telefono" class="inp" required />
+        <label>DNI <span class="req">*</span></label>
+        <input id="np-dni" class="t-inp" required />
+        <label>Nombre <span class="req">*</span></label>
+        <input id="np-nombre" class="t-inp" required />
+        <label>Apellido <span class="req">*</span></label>
+        <input id="np-apellido" class="t-inp" required />
+        <label>Fecha de nacimiento <span class="req">*</span></label>
+        <input id="np-fecha-nac" class="t-inp" type="date" required />
+        <label>Teléfono <span class="req">*</span></label>
+        <input id="np-telefono" class="t-inp" required />
         <label>Email</label>
-        <input id="np-email" class="inp" type="email" />
+        <input id="np-email" class="t-inp" type="email" />
       </div>
-
       <!-- Col 2 -->
-      <div class="col-card">
+      <div class="t-col">
         <h4>Obra social</h4>
         <label>Obra social</label>
-        <select id="np-obra" class="sel">
+        <select id="np-obra" class="t-sel">
           <option value="">(Sin obra social)</option>
         </select>
-        <div id="np-obra-info" class="footer-mini" style="min-height:18px;margin-top:6px;"></div>
-
+        <div id="np-obra-info" class="t-hint" style="min-height:18px;margin-top:6px;"></div>
         <label>N° afiliado</label>
-        <input id="np-afiliado" class="inp" />
-
+        <input id="np-afiliado" class="t-inp" />
         <label>Credencial (imagen)</label>
-        <div class="uploadzone">
+        <div class="upload-zone">
           <input type="file" id="np-cred-file" accept="image/*,.pdf" style="display:none" />
-            <button type="button" id="np-cred-select" class="btn ghost">Seleccionar archivo</button>
-          <div id="np-cred-preview" class="uploadthumb" style="display:none"></div>
+          <button type="button" id="np-cred-select" class="t-btn ghost">Seleccionar archivo</button>
+          <div id="np-cred-preview" class="upload-preview" style="display:none"></div>
         </div>
       </div>
-
       <!-- Col 3 -->
-      <div class="col-card">
+      <div class="t-col">
         <h4>Contacto de emergencia</h4>
         <label>Contacto - Nombre</label>
-        <input id="np-contacto-nombre" class="inp" />
+        <input id="np-contacto-nombre" class="t-inp" />
         <label>Contacto - Apellido</label>
-        <input id="np-contacto-apellido" class="inp" />
+        <input id="np-contacto-apellido" class="t-inp" />
         <label>Contacto - Celular</label>
-        <input id="np-contacto-cel" class="inp" />
+        <input id="np-contacto-cel" class="t-inp" />
         <label>Vínculo</label>
-        <input id="np-vinculo" class="inp" />
+        <input id="np-vinculo" class="t-inp" />
       </div>
-
-      <!-- Historia clínica URL -->
-      <div class="col-card span3">
+      <!-- Historia clínica -->
+      <div class="t-col span3">
         <h4>Historia clínica</h4>
         <label>URL (Google Docs)</label>
-        <div style="display:flex;gap:8px;align-items:center">
-          <input id="np-historia" class="inp" type="url" placeholder="https://docs.google.com/..." style="flex:1" />
-          <a id="np-historia-open" class="btn ghost" target="_blank" rel="noopener">Abrir</a>
+        <div class="inline">
+          <input id="np-historia" class="t-inp" type="url" placeholder="https://docs.google.com/..." style="flex:1" />
+          <a id="np-historia-open" class="t-btn ghost" target="_blank" rel="noopener">Abrir</a>
         </div>
       </div>
     </div>
-
-    <div style="margin-top:12px;display:flex;gap:8px;align-items:center">
-      <button class="btn" id="turnos-guardar-paciente">Guardar paciente</button>
-      <span id="turnos-np-msg" class="footer-mini"></span>
+    <div class="t-actions">
+      <button class="t-btn" id="turnos-guardar-paciente">Guardar paciente</button>
+      <span id="turnos-np-msg" class="t-hint"></span>
     </div>
   </div>
 </div>
 
 <script type="module">
 /*
-  CAMBIO PRINCIPAL:
-  1) Lista unificada de horarios: libres (➕) y ocupados (datos paciente + ↪ + 🗑).
-  2) Reprogramación mantiene turno original hasta confirmar y muestra banner.
-  3) Navegación de fecha dentro del modal: día anterior / siguiente / date picker.
-  4) Posibilidad de cambiar de día mientras reprogramo (preserva estado).
+  Archivo: turnos.html (vista completa con sidebar)
+  - Mantiene funcionalidad de la versión anterior.
+  - Sidebar siempre visible (para móvil se añade toggle).
+  - Si tu app maneja autenticación / roles de otra forma, ajusta donde se toman localStorage keys.
 */
 
 import supabase from './supabaseClient.js';
 import { isValidHourRange } from './validators.js';
 
-/* ====== UI refs ====== */
+/* ========== UTIL DOM ========== */
 const UI = {
+  // Sidebar
+  sidebar: document.getElementById('sidebar'),
+  sbNewPatient: document.getElementById('sb-new-patient'),
+  sbGoToday: document.getElementById('sb-go-today'),
+  sbUserName: document.getElementById('sb-user-name'),
+  sidebarToggle: document.getElementById('sidebar-toggle'),
+  // Toolbar
   centroSelect: document.getElementById('turnos-centro-select'),
   centroNombre: document.getElementById('turnos-centro-nombre'),
   profesionalSelect: document.getElementById('turnos-profesional-select'),
   tipoTurno: document.getElementById('turnos-tipo'),
   btnHoy: document.getElementById('turnos-btn-hoy'),
-  prevMonth: document.getElementById('turnos-prev-month'),
-  nextMonth: document.getElementById('turnos-next-month'),
-  calTitle: document.getElementById('turnos-cal-title'),
-  calGrid: document.getElementById('turnos-cal-grid'),
-  calDow: document.getElementById('turnos-cal-dow'),
-  status: document.getElementById('turnos-status'),
-  modal: document.getElementById('turnos-modal'),
-  modalClose: document.getElementById('turnos-modal-close'),
-  modalTitle: document.getElementById('turnos-modal-title'),
-  modalDateInput: document.getElementById('turnos-modal-date'),
-  modalPrevDay: document.getElementById('turnos-modal-prev-day'),
-  modalNextDay: document.getElementById('turnos-modal-next-day'),
-  slotsList: document.getElementById('turnos-slots-list'),
-  // Typeahead
+  // Paciente search
   pacInput: document.getElementById('turnos-paciente-input'),
   pacSuggest: document.getElementById('turnos-paciente-suggest'),
   pacChip: document.getElementById('turnos-paciente-chip'),
   pacChipText: document.getElementById('turnos-paciente-chip-text'),
   pacClear: document.getElementById('turnos-paciente-clear'),
+  // Calendar
+  calDow: document.getElementById('turnos-cal-dow'),
+  calGrid: document.getElementById('turnos-cal-grid'),
+  calTitle: document.getElementById('turnos-cal-title'),
+  status: document.getElementById('turnos-status'),
+  prevMonth: document.getElementById('turnos-prev-month'),
+  nextMonth: document.getElementById('turnos-next-month'),
+  // Modal día
+  modal: document.getElementById('turnos-modal'),
+  modalTitle: document.getElementById('turnos-modal-title'),
+  modalClose: document.getElementById('turnos-modal-close'),
+  modalDateInput: document.getElementById('turnos-modal-date'),
+  modalPrevDay: document.getElementById('turnos-modal-prev-day'),
+  modalNextDay: document.getElementById('turnos-modal-next-day'),
+  slotsList: document.getElementById('turnos-slots-list'),
   // OK modal
   okBackdrop: document.getElementById('turnos-modal-ok'),
   okClose: document.getElementById('ok-close'),
@@ -359,13 +508,13 @@ const UI = {
   okWa: document.getElementById('ok-wa-link'),
   okCopy: document.getElementById('ok-copy'),
   okMsg: document.getElementById('ok-msg'),
-  // Modal Paciente
+  // Modal paciente
   modalPac: document.getElementById('turnos-modal-paciente'),
   modalPacClose: document.getElementById('turnos-modal-paciente-close'),
   npDni: document.getElementById('np-dni'),
-  npFechaNac: document.getElementById('np-fecha-nac'),
   npNombre: document.getElementById('np-nombre'),
   npApellido: document.getElementById('np-apellido'),
+  npFechaNac: document.getElementById('np-fecha-nac'),
   npTel: document.getElementById('np-telefono'),
   npEmail: document.getElementById('np-email'),
   npObra: document.getElementById('np-obra'),
@@ -384,42 +533,12 @@ const UI = {
   npMsg: document.getElementById('turnos-np-msg'),
 };
 
-/* ====== Sesión ====== */
+/* ========== ESTADO ========== */
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
 let currentCentroDireccion = '';
-const userRole = localStorage.getItem('user_role'); // 'medico' | 'asistente' | 'propietario'
+const userRole = localStorage.getItem('user_role'); // 'medico','asistente','propietario'
 const loggedProfesionalId = localStorage.getItem('profesional_id');
-if (!currentCentroId) { alert('No hay centro seleccionado. Volviendo al login.'); window.location.href='index.html'; }
-
-/* ====== Fecha & helpers ====== */
-function todayInfo(){ const d=new Date(); return { y:d.getFullYear(), m:d.getMonth(), d:d.getDate() }; }
-function pad(n){ return n<10 ? '0'+n : ''+n; }
-function toISODate(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
-function addMinutes(hhmm, minutes){ const [h,m]=hhmm.split(':').map(Number); const base=new Date(2000,0,1,h,m,0); base.setMinutes(base.getMinutes()+minutes); return `${pad(base.getHours())}:${pad(base.getMinutes())}`; }
-function cmpTime(a,b){ if(a===b) return 0; return a<b ? -1 : 1; }
-const DOW = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-function nativeFirstDow(date){ const js=date.getDay(); return (js===0)?6:js-1; }
-function groupByFecha(arr){ const map=new Map(); for(const x of arr){ const k=x.fecha; if(!map.has(k)) map.set(k,[]); map.get(k).push(x); } return map; }
-function toHM(t){ return (t ?? '').toString().slice(0,5); }
-function overlaps(aStart,aEnd,bStart,bEnd){ return (aStart < bEnd) && (bStart < aEnd); }
-function fmtDateLong(iso){ return new Date(iso+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long', day:'numeric', month:'long', year:'numeric'}) }
-function minutesDiff(start,end){ const [h1,m1]=start.split(':').map(Number), [h2,m2]=end.split(':').map(Number); return (h2*60+m2)-(h1*60+m1); }
-function normalizePhoneForWA(phoneRaw){
-  if (!phoneRaw) return '';
-  let p = String(phoneRaw).replace(/[^\d]/g,'');
-  if (p.startsWith('0')) p = p.slice(1);
-  if (!p.startsWith('54')) p = '54' + p;
-  return p;
-}
-function buildWhatsAppMessage({pac, fechaISO, start, end, prof, centro, dir}){
-  const fecha = fmtDateLong(fechaISO);
-  const hora = `${start} a ${end}`;
-  return `Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fecha} de ${hora} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;
-}
-function dateToISO(d){ return d.toISOString().slice(0,10); }
-
-/* ====== Estado ====== */
 let view = todayInfo();
 let currentProfesional = null;
 let duracionCfg = { nueva_consulta:15, recurrente:15, sobreturno:15 };
@@ -428,43 +547,94 @@ let pacienteSeleccionado = null;
 let obrasSocialesCache = [];
 let reprogramState = null; // { turno, durMin }
 
-/* ====== Centros ====== */
+/* ========== UTILIDADES FECHA / FORMATO ========== */
+function todayInfo(){ const d=new Date(); return { y:d.getFullYear(), m:d.getMonth(), d:d.getDate() }; }
+function pad(n){return n<10? '0'+n : ''+n;}
+function toISODate(y,m,d){return `${y}-${pad(m+1)}-${pad(d)}`;}
+function addMinutes(hhmm,mm){const [h,m]=hhmm.split(':').map(Number);const base=new Date(2000,0,1,h,m);base.setMinutes(base.getMinutes()+mm);return `${pad(base.getHours())}:${pad(base.getMinutes())}`;}
+function groupByFecha(arr){const map=new Map(); for(const x of arr){ if(!map.has(x.fecha)) map.set(x.fecha,[]); map.get(x.fecha).push(x);} return map;}
+function toHM(t){return (t||'').substring(0,5);}
+function overlaps(aS,aE,bS,bE){ return (aS < bE) && (bS < aE); }
+function fmtDateLong(iso){ return new Date(iso+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long', day:'numeric', month:'long', year:'numeric'}); }
+function minutesDiff(a,b){const [h1,m1]=a.split(':').map(Number);const [h2,m2]=b.split(':').map(Number);return (h2*60+m2)-(h1*60+m1);}
+function nativeFirstDow(date){const g=date.getDay();return g===0?6:g-1;}
+function normalizePhoneForWA(phoneRaw){
+  if(!phoneRaw) return '';
+  let p=String(phoneRaw).replace(/[^\d]/g,'');
+  if(p.startsWith('0')) p=p.slice(1);
+  if(!p.startsWith('54')) p='54'+p;
+  return p;
+}
+function buildWhatsAppMessage({pac, fechaISO, start, end, prof, centro, dir}){
+  const f=fmtDateLong(fechaISO);
+  return `Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${f} de ${start} a ${end} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;
+}
+function dateToISO(d){return d.toISOString().slice(0,10);}
+
+/* ========== SIDEBAR UTILS ========== */
+function initSidebar(){
+  document.getElementById('year').textContent = new Date().getFullYear();
+  UI.sbUserName.textContent = localStorage.getItem('user_name') || localStorage.getItem('email') || '(usuario)';
+  if (window.matchMedia('(max-width:640px)').matches){
+    UI.sidebarToggle.style.display='flex';
+    UI.sidebarToggle.addEventListener('click', ()=>{
+      UI.sidebar.classList.toggle('open');
+    });
+  }
+  UI.sbGoToday?.addEventListener('click', async ()=>{
+    view = todayInfo();
+    await renderCalendar();
+    UI.sidebar.classList.remove('open');
+  });
+  UI.sbNewPatient?.addEventListener('click', ()=>{
+    openPacienteModalPrefilled('');
+    UI.sidebar.classList.remove('open');
+  });
+}
+
+/* ========== CENTROS / PROFESIONALES ========== */
 async function fetchCentroById(id){
   const { data } = await supabase.from('centros_medicos').select('nombre,direccion').eq('id', id).single();
-  return { nombre: data?.nombre || '', direccion: data?.direccion || '' };
+  return { nombre:data?.nombre||'', direccion:data?.direccion||'' };
 }
-async function getCentrosDeProfesional(profesionalId){
+async function getCentrosDeProfesional(pid){
   const { data, error } = await supabase
     .from('profesional_centro')
-    .select('centro_id, activo, centros_medicos(id, nombre)')
-    .eq('profesional_id', profesionalId)
-    .eq('activo', true);
-  if (error || !data) return [];
-  return data.filter(r=>r.centros_medicos).map(r=>({ id:r.centros_medicos.id, nombre:r.centros_medicos.nombre }));
+    .select('centro_id,activo,centros_medicos(id,nombre)')
+    .eq('profesional_id', pid).eq('activo', true);
+  if(error||!data) return [];
+  return data.filter(r=>r.centros_medicos).map(r=>({id:r.centros_medicos.id,nombre:r.centros_medicos.nombre}));
 }
 async function ensureCentroWidgets(){
   if (userRole === 'asistente'){
-    UI.centroNombre.style.display = '';
-    UI.centroSelect.style.display = 'none';
+    UI.centroNombre.style.display='';
+    UI.centroSelect.style.display='none';
     const c = await fetchCentroById(currentCentroId);
     currentCentroNombre = c.nombre || currentCentroNombre;
     currentCentroDireccion = c.direccion || '';
-    UI.centroNombre.value = currentCentroNombre || '(sin nombre)';
+    UI.centroNombre.value = currentCentroNombre;
   } else {
-    UI.centroSelect.style.display = '';
-    UI.centroNombre.style.display = 'none';
+    UI.centroSelect.style.display='';
+    UI.centroNombre.style.display='none';
     const centros = await getCentrosDeProfesional(loggedProfesionalId);
-    const sel = UI.centroSelect;
-    if (!centros.length){ sel.innerHTML = '<option value="">Sin centros</option>'; return; }
-    sel.innerHTML = centros.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
-    if (currentCentroId && centros.some(c=>c.id===currentCentroId)) sel.value = currentCentroId; else { currentCentroId = centros[0].id; sel.value = currentCentroId; }
+    if (!centros.length){
+      UI.centroSelect.innerHTML='<option value="">Sin centros</option>';
+      return;
+    }
+    UI.centroSelect.innerHTML = centros.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
+    if (currentCentroId && centros.some(c=>c.id===currentCentroId)){
+      UI.centroSelect.value=currentCentroId;
+    } else {
+      currentCentroId=centros[0].id;
+      UI.centroSelect.value=currentCentroId;
+    }
     const c = await fetchCentroById(currentCentroId);
-    currentCentroNombre = c.nombre || sel.options[sel.selectedIndex]?.textContent || '';
+    currentCentroNombre = c.nombre || UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent || '';
     currentCentroDireccion = c.direccion || '';
-    sel.addEventListener('change', async ()=>{
-      currentCentroId = sel.value;
+    UI.centroSelect.addEventListener('change', async ()=>{
+      currentCentroId = UI.centroSelect.value;
       const c2 = await fetchCentroById(currentCentroId);
-      currentCentroNombre = c2.nombre || sel.options[sel.selectedIndex]?.textContent || '';
+      currentCentroNombre = c2.nombre || UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent || '';
       currentCentroDireccion = c2.direccion || '';
       localStorage.setItem('centro_medico_id', currentCentroId);
       localStorage.setItem('centro_medico_nombre', currentCentroNombre);
@@ -475,141 +645,117 @@ async function ensureCentroWidgets(){
   }
 }
 
-/* ====== Profesionales ====== */
 async function loadProfesionales(){
   const sel = UI.profesionalSelect;
-  if (userRole === 'medico' && loggedProfesionalId) {
-    let label = null;
-    try {
-      const { data } = await supabase
-        .from('profesionales')
-        .select('id, nombre, apellido, display_name')
-        .eq('id', loggedProfesionalId)
-        .single();
-      if (data) {
-        label = data.display_name
-             || [data.apellido, data.nombre].filter(Boolean).join(', ')
-             || data.nombre || data.apellido || null;
+  if (userRole==='medico' && loggedProfesionalId){
+    let label=null;
+    try{
+      const { data } = await supabase.from('profesionales')
+        .select('id,nombre,apellido,display_name')
+        .eq('id', loggedProfesionalId).single();
+      if(data){
+        label = data.display_name || [data.apellido,data.nombre].filter(Boolean).join(', ') || data.nombre || data.apellido;
       }
-    } catch (_) {}
-    if (!label) {
-      label = localStorage.getItem('user_name')
-           || localStorage.getItem('email')
-           || 'Mi agenda';
-    }
+    }catch(_){}
+    if(!label) label = localStorage.getItem('user_name') || localStorage.getItem('email') || 'Mi agenda';
     sel.innerHTML = `<option value="${loggedProfesionalId}">${label}</option>`;
-    sel.value = loggedProfesionalId;
-    sel.disabled = true;
+    sel.disabled=true;
     currentProfesional = loggedProfesionalId;
     return;
   }
-
-  sel.disabled = false;
-
-  const { data: map, error: mapErr } = await supabase
+  sel.disabled=false;
+  const { data: map } = await supabase
     .from('profesional_centro')
     .select('profesional_id')
     .eq('centro_id', currentCentroId)
     .eq('activo', true);
-
-  if (mapErr) {
-    sel.innerHTML = '<option value="">(error al cargar)</option>';
-    currentProfesional = null;
-    return;
-  }
-
   const ids = [...new Set((map||[]).map(r=>r.profesional_id).filter(Boolean))];
-  if (!ids.length){
-    sel.innerHTML = '<option value="">Sin profesionales</option>';
-    currentProfesional = null;
-    return;
+  if(!ids.length){
+    sel.innerHTML='<option value="">Sin profesionales</option>';
+    currentProfesional=null; return;
   }
-
   const { data: profs } = await supabase
     .from('profesionales')
-    .select('id, nombre, apellido, display_name')
+    .select('id,nombre,apellido,display_name')
     .in('id', ids)
-    .order('apellido', { ascending:true });
-
+    .order('apellido',{ascending:true});
   sel.innerHTML = (profs||[]).map(p=>{
-    const nombre = p.display_name
-                || [p.apellido, p.nombre].filter(Boolean).join(', ')
-                || p.nombre || p.apellido || p.id;
+    const nombre = p.display_name || [p.apellido,p.nombre].filter(Boolean).join(', ') || p.nombre || p.apellido || p.id;
     return `<option value="${p.id}">${nombre}</option>`;
   }).join('');
-
-  currentProfesional = (profs && profs[0]) ? profs[0].id : null;
-  if (currentProfesional) sel.value = currentProfesional;
+  currentProfesional = profs?.[0]?.id || null;
+  if(currentProfesional) sel.value=currentProfesional;
 }
 
-/* ====== Duraciones ====== */
-async function loadDuracionConfig(profesionalId){
+/* Duraciones */
+async function loadDuracionConfig(pid){
   duracionCfg = { nueva_consulta:15, recurrente:15, sobreturno:15 };
-  if (!profesionalId) return;
+  if(!pid) return;
   const { data } = await supabase
     .from('config_duracion_turnos')
-    .select('tipo_turno, minutos')
-    .eq('profesional_id', profesionalId)
+    .select('tipo_turno,minutos')
+    .eq('profesional_id', pid)
     .eq('centro_id', currentCentroId);
-  (data||[]).forEach(r=>{ if (r.tipo_turno && r.minutos) duracionCfg[r.tipo_turno] = r.minutos; });
+  (data||[]).forEach(r=>{
+    if(r.tipo_turno && r.minutos) duracionCfg[r.tipo_turno]=r.minutos;
+  });
 }
 
-/* ====== Obras sociales ====== */
-async function loadObrasSociales() {
+/* ========== OBRAS SOCIALES ========== */
+async function loadObrasSociales(){
   const { data } = await supabase
     .from('obras_sociales')
-    .select('id, obra_social, condicion_copago, valor_copago')
-    .order('obra_social', { ascending: true });
-
-  obrasSocialesCache = data || [];
-  UI.npObra.innerHTML =
-    '<option value="">(Sin obra social)</option>' +
-    obrasSocialesCache.map(o => `<option value="${o.obra_social}">${o.obra_social}</option>`).join('');
+    .select('id,obra_social,condicion_copago,valor_copago')
+    .order('obra_social',{ascending:true});
+  obrasSocialesCache = data||[];
+  UI.npObra.innerHTML = '<option value="">(Sin obra social)</option>' +
+    obrasSocialesCache.map(o=>`<option value="${o.obra_social}">${o.obra_social}</option>`).join('');
 }
-UI.npObra.addEventListener('change', () => {
-  const sel = obrasSocialesCache.find(o => o.obra_social === UI.npObra.value);
-  if (!sel) { UI.npObraInfo.textContent = ''; return; }
+UI.npObra?.addEventListener('change', ()=>{
+  const sel = obrasSocialesCache.find(o=>o.obra_social===UI.npObra.value);
+  if(!sel){ UI.npObraInfo.textContent=''; return; }
   const cond = sel.condicion_copago ? `Condición: ${sel.condicion_copago}` : '';
-  const val  = (sel.valor_copago != null) ? ` · Copago: ${sel.valor_copago}` : '';
-  UI.npObraInfo.textContent = (cond || val) ? (cond + val) : '';
+  const val  = (sel.valor_copago!=null) ? ` · Copago: ${sel.valor_copago}` : '';
+  UI.npObraInfo.textContent = (cond || val) ? cond+val : '';
 });
 
-/* ====== Pacientes (typeahead + crear) ====== */
-let suggestTimer = null;
+/* ========== PACIENTES Typeahead ========== */
+let suggestTimer=null;
 function hideSuggest(){ UI.pacSuggest.style.display='none'; UI.pacSuggest.innerHTML=''; }
 function showSuggest(){ UI.pacSuggest.style.display='block'; }
-
 UI.pacInput.addEventListener('input', ()=>{
   clearTimeout(suggestTimer);
   const q = UI.pacInput.value.trim();
-  if (!q){ hideSuggest(); return; }
-  suggestTimer = setTimeout(()=> fetchSuggestions(q), 180);
+  if(!q){ hideSuggest(); return; }
+  suggestTimer=setTimeout(()=> fetchSuggestions(q), 170);
 });
-window.addEventListener('click', (e)=>{ if(!UI.pacSuggest.contains(e.target) && e.target!==UI.pacInput){ hideSuggest(); }});
+window.addEventListener('click', (e)=>{
+  if(!UI.pacSuggest.contains(e.target) && e.target!==UI.pacInput){
+    hideSuggest();
+  }
+});
 
 async function fetchSuggestions(q){
-  let result = [];
-  if (/^\d{6,}$/.test(q)) {
+  let result=[];
+  if(/^\d{6,}$/.test(q)){
     const { data } = await supabase
       .from('pacientes')
-      .select('id, dni, apellido, nombre, telefono, email')
-      .eq('dni', q)
-      .limit(10);
-    result = data || [];
+      .select('id,dni,apellido,nombre,telefono,email')
+      .eq('dni', q).limit(12);
+    result=data||[];
   } else {
-    const parts = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const parts=q.toLowerCase().split(/\s+/).filter(Boolean);
     let query = supabase.from('pacientes')
-      .select('id, dni, apellido, nombre, telefono, email')
+      .select('id,dni,apellido,nombre,telefono,email')
       .eq('activo', true)
-      .limit(10)
-      .order('apellido', { ascending:true });
-    if (parts[0]) query = query.ilike('apellido', `%${parts[0]}%`);
-    if (parts[1]) query = query.ilike('nombre', `%${parts[1]}%`);
+      .limit(12)
+      .order('apellido',{ascending:true});
+    if(parts[0]) query=query.ilike('apellido', `%${parts[0]}%`);
+    if(parts[1]) query=query.ilike('nombre', `%${parts[1]}%`);
     const { data } = await query;
-    result = data || [];
+    result=data||[];
   }
-
-  if (!result.length){
+  if(!result.length){
     UI.pacSuggest.innerHTML = `
       <div class="s-item s-create" data-act="create">
         <div>
@@ -617,377 +763,347 @@ async function fetchSuggestions(q){
           <div class="s-meta">No se encontraron coincidencias para “${q}”.</div>
         </div>
       </div>`;
-    showSuggest(); bindSuggestHandlers(q, []); return;
+    showSuggest(); bindSuggestHandlers(q,[]); return;
   }
-
-  UI.pacSuggest.innerHTML = result.map(p=>`
-    <div class="s-item" data-act="select" data-id="${p.id}">
-      <div>
-        <div class="s-title">${p.apellido}, ${p.nombre}</div>
-        <div class="s-meta">DNI ${p.dni}${p.telefono ? ' · '+p.telefono : ''}${p.email ? ' · '+p.email : ''}</div>
-      </div>
-    </div>
-  `).join('')
-  + `
-    <div class="s-item s-create" data-act="create">
+  UI.pacSuggest.innerHTML =
+    result.map(p=>`
+      <div class="s-item" data-act="select" data-id="${p.id}">
+        <div>
+          <div class="s-title">${p.apellido}, ${p.nombre}</div>
+          <div class="s-meta">DNI ${p.dni}${p.telefono?' · '+p.telefono:''}${p.email?' · '+p.email:''}</div>
+        </div>
+      </div>`).join('') +
+    `<div class="s-item s-create" data-act="create">
       <div>
         <div class="s-title">+ Crear nuevo paciente</div>
         <div class="s-meta">Agregar con los datos completos.</div>
       </div>
     </div>`;
-  showSuggest(); bindSuggestHandlers(q, result);
+  showSuggest(); bindSuggestHandlers(q,result);
 }
-
-function bindSuggestHandlers(q, result){
+function bindSuggestHandlers(q,result){
   UI.pacSuggest.querySelectorAll('.s-item').forEach(el=>{
     el.addEventListener('click', async ()=>{
-      const act = el.getAttribute('data-act');
-      if (act === 'select'){
-        const id = el.getAttribute('data-id');
-        const p = result.find(x=>x.id===id);
-        if (p) selectPaciente(p);
-      } else if (act === 'create'){
+      const act=el.getAttribute('data-act');
+      if(act==='select'){
+        const id=el.getAttribute('data-id');
+        const p=result.find(r=>r.id==id);
+        if(p) selectPaciente(p);
+      } else if (act==='create'){
         await openPacienteModalPrefilled(q);
       }
     });
   });
 }
-
 function selectPaciente(p){
-  pacienteSeleccionado = { id:p.id, nombre:p.nombre, apellido:p.apellido, dni:p.dni, telefono:p.telefono || '' };
+  pacienteSeleccionado = { id:p.id, nombre:p.nombre, apellido:p.apellido, dni:p.dni, telefono:p.telefono||'' };
   UI.pacChipText.textContent = `${p.apellido}, ${p.nombre} · DNI ${p.dni}`;
-  UI.pacChip.style.display = 'flex';
+  UI.pacChip.style.display='flex';
   hideSuggest();
   enforceTipoTurnoByPaciente(p.id);
 }
 UI.pacClear.addEventListener('click', ()=>{
-  pacienteSeleccionado=null; UI.pacChip.style.display='none';
+  pacienteSeleccionado=null;
+  UI.pacChip.style.display='none';
   enforceTipoTurnoByPaciente(null);
 });
 
-/* Política: bloquear "Nueva consulta" si ya tuvo turnos */
+/* Política nueva consulta */
 async function enforceTipoTurnoByPaciente(pacienteId){
   const optNueva = UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
-  if (!optNueva) return;
-  if (!pacienteId){ optNueva.disabled = false; return; }
-
+  if(!optNueva) return;
+  if(!pacienteId){ optNueva.disabled=false; return; }
   const { count } = await supabase
     .from('turnos')
-    .select('id', { count: 'exact', head: true })
+    .select('id', { count:'exact', head:true })
     .eq('paciente_id', pacienteId);
-
-  if ((count ?? 0) > 0){
-    optNueva.disabled = true;
-    if (UI.tipoTurno.value === 'nueva_consulta'){ UI.tipoTurno.value = 'recurrente'; }
+  if((count??0) > 0){
+    optNueva.disabled=true;
+    if(UI.tipoTurno.value==='nueva_consulta') UI.tipoTurno.value='recurrente';
   } else {
-    optNueva.disabled = true;
+    optNueva.disabled=true;
   }
 }
 
-/* Modal Paciente */
+/* Modal paciente */
 async function openPacienteModalPrefilled(q){
-  if (!obrasSocialesCache.length) await loadObrasSociales();
-
-  UI.npDni.value = /^\d{6,}$/.test(q) ? q : '';
-  const parts = q.split(/\s+/).filter(Boolean);
-  UI.npApellido.value = parts[0] || '';
-  UI.npNombre.value = parts[1] || '';
-  UI.npFechaNac.value = '';
-  UI.npTel.value = ''; UI.npEmail.value = '';
-  UI.npObra.value = ''; UI.npObraInfo.textContent='';
-  UI.npAfiliado.value = '';
-  UI.npConNom.value=''; UI.npConApe.value=''; UI.npConCel.value=''; UI.npVinculo.value='';
-  UI.npHistoria.value=''; UI.npCredFile.value=''; UI.npCredPreview.style.display='none'; UI.npCredPreview.innerHTML='';
+  if(!obrasSocialesCache.length) await loadObrasSociales();
+  UI.npDni.value = /^\d{6,}$/.test(q)? q : '';
+  const parts=q.split(/\s+/).filter(Boolean);
+  UI.npApellido.value=parts[0]||'';
+  UI.npNombre.value=parts[1]||'';
+  UI.npFechaNac.value='';
+  UI.npTel.value=''; UI.npEmail.value='';
+  UI.npObra.value=''; UI.npObraInfo.textContent='';
+  UI.npAfiliado.value='';
+  UI.npConNom.value=UI.npConApe.value=UI.npConCel.value=UI.npVinculo.value='';
+  UI.npHistoria.value='';
+  UI.npCredFile.value=''; UI.npCredPreview.style.display='none'; UI.npCredPreview.innerHTML='';
   UI.npMsg.textContent='';
   UI.modalPac.style.display='flex';
 }
 UI.modalPacClose.addEventListener('click', ()=> UI.modalPac.style.display='none');
-window.addEventListener('click', (e)=>{ if (e.target===UI.modalPac) UI.modalPac.style.display='none'; });
-UI.npHistoriaOpen.addEventListener('click', (e)=>{ if(!UI.npHistoria.value){ e.preventDefault(); } });
+window.addEventListener('click',(e)=>{ if(e.target===UI.modalPac) UI.modalPac.style.display='none'; });
+UI.npHistoriaOpen.addEventListener('click',(e)=>{ if(!UI.npHistoria.value){ e.preventDefault(); } });
 UI.npCredSelect.addEventListener('click', ()=> UI.npCredFile.click());
 UI.npCredFile.addEventListener('change', ()=>{
-  const f = UI.npCredFile.files?.[0];
-  UI.npCredPreview.innerHTML = '';
-  if (!f){ UI.npCredPreview.style.display='none'; return; }
-  const isImg = /^image\//.test(f.type);
-  if (isImg){
-    const img = document.createElement('img');
-    img.alt = 'credencial';
-    img.src = URL.createObjectURL(f);
+  const f=UI.npCredFile.files?.[0];
+  UI.npCredPreview.innerHTML='';
+  if(!f){ UI.npCredPreview.style.display='none'; return; }
+  if(/^image\//.test(f.type)){
+    const img=document.createElement('img');
+    img.src=URL.createObjectURL(f);img.alt='credencial';
     UI.npCredPreview.appendChild(img);
   }
-  const meta = document.createElement('div');
-  meta.innerHTML = `<div class="footer-mini">${f.name} · ${(f.size/1024).toFixed(0)} KB 
-    &nbsp; <a href="#" id="np-cred-remove">Quitar</a></div>`;
+  const meta=document.createElement('div');
+  meta.className='t-hint';
+  meta.innerHTML=`${f.name} · ${(f.size/1024).toFixed(0)} KB <a href="#" id="np-cred-remove">Quitar</a>`;
   UI.npCredPreview.appendChild(meta);
-  UI.npCredPreview.style.display = 'flex';
-  meta.querySelector('#np-cred-remove').addEventListener('click', (e)=>{
-    e.preventDefault(); UI.npCredFile.value=''; UI.npCredPreview.style.display='none'; UI.npCredPreview.innerHTML='';
+  UI.npCredPreview.style.display='flex';
+  meta.querySelector('#np-cred-remove').addEventListener('click',(ev)=>{
+    ev.preventDefault(); UI.npCredFile.value=''; UI.npCredPreview.style.display='none'; UI.npCredPreview.innerHTML='';
   });
 });
 
 /* Guardar paciente */
 UI.npGuardar.addEventListener('click', async ()=>{
-  const dni = UI.npDni.value.trim();
-  const nombre = UI.npNombre.value.trim();
-  const apellido = UI.npApellido.value.trim();
-  const fecha_nacimiento = UI.npFechaNac.value || '';
-  const telefono = UI.npTel.value.trim();
-  if (!dni || !nombre || !apellido || !fecha_nacimiento || !telefono){
-    UI.npMsg.textContent = 'Completá los campos obligatorios (*)';
-    return;
+  const dni=UI.npDni.value.trim();
+  const nombre=UI.npNombre.value.trim();
+  const apellido=UI.npApellido.value.trim();
+  const fecha_nacimiento=UI.npFechaNac.value || '';
+  const telefono=UI.npTel.value.trim();
+  if(!dni||!nombre||!apellido||!fecha_nacimiento||!telefono){
+    UI.npMsg.textContent='Completá los campos obligatorios (*)'; return;
   }
-  UI.npMsg.textContent = 'Guardando...';
+  UI.npMsg.textContent='Guardando...';
 
-  let credencialUrl = null;
-  const file = UI.npCredFile.files?.[0];
-  if (file){
-    const ext = (file.name.split('.').pop() || 'bin').toLowerCase();
-    const path = `${dni}_${Date.now()}.${ext}`;
+  let credencialUrl=null;
+  const file=UI.npCredFile.files?.[0];
+  if(file){
+    const ext=(file.name.split('.').pop()||'bin').toLowerCase();
+    const path=`${dni}_${Date.now()}.${ext}`;
     const { data: up, error: upErr } = await supabase.storage
       .from('credenciales')
-      .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
-    if (upErr){ UI.npMsg.textContent = 'No se pudo subir la credencial: ' + (upErr.message || ''); return; }
+      .upload(path, file, { cacheControl:'3600', upsert:false, contentType:file.type });
+    if(upErr){ UI.npMsg.textContent='No se pudo subir credencial: '+(upErr.message||''); return; }
     const { data: pub } = supabase.storage.from('credenciales').getPublicUrl(up.path);
-    credencialUrl = pub?.publicUrl || null;
+    credencialUrl=pub?.publicUrl||null;
   }
 
-  const payload = {
+  const payload={
     dni, nombre, apellido, fecha_nacimiento, telefono,
-    email: UI.npEmail.value.trim() || null,
-    obra_social: UI.npObra.value || null,
-    numero_afiliado: UI.npAfiliado.value.trim() || null,
-    contacto_nombre: UI.npConNom.value.trim() || null,
-    contacto_apellido: UI.npConApe.value.trim() || null,
-    contacto_celular: UI.npConCel.value.trim() || null,
-    vinculo: UI.npVinculo.value.trim() || null,
-    credencial: credencialUrl,
-    historia_clinica: UI.npHistoria.value.trim() || null,
-    activo: true
+    email:UI.npEmail.value.trim()||null,
+    obra_social:UI.npObra.value||null,
+    numero_afiliado:UI.npAfiliado.value.trim()||null,
+    contacto_nombre:UI.npConNom.value.trim()||null,
+    contacto_apellido:UI.npConApe.value.trim()||null,
+    contacto_celular:UI.npConCel.value.trim()||null,
+    vinculo:UI.npVinculo.value.trim()||null,
+    credencial:credencialUrl,
+    historia_clinica:UI.npHistoria.value.trim()||null,
+    activo:true
   };
-
   const { data, error } = await supabase
     .from('pacientes')
     .insert([payload])
-    .select('id, dni, nombre, apellido, telefono')
+    .select('id,dni,nombre,apellido,telefono')
     .single();
-
-  if (error){ UI.npMsg.textContent = 'Error: ' + (error.message || 'no se pudo crear'); return; }
-
+  if(error){
+    UI.npMsg.textContent='Error: '+(error.message||'no se pudo crear'); return;
+  }
   UI.modalPac.style.display='none';
   selectPaciente(data);
-
-  const optNueva = UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
-  if (optNueva) { optNueva.disabled = false; }
-  UI.tipoTurno.value = 'nueva_consulta';
+  const optNueva=UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
+  if(optNueva) optNueva.disabled=false;
+  UI.tipoTurno.value='nueva_consulta';
 });
 
-/* ====== Agenda & Turnos ====== */
-function renderDowTurnos(){ UI.calDow.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
+/* ========== CALENDARIO / TURNOS ========== */
+const DOW=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 
-async function fetchAgendaYTurnos(profesionalId, y, m){
-  const first = new Date(y,m,1), last = new Date(y,m+1,0);
-  const start = toISODate(y,m,1), end = toISODate(y,m,last.getDate());
+function renderDow(){ UI.calDow.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
+
+async function fetchAgendaYTurnos(pid,y,m){
+  const first=new Date(y,m,1), last=new Date(y,m+1,0);
+  const start=toISODate(y,m,1), end=toISODate(y,m,last.getDate());
   const [agendaRes, turnosRes] = await Promise.all([
     supabase.from('agenda')
-      .select('id, fecha, hora_inicio, hora_fin')
-      .eq('centro_id', currentCentroId).eq('profesional_id', profesionalId)
-      .gte('fecha', start).lte('fecha', end).order('fecha',{ascending:true}),
+      .select('id,fecha,hora_inicio,hora_fin')
+      .eq('centro_id', currentCentroId)
+      .eq('profesional_id', pid)
+      .gte('fecha', start).lte('fecha', end)
+      .order('fecha',{ascending:true}),
     supabase.from('turnos')
-      .select('id, fecha, hora_inicio, hora_fin, estado, paciente_id, agenda_id, pacientes(id, apellido, nombre, dni, telefono)')
-      .eq('centro_id', currentCentroId).eq('profesional_id', profesionalId)
-      .gte('fecha', start).lte('fecha', end).order('hora_inicio',{ascending:true})
+      .select('id,fecha,hora_inicio,hora_fin,estado,paciente_id,agenda_id,pacientes(id,apellido,nombre,dni,telefono)')
+      .eq('centro_id', currentCentroId)
+      .eq('profesional_id', pid)
+      .gte('fecha', start).lte('fecha', end)
+      .order('hora_inicio',{ascending:true})
   ]);
-  return { agenda: agendaRes.data || [], turnos: turnosRes.data || [] };
+  return { agenda: agendaRes.data||[], turnos: turnosRes.data||[] };
 }
 
-/* Generar slots (excluye un turno si está en reprogramación) */
-function generarSlotsDeDia(agendaDelDia, turnosDelDia, tipo, excludeTurnoId){
-  const dur = Number(duracionCfg[tipo] || 15);
-  if (!dur || isNaN(dur) || dur<=0) return [];
+function generarSlotsDeDia(agendaDia, turnosDia, tipo, excludeTurnoId){
+  const dur=Number(duracionCfg[tipo]||15);
+  if(!dur || dur<=0) return [];
   const slots=[];
-  const turnosConsiderados = (turnosDelDia||[]).filter(t=> (t.estado||'').toLowerCase()!=='cancelado' && t.id !== excludeTurnoId);
-  for (const bloque of (agendaDelDia||[])){
+  const turnosConsiderados=(turnosDia||[]).filter(t=>(t.estado||'').toLowerCase()!=='cancelado' && t.id!==excludeTurnoId);
+  for(const bloque of (agendaDia||[])){
     const bStart=toHM(bloque.hora_inicio), bEnd=toHM(bloque.hora_fin);
-    let t = bStart;
-    while (addMinutes(t,dur) <= bEnd){
+    let t=bStart;
+    while(addMinutes(t,dur)<=bEnd){
       const start=t, end=addMinutes(t,dur);
-      const occupant = turnosConsiderados.find(tr=>{
-        const trStart = toHM(tr.hora_inicio);
-        const trEnd = toHM(tr.hora_fin) || addMinutes(trStart,dur);
-        return overlaps(start,end,trStart,trEnd);
+      const occupant=turnosConsiderados.find(tr=>{
+        const trS=toHM(tr.hora_inicio), trE=toHM(tr.hora_fin);
+        return overlaps(start,end,trS,trE);
       });
-      slots.push({
-        start, end, agenda_id: bloque.id,
-        disponible: !occupant,
-        turno: occupant || null
-      });
-      t = end;
+      slots.push({ start,end, agenda_id:bloque.id, disponible:!occupant, turno:occupant||null });
+      t=end;
     }
   }
   return slots;
 }
 
-/* Render calendario */
 async function renderCalendar(){
-  const grid = UI.calGrid, title = UI.calTitle;
-  if (!currentProfesional){ UI.status.textContent='No hay profesional seleccionado.'; grid.innerHTML=''; return; }
-  UI.status.textContent = 'Cargando agenda...';
-
+  if(!currentProfesional){
+    UI.status.textContent='No hay profesional seleccionado.';
+    UI.calGrid.innerHTML=''; return;
+  }
+  UI.status.textContent='Cargando agenda...';
   const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, view.y, view.m);
-  const byFechaAgenda = groupByFecha(agenda);
-  const byFechaTurnos = groupByFecha(turnos);
+  const byFechaAgenda=groupByFecha(agenda);
+  const byFechaTurnos=groupByFecha(turnos);
   const tipo = UI.tipoTurno.value;
 
-  grid.innerHTML = '';
-  const first = new Date(view.y, view.m, 1);
-  const last  = new Date(view.y, view.m+1, 0);
-  title.textContent = first.toLocaleString('es-AR', { month: 'long', year: 'numeric' });
-
-  const startOffset = nativeFirstDow(first);
-  const totalCells = startOffset + last.getDate();
-  const rows = Math.ceil(totalCells / 7);
-  let dayNum = 1;
-
-  for (let r=0; r<rows*7; r++){
-    const cell = document.createElement('div');
-    if (r < startOffset || dayNum>last.getDate()){
-      cell.className = 'day empty'; grid.appendChild(cell); continue;
+  UI.calGrid.innerHTML='';
+  const first=new Date(view.y,view.m,1);
+  const last=new Date(view.y,view.m+1,0);
+  UI.calTitle.textContent = first.toLocaleString('es-AR',{month:'long',year:'numeric'});
+  const offset=nativeFirstDow(first);
+  const totalCells = offset + last.getDate();
+  const rows=Math.ceil(totalCells/7);
+  let day=1;
+  for(let i=0;i<rows*7;i++){
+    const cell=document.createElement('div');
+    if(i<offset || day>last.getDate()){
+      cell.className='t-day empty'; UI.calGrid.appendChild(cell); continue;
     }
-    const iso = toISODate(view.y, view.m, dayNum);
-    const agendaDia = byFechaAgenda.get(iso) || [];
-    const turnosDia = byFechaTurnos.get(iso) || [];
-    const slotsPreview = generarSlotsDeDia(agendaDia, turnosDia, tipo);
-    const libres = slotsPreview.filter(s=>s.disponible).length;
-
-    let classNames = ['day'];
-    let badgeText = 'sin agenda';
-    if (agendaDia.length === 0){ classNames.push('empty'); }
-    else if (libres>0){ classNames.push('free','clickable'); badgeText = `${libres} libres`; }
-    else { classNames.push('busy','clickable'); badgeText = 'sin huecos'; }
-
-    cell.className = classNames.join(' ');
-    cell.innerHTML = `<div class="num">${dayNum}</div><div class="badge">${badgeText}</div>`;
-    if (classNames.includes('clickable')){
+    const iso=toISODate(view.y,view.m,day);
+    const agendaDia=byFechaAgenda.get(iso)||[];
+    const turnosDia=byFechaTurnos.get(iso)||[];
+    const preview=generarSlotsDeDia(agendaDia,turnosDia,tipo,null);
+    const libres=preview.filter(s=>s.disponible).length;
+    let cls='t-day'; let badge='sin agenda';
+    if(!agendaDia.length){ cls+=' empty'; }
+    else if(libres>0){ cls+=' free clickable'; badge=`${libres} libres`; }
+    else { cls+=' busy clickable'; badge='sin huecos'; }
+    cell.className=cls;
+    cell.innerHTML=`<div class="num">${day}</div><div class="badge">${badge}</div>`;
+    if(cls.includes('clickable')){
       cell.addEventListener('click', ()=> openDayModal(iso, agendaDia, turnosDia, { preserveReprogram: !!reprogramState }));
     }
-    grid.appendChild(cell);
-    dayNum++;
+    UI.calGrid.appendChild(cell);
+    day++;
   }
-
-  UI.status.textContent = (agenda.length===0) ? 'No hay agenda cargada para este mes en el centro seleccionado.' : '';
+  UI.status.textContent = agenda.length ? '' : 'No hay agenda cargada para este mes.';
 }
 
-/* Modal día */
-async function openDayModal(isoDate, agendaDia, turnosDiaRaw, { preserveReprogram = false } = {}){
-  if (!preserveReprogram) reprogramState = null;
+async function openDayModal(isoDate, agendaDia, turnosDiaRaw, { preserveReprogram=false }={}){
+  if(!preserveReprogram) reprogramState=null;
   modalDateISO = isoDate;
   UI.modalTitle.textContent = `Turnos del ${new Date(isoDate).toLocaleDateString('es-AR')}`;
-  UI.modalDateInput.value = isoDate;
-  UI.modal.style.display = 'flex';
+  UI.modalDateInput.value=isoDate;
+  UI.modal.style.display='flex';
   const excludeId = reprogramState?.turno.id || null;
   const slots = generarSlotsDeDia(agendaDia, turnosDiaRaw, UI.tipoTurno.value, excludeId);
-  renderSlots(slots, agendaDia, turnosDiaRaw);
+  renderSlots(slots);
 }
 UI.modalClose.addEventListener('click', ()=> UI.modal.style.display='none');
-window.addEventListener('click', (e)=>{ if(e.target===UI.modal) UI.modal.style.display='none' });
+window.addEventListener('click',(e)=>{ if(e.target===UI.modal) UI.modal.style.display='none'; });
 
-/* Refrescar modal día (fetch actualizado) */
 async function refreshDayModal(){
-  if (!modalDateISO) return;
+  if(!modalDateISO) return;
   const { data: agendaDia } = await supabase
     .from('agenda')
-    .select('id, fecha, hora_inicio, hora_fin')
+    .select('id,fecha,hora_inicio,hora_fin')
     .eq('centro_id', currentCentroId)
     .eq('profesional_id', currentProfesional)
     .eq('fecha', modalDateISO)
     .order('hora_inicio',{ascending:true});
-
   const { data: turnosDiaRaw } = await supabase
     .from('turnos')
-    .select('id, fecha, hora_inicio, hora_fin, estado, paciente_id, agenda_id, pacientes(id, apellido, nombre, dni, telefono)')
+    .select('id,fecha,hora_inicio,hora_fin,estado,paciente_id,agenda_id,pacientes(id,apellido,nombre,dni,telefono)')
     .eq('centro_id', currentCentroId)
     .eq('profesional_id', currentProfesional)
     .eq('fecha', modalDateISO)
     .order('hora_inicio',{ascending:true});
-
-  const slots = generarSlotsDeDia(
-    agendaDia||[],
-    turnosDiaRaw||[],
-    UI.tipoTurno.value,
-    reprogramState?.turno.id || null
-  );
-  renderSlots(slots, agendaDia||[], turnosDiaRaw||[]);
+  const slots = generarSlotsDeDia(agendaDia||[], turnosDiaRaw||[], UI.tipoTurno.value, reprogramState?.turno.id||null);
+  renderSlots(slots);
 }
 
-/* Render unified slots */
-function renderSlots(slots, agendaDia, turnosDiaRaw){
-  if (!slots.length){ UI.slotsList.innerHTML = '<div class="footer-mini">No hay horarios disponibles para el tipo seleccionado.</div>'; return; }
-  UI.slotsList.innerHTML = '';
-
-  if (reprogramState){
-    const banner = document.createElement('div');
+function renderSlots(slots){
+  if(!slots.length){
+    UI.slotsList.innerHTML='<div class="t-hint">No hay horarios disponibles.</div>'; return;
+  }
+  UI.slotsList.innerHTML='';
+  if(reprogramState){
+    const banner=document.createElement('div');
     banner.className='banner-reprogram';
-    banner.innerHTML = `<div>
-        Reprogramando turno de ${toHM(reprogramState.turno.hora_inicio)} a ${toHM(reprogramState.turno.hora_fin)}.
-        Seleccioná el nuevo horario (duración ${reprogramState.durMin} min).
-      </div>
-      <button class="linklike" id="cancel-reprogram">Cancelar</button>`;
+    banner.innerHTML=`<div>
+      Reprogramando turno ${toHM(reprogramState.turno.hora_inicio)}–${toHM(reprogramState.turno.hora_fin)}.
+      Seleccioná nuevo horario (${reprogramState.durMin} min).
+    </div><button class="linklike" id="cancel-reprogram">Cancelar</button>`;
     UI.slotsList.appendChild(banner);
     banner.querySelector('#cancel-reprogram').addEventListener('click', ()=>{
       reprogramState=null;
       refreshDayModal();
     });
   }
-
   const profLabel = UI.profesionalSelect.options[UI.profesionalSelect.selectedIndex]?.textContent || 'Profesional';
-
-  for (const s of slots){
-    const row = document.createElement('div');
-    const dur = minutesDiff(s.start, s.end);
-    const reprogramando = !!reprogramState;
-    const sameDur = reprogramando ? (dur === reprogramState.durMin) : true;
+  for(const s of slots){
+    const row=document.createElement('div');
+    const dur=minutesDiff(s.start,s.end);
+    const reprogramando=!!reprogramState;
+    const sameDur=reprogramando ? (dur===reprogramState.durMin) : true;
     const habil = s.disponible && (!reprogramando || sameDur);
     const turno = s.turno;
-    const ocupado = !!turno;
-    row.className = 'slot' + (ocupado ? ' ocupado':'') + (!habil && !ocupado ? ' unavailable':'');
-
-    if (!ocupado){
-      row.innerHTML = `
+    const ocupado=!!turno;
+    row.className='t-slot'+(ocupado?' ocupado':'')+(!habil && !ocupado?' unavailable':'');
+    if(!ocupado){
+      row.innerHTML=`
         <div>
           <div class="time">${s.start} — ${s.end}</div>
-          <div class="mini">${reprogramando ? (sameDur ? 'Seleccionar nuevo horario' : 'Duración distinta') : 'Agenda'}</div>
+          <div class="mini">${reprogramando ? (sameDur?'Seleccionar nuevo horario':'Duración distinta') : 'Agenda'}</div>
         </div>
         <div>
           ${habil
-            ? `<button class="icon-btn" data-tip="${reprogramando ? 'Mover aquí' : 'Agendar turno'}" data-start="${s.start}" data-end="${s.end}" data-agenda="${s.agenda_id||''}">${reprogramando ? '✅':'➕'}</button>`
-            : `<button class="icon-btn" disabled data-tip="No disponible">✖</button>`}
+            ? `<button class="t-icon-btn" data-tip="${reprogramando?'Mover aquí':'Agendar turno'}">${reprogramando?'✅':'➕'}</button>`
+            : `<button class="t-icon-btn" disabled data-tip="No disponible">✖</button>`}
         </div>`;
-      if (habil){
-        row.querySelector('button').addEventListener('click', () => reprogramando ? confirmReprogram(s) : tryAgendar(s));
+      if(habil){
+        row.querySelector('button').addEventListener('click', ()=> reprogramando ? confirmReprogram(s) : tryAgendar(s));
       }
     } else {
-      const pac = turno.pacientes ? `${turno.pacientes.apellido}, ${turno.pacientes.nombre}` : `Paciente`;
+      const pac = turno.pacientes ? `${turno.pacientes.apellido}, ${turno.pacientes.nombre}` : 'Paciente';
       const dni = turno.pacientes?.dni || '—';
       const tel = turno.pacientes?.telefono || '—';
-      row.innerHTML = `
+      row.innerHTML=`
         <div>
           <div class="time">${toHM(turno.hora_inicio)} — ${toHM(turno.hora_fin)}</div>
           <div class="mini">${pac} · DNI ${dni} · ${tel}</div>
         </div>
-        <div style="display:flex;gap:6px">
-          <button class="icon-btn" data-tip="↪ Reprogramar" data-act="rep">↪️</button>
-          <button class="icon-btn" data-tip="🗑 Anular" data-act="del">🗑️</button>
+        <div style="display:flex;gap:8px">
+          <button class="t-icon-btn" data-tip="Reprogramar" data-act="rep">↪️</button>
+          <button class="t-icon-btn" data-tip="Anular" data-act="del">🗑️</button>
         </div>`;
       row.querySelector('[data-act="rep"]').addEventListener('click', ()=> startReprogram(turno));
       row.querySelector('[data-act="del"]').addEventListener('click', ()=> cancelarTurno(turno));
     }
-
     UI.slotsList.appendChild(row);
   }
 }
 
-/* Confirmación OK */
+/* OK Modal */
 function openOkModal({pac, fechaISO, start, end, profLabel}){
   UI.okTitle.textContent = `${pac.apellido}, ${pac.nombre}`;
   UI.okPaciente.textContent = `${pac.apellido}, ${pac.nombre}`;
@@ -997,156 +1113,156 @@ function openOkModal({pac, fechaISO, start, end, profLabel}){
   UI.okCentro.textContent = currentCentroNombre || '—';
   UI.okDir.textContent = currentCentroDireccion || '—';
 
-  const msg = buildWhatsAppMessage({ pac, fechaISO, start, end, prof: profLabel, centro: currentCentroNombre||'', dir: currentCentroDireccion||'' });
-  const to = normalizePhoneForWA(pac.telefono || '');
-  const href = to ? `https://wa.me/${to}?text=${encodeURIComponent(msg)}` : 'javascript:void(0)';
-  UI.okWa.setAttribute('href', href);
-  UI.okWa.classList.toggle('ok', !!to);
-  UI.okWa.textContent = to ? 'Enviar por WhatsApp' : 'WhatsApp (falta teléfono)';
-  UI.okWa.style.pointerEvents = to ? 'auto' : 'none';
-  UI.okMsg.textContent = '';
+  const msg=buildWhatsAppMessage({pac,fechaISO,start,end,prof:profLabel,centro:currentCentroNombre||'',dir:currentCentroDireccion||''});
+  const to=normalizePhoneForWA(pac.telefono||'');
+  const href=to ? `https://wa.me/${to}?text=${encodeURIComponent(msg)}` : 'javascript:void(0)';
+  UI.okWa.href=href;
+  UI.okWa.textContent = to? 'Enviar por WhatsApp':'WhatsApp (falta teléfono)';
+  UI.okWa.style.pointerEvents = to? 'auto':'none';
+  UI.okMsg.textContent='';
 
-  UI.okCopy.onclick = ()=>{
-    const link = to ? href : msg;
-    navigator.clipboard.writeText(link).then(()=> UI.okMsg.textContent='Copiado').catch(()=> UI.okMsg.textContent='No se pudo copiar');
+  UI.okCopy.onclick=()=>{
+    const link=to? href: msg;
+    navigator.clipboard.writeText(link)
+      .then(()=> UI.okMsg.textContent='Copiado')
+      .catch(()=> UI.okMsg.textContent='No se pudo copiar');
   };
-
-  UI.okBackdrop.style.display = 'flex';
+  UI.okBackdrop.style.display='flex';
 }
 UI.okClose.addEventListener('click', ()=> UI.okBackdrop.style.display='none');
-window.addEventListener('click', (e)=>{ if (e.target===UI.okBackdrop) UI.okBackdrop.style.display='none'; });
+window.addEventListener('click',(e)=>{ if(e.target===UI.okBackdrop) UI.okBackdrop.style.display='none'; });
 
-/* Agendar */
+/* Acciones */
 async function tryAgendar(slot){
-  if (!pacienteSeleccionado){ alert('Seleccioná un paciente arriba antes de agendar.'); return; }
-  if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
-
+  if(!pacienteSeleccionado){ alert('Seleccioná un paciente primero.'); return; }
+  if(!isValidHourRange(slot.start,slot.end)){ alert('Rango horario inválido.'); return; }
   const { error } = await supabase
     .from('turnos')
     .insert([{
-      agenda_id: slot.agenda_id || null,
-      centro_id: currentCentroId,
-      profesional_id: currentProfesional,
-      paciente_id: pacienteSeleccionado.id,
-      fecha: modalDateISO,
-      hora_inicio: slot.start,
-      hora_fin: slot.end,
-      estado: 'asignado',
-      notas: (UI.tipoTurno.value === 'sobreturno') ? 'Sobreturno' : null
+      agenda_id:slot.agenda_id||null,
+      centro_id:currentCentroId,
+      profesional_id:currentProfesional,
+      paciente_id:pacienteSeleccionado.id,
+      fecha:modalDateISO,
+      hora_inicio:slot.start,
+      hora_fin:slot.end,
+      estado:'asignado',
+      notas: (UI.tipoTurno.value==='sobreturno') ? 'Sobreturno' : null
     }]);
-
-  if (error){
-    const msg = (error.message||'').toLowerCase().includes('solap') ? 'Ese horario se ocupó recién por otro usuario.' : (error.message || 'No se pudo agendar.');
+  if(error){
+    const msg = (error.message||'').toLowerCase().includes('solap') ? 'Ese horario se ocupó recientemente.' : (error.message||'No se pudo agendar.');
     alert(msg);
   } else {
     const profLabel = UI.profesionalSelect.options[UI.profesionalSelect.selectedIndex]?.textContent || 'Profesional';
     openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel });
   }
   await refreshDayModal();
-  await renderCalendar(); // actualizar badges
+  await renderCalendar();
 }
 
-/* Iniciar reprogramación */
 function startReprogram(turno){
   const durMin = minutesDiff(toHM(turno.hora_inicio), toHM(turno.hora_fin));
   reprogramState = { turno, durMin };
   refreshDayModal();
 }
 
-/* Confirmar reprogramación */
 async function confirmReprogram(slot){
-  if (!reprogramState) return;
+  if(!reprogramState) return;
   const t = reprogramState.turno;
-  if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
+  if(!isValidHourRange(slot.start,slot.end)){ alert('Rango horario inválido.'); return; }
   const { error } = await supabase
     .from('turnos')
     .update({
-      fecha: modalDateISO,
-      hora_inicio: slot.start,
-      hora_fin: slot.end,
-      agenda_id: slot.agenda_id || null
+      fecha:modalDateISO,
+      hora_inicio:slot.start,
+      hora_fin:slot.end,
+      agenda_id:slot.agenda_id||null
     })
     .eq('id', t.id);
-  if (error){
-    alert(error.message || 'No se pudo reprogramar.');
+  if(error){
+    alert(error.message||'No se pudo reprogramar.');
   } else {
-    reprogramState = null;
+    reprogramState=null;
   }
   await refreshDayModal();
   await renderCalendar();
 }
 
-/* Anular turno */
 async function cancelarTurno(t){
-  if (!confirm('¿Anular este turno?')) return;
+  if(!confirm('¿Anular este turno?')) return;
   const { error } = await supabase
     .from('turnos')
-    .update({ estado: 'cancelado' })
+    .update({ estado:'cancelado' })
     .eq('id', t.id);
-  if (error){
-    alert(error.message || 'No se pudo anular.');
+  if(error){
+    alert(error.message||'No se pudo anular.');
   } else {
-    if (reprogramState && reprogramState.turno.id === t.id) reprogramState = null;
+    if(reprogramState && reprogramState.turno.id===t.id) reprogramState=null;
   }
   await refreshDayModal();
   await renderCalendar();
 }
 
-/* Navegación dentro del modal (día anterior / siguiente / picker) */
+/* Navegación día dentro de modal */
 async function loadModalDate(newISO){
-  modalDateISO = newISO;
-  UI.modalDateInput.value = newISO;
-  UI.modalTitle.textContent = `Turnos del ${new Date(newISO).toLocaleDateString('es-AR')}`;
+  modalDateISO=newISO;
+  UI.modalDateInput.value=newISO;
+  UI.modalTitle.textContent=`Turnos del ${new Date(newISO).toLocaleDateString('es-AR')}`;
   await refreshDayModal();
 }
 UI.modalPrevDay.addEventListener('click', async ()=>{
-  if (!modalDateISO) return;
-  const d = new Date(modalDateISO+'T00:00:00');
-  d.setDate(d.getDate()-1);
+  if(!modalDateISO) return;
+  const d=new Date(modalDateISO+'T00:00:00'); d.setDate(d.getDate()-1);
   await loadModalDate(dateToISO(d));
 });
 UI.modalNextDay.addEventListener('click', async ()=>{
-  if (!modalDateISO) return;
-  const d = new Date(modalDateISO+'T00:00:00');
-  d.setDate(d.getDate()+1);
+  if(!modalDateISO) return;
+  const d=new Date(modalDateISO+'T00:00:00'); d.setDate(d.getDate()+1);
   await loadModalDate(dateToISO(d));
 });
 UI.modalDateInput.addEventListener('change', async ()=>{
-  if (UI.modalDateInput.value) await loadModalDate(UI.modalDateInput.value);
+  if(UI.modalDateInput.value) await loadModalDate(UI.modalDateInput.value);
 });
 
-/* ====== Eventos globales ====== */
+/* Eventos globales */
 UI.tipoTurno.addEventListener('change', async ()=>{
   await renderCalendar();
-  if (UI.modal.style.display==='flex') refreshDayModal();
+  if(UI.modal.style.display==='flex') refreshDayModal();
 });
 UI.profesionalSelect.addEventListener('change', async ()=>{
-  currentProfesional = UI.profesionalSelect.value || null;
+  currentProfesional=UI.profesionalSelect.value||null;
   await loadDuracionConfig(currentProfesional);
   await renderCalendar();
-  if (UI.modal.style.display==='flex') refreshDayModal();
+  if(UI.modal.style.display==='flex') refreshDayModal();
 });
 UI.btnHoy.addEventListener('click', async ()=>{
-  const t=todayInfo(); view.y=t.y; view.m=t.m;
-  await renderCalendar();
+  view=todayInfo(); await renderCalendar();
 });
 UI.prevMonth.addEventListener('click', async ()=>{
-  if (--view.m < 0){ view.m=11; view.y--; }
+  if(--view.m<0){ view.m=11; view.y--; }
   await renderCalendar();
 });
 UI.nextMonth.addEventListener('click', async ()=>{
-  if (++view.m > 11){ view.m=0; view.y++; }
+  if(++view.m>11){ view.m=0; view.y++; }
   await renderCalendar();
 });
 
-/* ====== Init ====== */
+/* INIT */
 (async function init(){
-  renderDowTurnos();
+  initSidebar();
+  if(!currentCentroId){
+    alert('No hay centro seleccionado. Redirigiendo al inicio.');
+    window.location.href='index.html';
+    return;
+  }
+  renderDow();
   await ensureCentroWidgets();
   await loadProfesionales();
   await loadDuracionConfig(currentProfesional);
   await renderCalendar();
 })();
+function renderDow(){ UI.calDow.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
+
 </script>
 </body>
 </html>
