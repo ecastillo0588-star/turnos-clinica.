@@ -11,65 +11,71 @@
     *{box-sizing:border-box}
     :root{
       --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
-      --bg:#f7f9fb; --card:#fff; --line:#ece5fc; --ok:#0a7d38; --danger:#b00020;
+      --bg:#f7f9fb; --card:#fff; --line:#ece5fc;
     }
     body{background:var(--bg);margin:0;font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
-    .shell{padding:12px}
-    .panel{background:var(--card);border-radius:14px;box-shadow:0 1px 10px rgba(80,60,160,.08);
-      padding:12px;display:flex;flex-direction:column;gap:10px;min-height:calc(100vh - 24px)}
+    .shell{padding:10px}
+    .panel{
+      background:var(--card);border-radius:12px;box-shadow:0 1px 10px rgba(80,60,160,.08);
+      padding:10px;display:flex;flex-direction:column;gap:10px;min-height:calc(100vh - 20px)
+    }
 
-    /* Toolbar compacta */
+    /* Toolbar compacta (4 columnas) */
     .toolbar{
       display:grid;
-      grid-template-columns: minmax(220px,1fr) minmax(260px,1.2fr) minmax(200px,.9fr) auto auto;
+      grid-template-columns: minmax(220px,1fr) minmax(180px,.8fr) minmax(160px,.6fr) auto;
       gap:10px 12px; align-items:end;
     }
-    .field{display:flex;flex-direction:column;gap:4px;min-width:0}
+    .field{display:flex;flex-direction:column;gap:3px;min-width:0}
     .field label{font-size:11px;color:var(--muted)}
-    .inp,.sel{background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--ink);outline:none;width:100%}
+    .inp,.sel{
+      background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:7px 9px;
+      font-size:13px;color:var(--ink);outline:none;width:100%;
+    }
     .inp:focus,.sel:focus{border-color:var(--brand-2)}
-    .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:8px 10px;font-weight:600;cursor:pointer}
+    .sel.compact{max-width:240px}
+    .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer}
     .btn.secondary{background:#e7e2fa;color:#5a3e9a}
-    .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
     .pill{display:inline-flex;align-items:center;gap:6px;background:#f2effc;border:1px solid var(--line);color:#4b3a78;padding:6px 10px;border-radius:999px;font-size:13px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
-    /* Chips KPI */
+    /* KPIs mínimos */
     .stats{display:flex;flex-wrap:wrap;gap:8px}
-    .chip{
-      display:flex;align-items:baseline;gap:6px;background:#f3f1fb;border:1px solid var(--line);
-      padding:8px 10px;border-radius:999px;font-size:12px;white-space:nowrap
-    }
-    .chip .v{font-size:18px;font-weight:800;line-height:1}
+    .chip{display:flex;align-items:baseline;gap:6px;background:#f3f1fb;border:1px solid var(--line);
+      padding:6px 9px;border-radius:999px;font-size:12px;white-space:nowrap}
+    .chip .v{font-size:16px;font-weight:800;line-height:1}
 
     /* Boards compactos */
     .boards{display:grid;gap:12px;grid-template-columns:1fr 1fr;min-height:0}
-    .board{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column;min-height:420px}
-    .board h3{margin:2px 4px 6px;font-size:15px}
+    .board{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;min-height:380px}
+    .board h3{margin:2px 2px 6px;font-size:14px}
     .board-body{position:relative;overflow:auto;flex:1;padding:0 2px 6px}
 
     /* Tablas compactas */
-    .table{width:100%;border-collapse:separate;border-spacing:0 6px;min-width:760px;font-size:13px}
+    .table{width:100%;border-collapse:separate;border-spacing:0 5px;min-width:720px;font-size:12.5px}
     .thead{position:sticky;top:0;z-index:2;background:#fff}
-    .hrow,.row{display:grid;gap:0;align-items:center;border:1px solid var(--line);padding:6px 8px;border-radius:10px}
+    .hrow,.row{display:grid;gap:0;align-items:center;border:1px solid var(--line);padding:5px 8px;border-radius:8px}
     .hrow{background:#f4f1ff;color:#5a3e9a;font-weight:700}
     .row{background:#faf9ff}
     .cell{padding:0 4px;min-width:0}
     .right{text-align:right} .nowrap{white-space:nowrap}
+
     .actions{display:flex;gap:6px;justify-content:flex-end}
-    .icon{border:none;background:#f4f1ff;border:1px solid var(--line);width:30px;height:30px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+    .icon{
+      border:none;background:#f4f1ff;border:1px solid var(--line);
+      width:28px;height:28px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;
+    }
 
     .wait{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;background:#fff4e6;border:1px solid #ffe0b3;color:#8a5800}
     .copago{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;background:#e8fff0;border:1px solid #b9f0cb;color:#0a7d38}
     .copago.none{background:#f1f1f1;border-color:#e0e0e0;color:#666}
 
-    /* Scrollbars suaves */
     .board-body::-webkit-scrollbar{height:8px;width:8px}
     .board-body::-webkit-scrollbar-thumb{background:#d8cfff;border-radius:8px}
 
     @media (max-width:1100px){
-      .toolbar{grid-template-columns:1fr 1fr;grid-auto-rows:auto}
+      .toolbar{grid-template-columns:1fr minmax(180px,.9fr) minmax(160px,.7fr) auto}
       .boards{grid-template-columns:1fr}
-      .table{min-width:680px}
+      .table{min-width:660px}
     }
   </style>
 </head>
@@ -77,35 +83,26 @@
 <div class="shell">
   <section class="panel" id="inicio-root">
 
-    <!-- Toolbar -->
+    <!-- Toolbar (sin "Ir a Turnos") -->
     <div class="toolbar">
-      <!-- Centro médico (chip, sincronizado con sidebar) -->
       <div class="field">
         <label>Centro médico</label>
         <div class="pill" id="centro-chip">—</div>
       </div>
-
-      <!-- Profesional -->
       <div class="field">
         <label>Profesional</label>
-        <select id="prof-select" class="sel"><option>Profesional</option></select>
+        <select id="prof-select" class="sel compact"><option>Profesional</option></select>
       </div>
-
-      <!-- Fecha -->
       <div class="field">
         <label>Fecha</label>
         <input id="fecha" type="date" class="inp"/>
-      </div>
-
-      <div class="field" style="align-items:flex-end">
-        <button id="btn-turnos" class="btn ghost">Ir a Turnos</button>
       </div>
       <div class="field" style="align-items:flex-end">
         <button id="btn-hoy" class="btn secondary">Hoy</button>
       </div>
     </div>
 
-    <!-- KPIs como chips -->
+    <!-- KPIs chips -->
     <div class="stats">
       <div class="chip"><span>Pendientes</span> <span class="v" id="kpi-pend">0</span></div>
       <div class="chip"><span>Presentes</span> <span class="v" id="kpi-esp">0</span></div>
@@ -138,7 +135,6 @@ const UI = {
   profSelect: document.getElementById('prof-select'),
   fecha: document.getElementById('fecha'),
   btnHoy: document.getElementById('btn-hoy'),
-  btnTurnos: document.getElementById('btn-turnos'),
   tblPend: document.getElementById('tbl-pend'),
   tblEsp: document.getElementById('tbl-esp'),
   kpiPend: document.getElementById('kpi-pend'),
@@ -167,10 +163,7 @@ async function fetchCentroById(id){
   return data?.nombre || '';
 }
 
-/* ====== sincronicemos el centro con el sidebar ====== */
-function renderCentroChip(){
-  UI.centroChip.textContent = currentCentroNombre || '—';
-}
+function renderCentroChip(){ UI.centroChip.textContent = currentCentroNombre || '—'; }
 async function syncCentroFromStorage(force=false){
   const id = localStorage.getItem('centro_medico_id');
   const nom = localStorage.getItem('centro_medico_nombre') || currentCentroNombre;
@@ -183,10 +176,7 @@ async function syncCentroFromStorage(force=false){
     await refreshAll();
   }
 }
-function startCentroWatcher(){
-  if (centroWatchTimer) clearInterval(centroWatchTimer);
-  centroWatchTimer = setInterval(()=>syncCentroFromStorage(false), 1000);
-}
+function startCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=setInterval(()=>syncCentroFromStorage(false), 1000); }
 
 /* ====== Profesionales ====== */
 async function loadProfesionales(){
@@ -230,11 +220,10 @@ async function loadProfesionales(){
 }
 UI.profSelect.addEventListener('change', async ()=>{ currentProfesional = UI.profSelect.value || null; await refreshAll(); });
 
-/* ====== Fecha & botones ====== */
+/* ====== Fecha & botón ====== */
 UI.fecha.value=todayISO(); currentFechaISO=UI.fecha.value;
 UI.fecha.addEventListener('change', ()=>{ currentFechaISO=UI.fecha.value||todayISO(); refreshAll(); });
 UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
-UI.btnTurnos.addEventListener('click', ()=>{ window.location.href='turnos.html'; });
 
 /* ====== Data del día ====== */
 async function fetchDiaData(){
@@ -259,18 +248,17 @@ async function fetchDiaData(){
   return { pendientes: pend.data||[], presentes: pres.data||[], agenda: agenda.data||[], turnos: turnos.data||[] };
 }
 
-/* ====== Render compacto ====== */
+/* ===== Render: Pendientes con botón "Llegó" ===== */
 function renderPendientes(list){
-  const grid='34px 100px 120px 1fr 1fr 1.1fr 140px';
+  const grid='100px 120px 1fr 1fr 1fr 150px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">✔</th><th class="cell">Hora</th><th class="cell">DNI</th>
+      <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
       <th class="cell right">Acciones</th></tr></thead>`;
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     return `<tr class="row" style="grid-template-columns:${grid}">
-      <td class="cell"><input type="checkbox" data-arribo="${t.id}" title="Marcar llegada"></td>
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
       <td class="cell">${p.nombre||'—'}</td>
@@ -278,6 +266,7 @@ function renderPendientes(list){
       <td class="cell">${p.obra_social||'—'}</td>
       <td class="cell right">
         <div class="actions">
+          <button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>
           <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
           <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
         </div>
@@ -286,19 +275,15 @@ function renderPendientes(list){
   }).join('');
   UI.tblPend.innerHTML=head+'<tbody>'+rows+'</tbody>';
 
-  UI.tblPend.querySelectorAll('[data-arribo]').forEach(cb=>{
-    cb.addEventListener('change', async ()=>{
-      if(!cb.checked) return;
-      await marcarLlegadaYCopago(cb.getAttribute('data-arribo'));
-    });
-  });
   UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
+    if(act==='arribo') btn.onclick=()=> marcarLlegadaYCopago(id);
     if(act==='reprog') btn.onclick=()=> abrirTurnosParaReprogramar(id);
     if(act==='cancel') btn.onclick=()=> anularTurno(id);
   });
 }
 
+/* ===== Espera: badges tiempo + copago ===== */
 let waitTimer=null;
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
@@ -314,7 +299,7 @@ function updateWaitBadges(){
 }
 
 function renderPresentes(list){
-  const grid='110px 100px 1fr 1fr 1.1fr 120px 200px';
+  const grid='90px 100px 1fr 1fr 1fr 110px 180px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
       <th class="cell">Apellido</th><th class="cell">Obra social</th><th class="cell">Copago</th>
@@ -354,7 +339,7 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
-/* ===== Llegada + Copago ===== */
+/* ===== Llegada + Copago (lee obras_sociales) ===== */
 async function marcarLlegadaYCopago(turnoId){
   const { data: t } = await supabase
     .from('turnos')
@@ -426,7 +411,7 @@ async function initInicio(){
   await loadProfesionales();
   currentFechaISO = UI.fecha.value || todayISO();
   await refreshAll();
-  startCentroWatcher(); // escucha cambios del sidebar
+  startCentroWatcher(); // escucha cambios desde el sidebar
 }
 await initInicio();
 </script>
