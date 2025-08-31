@@ -21,33 +21,16 @@
     tr:last-child td { border-bottom: none; }
     .status { margin-top: 16px; height: 24px; color: #006400; }
     .error { color: #c00; }
+    .form-asistente { display:none; margin: 22px 0; }
+    .show { display:block !important; }
+    .flex-row { display: flex; gap: 10px; align-items: flex-end;}
+    .form-asistente label, .form-asistente input, .form-asistente select, .form-asistente button { margin-bottom: 8px;}
   </style>
 </head>
 <body>
   <div class="container">
-    <h3>Gestión de Asistentes</h3>
-    <form id="formAsistente" style="margin-bottom:26px;">
-      <label for="display_name">Nombre Completo</label>
-      <input type="text" id="display_name" required placeholder="Ej: ailin frias">
-
-      <label for="email">Email</label>
-      <input type="email" id="email" required placeholder="Ej: afrias@gmail.com">
-
-      <label for="centro_id">Centro Médico</label>
-      <select id="centro_id" required>
-        <option value="">Seleccione un centro...</option>
-      </select>
-
-      <label for="active">Activo</label>
-      <select id="active">
-        <option value="true" selected>Activo</option>
-        <option value="false">Inactivo</option>
-      </select>
-      <button type="submit" class="btn primary">Crear Asistente</button>
-    </form>
-    <div id="status" class="status"></div>
-
     <h3>Asistentes Existentes</h3>
+    <button id="abrirFormAsistenteBtn" class="btn primary" style="margin-bottom:18px;">Crear asistente</button>
     <table id="tablaAsistentes">
       <thead>
         <tr>
@@ -61,6 +44,36 @@
         <!-- Aquí se cargan los asistentes -->
       </tbody>
     </table>
+
+    <form id="formAsistente" class="form-asistente">
+      <h3 style="margin-top:18px;">Gestión de Asistentes</h3>
+      <div>
+        <label for="display_name">Nombre Completo</label>
+        <input type="text" id="display_name" required placeholder="Ej: Ailin frias">
+      </div>
+      <div>
+        <label for="email">Email</label>
+        <input type="email" id="email" required placeholder="Ej: afrias@gmail.com">
+      </div>
+      <div>
+        <label for="centro_id">Centro Médico</label>
+        <select id="centro_id" required>
+          <option value="">Seleccione un centro...</option>
+        </select>
+      </div>
+      <div class="flex-row">
+        <div>
+          <label for="active">Activo</label>
+          <select id="active">
+            <option value="true" selected>Activo</option>
+            <option value="false">Inactivo</option>
+          </select>
+        </div>
+        <button type="submit" class="btn primary" style="margin-bottom:0;">Crear Asistente</button>
+        <button type="button" class="btn" id="cancelarFormAsistenteBtn" style="margin-bottom:0;">Cancelar</button>
+      </div>
+      <div id="status" class="status"></div>
+    </form>
   </div>
 
   <script type="module">
@@ -69,10 +82,8 @@
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // Usar profesionalId de localStorage, igual que en centros médicos
     const profesionalId = localStorage.getItem('profesional_id');
 
-    // --------------- FUNCIONES AUXILIARES -----------------
     // Función para generar UUID v4
     function generarUUIDAsistente() {
       return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
@@ -80,35 +91,60 @@
       );
     }
 
-    // ----- Cargar centros médicos para el select de asistentes -----
+    // Mostrar el formulario
+    document.getElementById('abrirFormAsistenteBtn').addEventListener('click', () => {
+      document.getElementById('formAsistente').classList.add('show');
+      document.getElementById('abrirFormAsistenteBtn').style.display = 'none';
+      document.getElementById('status').textContent = '';
+    });
+
+    // Cancelar y ocultar el formulario
+    document.getElementById('cancelarFormAsistenteBtn').addEventListener('click', () => {
+      document.getElementById('formAsistente').classList.remove('show');
+      document.getElementById('abrirFormAsistenteBtn').style.display = '';
+      document.getElementById('formAsistente').reset();
+      document.getElementById('status').textContent = '';
+    });
+
+    // Cargar centros médicos en el select
     async function cargarCentrosAsistente() {
+      const select = document.getElementById('centro_id');
+      select.innerHTML = '<option value="">Seleccione un centro...</option>';
       const { data, error } = await supabase
         .from('profesional_centro')
         .select('centro_id, centros_medicos(nombre)')
         .eq('profesional_id', profesionalId)
         .eq('activo', true);
-      const select = document.getElementById('centro_id');
-      select.innerHTML = '<option value="">Seleccione un centro...</option>';
-      if (data) {
+      if (error) {
+        select.innerHTML = '<option value="">Error al cargar centros</option>';
+        return;
+      }
+      if (data && data.length) {
+        // Filtrar duplicados por centro_id
+        const centrosUnicos = {};
         data.forEach(row => {
-          select.innerHTML += `<option value="${row.centro_id}">${row.centros_medicos?.nombre ?? row.centro_id}</option>`;
+          if (!centrosUnicos[row.centro_id]) {
+            centrosUnicos[row.centro_id] = row.centros_medicos?.nombre ?? row.centro_id;
+          }
+        });
+        Object.entries(centrosUnicos).forEach(([id, nombre]) => {
+          select.innerHTML += `<option value="${id}">${nombre}</option>`;
         });
       }
     }
 
     // Cargar asistentes existentes asociados a los centros médicos del usuario
     async function cargarTablaAsistentes() {
-      // Primero obtener los centros médicos asociados
+      const tbody = document.querySelector('#tablaAsistentes tbody');
+      tbody.innerHTML = '<tr><td colspan="4" class="muted">Cargando asistentes...</td></tr>';
       const { data: centros } = await supabase
         .from('profesional_centro')
         .select('centro_id')
         .eq('profesional_id', profesionalId)
         .eq('activo', true);
-
       const idsCentros = centros && centros.length ? centros.map(c => c.centro_id) : [];
       let asistentes = [];
       if (idsCentros.length) {
-        // Buscar asistentes asociados a estos centros (role = 'asistente')
         const { data } = await supabase
           .from('profesional_centro')
           .select(`
@@ -119,12 +155,9 @@
           .in('centro_id', idsCentros)
           .eq('activo', true);
         if (data) {
-          asistentes = data
-            .filter(a => a.profiles && a.profiles.role === 'asistente');
+          asistentes = data.filter(a => a.profiles && a.profiles.role === 'asistente');
         }
       }
-      // Mostrar en tabla
-      const tbody = document.querySelector('#tablaAsistentes tbody');
       tbody.innerHTML = '';
       if (asistentes.length === 0) {
         tbody.innerHTML = '<tr><td colspan="4" class="muted">No hay asistentes asociados.</td></tr>';
@@ -142,7 +175,7 @@
       });
     }
 
-    // ----------------- FORMULARIO CREAR ASISTENTE -----------------
+    // Crear asistente
     async function crearAsistente(event) {
       event.preventDefault();
       const display_name = document.getElementById('display_name').value.trim();
@@ -207,19 +240,25 @@
         statusDiv.textContent = '¡Asistente creado y asociado correctamente!';
         statusDiv.className = 'status';
         document.getElementById('formAsistente').reset();
-        await cargarCentrosAsistente();
         await cargarTablaAsistentes();
+        await cargarCentrosAsistente();
+        // Ocultar el formulario tras crear
+        setTimeout(() => {
+          document.getElementById('formAsistente').classList.remove('show');
+          document.getElementById('abrirFormAsistenteBtn').style.display = '';
+          statusDiv.textContent = '';
+        }, 1200);
       } catch (error) {
         statusDiv.textContent = 'Error al crear asistente: ' + error.message;
         statusDiv.className = 'status error';
       }
     }
 
-    // ------------- INICIALIZACIÓN ---------------
+    // INICIALIZACIÓN
     window.addEventListener('DOMContentLoaded', async () => {
       if (profesionalId) {
-        await cargarCentrosAsistente();
         await cargarTablaAsistentes();
+        await cargarCentrosAsistente();
         document.getElementById('formAsistente').addEventListener('submit', crearAsistente);
       } else {
         document.getElementById('status').textContent = 'No se detectó profesional en sesión.';
