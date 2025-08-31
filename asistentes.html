@@ -203,6 +203,22 @@ formAsistente.addEventListener('submit', async function(e) {
   }
   modalAsistenteStatus.textContent = 'Guardando...';
 
+  // Verifica si el email ya existe
+  const { data: existentes, error: errorCheck } = await supabase
+    .from('profiles')
+    .select('id')
+    .eq('email', email);
+
+  if (errorCheck) {
+    modalAsistenteStatus.textContent = 'Error al verificar el email: ' + errorCheck.message;
+    return;
+  }
+
+  if (existentes && existentes.length > 0) {
+    modalAsistenteStatus.textContent = 'Ya existe un asistente con ese email.';
+    return;
+  }
+
   // Generar UUID para el asistente
   const id = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
     (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
@@ -213,7 +229,7 @@ formAsistente.addEventListener('submit', async function(e) {
     .from('profiles')
     .insert([{ id, email, display_name: nombre, role: 'asistente', active: activo }]);
   if (errorAsistente) {
-    modalAsistenteStatus.textContent = 'Error al crear asistente';
+    modalAsistenteStatus.textContent = 'Error al crear asistente: ' + errorAsistente.message;
     return;
   }
   // Asociar al centro
