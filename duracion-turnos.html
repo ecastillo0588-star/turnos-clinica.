@@ -40,9 +40,12 @@
         <option value="45">45 min</option><option value="60">60 min</option>
       </select>
     </div>
-    <div style="display:flex; gap:12px; margin-top:18px;">
+    <div style="display:flex; align-items:center; gap:16px; margin-top:18px;">
       <button type="submit" class="btn primary">Guardar duraciones</button>
-      <button type="button" id="aplicar-todos" class="btn">Aplicar a todos los centros</button>
+      <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+        <input type="checkbox" id="aplicar-todos" style="accent-color:#7656b0;">
+        <span>Aplicar a todos los centros</span>
+      </label>
     </div>
   </form>
   <div id="duracion-status" class="muted" style="margin-bottom:10px;"></div>
@@ -67,9 +70,8 @@ const agregarCentroBtn = document.getElementById('agregar_centro');
 const centrosStatusDiv = document.getElementById('centros-status');
 const duracionForm = document.getElementById('duracion-form');
 const statusDiv = document.getElementById('duracion-status');
-const aplicarTodosBtn = document.getElementById('aplicar-todos');
+const aplicarTodosCheckbox = document.getElementById('aplicar-todos');
 
-// Estado global
 let centrosMedicos = [];
 
 // Cargar centros médicos asociados al profesional
@@ -106,7 +108,6 @@ async function cargarCentros() {
     centroSelect.appendChild(opt);
   });
   centrosStatusDiv.textContent = '';
-  // Selecciona el centro médico elegido en login, si existe
   if (centroMedicoId && centrosMedicos.some(c => c.id === centroMedicoId)) {
     centroSelect.value = centroMedicoId;
   } else {
@@ -173,7 +174,6 @@ async function cargarConfiguracionDuracion(centro_id) {
     duracionForm.reset();
     return;
   }
-  // Cargar los valores existentes en el form
   let configActual = {};
   data.forEach(cfg => {
     configActual[cfg.tipo_turno] = cfg.minutos;
@@ -185,7 +185,7 @@ async function cargarConfiguracionDuracion(centro_id) {
   duracionForm.style.display = '';
 }
 
-// Guardar configuración para centro seleccionado
+// Guardar configuración
 duracionForm.addEventListener('submit', async function(e) {
   e.preventDefault();
   const centro_id = centroSelect.value;
@@ -198,39 +198,38 @@ duracionForm.addEventListener('submit', async function(e) {
     { profesional_id: profesionalId, centro_id, tipo_turno: 'recurrente', minutos: parseInt(this.duracion_recurrente.value) },
     { profesional_id: profesionalId, centro_id, tipo_turno: 'sobreturno', minutos: parseInt(this.duracion_sobreturno.value) }
   ];
-  const { error } = await supabase
-    .from('config_duracion_turnos')
-    .upsert(duraciones, { onConflict: ['profesional_id', 'centro_id', 'tipo_turno'] });
-  if (error) {
-    statusDiv.textContent = 'Error al guardar la configuración';
-  } else {
-    statusDiv.textContent = 'Duración guardada exitosamente';
-    await cargarConfiguracionDuracion(centro_id);
-  }
-});
 
-// Aplicar configuración a todos los centros médicos asociados
-aplicarTodosBtn.addEventListener('click', async function() {
-  if (centrosMedicos.length === 0) return;
-  aplicarTodosBtn.disabled = true;
-  const duracionesAll = [];
-  centrosMedicos.forEach(c=> {
-    duracionesAll.push(
-      { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'nueva_consulta', minutos: parseInt(duracionForm.duracion_nueva.value) },
-      { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'recurrente', minutos: parseInt(duracionForm.duracion_recurrente.value) },
-      { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'sobreturno', minutos: parseInt(duracionForm.duracion_sobreturno.value) }
-    );
-  });
-  const { error } = await supabase
-    .from('config_duracion_turnos')
-    .upsert(duracionesAll, { onConflict: ['profesional_id', 'centro_id', 'tipo_turno'] });
-  if (error) {
-    statusDiv.textContent = 'Error al aplicar a todos los centros';
+  if (aplicarTodosCheckbox.checked) {
+    // Aplica a todos los centros
+    let duracionesAll = [];
+    centrosMedicos.forEach(c=>{
+      duracionesAll.push(
+        { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'nueva_consulta', minutos: parseInt(this.duracion_nueva.value) },
+        { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'recurrente', minutos: parseInt(this.duracion_recurrente.value) },
+        { profesional_id: profesionalId, centro_id: c.id, tipo_turno: 'sobreturno', minutos: parseInt(this.duracion_sobreturno.value) }
+      );
+    });
+    const { error } = await supabase
+      .from('config_duracion_turnos')
+      .upsert(duracionesAll, { onConflict: ['profesional_id', 'centro_id', 'tipo_turno'] });
+    if (error) {
+      statusDiv.textContent = 'Error al aplicar a todos los centros: ' + error.message;
+    } else {
+      statusDiv.textContent = 'Configuración aplicada a todos los centros médicos';
+      await cargarConfiguracionDuracion(centroSelect.value);
+    }
   } else {
-    statusDiv.textContent = 'Configuración aplicada a todos los centros médicos';
-    await cargarConfiguracionDuracion(centroSelect.value);
+    // Solo al centro actual
+    const { error } = await supabase
+      .from('config_duracion_turnos')
+      .upsert(duraciones, { onConflict: ['profesional_id', 'centro_id', 'tipo_turno'] });
+    if (error) {
+      statusDiv.textContent = 'Error al guardar la configuración: ' + error.message;
+    } else {
+      statusDiv.textContent = 'Duración guardada exitosamente';
+      await cargarConfiguracionDuracion(centro_id);
+    }
   }
-  aplicarTodosBtn.disabled = false;
 });
 
 // Inicialización
