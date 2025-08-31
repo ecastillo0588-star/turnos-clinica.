@@ -3,22 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <title>Gestión de Asistentes</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    body { font-family: Arial, sans-serif; }
-    .container { max-width: 600px; margin: 36px auto; padding: 24px; border: 1px solid #eee; border-radius: 8px;}
-    input, select { width: 100%; margin-bottom: 12px; padding: 8px; }
-    button { padding: 8px 16px; }
+    body { font-family: Arial, sans-serif; background: #f7f9fb; margin: 0; }
+    .container { max-width: 900px; margin: 36px auto; background: #fff; padding: 28px 22px 20px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
+    h3 { color:#381e60; margin-bottom:22px;}
+    .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 3px;}
+    .btn.primary { background: #7656b0; }
+    .btn:hover { background: #7f62b6; }
+    input, select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 5px 8px; font-size:15px; background:#f7f9fb; }
+    label { color:#381e60;}
+    .muted { color: #6b6480; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    th, td { text-align:left; padding: 10px 8px; }
+    th { background: #e7e2fa; color: #381e60; font-size: 16px; }
+    td { font-size: 15px; border-bottom: 1px solid #ece5fc; }
+    tr:last-child td { border-bottom: none; }
     .status { margin-top: 16px; height: 24px; color: #006400; }
     .error { color: #c00; }
-    table { width: 100%; border-collapse: collapse; margin-top: 24px;}
-    th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; }
-    th { background: #fafafa; }
   </style>
 </head>
 <body>
   <div class="container">
-    <h2>Crear Asistente</h2>
-    <form id="formAsistente">
+    <h3>Gestión de Asistentes</h3>
+    <form id="formAsistente" style="margin-bottom:26px;">
       <label for="display_name">Nombre Completo</label>
       <input type="text" id="display_name" required placeholder="Ej: ailin frias">
 
@@ -35,11 +43,11 @@
         <option value="true" selected>Activo</option>
         <option value="false">Inactivo</option>
       </select>
-      <button type="submit">Crear Asistente</button>
+      <button type="submit" class="btn primary">Crear Asistente</button>
     </form>
     <div id="status" class="status"></div>
 
-    <h2>Asistentes Existentes</h2>
+    <h3>Asistentes Existentes</h3>
     <table id="tablaAsistentes">
       <thead>
         <tr>
@@ -56,12 +64,15 @@
   </div>
 
   <script type="module">
-    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-
+    import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
     const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+    // Usar profesionalId de localStorage, igual que en centros médicos
+    const profesionalId = localStorage.getItem('profesional_id');
+
+    // --------------- FUNCIONES AUXILIARES -----------------
     // Función para generar UUID v4
     function generateUUID() {
       return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
@@ -69,83 +80,80 @@
       );
     }
 
-    // Cargar centros médicos asociados al usuario logueado
-    async function cargarCentros() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      // Consulta los centros médicos asociados al profesional logueado
-      // Suponemos que la tabla profesional_centro enlaza profesional_id y centro_id
-      const { data, error } = await supabase
-        .from('profesional_centro')
-        .select('centro_id, centros(nombre)')
-        .eq('profesional_id', user.id)
-        .eq('activo', true);
-      const select = document.getElementById('centro_id');
-      select.innerHTML = '<option value="">Seleccione un centro...</option>';
-      if (data) {
-        data.forEach((row) => {
-          select.innerHTML += `<option value="${row.centro_id}">${row.centros?.nombre ?? row.centro_id}</option>`;
-        });
+    // ----- Usar cargarCentros del JS de centros médicos -----
+    // Si cargarCentros() ya existe en window, la llamamos y usamos centrosMedicos
+    async function cargarCentrosAsistentes() {
+      // Esperar a que la variable centrosMedicos esté cargada por cargarCentros()
+      if (typeof window.cargarCentros === 'function') {
+        await window.cargarCentros();
+        // centrosMedicos debe estar en window
+        if (window.centrosMedicos && Array.isArray(window.centrosMedicos)) {
+          const centros = window.centrosMedicos;
+          const select = document.getElementById('centro_id');
+          select.innerHTML = '<option value="">Seleccione un centro...</option>';
+          centros.forEach(c => {
+            select.innerHTML += `<option value="${c.id}">${c.nombre}</option>`;
+          });
+        }
+      } else {
+        // Si no existe, lo hacemos local (por si no está cargado el JS de centros médicos)
+        const { data, error } = await supabase
+          .from('profesional_centro')
+          .select('centro_id, centros_medicos(nombre)')
+          .eq('profesional_id', profesionalId)
+          .eq('activo', true);
+        const select = document.getElementById('centro_id');
+        select.innerHTML = '<option value="">Seleccione un centro...</option>';
+        if (data) {
+          data.forEach(row => {
+            select.innerHTML += `<option value="${row.centro_id}">${row.centros_medicos?.nombre ?? row.centro_id}</option>`;
+          });
+        }
       }
     }
 
-    // Cargar asistentes existentes asociados al usuario logueado
+    // Cargar asistentes existentes asociados a los centros médicos del usuario
     async function cargarAsistentes() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      // Consulta los asistentes asociados a los mismos centros médicos que el profesional
-      // Suponemos que el campo profesional_id en profesional_centro es el id del asistente
-      // y que los asistentes tienen role = 'asistente'
-      const { data: centros } = await supabase
-        .from('profesional_centro')
-        .select('centro_id')
-        .eq('profesional_id', user.id)
-        .eq('activo', true);
-
-      if (!centros || !centros.length) return;
-      const idsCentros = centros.map(c => c.centro_id);
-
-      // Buscar asistentes en esos centros
-      const { data: asistentes } = await supabase
-        .from('profesional_centro')
-        .select('profesional_id, centro_id, activo, profiles(display_name, email, role), centros(nombre)')
-        .in('centro_id', idsCentros)
-        .eq('activo', true);
-
+      const centros = window.centrosMedicos && Array.isArray(window.centrosMedicos) ? window.centrosMedicos : [];
+      const idsCentros = centros.length ? centros.map(c => c.id) : [];
+      // Si no hay centros, consulta igual desde profesional_centro
+      let asistentes = [];
+      if (idsCentros.length) {
+        // Buscar asistentes asociados a estos centros (role = 'asistente')
+        const { data, error } = await supabase
+          .from('profesional_centro')
+          .select(`
+            profesional_id, centro_id, activo,
+            profiles(display_name, email, role),
+            centros_medicos(nombre)
+          `)
+          .in('centro_id', idsCentros)
+          .eq('activo', true);
+        if (data) {
+          asistentes = data
+            .filter(a => a.profiles && a.profiles.role === 'asistente');
+        }
+      }
+      // Mostrar en tabla
       const tbody = document.querySelector('#tablaAsistentes tbody');
       tbody.innerHTML = '';
-      if (asistentes) {
-        asistentes
-          .filter(a => a.profiles && a.profiles.role === 'asistente')
-          .forEach(a => {
-            tbody.innerHTML += `
-              <tr>
-                <td>${a.profiles.display_name ?? ''}</td>
-                <td>${a.profiles.email ?? ''}</td>
-                <td>${a.centros?.nombre ?? a.centro_id}</td>
-                <td>${a.activo ? 'Sí' : 'No'}</td>
-              </tr>
-            `;
-          });
+      if (asistentes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="muted">No hay asistentes asociados.</td></tr>';
+        return;
       }
+      asistentes.forEach(a => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${a.profiles.display_name ?? ''}</td>
+            <td>${a.profiles.email ?? ''}</td>
+            <td>${a.centros_medicos?.nombre ?? a.centro_id}</td>
+            <td>${a.activo ? 'Sí' : 'No'}</td>
+          </tr>
+        `;
+      });
     }
 
-    // Al iniciar, cargar centros y asistentes
-    supabase.auth.onAuthStateChange(async (event, session) => {
-      if (session && session.user) {
-        await cargarCentros();
-        await cargarAsistentes();
-      }
-    });
-    window.addEventListener('DOMContentLoaded', async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await cargarCentros();
-        await cargarAsistentes();
-      }
-    });
-
-    // Formulario de creación de asistentes
+    // ----------------- FORMULARIO CREAR ASISTENTE -----------------
     document.getElementById('formAsistente').addEventListener('submit', async function(e) {
       e.preventDefault();
       const display_name = document.getElementById('display_name').value.trim();
@@ -210,10 +218,22 @@
         statusDiv.textContent = '¡Asistente creado y asociado correctamente!';
         statusDiv.className = 'status';
         document.getElementById('formAsistente').reset();
+        await cargarCentrosAsistentes(); // Por si cambian los centros
         await cargarAsistentes();
       } catch (error) {
         statusDiv.textContent = 'Error al crear asistente: ' + error.message;
         statusDiv.className = 'status error';
+      }
+    });
+
+    // ------------- INICIALIZACIÓN ---------------
+    window.addEventListener('DOMContentLoaded', async () => {
+      if (profesionalId) {
+        await cargarCentrosAsistentes();
+        await cargarAsistentes();
+      } else {
+        document.getElementById('status').textContent = 'No se detectó profesional en sesión.';
+        document.getElementById('status').className = 'status error';
       }
     });
   </script>
