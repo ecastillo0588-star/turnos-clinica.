@@ -72,6 +72,9 @@
     .board-body::-webkit-scrollbar{height:8px;width:8px}
     .board-body::-webkit-scrollbar-thumb{background:#d8cfff;border-radius:8px}
 
+    /* Ocultar botón "En atención" si no es médico */
+    .role-asistente [data-act="atender"]{ display:none !important; }
+
     @media (max-width:1100px){
       .toolbar{grid-template-columns:1fr minmax(180px,.9fr) minmax(160px,.7fr) auto}
       .boards{grid-template-columns:1fr}
@@ -83,7 +86,7 @@
 <div class="shell">
   <section class="panel" id="inicio-root">
 
-    <!-- Toolbar (sin "Ir a Turnos") -->
+    <!-- Toolbar -->
     <div class="toolbar">
       <div class="field">
         <label>Centro médico</label>
@@ -151,18 +154,22 @@ let currentProfesional = null;
 let currentFechaISO = null;
 let centroWatchTimer = null;
 
+/* ====== helper ====== */
 function pad(n){return n<10?'0'+n:''+n}
 function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function toHM(t){return (t??'').toString().slice(0,5)}
-function minutesDiff(start,end){const [h1,m1]=start.split(':').map(Number),[h2,m2]=end.split(':').map(Number);return (h2*60+m2)-(h1*60+m1)}
+function minutesDiff(start,end){const [h1,m1]=start.split(':').map(Number),[h2,m2]=end.split(':').map(Number);return (h2*60+m2)-(h1*60+m2)}
 function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
 function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
 
+/* Marcar clase de rol en el <body> para CSS */
+if (userRole !== 'medico') document.body.classList.add('role-asistente'); else document.body.classList.remove('role-asistente');
+
+/* ====== centro ====== */
 async function fetchCentroById(id){
   const { data } = await supabase.from('centros_medicos').select('nombre').eq('id', id).maybeSingle();
   return data?.nombre || '';
 }
-
 function renderCentroChip(){ UI.centroChip.textContent = currentCentroNombre || '—'; }
 async function syncCentroFromStorage(force=false){
   const id = localStorage.getItem('centro_medico_id');
@@ -178,7 +185,7 @@ async function syncCentroFromStorage(force=false){
 }
 function startCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=setInterval(()=>syncCentroFromStorage(false), 1000); }
 
-/* ====== Profesionales ====== */
+/* ====== profesionales ====== */
 async function loadProfesionales(){
   const sel=UI.profSelect;
 
@@ -220,12 +227,12 @@ async function loadProfesionales(){
 }
 UI.profSelect.addEventListener('change', async ()=>{ currentProfesional = UI.profSelect.value || null; await refreshAll(); });
 
-/* ====== Fecha & botón ====== */
+/* ====== Fecha ====== */
 UI.fecha.value=todayISO(); currentFechaISO=UI.fecha.value;
 UI.fecha.addEventListener('change', ()=>{ currentFechaISO=UI.fecha.value||todayISO(); refreshAll(); });
 UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
 
-/* ====== Data del día ====== */
+/* ====== data día ====== */
 async function fetchDiaData(){
   if(!currentProfesional) return { pendientes:[], presentes:[], agenda:[], turnos:[] };
   const common={centro_id:currentCentroId, profesional_id:currentProfesional, fecha:currentFechaISO};
@@ -248,7 +255,7 @@ async function fetchDiaData(){
   return { pendientes: pend.data||[], presentes: pres.data||[], agenda: agenda.data||[], turnos: turnos.data||[] };
 }
 
-/* ===== Render: Pendientes con botón "Llegó" ===== */
+/* ===== Render: Pendientes (botón Llegó) ===== */
 function renderPendientes(list){
   const grid='100px 120px 1fr 1fr 1fr 150px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
@@ -283,7 +290,7 @@ function renderPendientes(list){
   });
 }
 
-/* ===== Espera: badges tiempo + copago ===== */
+/* ===== Espera: badges y copago ===== */
 let waitTimer=null;
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
@@ -304,11 +311,20 @@ function renderPresentes(list){
       <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
       <th class="cell">Apellido</th><th class="cell">Obra social</th><th class="cell">Copago</th>
       <th class="cell right">Acciones</th></tr></thead>`;
+
+  const puedeAtender = (userRole === 'medico');
+
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const arriboISO=`${currentFechaISO}T${toHM(t.hora_arribo)||'00:00'}:00`;
     const copBadge=(t.copago && Number(t.copago)>0)?`<span class="copago">${fmtMoney(t.copago)}</span>`:`<span class="copago none">Sin copago</span>`;
+    const acciones = `
+      <button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>
+      <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
+      <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
+      ${puedeAtender ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}
+    `;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell"><span class="wait" data-arribo-ts="${arriboISO}">—</span></td>
       <td class="cell nowrap">${hora}</td>
@@ -316,14 +332,7 @@ function renderPresentes(list){
       <td class="cell">${p.apellido||'—'}</td>
       <td class="cell">${p.obra_social||'—'}</td>
       <td class="cell">${copBadge}</td>
-      <td class="cell right">
-        <div class="actions">
-          <button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>
-          <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
-          <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
-          <button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>
-        </div>
-      </td>
+      <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
   }).join('');
   UI.tblEsp.innerHTML=head+'<tbody>'+rows+'</tbody>';
@@ -339,7 +348,7 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
-/* ===== Llegada + Copago (lee obras_sociales) ===== */
+/* ===== Llegada + Copago ===== */
 async function marcarLlegadaYCopago(turnoId){
   const { data: t } = await supabase
     .from('turnos')
@@ -376,9 +385,23 @@ async function anularTurno(turnoId){
   await refreshAll();
 }
 async function pasarAEnAtencion(turnoId){
+  const role = localStorage.getItem('user_role');
+  if (role !== 'medico') { alert('Solo los médicos pueden atender pacientes.'); return; }
   await supabase.from('turnos').update({estado:EST.EN_ATENCION}).eq('id', turnoId);
   window.location.href = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
 }
+
+/* Bloqueo extra por si alguien intenta forzar el click en asistentes */
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest?.('[data-act="atender"]');
+  if (!btn) return;
+  const role = localStorage.getItem('user_role');
+  if (role !== 'medico') {
+    e.preventDefault();
+    e.stopPropagation();
+    alert('Solo los médicos pueden atender pacientes.');
+  }
+});
 
 /* ===== KPIs ===== */
 function computeHorasDisponibles(agenda, turnos){
@@ -411,7 +434,7 @@ async function initInicio(){
   await loadProfesionales();
   currentFechaISO = UI.fecha.value || todayISO();
   await refreshAll();
-  startCentroWatcher(); // escucha cambios desde el sidebar
+  startCentroWatcher();
 }
 await initInicio();
 </script>
