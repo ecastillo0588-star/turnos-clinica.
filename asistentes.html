@@ -23,21 +23,8 @@
     .icon-btn svg { vertical-align: middle; width: 22px; height: 22px;}
     .icon-btn.edit-btn svg { stroke: #7656b0; }
     .icon-btn.delete-btn svg { stroke: #B00020; }
-    .icon-btn.centro-btn svg { stroke: #00796B; }
-    .icon-btn.desasociar-btn svg { stroke: #B00020; }
     .icon-btn.edit-btn:hover svg { stroke: #381e60; }
     .icon-btn.delete-btn:hover svg { stroke: #8e0c2f; }
-    .icon-btn.centro-btn:hover svg { stroke: #004d40; }
-    .icon-btn.desasociar-btn:hover svg { stroke: #8e0c2f; }
-    .modal { position:fixed; z-index:999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.18); display:flex; align-items:center; justify-content:center;}
-    .modal-content { background:#fff; padding:28px 22px 20px 22px; border-radius:14px; min-width:300px; max-width:400px; position:relative; box-shadow:0 2px 18px rgba(80,60,160,.18);}
-    .close { position:absolute; right:12px; top:10px; font-size:20px; color:#7656b0; cursor:pointer;}
-    .modal-content h4 { color:#381e60; margin-bottom:16px;}
-    .modal-content input, .modal-content select { width:100%; margin-bottom:10px; }
-    @media (max-width: 600px) {
-      .container { max-width: 98vw; padding: 10px 5px 10px 5px; border-radius: 10px;}
-      th, td { padding: 6px 2px; font-size:14px;}
-    }
     .activo-tag {
       display: inline-block;
       min-width: 40px;
@@ -50,6 +37,15 @@
       color: #7656b0;
     }
     .activo-tag.no { background: #ffe1e1; color: #B00020;}
+    .modal { position:fixed; z-index:999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.18); display:flex; align-items:center; justify-content:center;}
+    .modal-content { background:#fff; padding:28px 22px 20px 22px; border-radius:14px; min-width:300px; max-width:400px; position:relative; box-shadow:0 2px 18px rgba(80,60,160,.18);}
+    .close { position:absolute; right:12px; top:10px; font-size:20px; color:#7656b0; cursor:pointer;}
+    .modal-content h4 { color:#381e60; margin-bottom:16px;}
+    .modal-content input, .modal-content select { width:100%; margin-bottom:10px; }
+    @media (max-width: 600px) {
+      .container { max-width: 98vw; padding: 10px 5px 10px 5px; border-radius: 10px;}
+      th, td { padding: 6px 2px; font-size:14px;}
+    }
   </style>
 </head>
 <body>
@@ -100,133 +96,143 @@
   </div>
 </div>
 
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Demo: tabla de asistentes de prueba
-  const asistentesDemo = [
-    { nombre: 'Laura Gómez', email: 'laura@gmail.com', centro: 'Centro Norte', activo: true },
-    { nombre: 'Juan Pérez', email: 'juan@correo.com', centro: 'Centro Sur', activo: false }
-  ];
-  const tbody = document.getElementById('asistentes-tbody');
-  const crearBtn = document.getElementById('crear-asistente-btn');
-  const modal = document.getElementById('modal-asistente');
-  const cerrarModal = document.getElementById('cerrar-modal-asistente');
-  const form = document.getElementById('form-asistente');
-  const modalStatus = document.getElementById('modal-asistente-status');
-  const modalTitle = document.getElementById('modal-title');
+<script type="module">
+import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-  // Render tabla demo
-  function renderTabla() {
-    tbody.innerHTML = '';
-    if(asistentesDemo.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5" class="muted">No hay asistentes registrados aún.</td></tr>`;
-      return;
-    }
-    asistentesDemo.forEach((asistente, i) => {
-      tbody.innerHTML += `
-        <tr>
-          <td>${asistente.nombre}</td>
-          <td>${asistente.email}</td>
-          <td>${asistente.centro}</td>
-          <td>
-            <span class="activo-tag${asistente.activo ? '' : ' no'}">
-              ${asistente.activo ? 'Sí' : 'No'}
-            </span>
-          </td>
-          <td class="action-cell">
-            <button class="icon-btn edit-btn" title="Editar" data-index="${i}">
-              ✏️
-            </button>
-            <button class="icon-btn delete-btn" title="Eliminar" data-index="${i}">
-              🗑️
-            </button>
-          </td>
-        </tr>
-      `;
-    });
+// Simula el profesionalId, deberías obtenerlo de la sesión real
+const profesionalId = localStorage.getItem('profesional_id') || 'test-profesional-id';
 
-    // Acción editar
-    Array.from(document.getElementsByClassName('edit-btn')).forEach(btn => {
-      btn.onclick = function() {
-        const idx = parseInt(btn.dataset.index, 10);
-        editarAsistente(idx);
-      }
-    });
-    // Acción eliminar
-    Array.from(document.getElementsByClassName('delete-btn')).forEach(btn => {
-      btn.onclick = function() {
-        const idx = parseInt(btn.dataset.index, 10);
-        if(confirm('¿Eliminar asistente?')) {
-          asistentesDemo.splice(idx, 1);
-          renderTabla();
-        }
-      }
-    });
+const asistentesTbody = document.getElementById('asistentes-tbody');
+const crearAsistenteBtn = document.getElementById('crear-asistente-btn');
+const modalAsistente = document.getElementById('modal-asistente');
+const cerrarModalAsistente = document.getElementById('cerrar-modal-asistente');
+const formAsistente = document.getElementById('form-asistente');
+const modalAsistenteStatus = document.getElementById('modal-asistente-status');
+const centroSelect = document.getElementById('centro_id');
+const modalTitle = document.getElementById('modal-title');
+const statusMsg = document.getElementById('status-msg');
+
+let asistentes = [];
+let centrosMedicos = [];
+let asistenteEditId = null;
+
+// Cargar centros médicos desde la base
+async function cargarCentros() {
+  centroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
+  let { data, error } = await supabase
+    .from('centros_medicos')
+    .select('id, nombre');
+  if (error || !data) {
+    centroSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
+    return;
   }
+  centrosMedicos = data;
+  centroSelect.innerHTML = `<option value="" disabled selected>Seleccione centro médico</option>`;
+  centrosMedicos.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.nombre;
+    centroSelect.appendChild(opt);
+  });
+}
 
-  renderTabla();
-
-  // Abrir modal crear asistente
-  crearBtn.onclick = function() {
-    form.reset();
-    modalTitle.textContent = 'Crear asistente';
-    modalStatus.textContent = '';
-    modal.style.display = 'flex';
-    document.getElementById('password').required = true;
-  };
-  cerrarModal.onclick = function() { modal.style.display = 'none'; };
-  window.onclick = function(e) { if(e.target == modal) modal.style.display = 'none'; };
-
-  // Guardar asistente (demo)
-  form.onsubmit = function(e) {
-    e.preventDefault();
-    const nombre = document.getElementById('display_name').value.trim();
-    const email = document.getElementById('email').value.trim();
-    const centro = document.getElementById('centro_id').value || 'Centro Norte';
-    const activo = document.getElementById('active').value === 'true';
-    if(!nombre || !email || !centro) {
-      modalStatus.textContent = 'Completa todos los campos.';
-      return;
-    }
-    if(modalTitle.textContent === 'Crear asistente') {
-      asistentesDemo.push({ nombre, email, centro, activo });
-      modalStatus.textContent = '¡Asistente creado!';
-      renderTabla();
-      setTimeout(()=>{modal.style.display='none'}, 800);
-    } else {
-      // Editar
-      const idx = form.dataset.editIndex;
-      if(idx !== undefined) {
-        asistentesDemo[idx] = { nombre, email, centro, activo };
-        modalStatus.textContent = '¡Asistente editado!';
-        renderTabla();
-        setTimeout(()=>{modal.style.display='none'}, 800);
-      }
-      form.dataset.editIndex = '';
-    }
+// Cargar asistentes desde la base
+async function cargarAsistentes() {
+  asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Cargando asistentes...</td></tr>`;
+  let { data, error } = await supabase
+    .from('profiles')
+    .select('id, email, display_name, role, active, centro_id')
+    .eq('role', 'asistente');
+  if (error || !data) {
+    asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Error al cargar asistentes</td></tr>`;
+    return;
   }
-
-  // Demo: editar asistente
-  function editarAsistente(idx) {
-    const a = asistentesDemo[idx];
-    if(!a) return;
-    form.reset();
-    document.getElementById('display_name').value = a.nombre;
-    document.getElementById('email').value = a.email;
-    document.getElementById('centro_id').value = a.centro;
-    document.getElementById('active').value = a.activo ? 'true' : 'false';
-    modalTitle.textContent = 'Editar asistente';
-    modalStatus.textContent = '';
-    modal.style.display = 'flex';
-    form.dataset.editIndex = idx;
-    document.getElementById('password').required = false;
+  asistentes = data;
+  if (data.length === 0) {
+    asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">No tienes asistentes creados aún.</td></tr>`;
+    return;
   }
+  asistentesTbody.innerHTML = "";
+  data.forEach((a) => {
+    const centroNombre = centrosMedicos.find(c => c.id === a.centro_id)?.nombre || '-';
+    const activoTxt = a.active ? 'Sí' : 'No';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${a.display_name || '-'}</td>
+      <td>${a.email || '-'}</td>
+      <td>${centroNombre}</td>
+      <td>
+        <span class="activo-tag${a.active ? '' : ' no'}">${activoTxt}</span>
+      </td>
+      <td class="action-cell">
+        <!-- Puedes agregar acciones aquí -->
+      </td>
+    `;
+    asistentesTbody.appendChild(tr);
+  });
+}
 
-  // Demo: centros médicos
-  const centros = ['Centro Norte', 'Centro Sur', 'Centro Este'];
-  const centroSelect = document.getElementById('centro_id');
-  centroSelect.innerHTML = '<option value="" disabled selected>Seleccione centro médico</option>' + centros.map(c=>`<option value="${c}">${c}</option>`).join('');
+// Abrir modal para crear asistente
+crearAsistenteBtn.addEventListener('click', async () => {
+  asistenteEditId = null;
+  modalTitle.textContent = 'Crear asistente';
+  await cargarCentros();
+  formAsistente.reset();
+  document.getElementById('password').required = true;
+  modalAsistenteStatus.textContent = '';
+  modalAsistente.style.display = 'flex';
 });
+
+cerrarModalAsistente.addEventListener('click', () => {
+  modalAsistente.style.display = 'none';
+});
+window.addEventListener('click', (e) => {
+  if (e.target === modalAsistente) modalAsistente.style.display = 'none';
+});
+
+// Guardar asistente (solo crear, no editar)
+formAsistente.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const display_name = document.getElementById('display_name').value.trim();
+  const email = document.getElementById('email').value.trim();
+  const centro_id = centroSelect.value;
+  const active = document.getElementById('active').value === 'true';
+  const password = document.getElementById('password').value;
+
+  if (!display_name || !email || !centro_id) {
+    modalAsistenteStatus.textContent = 'Debe completar todos los campos obligatorios.';
+    return;
+  }
+
+  // Crear usuario en auth (requiere configuración especial de Supabase)
+  // Para demo: solo crea el registro en profiles
+  const { error: errorProfile } = await supabase
+    .from('profiles')
+    .insert({
+      email,
+      display_name,
+      role: 'asistente',
+      active,
+      centro_id
+    });
+  if (errorProfile) {
+    modalAsistenteStatus.textContent = 'Error al crear asistente: ' + errorProfile.message;
+    return;
+  }
+
+  modalAsistenteStatus.textContent = '¡Asistente creado correctamente!';
+  await cargarAsistentes();
+  setTimeout(() => { modalAsistente.style.display = 'none'; }, 1200);
+});
+
+// Inicialización
+(async function init() {
+  await cargarCentros();
+  await cargarAsistentes();
+})();
 </script>
 </body>
 </html>
