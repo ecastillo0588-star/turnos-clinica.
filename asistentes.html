@@ -63,10 +63,6 @@
       <select id="asistente_select" required>
         <option value="" disabled selected>Cargando asistentes...</option>
       </select>
-      <label for="centro_select">Seleccione centro médico</label>
-      <select id="centro_select" required>
-        <option value="" disabled selected>Cargando centros...</option>
-      </select>
       <label for="activo_select">Activo</label>
       <select id="activo_select">
         <option value="true" selected>Activo</option>
@@ -85,6 +81,9 @@ const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Cambia este ID según el centro médico logueado
+const centroLogueadoId = '94a09bb0-aafd-4205-8764-fc6814b2f9a3';
+
 const asistentesTbody = document.getElementById('asistentes-tbody');
 const vincularBtn = document.getElementById('vincular-btn');
 const vincularModal = document.getElementById('vincular-modal');
@@ -93,76 +92,11 @@ const vincularForm = document.getElementById('vincular-form');
 const modalStatus = document.getElementById('modal-status');
 const modalError = document.getElementById('modal-error');
 const statusMsg = document.getElementById('status-msg');
-const centroSelect = document.getElementById('centro_select');
 const asistenteSelect = document.getElementById('asistente_select');
 
-// Trae todos los centros médicos para el select
-async function cargarCentros() {
-  centroSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
-  const { data, error } = await supabase
-    .from('centros_medicos')
-    .select('id, nombre')
-    .eq('activo', true);
-
-  if (error || !data) {
-    centroSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
-    return;
-  }
-  if (data.length === 0) {
-    centroSelect.innerHTML = `<option value="" disabled>No hay centros médicos activos.</option>`;
-    return;
-  }
-  centroSelect.innerHTML = `<option value="" disabled selected>Seleccione un centro</option>`;
-  data.forEach(c => {
-    const opt = document.createElement('option');
-    opt.value = c.id;
-    opt.textContent = c.nombre;
-    centroSelect.appendChild(opt);
-  });
-}
-
-// Trae todos los asistentes (profesionales que tienen un usuario en profiles con role asistente)
-async function cargarAsistentes() {
-  asistenteSelect.innerHTML = `<option value="" disabled selected>Cargando asistentes...</option>`;
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('profesional_id, display_name, email, role, active')
-    .eq('role', 'asistente')
-    .eq('active', true);
-
-  if (error || !data) {
-    asistenteSelect.innerHTML = `<option value="" disabled>Error al cargar asistentes</option>`;
-    return;
-  }
-  if (data.length === 0) {
-    asistenteSelect.innerHTML = `<option value="" disabled>No hay asistentes registrados.</option>`;
-    return;
-  }
-  // Ahora traigo los datos de profesionales vinculados a esos ids
-  const profesionalIds = data.filter(a => !!a.profesional_id).map(a => a.profesional_id);
-  if (profesionalIds.length === 0) {
-    asistenteSelect.innerHTML = `<option value="" disabled>No hay asistentes registrados.</option>`;
-    return;
-  }
-  // Buscar los datos de cada profesional
-  const { data: profesionales, error: errorProfs } = await supabase
-    .from('profesionales')
-    .select('id, nombre, apellido, email')
-    .in('id', profesionalIds);
-
-  asistenteSelect.innerHTML = `<option value="" disabled selected>Seleccione un asistente</option>`;
-  profesionales.forEach(p => {
-    const opt = document.createElement('option');
-    opt.value = p.id;
-    opt.textContent = `${p.nombre} ${p.apellido} (${p.email})`;
-    asistenteSelect.appendChild(opt);
-  });
-}
-
-// Carga la tabla de asistentes vinculados a centros médicos
+// Cargar tabla asistentes vinculados a centro logueado
 async function cargarTabla() {
   asistentesTbody.innerHTML = `<tr><td colspan="6" class="muted">Cargando asistentes...</td></tr>`;
-  // Traer todas las vinculaciones activas
   const { data: vinculaciones, error } = await supabase
     .from('profesional_centro')
     .select(`
@@ -170,32 +104,20 @@ async function cargarTabla() {
       profesionales(nombre, apellido, email),
       centros_medicos(nombre)
     `)
-    .eq('activo', true);
+    .eq('activo', true)
+    .eq('centro_id', centroLogueadoId);
 
   if (error || !vinculaciones) {
     asistentesTbody.innerHTML = `<tr><td colspan="6" class="muted">Error al cargar asistentes vinculados</td></tr>`;
     return;
   }
-  // Filtrar solo los que sean asistentes
-  // Traer los perfiles que tengan profesional_id igual a los vinculados y role = 'asistente'
-  const asistenteIds = vinculaciones.map(a => a.profesional_id);
-  const { data: perfiles, error: errorPerfil } = await supabase
-    .from('profiles')
-    .select('profesional_id, role')
-    .in('profesional_id', asistenteIds)
-    .eq('role', 'asistente')
-    .eq('active', true);
 
-  // Solo los profesional_id que sean asistentes
-  const idsAsistentes = perfiles?.map(p => p.profesional_id) ?? [];
-  const asistVinculados = vinculaciones.filter(a => idsAsistentes.includes(a.profesional_id));
-
-  if (asistVinculados.length === 0) {
+  if (vinculaciones.length === 0) {
     asistentesTbody.innerHTML = `<tr><td colspan="6" class="muted">No hay asistentes vinculados.</td></tr>`;
     return;
   }
   asistentesTbody.innerHTML = '';
-  asistVinculados.forEach(a => {
+  vinculaciones.forEach(a => {
     asistentesTbody.innerHTML += `
       <tr>
         <td>${a.profesionales?.nombre ?? ''}</td>
@@ -219,13 +141,37 @@ async function cargarTabla() {
   });
 }
 
+// Trae todos los profesionales (podrías filtrar por asistentes si tienes forma de identificarlos)
+async function cargarAsistentes() {
+  asistenteSelect.innerHTML = `<option value="" disabled selected>Cargando asistentes...</option>`;
+  // Si tienes alguna forma de distinguir asistentes, agrega el filtro aquí
+  const { data, error } = await supabase
+    .from('profesionales')
+    .select('id, nombre, apellido, email'); // Puedes agregar más filtros si tienes info
+
+  if (error || !data) {
+    asistenteSelect.innerHTML = `<option value="" disabled>Error al cargar asistentes</option>`;
+    return;
+  }
+  if (data.length === 0) {
+    asistenteSelect.innerHTML = `<option value="" disabled>No hay asistentes registrados.</option>`;
+    return;
+  }
+  asistenteSelect.innerHTML = `<option value="" disabled selected>Seleccione un asistente</option>`;
+  data.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.nombre} ${p.apellido} (${p.email})`;
+    asistenteSelect.appendChild(opt);
+  });
+}
+
 // Abrir modal para vincular asistente
 vincularBtn.addEventListener('click', async () => {
   vincularForm.reset();
   modalStatus.textContent = '';
   modalError.textContent = '';
   await cargarAsistentes();
-  await cargarCentros();
   vincularModal.style.display = 'flex';
 });
 
@@ -241,14 +187,13 @@ window.addEventListener('click', (e) => {
 vincularForm.addEventListener('submit', async function(e) {
   e.preventDefault();
   const profesional_id = asistenteSelect.value;
-  const centro_id = centroSelect.value;
   const activo = document.getElementById('activo_select').value === 'true';
 
-  modalError.textContent = ''; // Limpia errores anteriores
+  modalError.textContent = '';
 
-  if (!profesional_id || !centro_id) {
+  if (!profesional_id) {
     modalStatus.textContent = '';
-    modalError.textContent = 'Todos los campos son obligatorios.';
+    modalError.textContent = 'Debe seleccionar un asistente.';
     return;
   }
   modalStatus.textContent = 'Procesando...';
@@ -258,7 +203,7 @@ vincularForm.addEventListener('submit', async function(e) {
     .from('profesional_centro')
     .select('*')
     .eq('profesional_id', profesional_id)
-    .eq('centro_id', centro_id)
+    .eq('centro_id', centroLogueadoId)
     .eq('activo', true);
 
   if (errorVincCheck) {
@@ -269,14 +214,14 @@ vincularForm.addEventListener('submit', async function(e) {
 
   if (vinculosExist && vinculosExist.length > 0) {
     modalStatus.textContent = '';
-    modalError.textContent = 'Ya existe la vinculación de este asistente con ese centro.';
+    modalError.textContent = 'Ya existe la vinculación de este asistente con este centro.';
     return;
   }
 
   // Vincular al centro
   const { error: errorPC } = await supabase
     .from('profesional_centro')
-    .insert({ profesional_id, centro_id, activo: activo, prioridad: 1 });
+    .insert({ profesional_id, centro_id: centroLogueadoId, activo: activo, prioridad: 1 });
 
   if (errorPC) {
     modalStatus.textContent = '';
@@ -304,7 +249,7 @@ async function desasociarAsistente(profesional_id, centro_id) {
     return;
   }
   await cargarTabla();
-  await cargarAsistentes(); // Actualiza el select para el modal
+  await cargarAsistentes();
 }
 
 // Inicialización
