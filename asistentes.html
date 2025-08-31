@@ -155,8 +155,8 @@ async function cargarAsistentes() {
     // Filtro correcto: role=eq.asistente
     const params = '?select=id,email,display_name,role,active,centro_id&role=eq.asistente';
     const data = await supabaseFetch('profiles', params);
-    if (data.length === 0) {
-      asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">No tienes asistentes creados aún.</td></tr>`;
+    if (!data || data.length === 0) {
+      asistentesTbody.innerHTML = `<tr><td colspan="5" class="muted">Aún no tienes asistentes.</td></tr>`;
       return;
     }
     asistentesTbody.innerHTML = "";
