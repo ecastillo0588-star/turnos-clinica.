@@ -1,51 +1,51 @@
-<div class="duracion-turnos-card" style="max-width: 600px; margin: 30px auto;">
+<div class="duracion-turnos-card" style="max-width: 650px; margin: 30px auto;">
   <h3>Duración de Turnos</h3>
   
-  <!-- Centro Médico selector y creación -->
-  <div style="margin-bottom:18px;">
+  <!-- Selector de centros médicos y creación inline -->
+  <div style="margin-bottom:24px;">
     <label for="centro_id"><b>Centro Médico</b></label>
-    <div style="display:flex; gap:12px;">
-      <select id="centro_id" name="centro_id" required style="max-width:220px;">
+    <div style="display:flex; gap:12px; align-items: center;">
+      <select id="centro_id" name="centro_id" required style="max-width:240px;">
         <option disabled selected value="">Cargando centros...</option>
       </select>
       <input type="text" id="nuevo_centro_nombre" placeholder="Nuevo centro..." style="max-width:160px;">
       <button type="button" id="agregar_centro" class="btn">Agregar</button>
     </div>
+    <span id="centros-status" class="muted" style="margin-left:12px;"></span>
   </div>
-  <div id="centros-status" class="muted" style="margin-bottom:10px;"></div>
-  
+
   <!-- Formulario de duración de turnos -->
   <form id="duracion-form" style="margin-bottom:20px; display:none;">
-    <div style="margin-bottom:13px;">
-      <label><b>Duración turno nueva consulta</b></label><br>
-      <select name="duracion_nueva" required style="max-width:95px;">
+    <div style="margin-bottom:16px;">
+      <label><b>Duración turno nueva consulta</b></label>
+      <select name="duracion_nueva" required style="max-width:120px; margin-left:12px;">
         <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
         <option value="20">20 min</option><option value="30">30 min</option>
         <option value="45">45 min</option><option value="60">60 min</option>
       </select>
     </div>
-    <div style="margin-bottom:13px;">
-      <label><b>Duración turno consulta recurrente</b></label><br>
-      <select name="duracion_recurrente" required style="max-width:95px;">
+    <div style="margin-bottom:16px;">
+      <label><b>Duración turno consulta recurrente</b></label>
+      <select name="duracion_recurrente" required style="max-width:120px; margin-left:12px;">
         <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
         <option value="20">20 min</option><option value="30">30 min</option>
         <option value="45">45 min</option><option value="60">60 min</option>
       </select>
     </div>
-    <div style="margin-bottom:13px;">
-      <label><b>Duración de sobre turnos</b></label><br>
-      <select name="duracion_sobreturno" required style="max-width:95px;">
+    <div style="margin-bottom:16px;">
+      <label><b>Duración de sobreturnos</b></label>
+      <select name="duracion_sobreturno" required style="max-width:120px; margin-left:12px;">
         <option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option>
         <option value="20">20 min</option><option value="30">30 min</option>
         <option value="45">45 min</option><option value="60">60 min</option>
       </select>
     </div>
-    <div style="display:flex; gap:12px;">
+    <div style="display:flex; gap:12px; margin-top:18px;">
       <button type="submit" class="btn primary">Guardar duraciones</button>
-      <button type="button" id="aplicar-todos" class="btn" style="">Aplicar a todos los centros</button>
+      <button type="button" id="aplicar-todos" class="btn">Aplicar a todos los centros</button>
     </div>
   </form>
-  <div id="duracion-status" class="muted" style="margin-bottom:20px;"></div>
+  <div id="duracion-status" class="muted" style="margin-bottom:10px;"></div>
 </div>
 
 <script type="module">
@@ -64,9 +64,8 @@ const duracionForm = document.getElementById('duracion-form');
 const statusDiv = document.getElementById('duracion-status');
 const aplicarTodosBtn = document.getElementById('aplicar-todos');
 
-// Estado global de centros
+// Estado global
 let centrosMedicos = [];
-let configActual = {};
 let profesional_id = null;
 
 // Obtener UUID del profesional autenticado
@@ -79,22 +78,26 @@ async function obtenerProfesionalId() {
   }
 }
 
-// Cargar centros médicos asociados al profesional y actualizar el desplegable
+// Cargar centros médicos asociados al profesional (join)
 async function cargarCentros() {
   centroSelect.innerHTML = '<option disabled selected value="">Cargando centros...</option>';
   centrosMedicos = [];
   let { data, error } = await supabase
-    .from('centros_medicos')
-    .select('id, nombre')
-    .eq('profesional_id', profesional_id);
+    .from('profesional_centro')
+    .select('centro_id, centros_medicos(id, nombre)')
+    .eq('profesional_id', profesional_id)
+    .eq('activo', true);
 
-  if (error) {
+  if (error || !data) {
     centroSelect.innerHTML = '<option disabled>Error al cargar centros</option>';
     centrosStatusDiv.textContent = 'Error al cargar centros médicos';
     duracionForm.style.display = 'none';
     return;
   }
-  centrosMedicos = data || [];
+  centrosMedicos = data.map(row => ({
+    id: row.centros_medicos.id,
+    nombre: row.centros_medicos.nombre
+  }));
   centroSelect.innerHTML = '';
   if (centrosMedicos.length === 0) {
     centroSelect.innerHTML = '<option disabled selected value="">No tienes centros asociados</option>';
@@ -114,40 +117,46 @@ async function cargarCentros() {
   duracionForm.style.display = '';
 }
 
-// Crear nuevo centro médico
+// Crear nuevo centro médico y asociar al profesional
 agregarCentroBtn.addEventListener('click', async function() {
   const nombre = nuevoCentroInput.value.trim();
   if (!nombre) return;
   agregarCentroBtn.disabled = true;
   centrosStatusDiv.textContent = 'Agregando centro...';
-  const { error, data } = await supabase
+  // Crear centro
+  const { data: centro, error: errorCentro } = await supabase
     .from('centros_medicos')
-    .insert({ nombre, profesional_id })
+    .insert({ nombre })
     .select();
-  if (error) {
+  if (errorCentro || !centro || !centro[0]) {
     centrosStatusDiv.textContent = 'Error al agregar centro';
+    agregarCentroBtn.disabled = false;
+    return;
+  }
+  // Asociar centro al profesional
+  const { error: errorPC } = await supabase
+    .from('profesional_centro')
+    .insert({ profesional_id, centro_id: centro[0].id });
+  if (errorPC) {
+    centrosStatusDiv.textContent = 'Error al asociar centro';
     agregarCentroBtn.disabled = false;
     return;
   }
   centrosStatusDiv.textContent = 'Centro agregado';
   nuevoCentroInput.value = '';
   await cargarCentros();
-  // Selecciona el centro recién creado
-  if (data && data[0]) {
-    centroSelect.value = data[0].id;
-    await cargarConfiguracionDuracion(data[0].id);
-  }
+  centroSelect.value = centro[0].id;
+  await cargarConfiguracionDuracion(centro[0].id);
   agregarCentroBtn.disabled = false;
 });
 
-// Al cambiar centro médico, carga la configuración asociada
+// Cambio de centro médico
 centroSelect.addEventListener('change', async function() {
   await cargarConfiguracionDuracion(this.value);
 });
 
 // Cargar configuración de duración para centro médico
 async function cargarConfiguracionDuracion(centro_id) {
-  configActual = {};
   let { data, error } = await supabase
     .from('config_duracion_turnos')
     .select('tipo_turno, minutos')
@@ -166,6 +175,7 @@ async function cargarConfiguracionDuracion(centro_id) {
     return;
   }
   // Cargar los valores existentes en el form
+  let configActual = {};
   data.forEach(cfg => {
     configActual[cfg.tipo_turno] = cfg.minutos;
   });
@@ -231,12 +241,11 @@ if (profesional_id) {
 } else {
   statusDiv.textContent = 'No se detectó usuario autenticado.';
 }
-
 </script>
 
 <style>
-.duracion-turnos-card { background: #fff; padding: 22px 16px; border-radius: 15px; box-shadow: 0 2px 8px rgba(80,60,160,.11); }
-.duracion-turnos-card h3 { color:#381e60; margin-bottom:17px;}
+.duracion-turnos-card { background: #fff; padding: 24px 20px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
+.duracion-turnos-card h3 { color:#381e60; margin-bottom:22px;}
 label { color:#381e60;}
 .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 3px;}
 .btn.primary { background: #7656b0; }
