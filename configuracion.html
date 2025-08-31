@@ -14,66 +14,23 @@
         <div class="muted">Cargando generador de agenda...</div>
       </div>
     </section>
-    <!-- Duración de Turnos -->
+    <!-- Duración de Turnos: se carga desde un archivo externo -->
     <section id="tab-duracion" class="tab-panel">
-      <form id="duracion-form">
-        <div style="margin-bottom:13px;">
-          <label><b>Duración turno nueva consulta</b></label><br>
-          <select name="duracion_nueva" required style="max-width:95px;">
-            <option>5 min</option><option>10 min</option><option>15 min</option>
-            <option>20 min</option><option>30 min</option><option>45 min</option><option>60 min</option>
-          </select>
-        </div>
-        <div style="margin-bottom:13px;">
-          <label><b>Duración turno consulta recurrente</b></label><br>
-          <select name="duracion_recurrente" required style="max-width:95px;">
-            <option>5 min</option><option>10 min</option><option>15 min</option>
-            <option>20 min</option><option>30 min</option><option>45 min</option><option>60 min</option>
-          </select>
-        </div>
-        <div style="margin-bottom:13px;">
-          <label><b>Duración de sobre turnos</b></label><br>
-          <select name="duracion_sobreturno" required style="max-width:95px;">
-            <option>5 min</option><option>10 min</option><option>15 min</option>
-            <option>20 min</option><option>30 min</option><option>45 min</option><option>60 min</option>
-          </select>
-        </div>
-        <button type="submit" class="btn primary">Guardar duraciones</button>
-      </form>
+      <div id="duracion-turnos-html">
+        <div class="muted">Cargando configuración de duración de turnos...</div>
+      </div>
     </section>
-    <!-- Centros Médicos -->
+    <!-- Centros Médicos: se cargará desde un archivo externo -->
     <section id="tab-centros" class="tab-panel">
-      <form id="centros-form">
-        <div style="margin-bottom:15px;">
-          <label><b>Agregar centro médico</b></label><br>
-          <input type="text" name="centro_nombre" placeholder="Nombre del centro" style="max-width:220px;">
-          <button type="submit" class="btn">Agregar</button>
-        </div>
-      </form>
-      <div id="centros-list" class="muted" style="margin-bottom:12px;">No hay centros médicos agregados.</div>
+      <div id="centros-medicos-html">
+        <div class="muted">Cargando configuración de centros médicos...</div>
+      </div>
     </section>
-    <!-- Asistentes -->
+    <!-- Asistentes: se cargará desde un archivo externo -->
     <section id="tab-asistentes" class="tab-panel">
-      <form id="asistente-form">
-        <div style="margin-bottom:10px;">
-          <label><b>Email</b></label><br>
-          <input type="email" name="email" required style="max-width:180px;">
-        </div>
-        <div style="margin-bottom:10px;">
-          <label><b>Nombre</b></label><br>
-          <input type="text" name="nombre" required style="max-width:180px;">
-        </div>
-        <div style="margin-bottom:10px;">
-          <label><b>Apellido</b></label><br>
-          <input type="text" name="apellido" required style="max-width:180px;">
-        </div>
-        <div style="margin-bottom:10px;">
-          <label><b>Teléfono</b></label><br>
-          <input type="text" name="telefono" style="max-width:180px;">
-        </div>
-        <button type="submit" class="btn primary">Agregar asistente</button>
-      </form>
-      <div id="asistentes-list" class="muted" style="margin-top:12px;">No hay asistentes agregados.</div>
+      <div id="asistentes-html">
+        <div class="muted">Cargando configuración de asistentes...</div>
+      </div>
     </section>
   </div>
 </div>
@@ -89,15 +46,18 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
       panel.classList.remove('active');
       if(panel.id==='tab-'+tab) panel.classList.add('active');
     });
-    // Cargar agenda solo cuando se muestra el tab
+    // Cargar htmls externos solo cuando se muestra el tab correspondiente
     if(tab==='agenda') cargarAgendaGenerador();
+    if(tab==='duracion') cargarDuracionTurnos();
+    if(tab==='centros') cargarCentrosMedicos();
+    if(tab==='asistentes') cargarAsistentes();
   });
 });
 
 // Cargar el generador de agenda externo SOLO cuando se muestra el tab correspondiente
 let agendaCargada = false;
 async function cargarAgendaGenerador() {
-  if (agendaCargada) return; // Solo carga una vez
+  if (agendaCargada) return;
   const espacio = document.getElementById('agenda-generador-html');
   try {
     const resp = await fetch('agenda-generador.html');
@@ -119,6 +79,85 @@ async function cargarAgendaGenerador() {
     espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error de conexión al cargar agenda-generador.html</div>';
   }
 }
+
+// Cargar el configurador de duración de turnos solo cuando se muestra el tab correspondiente
+let duracionCargada = false;
+async function cargarDuracionTurnos() {
+  if (duracionCargada) return;
+  const espacio = document.getElementById('duracion-turnos-html');
+  try {
+    const resp = await fetch('duracion-turnos.html');
+    if (!resp.ok) {
+      espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error al cargar duracion-turnos.html</div>';
+      return;
+    }
+    let html = await resp.text();
+    espacio.innerHTML = html;
+    Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
+      const newScript = document.createElement('script');
+      newScript.type = 'module';
+      if (oldScript.src) newScript.src = oldScript.src;
+      else newScript.textContent = oldScript.textContent;
+      document.body.appendChild(newScript);
+    });
+    duracionCargada = true;
+  } catch (e) {
+    espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error de conexión al cargar duracion-turnos.html</div>';
+  }
+}
+
+// Cargar configuración de centros médicos solo cuando se muestra el tab correspondiente
+let centrosCargado = false;
+async function cargarCentrosMedicos() {
+  if (centrosCargado) return;
+  const espacio = document.getElementById('centros-medicos-html');
+  try {
+    const resp = await fetch('centros-medicos.html');
+    if (!resp.ok) {
+      espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error al cargar centros-medicos.html</div>';
+      return;
+    }
+    let html = await resp.text();
+    espacio.innerHTML = html;
+    Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
+      const newScript = document.createElement('script');
+      newScript.type = 'module';
+      if (oldScript.src) newScript.src = oldScript.src;
+      else newScript.textContent = oldScript.textContent;
+      document.body.appendChild(newScript);
+    });
+    centrosCargado = true;
+  } catch (e) {
+    espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error de conexión al cargar centros-medicos.html</div>';
+  }
+}
+
+// Cargar configuración de asistentes solo cuando se muestra el tab correspondiente
+let asistentesCargado = false;
+async function cargarAsistentes() {
+  if (asistentesCargado) return;
+  const espacio = document.getElementById('asistentes-html');
+  try {
+    const resp = await fetch('asistentes.html');
+    if (!resp.ok) {
+      espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error al cargar asistentes.html</div>';
+      return;
+    }
+    let html = await resp.text();
+    espacio.innerHTML = html;
+    Array.from(espacio.querySelectorAll('script[type="module"]')).forEach(oldScript => {
+      const newScript = document.createElement('script');
+      newScript.type = 'module';
+      if (oldScript.src) newScript.src = oldScript.src;
+      else newScript.textContent = oldScript.textContent;
+      document.body.appendChild(newScript);
+    });
+    asistentesCargado = true;
+  } catch (e) {
+    espacio.innerHTML = '<div class="muted" style="color:#b00020;">Error de conexión al cargar asistentes.html</div>';
+  }
+}
+
 // Llama agenda generador al inicio si agenda es el primer tab activo
 if(document.querySelector('.tab-btn.active').getAttribute('data-tab')==='agenda') cargarAgendaGenerador();
 </script>
