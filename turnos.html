@@ -65,26 +65,24 @@
     .modal{
       width:min(900px,96vw);
       background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px;border:1px solid var(--line);
-      max-height:92vh; overflow:auto; overflow-x:auto;  /* ← scroll total siempre */
+      max-height:92vh; overflow:auto; overflow-x:auto;
     }
     .modal header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
     .modal h3{margin:0;font-size:18px}
     .close{background:transparent;border:none;font-size:24px;color:var(--brand);cursor:pointer}
 
     .slots{border:1px solid var(--line);border-radius:10px;padding:10px;max-height:60vh;overflow:auto}
-    .slot{display:flex;align-items:center;gap:10px;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0;background:#faf9ff}
-    .slot.unavailable{opacity:.45}
+    .slot{display:flex;align-items:center;gap:10px;justify-content:space-between;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:6px 0;background:#faf9ff;position:relative}
+    .slot.unavailable{opacity:.70}
     .slot .time{font-weight:700;color:var(--accent)}
     .slot .mini{font-size:12px;color:var(--muted)}
     .slot button{padding:6px 10px}
+    .slot.ocupado{background:#f5f0ff}
+    .slot.reprogram-target{outline:2px dashed var(--brand);}
 
-    /* Tabla turnos del día */
-    .tlist{width:100%;border-collapse:separate;border-spacing:0 6px}
-    .trow{background:#faf9ff;border:1px solid var(--line);border-radius:10px}
-    .tcell{padding:8px 10px}
-    .actions{display:flex;gap:8px;justify-content:flex-end;align-items:center}
     .icon-btn{border:none;background:#f4f1ff;border:1px solid var(--line);width:34px;height:34px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative}
     .icon-btn:hover{filter:brightness(.98)}
+    .icon-btn[disabled]{opacity:.4;cursor:not-allowed}
     .icon-btn[data-tip]::after{
       content:attr(data-tip); position:absolute; bottom:110%; left:50%; transform:translateX(-50%);
       background:#381e60;color:#fff;padding:4px 8px;border-radius:8px;font-size:12px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .12s;
@@ -110,9 +108,12 @@
     .uploadthumb img{width:56px;height:56px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
     .badge-req{color:#b00020;margin-left:4px}
 
-    /* scrollbars bonitos */
+    /* scrollbars */
     .modal::-webkit-scrollbar{ height:10px; width:10px }
     .modal::-webkit-scrollbar-thumb{ background:#d8cfff; border-radius:8px }
+
+    .banner-reprogram{background:#fff4e6;border:1px solid #ffd8a9;padding:8px 10px;border-radius:10px;font-size:13px;color:#8a5800;margin:4px 0 10px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .linklike{background:none;border:none;color:var(--danger);cursor:pointer;font-size:12px;text-decoration:underline}
   </style>
 </head>
 <body>
@@ -191,18 +192,13 @@
     </header>
 
     <section class="slots">
-      <h4 style="margin:0 0 8px">Horarios disponibles</h4>
+      <h4 style="margin:0 0 8px">Horarios</h4>
       <div id="turnos-slots-list"></div>
-
-      <div style="height:1px;background:var(--line);margin:12px 0"></div>
-
-      <h4 style="margin:0 0 8px">Turnos del día</h4>
-      <div id="turnos-dia-list"></div>
     </section>
   </div>
 </div>
 
-<!-- Modal OK (confirmación de turno asignado) -->
+<!-- Modal OK -->
 <div class="modal-backdrop" id="turnos-modal-ok" style="display:none;">
   <div class="modal-ok">
     <header style="display:flex;justify-content:space-between;align-items:center">
@@ -228,7 +224,7 @@
   </div>
 </div>
 
-<!-- Modal Crear Paciente (3 columnas) -->
+<!-- Modal Crear Paciente -->
 <div class="modal-backdrop" id="turnos-modal-paciente" style="display:none;">
   <div class="modal">
     <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -306,6 +302,17 @@
 </div>
 
 <script type="module">
+/*
+  CAMBIO PRINCIPAL:
+  Se unificó la visualización de horarios y turnos.
+  Ahora cada slot (horario) muestra directamente:
+   - Si está libre: botón ➕
+   - Si está ocupado: datos del paciente + botones ↪ (reprogramar) y 🗑 (anular)
+  Durante reprogramación:
+   - El turno original queda liberado temporalmente (aparece como libre con botón "Mover aquí")
+   - Se muestra un banner para cancelar la reprogramación.
+*/
+
 import supabase from './supabaseClient.js';
 import { isValidHourRange } from './validators.js';
 
@@ -326,7 +333,6 @@ const UI = {
   modalClose: document.getElementById('turnos-modal-close'),
   modalTitle: document.getElementById('turnos-modal-title'),
   slotsList: document.getElementById('turnos-slots-list'),
-  turnosDiaList: document.getElementById('turnos-dia-list'),
   // Typeahead
   pacInput: document.getElementById('turnos-paciente-input'),
   pacSuggest: document.getElementById('turnos-paciente-suggest'),
@@ -385,7 +391,6 @@ function pad(n){ return n<10 ? '0'+n : ''+n; }
 function toISODate(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
 function addMinutes(hhmm, minutes){ const [h,m]=hhmm.split(':').map(Number); const base=new Date(2000,0,1,h,m,0); base.setMinutes(base.getMinutes()+minutes); return `${pad(base.getHours())}:${pad(base.getMinutes())}`; }
 function cmpTime(a,b){ if(a===b) return 0; return a<b ? -1 : 1; }
-function monthRange(y,m){ const first=new Date(y,m,1); const last=new Date(y,m+1,0); return { start: toISODate(y,m,1), end: toISODate(y,m,last.getDate()) }; }
 const DOW = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 function nativeFirstDow(date){ const js=date.getDay(); return (js===0)?6:js-1; }
 function groupByFecha(arr){ const map=new Map(); for(const x of arr){ const k=x.fecha; if(!map.has(k)) map.set(k,[]); map.get(k).push(x); } return map; }
@@ -397,7 +402,7 @@ function normalizePhoneForWA(phoneRaw){
   if (!phoneRaw) return '';
   let p = String(phoneRaw).replace(/[^\d]/g,'');
   if (p.startsWith('0')) p = p.slice(1);
-  if (!p.startsWith('54')) p = '54' + p; // ajustar si usás otro prefijo país
+  if (!p.startsWith('54')) p = '54' + p;
   return p;
 }
 function buildWhatsAppMessage({pac, fechaISO, start, end, prof, centro, dir}){
@@ -466,7 +471,6 @@ async function ensureCentroWidgets(){
 async function loadProfesionales(){
   const sel = UI.profesionalSelect;
 
-  // Médico: fija su propia opción
   if (userRole === 'medico' && loggedProfesionalId) {
     let label = null;
     try {
@@ -493,7 +497,6 @@ async function loadProfesionales(){
     return;
   }
 
-  // Asistente/propietario: listar profesionales del centro
   sel.disabled = false;
 
   const { data: map, error: mapErr } = await supabase
@@ -544,7 +547,7 @@ async function loadDuracionConfig(profesionalId){
   (data||[]).forEach(r=>{ if (r.tipo_turno && r.minutos) duracionCfg[r.tipo_turno] = r.minutos; });
 }
 
-/* ====== Obras sociales (select por label) ====== */
+/* ====== Obras sociales ====== */
 async function loadObrasSociales() {
   const { data } = await supabase
     .from('obras_sociales')
@@ -659,7 +662,7 @@ UI.pacClear.addEventListener('click', ()=>{
 async function enforceTipoTurnoByPaciente(pacienteId){
   const optNueva = UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
   if (!optNueva) return;
-  if (!pacienteId){ optNueva.disabled = false; return; } // sin paciente => no bloquear
+  if (!pacienteId){ optNueva.disabled = false; return; }
 
   const { count } = await supabase
     .from('turnos')
@@ -670,9 +673,7 @@ async function enforceTipoTurnoByPaciente(pacienteId){
     optNueva.disabled = true;
     if (UI.tipoTurno.value === 'nueva_consulta'){ UI.tipoTurno.value = 'recurrente'; }
   } else {
-    // El paciente existe pero sin turnos previos: si querés bloquear igual,
-    // dejá disabled=true; si querés permitir, ponelo en false:
-    optNueva.disabled = true; // <- según lo pedido: SOLO al crear un paciente se habilita.
+    optNueva.disabled = true;
   }
 }
 
@@ -718,7 +719,7 @@ UI.npCredFile.addEventListener('change', ()=>{
   });
 });
 
-/* Guardar paciente (sube credencial a Storage) */
+/* Guardar paciente */
 UI.npGuardar.addEventListener('click', async ()=>{
   const dni = UI.npDni.value.trim();
   const nombre = UI.npNombre.value.trim();
@@ -731,7 +732,6 @@ UI.npGuardar.addEventListener('click', async ()=>{
   }
   UI.npMsg.textContent = 'Guardando...';
 
-  // subir credencial si hay
   let credencialUrl = null;
   const file = UI.npCredFile.files?.[0];
   if (file){
@@ -748,7 +748,7 @@ UI.npGuardar.addEventListener('click', async ()=>{
   const payload = {
     dni, nombre, apellido, fecha_nacimiento, telefono,
     email: UI.npEmail.value.trim() || null,
-    obra_social: UI.npObra.value || null,               // ← texto (FK textual)
+    obra_social: UI.npObra.value || null,
     numero_afiliado: UI.npAfiliado.value.trim() || null,
     contacto_nombre: UI.npConNom.value.trim() || null,
     contacto_apellido: UI.npConApe.value.trim() || null,
@@ -770,7 +770,6 @@ UI.npGuardar.addEventListener('click', async ()=>{
   UI.modalPac.style.display='none';
   selectPaciente(data);
 
-  // Paciente recién creado ⇒ permitir "Nueva consulta" y setearla
   const optNueva = UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
   if (optNueva) { optNueva.disabled = false; }
   UI.tipoTurno.value = 'nueva_consulta';
@@ -795,21 +794,27 @@ async function fetchAgendaYTurnos(profesionalId, y, m){
   return { agenda: agendaRes.data || [], turnos: turnosRes.data || [] };
 }
 
-function generarSlotsDeDia(agendaDelDia, turnosDelDia, tipo){
+/* Generar slots con info de ocupación. Excluye un turno (en reprogramación) si se pasa su id */
+function generarSlotsDeDia(agendaDelDia, turnosDelDia, tipo, excludeTurnoId){
   const dur = Number(duracionCfg[tipo] || 15);
   if (!dur || isNaN(dur) || dur<=0) return [];
-  const reservas = (turnosDelDia||[])
-    .filter(t => (t.estado||'').toLowerCase() !== 'cancelado')
-    .map(t => ({ start: toHM(t.hora_inicio), end: toHM(t.hora_fin) || addMinutes(toHM(t.hora_inicio), dur) }));
-  const slots = [];
-  for (const bloque of (agendaDelDia||[])) {
-    const bStart = toHM(bloque.hora_inicio);
-    const bEnd   = toHM(bloque.hora_fin);
+  const slots=[];
+  const turnosConsiderados = (turnosDelDia||[]).filter(t=> (t.estado||'').toLowerCase()!=='cancelado' && t.id !== excludeTurnoId);
+  for (const bloque of (agendaDelDia||[])){
+    const bStart=toHM(bloque.hora_inicio), bEnd=toHM(bloque.hora_fin);
     let t = bStart;
-    while ( (addMinutes(t,dur) <= bEnd) ) {
-      const start = t, end = addMinutes(t,dur);
-      const choca = reservas.some(r => overlaps(start,end,r.start,r.end));
-      slots.push({ start, end, agenda_id: bloque.id, disponible: !choca });
+    while (addMinutes(t,dur) <= bEnd){
+      const start=t, end=addMinutes(t,dur);
+      const occupant = turnosConsiderados.find(tr=>{
+        const trStart = toHM(tr.hora_inicio);
+        const trEnd = toHM(tr.hora_fin) || addMinutes(trStart,dur);
+        return overlaps(start,end,trStart,trEnd);
+      });
+      slots.push({
+        start, end, agenda_id: bloque.id,
+        disponible: !occupant,
+        turno: occupant || null
+      });
       t = end;
     }
   }
@@ -873,66 +878,98 @@ async function openDayModal(isoDate, agendaDia, turnosDiaRaw){
   UI.modalTitle.textContent = `Turnos del ${new Date(isoDate).toLocaleDateString('es-AR')}`;
   UI.modal.style.display = 'flex';
 
-  const slots = generarSlotsDeDia(agendaDia, turnosDiaRaw, UI.tipoTurno.value);
-  renderSlots(slots);
-  renderTurnosDelDia(turnosDiaRaw);
+  const slots = generarSlotsDeDia(agendaDia, turnosDiaRaw, UI.tipoTurno.value, null);
+  renderSlots(slots, agendaDia, turnosDiaRaw);
 }
 UI.modalClose.addEventListener('click', ()=> UI.modal.style.display='none');
 window.addEventListener('click', (e)=>{ if(e.target===UI.modal) UI.modal.style.display='none' });
 
-function renderTurnosDelDia(turnosDia){
-  if (!turnosDia?.length){ UI.turnosDiaList.innerHTML = '<div class="footer-mini">No hay turnos en esta fecha.</div>'; return; }
+/* Refrescar modal día (fetch de datos actualizados) */
+async function refreshDayModal(){
+  if (!modalDateISO) return;
+  const { data: agendaDia } = await supabase
+    .from('agenda')
+    .select('id, fecha, hora_inicio, hora_fin')
+    .eq('centro_id', currentCentroId)
+    .eq('profesional_id', currentProfesional)
+    .eq('fecha', modalDateISO)
+    .order('hora_inicio',{ascending:true});
 
-  const rows = turnosDia.map(t=>{
-    const pac = t.pacientes ? `${t.pacientes.apellido}, ${t.pacientes.nombre}` : `Paciente ${t.paciente_id.slice(0,6)}`;
-    const dni = t.pacientes?.dni || '—';
-    const tel = t.pacientes?.telefono || '—';
-    const dur = t.hora_fin ? minutesDiff(toHM(t.hora_inicio), toHM(t.hora_fin)) : (duracionCfg[UI.tipoTurno.value]||15);
-    return `
-      <div class="trow" style="display:grid;grid-template-columns:140px 1fr 120px 170px;gap:6px;align-items:center">
-        <div class="tcell"><b>${toHM(t.hora_inicio)}</b> — ${toHM(t.hora_fin) || ''}</div>
-        <div class="tcell">${pac} <span class="footer-mini">DNI ${dni} · ${tel}</span></div>
-        <div class="tcell"><span class="footer-mini">${t.estado}</span></div>
-        <div class="tcell actions">
-          <button class="icon-btn" data-id="${t.id}" data-dur="${dur}" data-tip="↪ Reprogramar" id="rep-${t.id}">↪️</button>
-          <button class="icon-btn" data-id="${t.id}" data-tip="🗑 Anular" id="del-${t.id}">🗑️</button>
-        </div>
-      </div>`;
-  }).join('');
+  const { data: turnosDiaRaw } = await supabase
+    .from('turnos')
+    .select('id, fecha, hora_inicio, hora_fin, estado, paciente_id, agenda_id, pacientes(id, apellido, nombre, dni, telefono)')
+    .eq('centro_id', currentCentroId)
+    .eq('profesional_id', currentProfesional)
+    .eq('fecha', modalDateISO)
+    .order('hora_inicio',{ascending:true});
 
-  UI.turnosDiaList.innerHTML = rows;
-
-  // bind acciones
-  turnosDia.forEach(t=>{
-    document.getElementById(`del-${t.id}`).addEventListener('click', ()=> cancelarTurno(t));
-    document.getElementById(`rep-${t.id}`).addEventListener('click', ()=> startReprogram(t));
-  });
+  const slots = generarSlotsDeDia(agendaDia||[], turnosDiaRaw||[], UI.tipoTurno.value, reprogramState?.turno.id || null);
+  renderSlots(slots, agendaDia||[], turnosDiaRaw||[]);
 }
 
-function renderSlots(slots){
+/* Render unified slots */
+function renderSlots(slots, agendaDia, turnosDiaRaw){
   if (!slots.length){ UI.slotsList.innerHTML = '<div class="footer-mini">No hay horarios disponibles para el tipo seleccionado.</div>'; return; }
   UI.slotsList.innerHTML = '';
+
+  if (reprogramState){
+    const banner = document.createElement('div');
+    banner.className='banner-reprogram';
+    banner.innerHTML = `<div>
+        Reprogramando turno de ${toHM(reprogramState.turno.hora_inicio)} a ${toHM(reprogramState.turno.hora_fin)}.
+        Seleccioná el nuevo horario (duración ${reprogramState.durMin} min).
+      </div>
+      <button class="linklike" id="cancel-reprogram">Cancelar</button>`;
+    UI.slotsList.appendChild(banner);
+    banner.querySelector('#cancel-reprogram').addEventListener('click', ()=>{
+      reprogramState=null;
+      refreshDayModal();
+    });
+  }
+
+  const profLabel = UI.profesionalSelect.options[UI.profesionalSelect.selectedIndex]?.textContent || 'Profesional';
+
   for (const s of slots){
     const row = document.createElement('div');
     const dur = minutesDiff(s.start, s.end);
     const reprogramando = !!reprogramState;
     const sameDur = reprogramando ? (dur === reprogramState.durMin) : true;
     const habil = s.disponible && (!reprogramando || sameDur);
+    const turno = s.turno;
+    const ocupado = !!turno;
+    row.className = 'slot' + (ocupado ? ' ocupado':'') + (!habil && !ocupado ? ' unavailable':'');
 
-    row.className = 'slot' + (habil ? '' : ' unavailable');
-    row.innerHTML = `
-      <div>
-        <div class="time">${s.start} — ${s.end}</div>
-        <div class="mini">${s.agenda_id ? 'Agenda' : 'Libre'}${reprogramando && !sameDur ? ' · duración distinta' : ''}</div>
-      </div>
-      <div>
-        ${habil
-          ? `<button class="icon-btn" data-tip="${reprogramando ? 'Confirmar reprogramación' : 'Agendar turno'}" data-start="${s.start}" data-end="${s.end}" data-agenda="${s.agenda_id||''}">➕</button>`
-          : `<button class="icon-btn" disabled data-tip="No disponible">✖</button>`}
-      </div>`;
-    if (habil){
-      row.querySelector('button').addEventListener('click', () => reprogramando ? confirmReprogram(s) : tryAgendar(s));
+    if (!ocupado){
+      row.innerHTML = `
+        <div>
+          <div class="time">${s.start} — ${s.end}</div>
+          <div class="mini">${reprogramando ? (sameDur ? 'Seleccionar nuevo horario' : 'Duración distinta') : 'Agenda'}</div>
+        </div>
+        <div>
+          ${habil
+            ? `<button class="icon-btn" data-tip="${reprogramando ? 'Mover aquí' : 'Agendar turno'}" data-start="${s.start}" data-end="${s.end}" data-agenda="${s.agenda_id||''}">${reprogramando ? '✅':'➕'}</button>`
+            : `<button class="icon-btn" disabled data-tip="No disponible">✖</button>`}
+        </div>`;
+      if (habil){
+        row.querySelector('button').addEventListener('click', () => reprogramando ? confirmReprogram(s) : tryAgendar(s));
+      }
+    } else {
+      const pac = turno.pacientes ? `${turno.pacientes.apellido}, ${turno.pacientes.nombre}` : `Paciente`;
+      const dni = turno.pacientes?.dni || '—';
+      const tel = turno.pacientes?.telefono || '—';
+      row.innerHTML = `
+        <div>
+          <div class="time">${toHM(turno.hora_inicio)} — ${toHM(turno.hora_fin)}</div>
+          <div class="mini">${pac} · DNI ${dni} · ${tel}</div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="icon-btn" data-tip="↪ Reprogramar" data-act="rep">↪️</button>
+          <button class="icon-btn" data-tip="🗑 Anular" data-act="del">🗑️</button>
+        </div>`;
+      row.querySelector('[data-act="rep"]').addEventListener('click', ()=> startReprogram(turno));
+      row.querySelector('[data-act="del"]').addEventListener('click', ()=> cancelarTurno(turno));
     }
+
     UI.slotsList.appendChild(row);
   }
 }
@@ -993,90 +1030,87 @@ async function tryAgendar(slot){
     openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel });
   }
   await refreshDayModal();
+  await renderCalendar(); // actualizar badges del mes
+}
+
+/* Iniciar reprogramación */
+function startReprogram(turno){
+  const durMin = minutesDiff(toHM(turno.hora_inicio), toHM(turno.hora_fin));
+  reprogramState = { turno, durMin };
+  refreshDayModal();
+}
+
+/* Confirmar reprogramación */
+async function confirmReprogram(slot){
+  if (!reprogramState) return;
+  const t = reprogramState.turno;
+  if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
+  const { error } = await supabase
+    .from('turnos')
+    .update({
+      fecha: modalDateISO,
+      hora_inicio: slot.start,
+      hora_fin: slot.end,
+      agenda_id: slot.agenda_id || null
+    })
+    .eq('id', t.id);
+  if (error){
+    alert(error.message || 'No se pudo reprogramar.');
+  } else {
+    reprogramState = null;
+  }
+  await refreshDayModal();
+  await renderCalendar();
 }
 
 /* Anular turno */
 async function cancelarTurno(t){
   if (!confirm('¿Anular este turno?')) return;
-  const { error } = await supabase.from('turnos').update({ estado:'cancelado' }).eq('id', t.id);
-  if (error) alert('No se pudo anular: ' + (error.message||'')); else await refreshDayModal();
-}
-
-/* Reprogramar turno: seleccionar duración y habilitar sólo slots compatibles */
-function startReprogram(t){
-  const start = toHM(t.hora_inicio), end = toHM(t.hora_fin);
-  const durMin = end ? minutesDiff(start,end) : (duracionCfg[UI.tipoTurno.value]||15);
-  reprogramState = { turno: t, durMin };
-  UI.status.textContent = `Reprogramando turno de ${durMin} min. Elegí un nuevo horario en la lista.`;
-  // Re-render slots para bloquear duraciones distintas
-  refreshSlotsOnly();
-}
-async function confirmReprogram(slot){
-  const t = reprogramState?.turno; if (!t) return;
-  const upd = {
-    fecha: modalDateISO,
-    hora_inicio: slot.start,
-    hora_fin: slot.end,
-    agenda_id: slot.agenda_id || null,
-    updated_at: new Date().toISOString()
-  };
-  const { error } = await supabase.from('turnos').update(upd).eq('id', t.id);
+  const { error } = await supabase
+    .from('turnos')
+    .update({ estado: 'cancelado' })
+    .eq('id', t.id);
   if (error){
-    const msg = (error.message||'').toLowerCase().includes('solap') ? 'El horario elegido se ocupó.' : (error.message || 'No se pudo reprogramar.');
-    alert(msg);
+    alert(error.message || 'No se pudo anular.');
   } else {
-    reprogramState = null;
+    if (reprogramState && reprogramState.turno.id === t.id) reprogramState = null;
   }
-  UI.status.textContent = '';
   await refreshDayModal();
-}
-
-async function refreshDayModal(){
-  // volver a consultar datos del día y refrescar
-  const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, view.y, view.m);
-  const agendaDia = (agenda||[]).filter(a=>a.fecha===modalDateISO);
-  const turnosDia = (turnos||[]).filter(t=>t.fecha===modalDateISO);
-  renderSlots(generarSlotsDeDia(agendaDia, turnosDia, UI.tipoTurno.value));
-  renderTurnosDelDia(turnosDia);
   await renderCalendar();
 }
-async function refreshSlotsOnly(){
-  const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, view.y, view.m);
-  const agendaDia = (agenda||[]).filter(a=>a.fecha===modalDateISO);
-  const turnosDia = (turnos||[]).filter(t=>t.fecha===modalDateISO);
-  renderSlots(generarSlotsDeDia(agendaDia, turnosDia, UI.tipoTurno.value));
-}
 
-/* Eventos generales */
+/* ====== Eventos globales ====== */
+UI.tipoTurno.addEventListener('change', async ()=>{
+  await renderCalendar();
+  if (UI.modal.style.display==='flex') refreshDayModal();
+});
 UI.profesionalSelect.addEventListener('change', async ()=>{
   currentProfesional = UI.profesionalSelect.value || null;
   await loadDuracionConfig(currentProfesional);
   await renderCalendar();
+  if (UI.modal.style.display==='flex') refreshDayModal();
 });
-UI.tipoTurno.addEventListener('change', async ()=>{
+UI.btnHoy.addEventListener('click', async ()=>{
+  const t=todayInfo(); view.y=t.y; view.m=t.m;
   await renderCalendar();
-  if (UI.modal.style.display==='flex') await refreshSlotsOnly();
 });
-UI.prevMonth.addEventListener('click', async ()=>{ if (view.m===0){ view.m=11; view.y--; } else view.m--; await renderCalendar(); });
-UI.nextMonth.addEventListener('click', async ()=>{ if (view.m===11){ view.m=0; view.y++; } else view.m++; await renderCalendar(); });
-UI.btnHoy.addEventListener('click', async ()=>{ const t=todayInfo(); view={ y:t.y, m:t.m, d:t.d }; await renderCalendar(); });
+UI.prevMonth.addEventListener('click', async ()=>{
+  if (--view.m < 0){ view.m=11; view.y--; }
+  await renderCalendar();
+});
+UI.nextMonth.addEventListener('click', async ()=>{
+  if (++view.m > 11){ view.m=0; view.y++; }
+  await renderCalendar();
+});
 
-/* Init */
-function renderDow(){ UI.calDow.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
-async function initTurnos(){
-  renderDow();
+/* ====== Init ====== */
+(async function init(){
+  renderDowTurnos();
   await ensureCentroWidgets();
   await loadProfesionales();
-  if (!currentProfesional){ UI.status.textContent='No hay profesional seleccionado.'; return; }
   await loadDuracionConfig(currentProfesional);
-  if (!currentCentroDireccion){
-    const c = await fetchCentroById(currentCentroId);
-    currentCentroNombre = c.nombre || currentCentroNombre;
-    currentCentroDireccion = c.direccion || '';
-  }
   await renderCalendar();
-}
-await initTurnos();
+})();
 </script>
 </body>
 </html>
