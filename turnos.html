@@ -8,6 +8,7 @@
     :root{
       --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
       --bg:#f7f9fb; --card:#fff; --line:#ece5fc; --accent:#0b5394;
+      --ok:#0a7d38; --okbg:#e8fff0;
     }
     body{margin:0;background:var(--bg);font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
     .wrap{max-width:1100px;margin:0 auto;padding:6px}
@@ -22,6 +23,7 @@
     .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:10px 12px;font-weight:600;cursor:pointer;transition:filter .15s}
     .btn.secondary{background:#e7e2fa;color:#5a3e9a}
     .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+    .btn.ok{background:var(--ok)}
     .btn:hover{filter:brightness(.98)}
 
     /* chip paciente seleccionado */
@@ -69,13 +71,12 @@
     .slot .time{font-weight:700;color:var(--accent)}
     .slot button{padding:6px 10px}
 
-    /* Modal Crear Paciente (todos los campos) */
-    .modal2{width:min(700px,95vw);background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .grid2 label{font-size:12px;color:var(--muted)}
-    .grid2 input,.grid2 textarea,.grid2 select{background:#f7f9fb;border:1.5px solid var(--line);border-radius:7px;padding:9px 10px;font-size:14px;width:100%}
-    .grid2 textarea{min-height:70px}
-    .grid2 .span2{grid-column:1/3}
+    /* Modal OK */
+    .modal-ok{width:min(640px,95vw);background:#fff;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.22);padding:18px;border:2px solid var(--okbg)}
+    .ok-head{display:flex;gap:10px;align-items:center}
+    .ok-badge{background:var(--okbg);color:var(--ok);border-radius:999px;padding:4px 10px;font-weight:700;font-size:13px}
+    .ok-list{margin:12px 0 6px;padding-left:18px}
+    .ok-list li{margin:6px 0}
   </style>
 </head>
 <body>
@@ -83,7 +84,7 @@
 
   <!-- Toolbar -->
   <div class="toolbar">
-    <!-- Centro: select para médico/propietario, readonly para asistente -->
+    <!-- Centro -->
     <div class="field" id="centro-field">
       <label>Centro médico</label>
       <select id="turnos-centro-select" class="sel" style="display:none;"></select>
@@ -96,7 +97,7 @@
       <select id="turnos-profesional-select" class="sel"></select>
     </div>
 
-    <!-- Paciente (typeahead) -->
+    <!-- Paciente -->
     <div class="field" id="turnos-paciente-field">
       <label>Paciente</label>
       <input id="turnos-paciente-input" class="inp" placeholder="Apellido Nombre o DNI" autocomplete="off"/>
@@ -117,7 +118,7 @@
       </select>
     </div>
 
-    <!-- Hoy (adentro del cuadro) -->
+    <!-- Hoy -->
     <div class="field" style="align-items:flex-end">
       <button id="turnos-btn-hoy" class="btn ghost">Hoy</button>
     </div>
@@ -161,9 +162,35 @@
   </div>
 </div>
 
-<!-- Modal Crear Paciente (todos los campos de la tabla) -->
+<!-- Modal OK (confirmación de turno asignado) -->
+<div class="modal-backdrop" id="turnos-modal-ok" style="display:none;">
+  <div class="modal-ok">
+    <header style="display:flex;justify-content:space-between;align-items:center">
+      <div class="ok-head">
+        <div class="ok-badge">✔ Turno asignado</div>
+        <div id="ok-title" style="font-weight:700"></div>
+      </div>
+      <button class="close" id="ok-close">&times;</button>
+    </header>
+    <ul class="ok-list">
+      <li><b>Paciente:</b> <span id="ok-paciente"></span></li>
+      <li><b>DNI:</b> <span id="ok-dni"></span></li>
+      <li><b>Fecha y hora:</b> <span id="ok-fecha-hora"></span></li>
+      <li><b>Profesional:</b> <span id="ok-prof"></span></li>
+      <li><b>Centro:</b> <span id="ok-centro"></span></li>
+      <li><b>Dirección:</b> <span id="ok-direccion"></span></li>
+    </ul>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+      <a id="ok-wa-link" class="btn ok" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+      <button id="ok-copy" class="btn ghost">Copiar link</button>
+      <span id="ok-msg" class="footer-mini"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Crear Paciente (todos los campos) -->
 <div class="modal-backdrop" id="turnos-modal-paciente" style="display:none;">
-  <div class="modal2">
+  <div class="modal" style="width:min(700px,95vw)">
     <header style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <h3 style="margin:0">Crear nuevo paciente</h3>
       <button class="close" id="turnos-modal-paciente-close">&times;</button>
@@ -172,73 +199,73 @@
     <div class="grid2">
       <div>
         <label>DNI *</label>
-        <input id="np-dni" />
+        <input id="np-dni" class="inp"/>
       </div>
       <div>
         <label>Fecha de nacimiento</label>
-        <input id="np-fecha-nac" type="date" />
+        <input id="np-fecha-nac" class="inp" type="date" />
       </div>
 
       <div>
         <label>Nombre *</label>
-        <input id="np-nombre" />
+        <input id="np-nombre" class="inp"/>
       </div>
       <div>
         <label>Apellido *</label>
-        <input id="np-apellido" />
+        <input id="np-apellido" class="inp"/>
       </div>
 
       <div>
         <label>Teléfono</label>
-        <input id="np-telefono" />
+        <input id="np-telefono" class="inp"/>
       </div>
       <div>
         <label>Email</label>
-        <input id="np-email" type="email" />
+        <input id="np-email" class="inp" type="email" />
       </div>
 
       <div>
         <label>Obra social</label>
-        <input id="np-obra" />
+        <input id="np-obra" class="inp"/>
       </div>
       <div>
         <label>N° afiliado</label>
-        <input id="np-afiliado" />
+        <input id="np-afiliado" class="inp"/>
       </div>
 
       <div>
         <label>Contacto - Nombre</label>
-        <input id="np-contacto-nombre" />
+        <input id="np-contacto-nombre" class="inp"/>
       </div>
       <div>
         <label>Contacto - Apellido</label>
-        <input id="np-contacto-apellido" />
+        <input id="np-contacto-apellido" class="inp"/>
       </div>
       <div>
         <label>Contacto - Celular</label>
-        <input id="np-contacto-cel" />
+        <input id="np-contacto-cel" class="inp"/>
       </div>
       <div>
         <label>Vínculo</label>
-        <input id="np-vinculo" />
+        <input id="np-vinculo" class="inp"/>
       </div>
 
       <div>
         <label>Credencial</label>
-        <input id="np-credencial" />
+        <input id="np-credencial" class="inp"/>
       </div>
       <div>
         <label>Próximo control</label>
-        <input id="np-prox-control" type="date" />
+        <input id="np-prox-control" class="inp" type="date" />
       </div>
 
       <div>
         <label>Renovación de receta</label>
-        <input id="np-renovacion" type="date" />
+        <input id="np-renovacion" class="inp" type="date" />
       </div>
       <div class="span2">
         <label>Historia clínica</label>
-        <textarea id="np-historia"></textarea>
+        <textarea id="np-historia" class="inp" style="resize:vertical;min-height:70px"></textarea>
       </div>
     </div>
 
@@ -257,7 +284,6 @@ import { isValidHourRange } from './validators.js';
 const UI = {
   centroSelect: document.getElementById('turnos-centro-select'),
   centroNombre: document.getElementById('turnos-centro-nombre'),
-  centroField: document.getElementById('centro-field'),
   profesionalSelect: document.getElementById('turnos-profesional-select'),
   tipoTurno: document.getElementById('turnos-tipo'),
   btnHoy: document.getElementById('turnos-btn-hoy'),
@@ -278,6 +304,19 @@ const UI = {
   pacChip: document.getElementById('turnos-paciente-chip'),
   pacChipText: document.getElementById('turnos-paciente-chip-text'),
   pacClear: document.getElementById('turnos-paciente-clear'),
+  // OK modal
+  okBackdrop: document.getElementById('turnos-modal-ok'),
+  okClose: document.getElementById('ok-close'),
+  okTitle: document.getElementById('ok-title'),
+  okPaciente: document.getElementById('ok-paciente'),
+  okDni: document.getElementById('ok-dni'),
+  okFechaHora: document.getElementById('ok-fecha-hora'),
+  okProf: document.getElementById('ok-prof'),
+  okCentro: document.getElementById('ok-centro'),
+  okDir: document.getElementById('ok-direccion'),
+  okWa: document.getElementById('ok-wa-link'),
+  okCopy: document.getElementById('ok-copy'),
+  okMsg: document.getElementById('ok-msg'),
   // Modal paciente
   modalPac: document.getElementById('turnos-modal-paciente'),
   modalPacClose: document.getElementById('turnos-modal-paciente-close'),
@@ -304,9 +343,9 @@ const UI = {
 /* ========== Sesión ========== */
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
-const userRole = localStorage.getItem('user_role');                 // 'medico' | 'asistente' | 'propietario'
+let currentCentroDireccion = '';  // <- la buscamos
+const userRole = localStorage.getItem('user_role');     // 'medico' | 'asistente' | 'propietario'
 const loggedProfesionalId = localStorage.getItem('profesional_id');
-
 if (!currentCentroId) { alert('No hay centro seleccionado. Volviendo al login.'); window.location.href='index.html'; }
 
 /* ========== Fecha & helpers ========== */
@@ -322,16 +361,21 @@ function groupByFecha(arr){ const map=new Map(); for(const x of arr){ const k=x.
 function toHM(t){ return (t ?? '').toString().slice(0,5); }
 function overlaps(aStart,aEnd,bStart,bEnd){ return (aStart < bEnd) && (bStart < aEnd); }
 function isoToday(){ return new Date().toISOString().slice(0,10); }
-function renderDOW(){ UI.calDow.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
+function renderDOW(){ document.getElementById('turnos-cal-dow').innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
+function fmtDateLong(iso){ return new Date(iso+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long', day:'numeric', month:'long', year:'numeric'}) }
 
 /* ========== Estado ========== */
 let view = todayInfo();
 let currentProfesional = null;
 let duracionCfg = { nueva_consulta:15, recurrente:15, sobreturno:15 };
 let modalDateISO = null;
-let pacienteSeleccionado = null;
+let pacienteSeleccionado = null; // {id, nombre, apellido, dni, telefono?}
 
-/* ========== Centro (select / readonly) ========== */
+/* ========== Centro ========== */
+async function fetchCentroById(id){
+  const { data } = await supabase.from('centros_medicos').select('nombre,direccion').eq('id', id).single();
+  return { nombre: data?.nombre || '', direccion: data?.direccion || '' };
+}
 async function getCentrosDeProfesional(profesionalId){
   const { data, error } = await supabase
     .from('profesional_centro')
@@ -341,16 +385,14 @@ async function getCentrosDeProfesional(profesionalId){
   if (error || !data) return [];
   return data.filter(r=>r.centros_medicos).map(r=>({ id:r.centros_medicos.id, nombre:r.centros_medicos.nombre }));
 }
-
 async function ensureCentroWidgets(){
   if (userRole === 'asistente'){
     // readonly
     UI.centroNombre.style.display = '';
     UI.centroSelect.style.display = 'none';
-    if (!currentCentroNombre){
-      const { data } = await supabase.from('centros_medicos').select('nombre').eq('id', currentCentroId).single();
-      currentCentroNombre = data?.nombre || '';
-    }
+    const c = await fetchCentroById(currentCentroId);
+    currentCentroNombre = c.nombre || currentCentroNombre;
+    currentCentroDireccion = c.direccion || '';
     UI.centroNombre.value = currentCentroNombre || '(sin nombre)';
   } else {
     // médico/propietario: select de sus centros
@@ -368,13 +410,19 @@ async function ensureCentroWidgets(){
       currentCentroId = centros[0].id;
       UI.centroSelect.value = currentCentroId;
     }
+    // fetch address for selected
+    const c = await fetchCentroById(currentCentroId);
+    currentCentroNombre = c.nombre || UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent || '';
+    currentCentroDireccion = c.direccion || '';
     UI.centroSelect.addEventListener('change', async ()=>{
       currentCentroId = UI.centroSelect.value;
+      const c2 = await fetchCentroById(currentCentroId);
+      currentCentroNombre = c2.nombre || UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent || '';
+      currentCentroDireccion = c2.direccion || '';
       localStorage.setItem('centro_medico_id', currentCentroId);
-      const selName = UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent || '';
-      localStorage.setItem('centro_medico_nombre', selName);
+      localStorage.setItem('centro_medico_nombre', currentCentroNombre);
+      await loadProfesionales();
       await loadDuracionConfig(currentProfesional);
-      await loadProfesionales(); // para asistente/propietario se refresca lista
       await renderCalendar();
     });
   }
@@ -390,7 +438,6 @@ async function loadProfesionales(){
     currentProfesional = loggedProfesionalId;
     return;
   }
-
   // asistente/propietario -> profesionales del centro actual
   UI.profesionalSelect.disabled = false;
   const { data: map } = await supabase
@@ -416,7 +463,7 @@ async function loadProfesionales(){
   if (currentProfesional) UI.profesionalSelect.value = currentProfesional;
 }
 
-/* ========== Duración por tipo ========== */
+/* ========== Duraciones ========== */
 async function loadDuracionConfig(profesionalId){
   duracionCfg = { nueva_consulta:15, recurrente:15, sobreturno:15 };
   if (!profesionalId) return;
@@ -428,7 +475,7 @@ async function loadDuracionConfig(profesionalId){
   (data||[]).forEach(r=>{ if (r.tipo_turno && r.minutos) duracionCfg[r.tipo_turno] = r.minutos; });
 }
 
-/* ========== Pacientes: typeahead + crear ========== */
+/* ========== Pacientes (typeahead + crear) ========== */
 let suggestTimer = null;
 function hideSuggest(){ UI.pacSuggest.style.display='none'; UI.pacSuggest.innerHTML=''; }
 function showSuggest(){ UI.pacSuggest.style.display='block'; }
@@ -471,9 +518,7 @@ async function fetchSuggestions(q){
           <div class="s-meta">No se encontraron coincidencias para “${q}”.</div>
         </div>
       </div>`;
-    showSuggest();
-    bindSuggestHandlers(q, []);
-    return;
+    showSuggest(); bindSuggestHandlers(q, []); return;
   }
 
   UI.pacSuggest.innerHTML = result.map(p=>`
@@ -491,8 +536,7 @@ async function fetchSuggestions(q){
         <div class="s-meta">Agregar con los datos completos.</div>
       </div>
     </div>`;
-  showSuggest();
-  bindSuggestHandlers(q, result);
+  showSuggest(); bindSuggestHandlers(q, result);
 }
 
 function bindSuggestHandlers(q, result){
@@ -511,20 +555,19 @@ function bindSuggestHandlers(q, result){
 }
 
 function selectPaciente(p){
-  pacienteSeleccionado = { id:p.id, nombre:p.nombre, apellido:p.apellido, dni:p.dni };
+  pacienteSeleccionado = { id:p.id, nombre:p.nombre, apellido:p.apellido, dni:p.dni, telefono:p.telefono || '' };
   UI.pacChipText.textContent = `${p.apellido}, ${p.nombre} · DNI ${p.dni}`;
   UI.pacChip.style.display = 'flex';
   hideSuggest();
 }
-UI.pacClear.addEventListener('click', ()=>{ pacienteSeleccionado=null; UI.pacChip.style.display='none'; });
+document.getElementById('turnos-paciente-clear').addEventListener('click', ()=>{ pacienteSeleccionado=null; UI.pacChip.style.display='none'; });
 
 function openPacienteModalPrefilled(q){
-  UI.npDni.value = /^\d{6,}$/.test(q) ? q : '';
+  document.getElementById('np-dni').value = /^\d{6,}$/.test(q) ? q : '';
   const parts = q.split(/\s+/).filter(Boolean);
-  UI.npApellido.value = parts[0] || '';
-  UI.npNombre.value = parts[1] || '';
-  UI.npFechaNac.value = '';
-  UI.npTel.value = ''; UI.npEmail.value = '';
+  document.getElementById('np-apellido').value = parts[0] || '';
+  document.getElementById('np-nombre').value = parts[1] || '';
+  UI.npFechaNac.value = ''; UI.npTel.value=''; UI.npEmail.value='';
   UI.npObra.value=''; UI.npAfiliado.value='';
   UI.npConNom.value=''; UI.npConApe.value=''; UI.npConCel.value=''; UI.npVinculo.value='';
   UI.npCredencial.value=''; UI.npHistoria.value=''; UI.npProx.value=''; UI.npRenov.value='';
@@ -562,15 +605,14 @@ UI.npGuardar.addEventListener('click', async ()=>{
   const { data, error } = await supabase
     .from('pacientes')
     .insert([payload])
-    .select('id, dni, nombre, apellido')
+    .select('id, dni, nombre, apellido, telefono')
     .single();
 
   if (error){ UI.npMsg.textContent = 'Error: ' + (error.message || 'no se pudo crear'); return; }
   UI.modalPac.style.display='none';
   selectPaciente(data);
   UI.pacInput.value = `${data.apellido} ${data.nombre}`;
-  // paciente nuevo => tipo por defecto "Nueva consulta"
-  UI.tipoTurno.value = 'nueva_consulta';
+  UI.tipoTurno.value = 'nueva_consulta'; // por defecto en nuevos
 });
 
 /* ========== Agenda & Turnos ========== */
@@ -709,6 +751,51 @@ function renderSlots(slots){
   }
 }
 
+/* ========== Confirmación OK ========== */
+function normalizePhoneForWA(phoneRaw){
+  if (!phoneRaw) return '';
+  let p = String(phoneRaw).replace(/[^\d]/g,'');   // solo dígitos
+  if (p.startsWith('0')) p = p.slice(1);           // sin 0 inicial
+  if (!p.startsWith('54')) p = '54' + p;           // asume AR si falta prefijo (ajustable)
+  return p;
+}
+function buildWhatsAppMessage({pac, fechaISO, start, end, prof, centro, dir}){
+  const fecha = fmtDateLong(fechaISO);
+  const hora = `${start} a ${end}`;
+  return `Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fecha} de ${hora} con ${prof} en ${centro} (${dir}). Si no podés asistir, te pedimos que nos avises. ¡Gracias!`;
+}
+function openOkModal({pac, fechaISO, start, end, profLabel}){
+  UI.okTitle.textContent = `${pac.apellido}, ${pac.nombre}`;
+  UI.okPaciente.textContent = `${pac.apellido}, ${pac.nombre}`;
+  UI.okDni.textContent = pac.dni || '—';
+  UI.okFechaHora.textContent = `${fmtDateLong(fechaISO)} · ${start}–${end}`;
+  UI.okProf.textContent = profLabel;
+  UI.okCentro.textContent = currentCentroNombre || '—';
+  UI.okDir.textContent = currentCentroDireccion || '—';
+
+  const msg = buildWhatsAppMessage({
+    pac, fechaISO, start, end, prof: profLabel,
+    centro: currentCentroNombre || '', dir: currentCentroDireccion || ''
+  });
+  const to = normalizePhoneForWA(pac.telefono || '');
+  const href = to ? `https://wa.me/${to}?text=${encodeURIComponent(msg)}` : 'javascript:void(0)';
+  UI.okWa.setAttribute('href', href);
+  UI.okWa.classList.toggle('ok', !!to);
+  UI.okWa.textContent = to ? 'Enviar por WhatsApp' : 'WhatsApp (falta teléfono)';
+  UI.okWa.style.pointerEvents = to ? 'auto' : 'none';
+  UI.okMsg.textContent = '';
+
+  UI.okCopy.onclick = ()=>{
+    const link = to ? href : msg; // si no hay tel, copiamos el mensaje
+    navigator.clipboard.writeText(link).then(()=> UI.okMsg.textContent='Copiado').catch(()=> UI.okMsg.textContent='No se pudo copiar');
+  };
+
+  UI.okBackdrop.style.display = 'flex';
+}
+UI.okClose.addEventListener('click', ()=> UI.okBackdrop.style.display='none');
+window.addEventListener('click', (e)=>{ if (e.target===UI.okBackdrop) UI.okBackdrop.style.display='none'; });
+
+/* ========== Agendar ========== */
 async function tryAgendar(slot){
   if (!pacienteSeleccionado){ alert('Seleccioná un paciente arriba antes de agendar.'); return; }
   if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
@@ -733,8 +820,17 @@ async function tryAgendar(slot){
       : (error.message || 'No se pudo agendar.');
     alert(msg);
   } else {
-    alert('Turno agendado correctamente.');
+    // Mostrar confirmación bonita con WhatsApp
+    const profLabel = UI.profesionalSelect.options[UI.profesionalSelect.selectedIndex]?.textContent || 'Profesional';
+    openOkModal({
+      pac: pacienteSeleccionado,
+      fechaISO: modalDateISO,
+      start: slot.start,
+      end: slot.end,
+      profLabel
+    });
   }
+
   // refrescar modal y mes
   const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, view.y, view.m);
   const agendaDia = (agenda||[]).filter(a=>a.fecha===modalDateISO);
@@ -762,6 +858,12 @@ async function initTurnos(){
   await loadProfesionales();
   if (!currentProfesional){ UI.status.textContent='No hay profesional seleccionado.'; return; }
   await loadDuracionConfig(currentProfesional);
+  // cargar dirección del centro si está en readonly
+  if (!currentCentroDireccion){
+    const c = await fetchCentroById(currentCentroId);
+    currentCentroNombre = c.nombre || currentCentroNombre;
+    currentCentroDireccion = c.direccion || '';
+  }
   await renderCalendar();
 }
 await initTurnos();
