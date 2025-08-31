@@ -354,7 +354,7 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
         estado: 'disponible',
         notas: '',
         "Nombre de Agenda": nombre_agenda,
-        tipo_turno: 'null',
+        tipo_turno: '',
       };
       const { error: upsertError } = await supabase
         .from('agenda')
