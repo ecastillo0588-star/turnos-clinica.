@@ -403,6 +403,39 @@ document.getElementById('btn-eliminar-agenda').onclick = async function() {
     document.getElementById('btn-eliminar-agenda').disabled = true;
   }
 };
+
+
+console.log({
+  centro_id,
+  profesional_id,
+  fecha: fechaActual.toISOString().slice(0,10),
+  hora_inicio: b.hora_inicio,
+  hora_fin: b.hora_fin,
+  capacidad: 1,
+  estado: 'disponible',
+  notas: '',
+  "Nombre de Agenda": nombre_agenda,
+  tipo_turno: '', // Se asigna en la reserva
+});
+
+const { error: upsertError } = await supabase
+  .from('agenda')
+  .upsert({
+    centro_id,
+    profesional_id,
+    fecha: fechaActual.toISOString().slice(0,10),
+    hora_inicio: b.hora_inicio,
+    hora_fin: b.hora_fin,
+    capacidad: 1,
+    estado: 'disponible',
+    notas: '',
+    "Nombre de Agenda": nombre_agenda,
+    tipo_turno: 'nueva_consulta', // Usa el valor por defecto para que no falle
+  }, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
+
+if (upsertError) {
+  console.error("Supabase error:", upsertError);
+}
 </script>
 
 <style>
