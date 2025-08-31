@@ -71,31 +71,31 @@
   <div class="toolbar">
     <div class="field">
       <label>Centro médico</label>
-      <input id="centro-nombre" type="text" readonly />
+      <input id="turnos-centro-nombre" type="text" readonly />
     </div>
     <div class="field">
       <label>Profesional</label>
-      <select id="profesional-select"></select>
+      <select id="turnos-profesional-select"></select>
     </div>
     <div class="field">
       <label>Tipo de turno</label>
-      <select id="tipo-turno">
+      <select id="turnos-tipo">
         <option value="nueva_consulta">Nueva consulta</option>
         <option value="recurrente">Recurrente</option>
         <option value="sobreturno">Sobreturno</option>
       </select>
     </div>
     <div class="field" style="align-items:flex-end">
-      <button id="btn-hoy" class="btn ghost">Hoy</button>
+      <button id="turnos-btn-hoy" class="btn ghost">Hoy</button>
     </div>
   </div>
 
   <!-- Header calendario -->
   <div class="head">
     <div style="display:flex;gap:8px;align-items:center">
-      <button id="prev-month" class="btn secondary">◀</button>
-      <h2 id="cal-title">Calendario</h2>
-      <button id="next-month" class="btn secondary">▶</button>
+      <button id="turnos-prev-month" class="btn secondary">◀</button>
+      <h2 id="turnos-cal-title">Calendario</h2>
+      <button id="turnos-next-month" class="btn secondary">▶</button>
     </div>
     <div class="legend">
       <span class="dot free"></span> con disponibilidad
@@ -106,23 +106,23 @@
 
   <!-- Calendario -->
   <div class="cal">
-    <div class="cal-grid" id="cal-dow"></div>
-    <div class="cal-grid" id="cal-grid"></div>
+    <div class="cal-grid" id="turnos-cal-dow"></div>
+    <div class="cal-grid" id="turnos-cal-grid"></div>
   </div>
-  <div class="footer-mini" id="status"></div>
+  <div class="footer-mini" id="turnos-status"></div>
 </div>
 
 <!-- Modal Día -->
-<div class="modal-backdrop" id="modal">
+<div class="modal-backdrop" id="turnos-modal">
   <div class="modal">
     <header>
-      <h3 id="modal-title">Turnos del día</h3>
-      <button class="close" id="modal-close">&times;</button>
+      <h3 id="turnos-modal-title">Turnos del día</h3>
+      <button class="close" id="turnos-modal-close">&times;</button>
     </header>
     <div class="grid">
       <section class="slots">
         <h4>Horarios disponibles</h4>
-        <div id="slots-list"></div>
+        <div id="turnos-slots-list"></div>
         <div style="height:1px;background:var(--line);margin:10px 0"></div>
         <h4>Turnos del día</h4>
         <div id="turnos-dia-list"></div>
@@ -130,23 +130,23 @@
       <aside class="side">
         <h4>Paciente</h4>
         <div class="search-row">
-          <input id="paciente-buscar" placeholder="DNI o Apellido/Nombre" />
-          <button class="btn ghost" id="btn-buscar-pac">Buscar</button>
+          <input id="turnos-paciente-buscar" placeholder="DNI o Apellido/Nombre" />
+          <button class="btn ghost" id="turnos-btn-buscar-pac">Buscar</button>
         </div>
-        <div id="pacientes-list" class="list"></div>
+        <div id="turnos-pacientes-list" class="list"></div>
         <div style="height:1px;background:var(--line);margin:10px 0"></div>
         <details>
           <summary class="pill">Crear paciente rápido</summary>
           <div style="margin-top:8px;display:grid;grid-template-columns:1fr 1fr;gap:8px">
-            <input id="p-dni" placeholder="DNI *"/>
-            <input id="p-nombre" placeholder="Nombre *"/>
-            <input id="p-apellido" placeholder="Apellido *"/>
-            <input id="p-telefono" placeholder="Teléfono"/>
-            <input id="p-email" placeholder="Email" style="grid-column: span 2"/>
+            <input id="turnos-p-dni" placeholder="DNI *"/>
+            <input id="turnos-p-nombre" placeholder="Nombre *"/>
+            <input id="turnos-p-apellido" placeholder="Apellido *"/>
+            <input id="turnos-p-telefono" placeholder="Teléfono"/>
+            <input id="turnos-p-email" placeholder="Email" style="grid-column: span 2"/>
           </div>
           <div style="margin-top:8px">
-            <button class="btn" id="btn-crear-pac">Crear paciente</button>
-            <span id="pac-create-msg" class="footer-mini"></span>
+            <button class="btn" id="turnos-btn-crear-pac">Crear paciente</button>
+            <span id="turnos-pac-create-msg" class="footer-mini"></span>
           </div>
         </details>
         <div style="height:1px;background:var(--line);margin:10px 0"></div>
@@ -160,7 +160,36 @@
 import supabase from './supabaseClient.js';
 import { isValidHourRange } from './validators.js';
 
-/* ============ Estado global / sesión ============ */
+/* ========= IDs (prefijo turnos- para evitar colisiones con otros módulos) ========= */
+const UI = {
+  centroNombre: document.getElementById('turnos-centro-nombre'),
+  profesionalSelect: document.getElementById('turnos-profesional-select'),
+  tipoTurno: document.getElementById('turnos-tipo'),
+  btnHoy: document.getElementById('turnos-btn-hoy'),
+  prevMonth: document.getElementById('turnos-prev-month'),
+  nextMonth: document.getElementById('turnos-next-month'),
+  calTitle: document.getElementById('turnos-cal-title'),
+  calGrid: document.getElementById('turnos-cal-grid'),
+  calDow: document.getElementById('turnos-cal-dow'),
+  status: document.getElementById('turnos-status'),
+  modal: document.getElementById('turnos-modal'),
+  modalClose: document.getElementById('turnos-modal-close'),
+  modalTitle: document.getElementById('turnos-modal-title'),
+  slotsList: document.getElementById('turnos-slots-list'),
+  turnosDiaList: document.getElementById('turnos-dia-list'),
+  buscarInput: document.getElementById('turnos-paciente-buscar'),
+  btnBuscarPac: document.getElementById('turnos-btn-buscar-pac'),
+  pacList: document.getElementById('turnos-pacientes-list'),
+  pDni: document.getElementById('turnos-p-dni'),
+  pNombre: document.getElementById('turnos-p-nombre'),
+  pApellido: document.getElementById('turnos-p-apellido'),
+  pTel: document.getElementById('turnos-p-telefono'),
+  pEmail: document.getElementById('turnos-p-email'),
+  btnCrearPac: document.getElementById('turnos-btn-crear-pac'),
+  pacCreateMsg: document.getElementById('turnos-pac-create-msg'),
+};
+
+/* ========= Sesión ========= */
 const centroId = localStorage.getItem('centro_medico_id');
 let centroNombre = localStorage.getItem('centro_medico_nombre') || '';
 const userRole = localStorage.getItem('user_role');                 // 'medico' | 'asistente' | 'propietario'
@@ -171,47 +200,7 @@ if (!centroId) {
   window.location.href = 'index.html';
 }
 
-const UI = {
-  centroNombre: document.getElementById('centro-nombre'),
-  profesionalSelect: document.getElementById('profesional-select'),
-  tipoTurno: document.getElementById('tipo-turno'),
-  btnHoy: document.getElementById('btn-hoy'),
-  prevMonth: document.getElementById('prev-month'),
-  nextMonth: document.getElementById('next-month'),
-  calTitle: document.getElementById('cal-title'),
-  calGrid: document.getElementById('cal-grid'),
-  calDow: document.getElementById('cal-dow'),
-  status: document.getElementById('status'),
-  modal: document.getElementById('modal'),
-  modalClose: document.getElementById('modal-close'),
-  modalTitle: document.getElementById('modal-title'),
-  slotsList: document.getElementById('slots-list'),
-  turnosDiaList: document.getElementById('turnos-dia-list'),
-  buscarInput: document.getElementById('paciente-buscar'),
-  btnBuscarPac: document.getElementById('btn-buscar-pac'),
-  pacList: document.getElementById('pacientes-list'),
-  pDni: document.getElementById('p-dni'),
-  pNombre: document.getElementById('p-nombre'),
-  pApellido: document.getElementById('p-apellido'),
-  pTel: document.getElementById('p-telefono'),
-  pEmail: document.getElementById('p-email'),
-  btnCrearPac: document.getElementById('btn-crear-pac'),
-  pacCreateMsg: document.getElementById('pac-create-msg'),
-};
-
-async function ensureCentroNombre() {
-  if (centroNombre) return;
-  const { data, error } = await supabase
-    .from('centros_medicos')
-    .select('nombre')
-    .eq('id', centroId)
-    .single();
-  if (!error && data) centroNombre = data.nombre;
-}
-await ensureCentroNombre();
-UI.centroNombre.value = centroNombre || '(sin nombre)';
-
-/* ============ Fecha visible del calendario ============ */
+/* ========= Tiempo/helpers ========= */
 function todayInfo(){ const d=new Date(); return { y:d.getFullYear(), m:d.getMonth(), d:d.getDate() }; }
 function pad(n){ return n<10 ? '0'+n : ''+n; }
 function toISODate(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; } // m 0-based
@@ -222,6 +211,7 @@ const DOW = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 function nativeFirstDow(date){ const js=date.getDay(); return (js===0)?6:js-1; }
 function groupByFecha(arr){ const map=new Map(); for(const x of arr){ const k=x.fecha; if(!map.has(k)) map.set(k,[]); map.get(k).push(x); } return map; }
 
+/* ========= Estado ========= */
 let view = todayInfo();
 let currentProfesional = null;
 let duracionCfg = { nueva_consulta:15, recurrente:15, sobreturno:15 };
@@ -229,7 +219,21 @@ let pacientesCache = [];
 let pacienteSeleccionado = null;
 let modalDateISO = null;
 
-/* ============ Profesionales por rol ============ */
+/* ========= UI fijas ========= */
+function renderDOW(){ UI.calDow.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
+
+/* ========= Centro ========= */
+async function ensureCentroNombre() {
+  if (centroNombre) return;
+  const { data, error } = await supabase
+    .from('centros_medicos')
+    .select('nombre')
+    .eq('id', centroId)
+    .single();
+  if (!error && data) centroNombre = data.nombre;
+}
+
+/* ========= Profesionales ========= */
 async function loadProfesionales(){
   // Médico logueado: él mismo
   if (userRole === 'medico' && loggedProfesionalId) {
@@ -238,11 +242,9 @@ async function loadProfesionales(){
       .select('id, nombre, apellido, display_name')
       .eq('id', loggedProfesionalId)
       .single();
-
     const label = (!error && data)
       ? (data.display_name || [data.apellido, data.nombre].filter(Boolean).join(', ') || data.nombre || data.apellido || data.id)
       : 'Profesional';
-
     UI.profesionalSelect.innerHTML = `<option value="${loggedProfesionalId}">${label}</option>`;
     UI.profesionalSelect.disabled = true;
     currentProfesional = loggedProfesionalId;
@@ -286,7 +288,7 @@ async function loadProfesionales(){
   UI.profesionalSelect.value = currentProfesional;
 }
 
-/* ============ Config duraciones ============ */
+/* ========= Config duraciones ========= */
 async function loadDuracionConfig(profesionalId){
   duracionCfg = { nueva_consulta:15, recurrente:15, sobreturno:15 };
   const { data, error } = await supabase
@@ -299,7 +301,7 @@ async function loadDuracionConfig(profesionalId){
   }
 }
 
-/* ============ Queries de mes ============ */
+/* ========= Queries de mes ========= */
 async function fetchAgendaYTurnos(profesionalId, y, m){
   const { start, end } = monthRange(y,m);
   const [agendaRes, turnosRes] = await Promise.all([
@@ -317,7 +319,7 @@ async function fetchAgendaYTurnos(profesionalId, y, m){
   return { agenda: agendaRes.data || [], turnos: turnosRes.data || [] };
 }
 
-/* ============ Slots ============ */
+/* ========= Slots ========= */
 function generarSlotsDeDia(agendaDelDia, turnosDelDia, tipo){
   const dur = Number(duracionCfg[tipo] || 15);
   if (!dur || isNaN(dur) || dur<=0) return [];
@@ -334,9 +336,7 @@ function generarSlotsDeDia(agendaDelDia, turnosDelDia, tipo){
   return slots.sort((a,b)=> a.start<b.start?-1:a.start>b.start?1:0);
 }
 
-/* ============ Render calendario ============ */
-function renderDOW(){ UI.calDow.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
-
+/* ========= Render calendario ========= */
 async function renderCalendar(){
   if (!currentProfesional){ UI.status.textContent='No hay profesional seleccionado.'; UI.calGrid.innerHTML=''; return; }
   UI.status.textContent = 'Cargando agenda...';
@@ -389,7 +389,7 @@ async function renderCalendar(){
     : '';
 }
 
-/* ============ Modal día ============ */
+/* ========= Modal día ========= */
 function renderTurnosDelDia(turnosDia){
   if (!turnosDia?.length){ UI.turnosDiaList.innerHTML = '<div class="empty">No hay turnos en esta fecha.</div>'; return; }
   UI.turnosDiaList.innerHTML = turnosDia.map(t=>`
@@ -436,7 +436,7 @@ async function openDayModal(isoDate, agendaDia, turnosDia){
 UI.modalClose.addEventListener('click', ()=> UI.modal.style.display='none');
 window.addEventListener('click', (e)=>{ if(e.target===UI.modal) UI.modal.style.display='none' });
 
-/* ============ Pacientes: búsqueda / alta ============ */
+/* ========= Pacientes ========= */
 function pacienteCard(p){
   const full = `${p.apellido}, ${p.nombre}`;
   const sel = pacienteSeleccionado?.id === p.id ? 'style="outline:2px solid var(--brand);border-radius:6px;"' : '';
@@ -517,7 +517,7 @@ UI.btnCrearPac.addEventListener('click', async ()=>{
   highlightPacienteSeleccionado();
 });
 
-/* ============ Agendar ============ */
+/* ========= Agendar ========= */
 async function tryAgendar(slot){
   if (!pacienteSeleccionado){ alert('Seleccioná un paciente antes de agendar.'); return; }
   if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
@@ -545,7 +545,7 @@ async function tryAgendar(slot){
     return;
   }
   alert('Turno agendado correctamente.');
-  await refreshModalDay(true);
+  await refreshModalDay();
 }
 
 async function refreshModalDay(){
@@ -558,8 +558,7 @@ async function refreshModalDay(){
   await renderCalendar();
 }
 
-/* ============ UX general ============ */
-function renderDOW(){ UI.calDow.innerHTML = DOW.map(d=>`<div class="dow">${d}</div>`).join(''); }
+/* ========= Eventos generales ========= */
 UI.profesionalSelect.addEventListener('change', async ()=>{
   currentProfesional = UI.profesionalSelect.value || null;
   await loadDuracionConfig(currentProfesional);
@@ -570,16 +569,18 @@ UI.prevMonth.addEventListener('click', async ()=>{ if (view.m===0){ view.m=11; v
 UI.nextMonth.addEventListener('click', async ()=>{ if (view.m===11){ view.m=0; view.y++; } else view.m++; await renderCalendar(); });
 UI.btnHoy.addEventListener('click', async ()=>{ const t=todayInfo(); view={ y:t.y, m:t.m, d:t.d }; await renderCalendar(); });
 
-/* ============ Init ============ */
-async function init(){
+/* ========= Init ========= */
+async function initTurnos(){
   renderDOW();
+  await ensureCentroNombre();
+  UI.centroNombre.value = centroNombre || '(sin nombre)';
   await loadProfesionales();
   if (!currentProfesional){ UI.status.textContent='No hay profesional seleccionado.'; return; }
   await loadDuracionConfig(currentProfesional);
   await renderCalendar();
   await buscarPacientes();
 }
-await init();
+await initTurnos();
 </script>
 </body>
 </html>
