@@ -97,12 +97,6 @@
     .menu button.active, .menu-subitem.active { background: #e7e2fa; color: #7656b0; }
     .menu button:hover, .menu-subitem:hover { background: #ece5fc; }
     .separator { border-bottom: 1px solid #ece5fc; margin: 14px 0 10px 0; }
-    .submenu-toggle { display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 7px 16px; font-weight: 500; color: #381e60; }
-    .submenu-toggle .caret { font-size: 15px; margin-left: 5px; transition: transform 0.18s; }
-    .submenu-toggle.open .caret { transform: rotate(90deg); }
-    .submenu-items { display: none; flex-direction: column; gap: 6px; margin-left: 18px; }
-    .submenu-items.show { display: flex; }
-    .menu-subitem { background: #f7f9fb; border: none; padding: 8px 12px; border-radius: 6px; font-size: 14px; color: #381e60; cursor: pointer; text-align: left; }
     .settings-slot { margin-top: auto; margin-bottom: 16px; }
     .settings-btn { background: #7656b0; color: #fff; border: none; border-radius: 7px; padding: 11px 0; font-size: 16px; cursor:pointer; font-weight: 500; width: 92%; margin-left: 2px;}
     .settings-btn:hover { background: #7f62b6; }
@@ -120,7 +114,6 @@
     }
     .power-btn:hover .tooltip { display: block;}
     .main { padding: 32px 20px; min-height: 100vh; background: #f7f9fb;}
-    .topbar { display: none; }
     .card { background: #fff; padding: 28px 22px; border-radius: 14px; box-shadow: 0 2px 12px rgba(80,60,160,0.10); max-width: 700px; margin: 0 auto; }
     .card h2 { margin-top: 0;}
     .hidden { display: none; }
@@ -139,18 +132,9 @@
         <span class="custom-select"><select id="centro-select"></select></span>
       </div>
       <nav class="menu">
-        <button id="btn-dashboard" class="active">Inicio</button>
+        <button id="btn-inicio" class="active">Inicio</button>
+        <button id="btn-turnos">Turnos</button>
         <button id="btn-pacientes">Pacientes</button>
-        <button id="btn-profesionales">Profesionales</button>
-        <div class="separator"></div>
-        <div class="submenu-toggle" id="submenu-toggle">
-          <span>Reportes</span>
-          <span class="caret">&#9654;</span>
-        </div>
-        <div class="submenu-items" id="submenu-items">
-          <button class="menu-subitem" id="btn-reporte-1">Turnos</button>
-          <button class="menu-subitem" id="btn-reporte-2">Facturación</button>
-        </div>
       </nav>
       <div class="settings-slot">
         <button class="settings-btn btn" id="btn-config">Configuración</button>
@@ -167,9 +151,7 @@
     </aside>
     <main class="main">
       <div id="main-content" class="card">
-        <h2>Bienvenido</h2>
-        <img src="https://i.postimg.cc/ZY8mGGf2/Chat-GPT-Image-30-ago-2025-17-14-28.png" alt="EG Health Solutions Logo" style="max-width:140px;margin-bottom:18px;display:block;">
-        <p>Selecciona una opción del menú lateral.</p>
+        <!-- El contenido inicial se carga desde inicio.html -->
       </div>
       <div id="configuracion-panel" class="hidden"></div>
     </main>
@@ -183,7 +165,6 @@
     document.getElementById('user-name').textContent = userName;
     document.getElementById('user-rol').textContent = userRol;
 
-    // Ocultar botón configuración para asistentes
     if (userRol === "asistente") {
       document.getElementById('btn-config').style.display = 'none';
     }
@@ -193,92 +174,89 @@
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    async function cargarCentrosUsuario() {
+    async function cargarCentroDashboard() {
+      const centroSelect = document.getElementById('centro-select');
+      centroSelect.innerHTML = '<option disabled selected>Cargando...</option>';
       let centros = [];
       if (profesionalId) {
-        let { data, error } = await supabase
+        const { data, error } = await supabase
           .from('profesional_centro')
           .select('centro_id, centros_medicos(id, nombre)')
           .eq('profesional_id', profesionalId)
           .eq('activo', true);
-        if (!error && data) {
-          centros = data.filter(row=>row.centros_medicos).map(row=>({
-            id: row.centros_medicos.id,
-            nombre: row.centros_medicos.nombre
-          }));
+
+        if (!error && data && data.length > 0) {
+          centros = data
+            .filter(row => row.centros_medicos)
+            .map(row => ({
+              id: row.centros_medicos.id,
+              nombre: row.centros_medicos.nombre
+            }));
         }
       }
-      return centros;
-    }
 
-    async function inicializarCentros() {
-      const centros = await cargarCentrosUsuario();
-      const centroSelect = document.getElementById('centro-select');
       centroSelect.innerHTML = '';
+      if (centros.length === 0) {
+        centroSelect.innerHTML = '<option disabled selected>No hay centros</option>';
+        localStorage.removeItem('centro_medico_id');
+        localStorage.removeItem('centro_medico_nombre');
+        return;
+      }
+
       centros.forEach(c => {
         const opt = document.createElement('option');
         opt.value = c.id;
         opt.textContent = c.nombre;
         centroSelect.appendChild(opt);
       });
-      centroSelect.value = centroId || centros[0]?.id || '';
+
+      centroSelect.value = centroId || centros[0].id;
+
       centroSelect.onchange = function() {
-        const seleccionado = centros.find(c=>c.id === this.value);
+        const seleccionado = centros.find(c => c.id === this.value);
         localStorage.setItem('centro_medico_id', seleccionado.id);
         localStorage.setItem('centro_medico_nombre', seleccionado.nombre);
-      }
+      };
     }
 
-    await inicializarCentros();
+    await cargarCentroDashboard();
 
-    // Sidebar submenu toggle
-    const submenuToggle = document.getElementById('submenu-toggle');
-    const submenuItems = document.getElementById('submenu-items');
-    submenuToggle.addEventListener('click', function() {
-      submenuItems.classList.toggle('show');
-      submenuToggle.classList.toggle('open');
-    });
-
-    function showPanel(panel) {
-      document.getElementById('main-content').classList.add('hidden');
-      document.getElementById('configuracion-panel').classList.add('hidden');
-      if(panel === 'dashboard') document.getElementById('main-content').classList.remove('hidden');
-      if(panel === 'config') document.getElementById('configuracion-panel').classList.remove('hidden');
+    // Carga dinámica de html externo en el main-content
+    async function cargarPanelHtml(url) {
+      const resp = await fetch(url);
+      let html = await resp.text();
+      document.getElementById('main-content').innerHTML = html;
+      // Ejecutar scripts de tipo module si existen en el html cargado
+      Array.from(document.getElementById('main-content').querySelectorAll('script[type="module"]')).forEach(oldScript => {
+        const newScript = document.createElement('script');
+        newScript.type = 'module';
+        if (oldScript.src) newScript.src = oldScript.src;
+        else newScript.textContent = oldScript.textContent;
+        document.body.appendChild(newScript);
+      });
     }
 
-    document.getElementById('btn-dashboard').addEventListener('click', function() {
+    // Cargar inicio.html al cargar la página
+    await cargarPanelHtml('inicio.html');
+
+    document.getElementById('btn-inicio').addEventListener('click', async function() {
       setActiveMenu(this);
-      showPanel('dashboard');
-      document.getElementById('main-content').innerHTML = `<h2>Bienvenido</h2>
-        <img src="https://i.postimg.cc/ZY8mGGf2/Chat-GPT-Image-30-ago-2025-17-14-28.png" alt="EG Health Solutions Logo" style="max-width:140px;margin-bottom:18px;display:block;">
-        <p>Selecciona una opción del menú lateral.</p>`;
+      await cargarPanelHtml('inicio.html');
     });
-    document.getElementById('btn-pacientes').addEventListener('click', function() {
+    document.getElementById('btn-turnos').addEventListener('click', async function() {
       setActiveMenu(this);
-      showPanel('dashboard');
-      document.getElementById('main-content').innerHTML = `<h2>Pacientes</h2><p>Aquí irá la gestión de pacientes...</p>`;
+      await cargarPanelHtml('turnos.html');
     });
-    document.getElementById('btn-profesionales').addEventListener('click', function() {
+    document.getElementById('btn-pacientes').addEventListener('click', async function() {
       setActiveMenu(this);
-      showPanel('dashboard');
-      document.getElementById('main-content').innerHTML = `<h2>Profesionales</h2><p>Aquí irá la gestión de profesionales...</p>`;
-    });
-    document.getElementById('btn-reporte-1').addEventListener('click', function() {
-      setActiveSubMenu(this);
-      showPanel('dashboard');
-      document.getElementById('main-content').innerHTML = `<h2>Reporte de turnos</h2><p>Gráficos e información de turnos.</p>`;
-    });
-    document.getElementById('btn-reporte-2').addEventListener('click', function() {
-      setActiveSubMenu(this);
-      showPanel('dashboard');
-      document.getElementById('main-content').innerHTML = `<h2>Reporte de facturación</h2><p>Gráficos e información de facturación.</p>`;
+      await cargarPanelHtml('pacientes.html');
     });
     document.getElementById('btn-config').addEventListener('click', async function() {
       setActiveMenu(this);
-      showPanel('config');
+      document.getElementById('main-content').classList.add('hidden');
+      document.getElementById('configuracion-panel').classList.remove('hidden');
       await cargarPanelConfiguracion();
     });
-
     document.getElementById('btn-logout').addEventListener('click', function() {
       localStorage.clear();
       window.location.href = "index.html";
@@ -287,15 +265,8 @@
     function setActiveMenu(btn) {
       document.querySelectorAll('.menu button').forEach(b => b.classList.remove('active'));
       if (btn) btn.classList.add('active');
-      document.querySelectorAll('.menu-subitem').forEach(b => b.classList.remove('active'));
-    }
-    function setActiveSubMenu(btn) {
-      setActiveMenu(null);
-      document.querySelectorAll('.menu-subitem').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
     }
 
-    // Panel de configuración: carga el archivo configuracion.html y lo inserta en el div
     async function cargarPanelConfiguracion() {
       const resp = await fetch('configuracion.html');
       let html = await resp.text();
