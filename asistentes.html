@@ -77,9 +77,12 @@
 
 <script type="module">
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+// IMPORTANTE: Para crear usuarios en Auth necesitas la "service key" de Supabase (NO el anon key).
 const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Reemplaza esta clave por tu Supabase service key (NO la anon key)
+const supabaseServiceKey = 'TU_SERVICE_KEY_AQUI';
+const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 const profesionalId = localStorage.getItem('profesional_id');
 
@@ -203,43 +206,37 @@ formAsistente.addEventListener('submit', async function(e) {
   }
   modalAsistenteStatus.textContent = 'Guardando...';
 
-  // Verifica si el email ya existe
-  const { data: existentes, error: errorCheck } = await supabase
+  // Verifica si el email ya existe en Auth (opcional: podrías usar supabase.auth.admin.listUsers())
+  // 1. Crear el usuario en Auth
+  const { data: user, error: errorUser } = await supabase.auth.admin.createUser({
+    email,
+    password: 'Asistente_' + Math.random().toString(36).slice(-8), // contraseña temporal
+    email_confirm: true
+  });
+  if (errorUser) {
+    modalAsistenteStatus.textContent = 'Error al crear usuario en Auth: ' + errorUser.message;
+    return;
+  }
+
+  // 2. Crear el registro en profiles usando el id del usuario Auth
+  const userId = user.user.id;
+  const { error: errorProfile } = await supabase
     .from('profiles')
-    .select('id')
-    .eq('email', email);
-
-  if (errorCheck) {
-    modalAsistenteStatus.textContent = 'Error al verificar el email: ' + errorCheck.message;
+    .insert([{ id: userId, email, display_name: nombre, role: 'asistente', active: activo }]);
+  if (errorProfile) {
+    modalAsistenteStatus.textContent = 'Error al crear asistente: ' + errorProfile.message;
     return;
   }
 
-  if (existentes && existentes.length > 0) {
-    modalAsistenteStatus.textContent = 'Ya existe un asistente con ese email.';
-    return;
-  }
-
-  // Generar UUID para el asistente
-  const id = ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-    (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
-  );
-
-  // Crear asistente en profiles usando supabase-js (NO fetch directo)
-  const { error: errorAsistente } = await supabase
-    .from('profiles')
-    .insert([{ id, email, display_name: nombre, role: 'asistente', active: activo }]);
-  if (errorAsistente) {
-    modalAsistenteStatus.textContent = 'Error al crear asistente: ' + errorAsistente.message;
-    return;
-  }
-  // Asociar al centro
+  // 3. Asociar al centro
   const { error: errorPC } = await supabase
     .from('profesional_centro')
-    .insert({ profesional_id: id, centro_id, activo: true });
+    .insert({ profesional_id: userId, centro_id, activo: true });
   if (errorPC) {
     modalAsistenteStatus.textContent = 'Asistente creado, pero error al asociar al centro';
     return;
   }
+
   modalAsistenteStatus.textContent = 'Asistente creado y asociado exitosamente!';
   await cargarTablaAsistentes();
   setTimeout(() => { modalAsistente.style.display = 'none'; }, 1200);
