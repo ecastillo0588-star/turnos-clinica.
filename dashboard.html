@@ -230,14 +230,20 @@
 
     document.getElementById('btn-inicio').addEventListener('click', async function() {
       setActiveMenu(this);
+      document.getElementById('main-content').classList.remove('hidden');
+      document.getElementById('configuracion-panel').classList.add('hidden');
       await cargarPanelHtml('inicio.html');
     });
     document.getElementById('btn-turnos').addEventListener('click', async function() {
       setActiveMenu(this);
+      document.getElementById('main-content').classList.remove('hidden');
+      document.getElementById('configuracion-panel').classList.add('hidden');
       await cargarPanelHtml('turnos.html');
     });
     document.getElementById('btn-pacientes').addEventListener('click', async function() {
       setActiveMenu(this);
+      document.getElementById('main-content').classList.remove('hidden');
+      document.getElementById('configuracion-panel').classList.add('hidden');
       await cargarPanelHtml('pacientes.html');
     });
     document.getElementById('btn-config').addEventListener('click', async function() {
