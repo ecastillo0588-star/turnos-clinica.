@@ -19,46 +19,24 @@
     .bloque-nombre-agenda label { font-size:15px; margin-bottom:2px; color:#381e60; }
     .obligatorio { color: #c2001d; font-weight:700; font-size:1em; }
     .hidden { display:none; }
-    .agenda-footer-sticky {
-      position: sticky;
-      bottom: 0;
-      left: 0;
-      background: #f7f4fa;
-      width: 100%;
-      padding: 14px 0 10px 0;
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      z-index: 99;
-      border-top: 1px solid #ece3fa;
-    }
-    .centro-form-block {
-      background: #f3eafc;
-      border-radius: 8px;
-      box-shadow: 0 1px 6px rgba(120,80,180,.07);
-      padding: 14px 16px 12px 16px;
-      margin-top: 8px;
-      margin-bottom: 8px;
-      max-width:320px;
-    }
-    .centro-form-block h4 {margin-top:0;margin-bottom:8px;color:#7656b0;font-size:16px;}
-    .centro-form-block label {display:block;font-size:13px;margin-bottom:2px;margin-top:8px;}
+    .agenda-footer-sticky { position: sticky; bottom: 0; left: 0; background: #f7f4fa; width: 100%; padding: 14px 0 10px 0; display: flex; align-items: center; justify-content: flex-start; z-index: 99; border-top: 1px solid #ece3fa; }
+    .centro-form-block { background: #f3eafc; border-radius: 8px; box-shadow: 0 1px 6px rgba(120,80,180,.07); padding: 14px 16px 12px 16px; margin: 8px 0; max-width:320px; }
+    .centro-form-block h4 {margin:0 0 8px;color:#7656b0;font-size:16px;}
+    .centro-form-block label {display:block;font-size:13px;margin:8px 0 2px;}
     .centro-form-block input {width:95%;margin-bottom:4px;}
-    .agendas-list-card { max-width:440px; margin: 28px auto 18px auto; background: #fff; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.08); padding: 18px 22px; }
-    .agendas-list-card h3 { margin-top:0; margin-bottom:14px; color:#391e60; font-size:18px;}
+    .agendas-list-card { max-width:440px; margin: 28px auto 18px; background: #fff; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.08); padding: 18px 22px; }
+    .agendas-list-card h3 { margin:0 0 14px; color:#391e60; font-size:18px;}
   </style>
 </head>
 <body>
-<!-- Generador de Agenda de Disponibilidad de Turnos -->
 <div class="card agenda-generador">
   <h2>Generar Agenda de Disponibilidad</h2>
-  <!-- Nombre de la agenda -->
+
   <section class="bloque-nombre-agenda">
     <label for="nombre-agenda"><b>Nombre de la agenda <span class="obligatorio">*</span></b></label><br>
     <input type="text" id="nombre-agenda" placeholder="Ejemplo: Agenda Septiembre 2025" style="max-width:300px;" required>
   </section>
 
-  <!-- Bloque de Fechas y Centro -->
   <section class="bloque-fechas" style="margin-top:14px;">
     <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;">
       <div>
@@ -77,7 +55,7 @@
         <button type="button" class="btn" id="btn-nuevo-centro" style="margin-top:6px;">Agregar nuevo centro</button>
       </div>
     </div>
-    <!-- Formulario para crear centro médico completo -->
+
     <div id="nuevo-centro-form" class="hidden centro-form-block">
       <h4>Nuevo Centro Médico</h4>
       <div>
@@ -105,7 +83,6 @@
     </div>
   </section>
 
-  <!-- Tabla compacta de horarios por día -->
   <section class="bloque-horario-dias" style="margin-top:18px;">
     <h3 style="margin-bottom:9px;">Horarios por Día</h3>
     <table class="horarios-table-compact">
@@ -119,21 +96,16 @@
           <th style="width:55px;">Habilitar</th>
         </tr>
       </thead>
-      <tbody id="horarios-body">
-        <!-- Se llena por JS -->
-      </tbody>
+      <tbody id="horarios-body"></tbody>
     </table>
   </section>
 </div>
 
-<!-- Botón SIEMPRE visible y sticky -->
 <div class="agenda-footer-sticky">
-  <button class="btn primary" id="btn-generar-agenda" disabled
-    title="Debe completar los campos obligatorios*">Generar agenda</button>
+  <button class="btn primary" id="btn-generar-agenda" disabled title="Debe completar los campos obligatorios*">Generar agenda</button>
   <span id="msg-agenda" style="margin-left:18px;"></span>
 </div>
 
-<!-- Listado y eliminación de agendas -->
 <div class="agendas-list-card" id="agendas-list-card">
   <h3>Eliminar una Agenda</h3>
   <label for="select-agenda"><b>Seleccione la agenda a eliminar:</b></label>
@@ -148,7 +120,9 @@
 import supabase from './supabaseClient.js';
 import { isValidMorning, isValidAfternoon } from './validators.js';
 
-const profesional_id = localStorage.getItem('profesional_id');
+console.assert(supabase && typeof supabase.from === 'function', '❌ Supabase no inicializado: revisá supabaseClient.js (default export)');
+
+const profesional_id   = localStorage.getItem('profesional_id');
 const centro_default_id = localStorage.getItem('centro_medico_id');
 if (!profesional_id || !centro_default_id) {
   alert('Sesión no iniciada o datos incompletos. Redirigiendo a login.');
@@ -160,16 +134,18 @@ const DIAS = [
   {nombre:'jueves', label:'JUEV'}, {nombre:'viernes', label:'VIER'}, {nombre:'sabado', label:'SÁB'}
 ];
 
-// --- Renderizar tabla horarios ---
+// ------ UI horarios
 function generarOpcionesHora(inicio, fin) {
   const opciones = ['<option value="">--</option>'];
   for (let h = inicio; h < fin; h++) {
     for (let m = 0; m < 60; m += 15) {
-      const hora = (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m;
-      opciones.push(`<option value="${hora}">${hora}</option>`);
+      const hh = (h < 10 ? '0' : '') + h;
+      const mm = (m < 10 ? '0' : '') + m;
+      opciones.push(`<option value="${hh}:${mm}">${hh}:${mm}</option>`);
     }
   }
-  opciones.push(`<option value="${(fin<10?'0':'')+fin}:00">${(fin<10?'0':'')+fin}:00</option>`);
+  const end = (fin<10?'0':'')+fin;
+  opciones.push(`<option value="${end}:00">${end}:00</option>`);
   return opciones.join('');
 }
 
@@ -191,7 +167,7 @@ function renderTablaHorarios() {
     tbody.appendChild(tr);
   });
 
-  DIAS.forEach((dia, idx)=>{
+  DIAS.forEach((_, idx)=>{
     document.querySelector(`[name="hab_${idx}"]`).onchange = function() {
       const disabled = !this.checked;
       ['tm_ini','tm_fin','tt_ini','tt_fin'].forEach(prefix=>{
@@ -204,7 +180,7 @@ function renderTablaHorarios() {
 }
 renderTablaHorarios();
 
-// --- Cargar centros médicos activos ---
+// ------ Centros activos
 async function cargarCentros() {
   const selector = document.getElementById('centro-agenda');
   selector.innerHTML = '<option value="">Seleccione un centro...</option>';
@@ -214,8 +190,8 @@ async function cargarCentros() {
       .select('id, nombre')
       .eq('activo', true)
       .order('nombre', { ascending: true });
-    if (error || !Array.isArray(centros)) throw error;
-    centros.forEach(c => {
+    if (error) throw error;
+    (centros || []).forEach(c => {
       const opt = document.createElement('option');
       opt.value = c.id;
       opt.textContent = c.nombre;
@@ -230,6 +206,7 @@ async function cargarCentros() {
     opt.textContent = "Error al cargar";
     opt.className = "error-option";
     selector.appendChild(opt);
+    console.error('Error cargarCentros:', e);
   }
 }
 cargarCentros();
@@ -240,7 +217,7 @@ document.getElementById('btn-nuevo-centro').onclick = () =>
 document.getElementById('cancelar-nuevo-centro').onclick = () =>
   document.getElementById('nuevo-centro-form').classList.add('hidden');
 
-// Guardar nuevo centro médico
+// Guardar nuevo centro
 document.getElementById('guardar-nuevo-centro').onclick = async function() {
   const nombre = document.getElementById('nuevo-centro-nombre').value.trim();
   if (!nombre) return alert("El nombre es obligatorio");
@@ -266,26 +243,27 @@ document.getElementById('guardar-nuevo-centro').onclick = async function() {
       .forEach(id=> document.getElementById(id).value = '');
     validarCamposAgenda();
   } else {
+    console.error('Error creando centro:', error);
     alert('Error al crear centro médico');
   }
 };
 
-// --- Validaciones en tiempo real ---
+// ------ Validaciones mínimas
 const campos_requeridos = ['nombre-agenda', 'fecha-inicio', 'fecha-fin','centro-agenda'];
 campos_requeridos.forEach(id => {
   document.getElementById(id).addEventListener('input', validarCamposAgenda);
 });
 function validarCamposAgenda() {
-  let valido = campos_requeridos.every(id => document.getElementById(id).value);
+  const completo = campos_requeridos.every(id => document.getElementById(id).value);
   const btn = document.getElementById('btn-generar-agenda');
-  btn.disabled = !valido;
-  btn.title = valido ? "" : "Debe completar los campos obligatorios*";
+  btn.disabled = !completo;
+  btn.title = completo ? "" : "Debe completar los campos obligatorios*";
 }
 
-// --- Validación horarios ---
+// ------ Validación horarios
 function horarioValido() {
   let valido = true;
-  DIAS.forEach((dia, idx)=>{
+  DIAS.forEach((_, idx)=>{
     const habilitado = document.querySelector(`[name="hab_${idx}"]`).checked;
     if(!habilitado) return;
     const tm_ini = document.querySelector(`[name="tm_ini_${idx}"]`).value;
@@ -299,7 +277,7 @@ function horarioValido() {
   return valido;
 }
 
-// --- Generar agenda ---
+// ------ Generar agenda
 document.getElementById('btn-generar-agenda').onclick = async function() {
   const msg = document.getElementById('msg-agenda');
   msg.textContent = '';
@@ -308,9 +286,9 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     return;
   }
   const nombre_agenda = document.getElementById('nombre-agenda').value.trim();
-  const fecha_inicio = document.getElementById('fecha-inicio').value;
-  const fecha_fin = document.getElementById('fecha-fin').value;
-  const centro_id = document.getElementById('centro-agenda').value;
+  const fecha_inicio  = document.getElementById('fecha-inicio').value;
+  const fecha_fin     = document.getElementById('fecha-fin').value;
+  const centro_id     = document.getElementById('centro-agenda').value;
 
   const bloques = [];
   DIAS.forEach((dia, idx)=>{
@@ -342,6 +320,7 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     const diaMap = {1:'lunes',2:'martes',3:'miercoles',4:'jueves',5:'viernes',6:'sabado'};
     const diaSemana = diaMap[diaSemanaNum];
     if(!diaSemana) { fechaActual.setDate(fechaActual.getDate()+1); continue; }
+
     const bloquesDia = bloques.filter(b=>b.dia===diaSemana);
     for(const b of bloquesDia){
       const registro = {
@@ -354,12 +333,16 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
         estado: 'disponible',
         notas: '',
         "Nombre de Agenda": nombre_agenda,
-        tipo_turno: '',
+        // 👇 enum: dejar sin valor todavía
+        tipo_turno: null,
       };
+
       const { error: upsertError } = await supabase
         .from('agenda')
         .upsert(registro, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
+
       if (upsertError) {
+        console.error("Supabase upsert error:", upsertError);
         msg.textContent = "Error al crear agenda: " + upsertError.message;
         return;
       }
@@ -367,19 +350,19 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     }
     fechaActual.setDate(fechaActual.getDate()+1);
   }
+
   msg.textContent = `Agenda generada (${totalRangos} rangos de disponibilidad).`;
   await cargarNombresAgendas();
 };
 
-// --- Cargar nombres de agendas en el select para eliminar ---
-
+// ------ Cargar nombres de agendas (llamar también al iniciar)
 async function cargarNombresAgendas() {
   const selectAgenda = document.getElementById('select-agenda');
   selectAgenda.innerHTML = '<option value="">-- Seleccione agenda --</option>';
 
   const { data, error } = await supabase
     .from('agenda')
-    .select('"Nombre de Agenda"')   // 👈 respetamos comillas dobles
+    .select('"Nombre de Agenda"')
     .eq('profesional_id', profesional_id);
 
   if (error) {
@@ -388,10 +371,8 @@ async function cargarNombresAgendas() {
     return;
   }
 
-  console.log("Agendas obtenidas:", data);
-
   const nombresUnicos = [...new Set(
-    data.map(a => a['Nombre de Agenda']).filter(n => n && n.trim() !== '')
+    (data || []).map(a => a['Nombre de Agenda']).filter(n => n && n.trim() !== '')
   )];
 
   if (nombresUnicos.length === 0) {
@@ -407,20 +388,25 @@ async function cargarNombresAgendas() {
     selectAgenda.appendChild(opt);
   });
 }
+cargarNombresAgendas(); // 👈 IMPORTANTE: cargar al iniciar
 
+document.getElementById('select-agenda').onchange = function() {
+  document.getElementById('btn-eliminar-agenda').disabled = !this.value;
+  document.getElementById('msg-eliminar-agenda').textContent = '';
+};
+
+// ------ Eliminar agenda
 document.getElementById('btn-eliminar-agenda').onclick = async function() {
   const selectAgenda = document.getElementById('select-agenda');
   if (!selectAgenda.value) return;
 
   if (!confirm(`¿Seguro que deseas eliminar la agenda "${selectAgenda.value}" y todos sus rangos?`)) return;
 
-  console.log("Intentando eliminar agenda:", selectAgenda.value);
-
   const { error } = await supabase
     .from('agenda')
     .delete()
     .eq('profesional_id', profesional_id)
-    .eq('"Nombre de Agenda"', selectAgenda.value); // 👈 respetamos comillas dobles
+    .eq('"Nombre de Agenda"', selectAgenda.value);
 
   if (error) {
     console.error("Error al eliminar agenda:", error);
@@ -432,8 +418,6 @@ document.getElementById('btn-eliminar-agenda').onclick = async function() {
     document.getElementById('btn-eliminar-agenda').disabled = true;
   }
 };
-
-
 </script>
 </body>
 </html>
