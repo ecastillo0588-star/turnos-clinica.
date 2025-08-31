@@ -5,6 +5,16 @@
   <title>Inicio — EG Health Solutions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
+    /* ==== Anula restricciones del host del dashboard ==== */
+    :where(#main-content.card){
+      max-width: none !important;
+      width: 100% !important;
+      padding: 0 !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+    }
+
     *{box-sizing:border-box}
     :root{
       --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
@@ -13,34 +23,90 @@
       --danger:#b00020; --dangerbg:#fde7eb;
     }
     body{background:var(--bg);margin:0;font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
-    .wrap{max-width:1200px;margin:0 auto;padding:14px}
+    .shell{padding:18px}
 
-    .toolbar{display:grid;grid-template-columns:1.1fr 1.1fr 1.1fr .9fr auto;gap:12px;align-items:end;
-      background:var(--card);border-radius:16px;box-shadow:0 2px 12px rgba(80,60,160,.10);padding:14px}
-    .field{display:flex;flex-direction:column;gap:6px;position:relative}
+    /* ===== Panel raíz de inicio ===== */
+    .panel{
+      background:var(--card);
+      border-radius:18px;
+      box-shadow:0 2px 14px rgba(80,60,160,.10);
+      padding:18px;
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+      min-height:calc(100vh - 36px);
+    }
+
+    /* ===== Toolbar amplia ===== */
+    .toolbar{
+      display:grid;
+      grid-template-columns: minmax(240px,1fr) minmax(260px,1.1fr) minmax(220px,.9fr) auto auto;
+      gap:12px 14px;
+      align-items:end;
+    }
+    .field{display:flex;flex-direction:column;gap:6px;min-width:0}
     .field label{font-size:12px;color:var(--muted)}
-    .inp,.sel{background:#f7f9fb;border:1.5px solid var(--line);border-radius:7px;padding:9px 10px;font-size:14px;color:var(--ink);outline:none;width:100%}
+    .inp,.sel{
+      background:#f7f9fb;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;
+      font-size:14px;color:var(--ink);outline:none;width:100%;
+    }
     .inp:focus,.sel:focus{border-color:var(--brand-2)}
-    .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:10px 12px;font-weight:600;cursor:pointer;transition:filter .15s}
-    .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
-    .btn.secondary{background:#e7e2fa;color:#5a3e9a}
-    .btn.ok{background:var(--ok)} .btn.warn{background:var(--warn)} .btn.danger{background:var(--danger)}
+    .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:10px;
+      padding:10px 14px;font-weight:600;cursor:pointer;transition:filter .15s; white-space:nowrap}
     .btn:hover{filter:brightness(.98)}
+    .btn.secondary{background:#e7e2fa;color:#5a3e9a}
+    .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink)}
 
-    .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:12px 0}
-    .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 2px 8px rgba(80,60,160,.06)}
+    /* ===== KPIs responsivos ===== */
+    .kpis{
+      display:grid; gap:14px;
+      grid-template-columns: repeat(3, minmax(260px,1fr));
+    }
+    .kpi{
+      background:var(--bg);
+      border:1px solid var(--line);
+      border-radius:14px; padding:14px 16px;
+    }
     .kpi .label{font-size:12px;color:var(--muted)}
-    .kpi .value{font-size:24px;font-weight:700}
+    .kpi .value{font-size:28px;font-weight:800;line-height:1.1}
 
-    .boards{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .card{background:var(--card);border-radius:16px;box-shadow:0 2px 12px rgba(80,60,160,.10);padding:12px;min-height:320px;overflow:auto}
-    .card h3{margin:4px 0 10px}
-    .table{width:100%;border-collapse:separate;border-spacing:0 8px;min-width:880px}
-    .row{background:#faf9ff;border:1px solid var(--line);border-radius:12px}
-    .cell{padding:8px 10px;font-size:14px}
-    .muted{color:var(--muted);font-size:12px}
-    .actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}
-    .icon{border:none;background:#f4f1ff;border:1px solid var(--line);width:36px;height:36px;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;position:relative}
+    /* ===== Tableros a dos columnas que llenan el ancho ===== */
+    .boards{
+      display:grid; gap:16px;
+      grid-template-columns: minmax(480px,1fr) minmax(480px,1fr);
+      min-height: 0; /* para que los hijos con overflow funcionen */
+    }
+    .board{
+      background:var(--card); border:1px solid var(--line);
+      border-radius:16px; padding:12px 12px 6px; display:flex; flex-direction:column; min-height:520px;
+    }
+    .board h3{margin:4px 8px 8px}
+    .board-body{
+      position:relative; overflow:auto; flex:1; padding:0 4px 8px;
+    }
+
+    /* ===== Tabla estilo tarjetas con cabecera sticky ===== */
+    .table{ width:100%; border-collapse:separate; border-spacing:0 10px; min-width:980px; }
+    .thead{ position:sticky; top:0; z-index:3; background:linear-gradient(#fff,#fff); }
+    .hrow{
+      display:grid; gap:0; align-items:center;
+      background:#f4f1ff; border:1px solid var(--line); color:#5a3e9a;
+      padding:8px 10px; border-radius:10px; font-weight:700;
+    }
+    .row{
+      display:grid; gap:0; align-items:center;
+      background:#faf9ff; border:1px solid var(--line);
+      padding:8px 10px; border-radius:12px;
+    }
+    .cell{padding:2px 6px; font-size:14px; min-width:0}
+    .right{text-align:right} .nowrap{white-space:nowrap}
+
+    .actions{display:flex; gap:8px; align-items:center; justify-content:flex-end}
+    .icon{
+      border:none;background:#f4f1ff;border:1px solid var(--line);
+      width:36px;height:36px;border-radius:10px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center; position:relative
+    }
     .icon:hover{filter:brightness(.98)}
     .icon[data-tip]::after{
       content:attr(data-tip); position:absolute; bottom:110%; left:50%; transform:translateX(-50%);
@@ -48,106 +114,111 @@
     }
     .icon:hover::after{opacity:1}
 
-    .bar{height:1px;background:var(--line);margin:10px 0}
-    .right{ text-align:right }
-    .nowrap{white-space:nowrap}
+    /* scrollbars suaves */
+    .board-body::-webkit-scrollbar{height:10px;width:10px}
+    .board-body::-webkit-scrollbar-thumb{background:#d8cfff;border-radius:8px}
 
-    /* que nunca se corte: */
-    .card::-webkit-scrollbar, .toolbar::-webkit-scrollbar{ height:10px; width:10px }
-    .card::-webkit-scrollbar-thumb, .toolbar::-webkit-scrollbar-thumb{ background:#d8cfff; border-radius:8px }
-
-    @media (max-width:980px){
-      .toolbar{grid-template-columns:1fr}
+    @media (max-width:1200px){
+      .toolbar{grid-template-columns:1fr 1fr; grid-auto-rows:auto}
       .kpis{grid-template-columns:1fr}
       .boards{grid-template-columns:1fr}
+      .table{min-width:720px}
     }
   </style>
 </head>
 <body>
-<div class="wrap">
+<div class="shell">
+  <section class="panel" id="inicio-root">
 
-  <!-- Toolbar -->
-  <div class="toolbar">
-    <!-- Centro -->
-    <div class="field" id="centro-field">
-      <label>Centro médico</label>
-      <select id="centro-select" class="sel" style="display:none;"></select>
-      <input id="centro-nombre" class="inp" readonly style="display:none;">
-    </div>
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <!-- Centro -->
+      <div class="field" id="centro-field">
+        <label>Centro médico</label>
+        <select id="centro-select" class="sel" style="display:none;"></select>
+        <input id="centro-nombre" class="inp" readonly style="display:none;">
+      </div>
 
-    <!-- Profesional -->
-    <div class="field">
-      <label>Profesional</label>
-      <select id="prof-select" class="sel"><option>Profesional</option></select>
-    </div>
+      <!-- Profesional -->
+      <div class="field">
+        <label>Profesional</label>
+        <select id="prof-select" class="sel"><option>Profesional</option></select>
+      </div>
 
-    <!-- Fecha -->
-    <div class="field">
-      <label>Fecha</label>
-      <input id="fecha" type="date" class="inp" />
-    </div>
+      <!-- Fecha -->
+      <div class="field">
+        <label>Fecha</label>
+        <input id="fecha" type="date" class="inp" />
+      </div>
 
-    <!-- Ir a Turnos -->
-    <div class="field" style="align-items:flex-end">
-      <button id="btn-turnos" class="btn ghost">Ir a Turnos</button>
-    </div>
+      <!-- Ir a Turnos -->
+      <div class="field" style="align-items:flex-end">
+        <button id="btn-turnos" class="btn ghost">Ir a Turnos</button>
+      </div>
 
-    <!-- Hoy -->
-    <div class="field" style="align-items:flex-end">
-      <button id="btn-hoy" class="btn secondary">Hoy</button>
-    </div>
-  </div>
-
-  <!-- KPIs -->
-  <div class="kpis">
-    <div class="kpi">
-      <div class="label">Pendientes de arribo</div>
-      <div class="value" id="kpi-pend">0</div>
-      <div class="muted" id="kpi-pend-sub"></div>
-    </div>
-    <div class="kpi">
-      <div class="label">Presentes (en espera)</div>
-      <div class="value" id="kpi-esp">0</div>
-      <div class="muted" id="kpi-esp-sub"></div>
-    </div>
-    <div class="kpi">
-      <div class="label">Horas disponibles hoy</div>
-      <div class="value" id="kpi-free">0.0 h</div>
-      <div class="muted" id="kpi-free-sub"></div>
-    </div>
-  </div>
-
-  <!-- Boards -->
-  <div class="boards">
-    <!-- Pendientes -->
-    <div class="card">
-      <h3>Pendientes de arribo</h3>
-      <div class="bar"></div>
-      <table class="table" id="tbl-pend"></table>
+      <!-- Hoy -->
+      <div class="field" style="align-items:flex-end">
+        <button id="btn-hoy" class="btn secondary">Hoy</button>
+      </div>
     </div>
 
-    <!-- Presentes -->
-    <div class="card">
-      <h3>Presentes</h3>
-      <div class="bar"></div>
-      <table class="table" id="tbl-esp"></table>
+    <!-- KPIs -->
+    <div class="kpis">
+      <div class="kpi">
+        <div class="label">Pendientes de arribo</div>
+        <div class="value" id="kpi-pend">0</div>
+        <div class="label" id="kpi-pend-sub"></div>
+      </div>
+      <div class="kpi">
+        <div class="label">Presentes (en espera)</div>
+        <div class="value" id="kpi-esp">0</div>
+        <div class="label" id="kpi-esp-sub"></div>
+      </div>
+      <div class="kpi">
+        <div class="label">Horas disponibles hoy</div>
+        <div class="value" id="kpi-free">0.0 h</div>
+        <div class="label" id="kpi-free-sub"></div>
+      </div>
     </div>
-  </div>
 
+    <!-- Boards -->
+    <div class="boards">
+      <!-- Pendientes -->
+      <div class="board">
+        <h3>Pendientes de arribo</h3>
+        <div class="board-body">
+          <table class="table" id="tbl-pend">
+            <!-- render JS -->
+          </table>
+        </div>
+      </div>
+
+      <!-- Presentes -->
+      <div class="board">
+        <h3>Presentes</h3>
+        <div class="board-body">
+          <table class="table" id="tbl-esp">
+            <!-- render JS -->
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </section>
 </div>
 
 <script type="module">
 import supabase from './supabaseClient.js';
 
-/* ====== Estados (ajusta si tu enum difiere) ====== */
+/* ====== Estados ====== */
 const EST = {
   ASIGNADO: 'asignado',
   EN_ESPERA: 'en_espera',
   EN_ATENCION: 'en_atencion',
-  CANCELADO: 'cancelado',
+  CANCELADO: 'cancelado', // liberamos el hueco marcando cancelado en turnos
 };
 
-/* ====== UI ====== */
+/* ====== UI refs ====== */
 const UI = {
   centroSelect: document.getElementById('centro-select'),
   centroNombre: document.getElementById('centro-nombre'),
@@ -168,7 +239,7 @@ const UI = {
 /* ====== Sesión ====== */
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
-const userRole = localStorage.getItem('user_role'); // 'medico' | 'asistente' | 'propietario'
+const userRole = localStorage.getItem('user_role'); // medico|asistente|propietario
 const loggedProfesionalId = localStorage.getItem('profesional_id');
 let currentProfesional = null;
 let currentFechaISO = null;
@@ -179,6 +250,7 @@ function todayISO(){ const d=new Date(); return `${d.getFullYear()}-${pad(d.getM
 function toHM(t){ return (t??'').toString().slice(0,5); }
 function minutesDiff(start,end){ const [h1,m1]=start.split(':').map(Number), [h2,m2]=end.split(':').map(Number); return (h2*60+m2)-(h1*60+m1); }
 function nowHHMMSS(){ const d=new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
+function anchor(url, text){ return url ? `<a href="${url}" target="_blank" rel="noopener">${text||'Abrir'}</a>` : '<span class="muted">—</span>'; }
 
 async function fetchCentroById(id){
   const { data } = await supabase.from('centros_medicos').select('nombre,direccion').eq('id', id).single();
@@ -199,7 +271,7 @@ async function loadProfesionales(){
   const sel = UI.profSelect;
 
   if (userRole === 'medico' && loggedProfesionalId){
-    // Mostrar propio nombre (mejor etiqueta si existe)
+    // Muestra el propio nombre del profesional
     let label = null;
     try {
       const { data } = await supabase
@@ -210,10 +282,11 @@ async function loadProfesionales(){
       if (data) {
         label = data.display_name
              || [data.apellido, data.nombre].filter(Boolean).join(', ')
-             || data.nombre || data.apellido || null;
+             || data.nombre || data.apellido;
       }
-    } catch(_) {}
+    } catch(_){}
     if (!label) label = localStorage.getItem('user_name') || localStorage.getItem('email') || 'Mi agenda';
+
     sel.innerHTML = `<option value="${loggedProfesionalId}">${label}</option>`;
     sel.value = loggedProfesionalId;
     sel.disabled = true;
@@ -223,13 +296,11 @@ async function loadProfesionales(){
 
   sel.disabled = false;
 
-  const { data: map, error: mapErr } = await supabase
+  const { data: map } = await supabase
     .from('profesional_centro')
     .select('profesional_id')
     .eq('centro_id', currentCentroId)
     .eq('activo', true);
-
-  if (mapErr) { sel.innerHTML = '<option value="">(error)</option>'; currentProfesional=null; return; }
 
   const ids = [...new Set((map||[]).map(r=>r.profesional_id).filter(Boolean))];
   if (!ids.length){ sel.innerHTML = '<option value="">Sin profesionales</option>'; currentProfesional=null; return; }
@@ -241,9 +312,7 @@ async function loadProfesionales(){
     .order('apellido', { ascending:true });
 
   sel.innerHTML = (profs||[]).map(p=>{
-    const nombre = p.display_name
-                || [p.apellido, p.nombre].filter(Boolean).join(', ')
-                || p.nombre || p.apellido || p.id;
+    const nombre = p.display_name || [p.apellido, p.nombre].filter(Boolean).join(', ') || p.nombre || p.apellido || p.id;
     return `<option value="${p.id}">${nombre}</option>`;
   }).join('');
 
@@ -288,9 +357,7 @@ UI.fecha.addEventListener('change', ()=>{ currentFechaISO = UI.fecha.value || to
 UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
 
 /* ====== Botón Ir a Turnos ====== */
-UI.btnTurnos.addEventListener('click', ()=>{
-  window.location.href = 'turnos.html';
-});
+UI.btnTurnos.addEventListener('click', ()=>{ window.location.href = 'turnos.html'; });
 
 /* ====== Data fetch ====== */
 async function fetchDiaData(){
@@ -326,43 +393,50 @@ async function fetchDiaData(){
 }
 
 /* ====== Render ====== */
-function fmtPaciente(p){ return p ? `${p.apellido}, ${p.nombre}` : '—'; }
-function linkOrDash(url, text){ return url ? `<a href="${url}" target="_blank" rel="noopener">${text||'Abrir'}</a>` : '<span class="muted">—</span>'; }
-
 function renderPendientes(list){
+  const grid = '40px 120px 140px 1fr 1fr 150px 160px';
   const head = `
-    <tr class="row" style="display:grid;grid-template-columns: 40px 110px 110px 1fr 1fr 120px 110px;gap:0;align-items:center">
-      <th class="cell">✔</th>
-      <th class="cell">Hora</th>
-      <th class="cell">DNI</th>
-      <th class="cell">Nombre</th>
-      <th class="cell">Apellido</th>
-      <th class="cell">Credencial</th>
-      <th class="cell right">Acciones</th>
-    </tr>`;
-  const rows = list.map(t=>{
+    <thead class="thead">
+      <tr class="hrow" style="grid-template-columns:${grid}">
+        <th class="cell">✔</th>
+        <th class="cell">Hora</th>
+        <th class="cell">DNI</th>
+        <th class="cell">Nombre</th>
+        <th class="cell">Apellido</th>
+        <th class="cell">Credencial</th>
+        <th class="cell right">Acciones</th>
+      </tr>
+    </thead>`;
+  const rows = (list||[]).map(t=>{
     const p = t.pacientes || {};
+    const hora = `<b>${toHM(t.hora_inicio)}</b>${t.hora_fin ? ' — '+toHM(t.hora_fin) : ''}`;
     return `
-      <tr class="row" style="display:grid;grid-template-columns: 40px 110px 110px 1fr 1fr 120px 110px;gap:0;align-items:center">
+      <tr class="row" style="grid-template-columns:${grid}">
         <td class="cell"><input type="checkbox" data-arribo="${t.id}" title="Marcar llegada"></td>
-        <td class="cell nowrap"><b>${toHM(t.hora_inicio)}</b>${t.hora_fin ? ' — '+toHM(t.hora_fin) : ''}</td>
+        <td class="cell nowrap">${hora}</td>
         <td class="cell">${p.dni || '—'}</td>
         <td class="cell">${p.nombre || '—'}</td>
         <td class="cell">${p.apellido || '—'}</td>
-        <td class="cell">${linkOrDash(p.credencial,'Credencial')}</td>
+        <td class="cell">${anchor(p.credencial,'Credencial')}</td>
         <td class="cell right">
-          <button class="icon" data-id="${t.id}" data-act="reprog" data-tip="↪ Reprogramar">↪️</button>
-          <button class="icon" data-id="${t.id}" data-act="cancel" data-tip="🗑 Anular">🗑️</button>
+          <div class="actions">
+            <button class="icon" data-id="${t.id}" data-act="reprog" data-tip="↪ Reprogramar">↪️</button>
+            <button class="icon" data-id="${t.id}" data-act="cancel" data-tip="🗑 Anular">🗑️</button>
+          </div>
         </td>
       </tr>`;
   }).join('');
-  UI.tblPend.innerHTML = head + rows;
+
+  UI.tblPend.innerHTML = head + '<tbody>' + rows + '</tbody>';
 
   // binds
   UI.tblPend.querySelectorAll('[data-arribo]').forEach(cb=>{
     cb.addEventListener('change', async ()=>{
       if (!cb.checked) return;
-      await marcarLlegada(cb.getAttribute('data-arribo'));
+      await supabase.from('turnos')
+        .update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS() })
+        .eq('id', cb.getAttribute('data-arribo'));
+      await refreshAll();
     });
   });
   UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
@@ -374,75 +448,61 @@ function renderPendientes(list){
 }
 
 function renderPresentes(list){
+  const grid = '140px 140px 1fr 1fr 140px 150px 170px 220px';
   const head = `
-    <tr class="row" style="display:grid;grid-template-columns: 110px 110px 1fr 1fr 120px 120px 160px 150px;gap:0;align-items:center">
-      <th class="cell">Hora</th>
-      <th class="cell">DNI</th>
-      <th class="cell">Nombre</th>
-      <th class="cell">Apellido</th>
-      <th class="cell">Hora arribo</th>
-      <th class="cell">Credencial</th>
-      <th class="cell">Historia clínica</th>
-      <th class="cell right">Acciones</th>
-    </tr>`;
-  const rows = list.map(t=>{
+    <thead class="thead">
+      <tr class="hrow" style="grid-template-columns:${grid}">
+        <th class="cell">Hora</th>
+        <th class="cell">DNI</th>
+        <th class="cell">Nombre</th>
+        <th class="cell">Apellido</th>
+        <th class="cell">Hora arribo</th>
+        <th class="cell">Credencial</th>
+        <th class="cell">Historia clínica</th>
+        <th class="cell right">Acciones</th>
+      </tr>
+    </thead>`;
+  const rows = (list||[]).map(t=>{
     const p = t.pacientes || {};
+    const hora = `<b>${toHM(t.hora_inicio)}</b>${t.hora_fin ? ' — '+toHM(t.hora_fin) : ''}`;
     return `
-      <tr class="row" style="display:grid;grid-template-columns: 110px 110px 1fr 1fr 120px 120px 160px 150px;gap:0;align-items:center">
-        <td class="cell nowrap"><b>${toHM(t.hora_inicio)}</b>${t.hora_fin ? ' — '+toHM(t.hora_fin) : ''}</td>
+      <tr class="row" style="grid-template-columns:${grid}">
+        <td class="cell nowrap">${hora}</td>
         <td class="cell">${p.dni || '—'}</td>
         <td class="cell">${p.nombre || '—'}</td>
         <td class="cell">${p.apellido || '—'}</td>
         <td class="cell">${toHM(t.hora_arribo) || '—'}</td>
-        <td class="cell">${linkOrDash(p.credencial,'Credencial')}</td>
-        <td class="cell">${linkOrDash(p.historia_clinica,'Abrir')}</td>
+        <td class="cell">${anchor(p.credencial,'Credencial')}</td>
+        <td class="cell">${anchor(p.historia_clinica,'Abrir')}</td>
         <td class="cell right">
-          <button class="icon" data-id="${t.id}" data-act="volver" data-tip="↩ Volver a pendientes">↩️</button>
-          <button class="icon" data-id="${t.id}" data-act="reprog" data-tip="↪ Reprogramar">↪️</button>
-          <button class="icon" data-id="${t.id}" data-act="cancel" data-tip="🗑 Anular">🗑️</button>
-          <button class="icon" data-id="${t.id}" data-act="atender" data-tip="✅ En atención">✅</button>
+          <div class="actions">
+            <button class="icon" data-id="${t.id}" data-act="volver" data-tip="↩ Volver a pendientes">↩️</button>
+            <button class="icon" data-id="${t.id}" data-act="reprog" data-tip="↪ Reprogramar">↪️</button>
+            <button class="icon" data-id="${t.id}" data-act="cancel" data-tip="🗑 Anular">🗑️</button>
+            <button class="icon" data-id="${t.id}" data-act="atender" data-tip="✅ En atención">✅</button>
+          </div>
         </td>
       </tr>`;
   }).join('');
-  UI.tblEsp.innerHTML = head + rows;
+
+  UI.tblEsp.innerHTML = head + '<tbody>' + rows + '</tbody>';
 
   // binds
   UI.tblEsp.querySelectorAll('.icon').forEach(btn=>{
     const id = btn.getAttribute('data-id');
     const act = btn.getAttribute('data-act');
-    if (act==='volver') btn.onclick = ()=> volverAPendientes(id);
+    if (act==='volver') btn.onclick = async ()=>{
+      await supabase.from('turnos').update({ estado: EST.ASIGNADO, hora_arribo: null }).eq('id', id);
+      await refreshAll();
+    };
     if (act==='reprog') btn.onclick = ()=> abrirTurnosParaReprogramar(id);
     if (act==='cancel') btn.onclick = ()=> anularTurno(id);
     if (act==='atender') btn.onclick = ()=> pasarAEnAtencion(id);
   });
 }
 
-/* ====== Acciones ====== */
-async function marcarLlegada(turnoId){
-  await supabase.from('turnos')
-    .update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS() })
-    .eq('id', turnoId);
-  await refreshAll();
-}
-
-async function volverAPendientes(turnoId){
-  await supabase.from('turnos')
-    .update({ estado: EST.ASIGNADO, hora_arribo: null })
-    .eq('id', turnoId);
-  await refreshAll();
-}
-
-async function anularTurno(turnoId){
-  if (!confirm('¿Anular este turno?')) return;
-  // Nota: lo marcamos CANCELADO para liberar el slot en la agenda.
-  await supabase.from('turnos')
-    .update({ estado: EST.CANCELADO })
-    .eq('id', turnoId);
-  await refreshAll();
-}
-
+/* ====== Acciones comunes ====== */
 function abrirTurnosParaReprogramar(turnoId){
-  // guardamos intención en localStorage y vamos a turnos.html
   localStorage.setItem('reprogram_turno_intent', JSON.stringify({
     turno_id: turnoId,
     fecha: currentFechaISO,
@@ -452,11 +512,14 @@ function abrirTurnosParaReprogramar(turnoId){
   window.location.href = 'turnos.html';
 }
 
+async function anularTurno(turnoId){
+  if (!confirm('¿Anular este turno?')) return;
+  await supabase.from('turnos').update({ estado: EST.CANCELADO }).eq('id', turnoId);
+  await refreshAll();
+}
+
 async function pasarAEnAtencion(turnoId){
-  await supabase.from('turnos')
-    .update({ estado: EST.EN_ATENCION })
-    .eq('id', turnoId);
-  // Abrir ficha del paciente
+  await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
   window.location.href = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
 }
 
@@ -469,14 +532,11 @@ function computeHorasDisponibles(agenda, turnos){
   const libresMin = Math.max(0, totalAgendaMin - ocupadosMin);
   return { horas: (libresMin/60).toFixed(1), libresMin, totalAgendaMin };
 }
-function renderKPIs(data){
-  const { pendientes, presentes, agenda, turnos } = data;
+function renderKPIs({pendientes, presentes, agenda, turnos}){
   UI.kpiPend.textContent = pendientes.length;
   UI.kpiPendSub.textContent = `${currentCentroNombre || ''} · ${UI.profSelect.options[UI.profSelect.selectedIndex]?.textContent || ''}`;
-
   UI.kpiEsp.textContent = presentes.length;
   UI.kpiEspSub.textContent = `${currentFechaISO}`;
-
   const free = computeHorasDisponibles(agenda, turnos);
   UI.kpiFree.textContent = `${free.horas} h`;
   UI.kpiFreeSub.textContent = `Agenda: ${(free.totalAgendaMin/60).toFixed(1)} h`;
