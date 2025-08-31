@@ -1,96 +1,6 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Asistentes vinculados a centro médico</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f9fb; margin: 0; }
-    .container { max-width: 740px; margin: 50px auto; background: #fff; padding: 28px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
-    h3 { color:#381e60; margin-bottom:22px;}
-    .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 3px;}
-    .btn.primary { background: #7656b0; }
-    .btn:hover { background: #7f62b6; }
-    input, select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 5px 8px; font-size:15px; background:#f7f9fb; }
-    label { color:#381e60;}
-    .muted { color: #6b6480; font-size: 14px; }
-    .error { color: #b02525; font-size: 14px; margin-top:8px;}
-    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-    th, td { text-align:left; padding: 10px 8px; }
-    th { background: #e7e2fa; color: #381e60; font-size: 16px; }
-    td { font-size: 15px; border-bottom: 1px solid #ece5fc; }
-    tr:last-child td { border-bottom: none; }
-    .action-cell { text-align: right; }
-    /* Modal styles */
-    .modal { position:fixed; z-index:999; left:0; top:0; width:100vw; height:100vh; background:rgba(0,0,0,0.18); display:flex; align-items:center; justify-content:center;}
-    .modal-content { background:#fff; padding:28px 22px 20px 22px; border-radius:14px; min-width:320px; max-width:380px; position:relative; box-shadow:0 2px 18px rgba(80,60,160,.18);}
-    .close { position:absolute; right:12px; top:10px; font-size:20px; color:#7656b0; cursor:pointer;}
-    .modal-content h4 { color:#381e60; margin-bottom:16px;}
-    .modal-content select { width:100%; margin-bottom:10px; }
-    .modal-content .btn { width:100%; }
-  </style>
-</head>
-<body>
-<div class="container">
-  <h3>Asistentes vinculados a centro médico</h3>
-  <div style="margin-bottom:18px;">
-    <label for="centro_asistente_select">Centro médico:</label>
-    <select id="centro_asistente_select" style="margin-left:6px;padding:3px 8px;">
-      <option value="" disabled selected>Cargando centros...</option>
-    </select>
-  </div>
-  <table id="tabla-asistentes-vinculados">
-    <thead>
-      <tr>
-        <th>Nombre</th>
-        <th>Apellido</th>
-        <th>Email</th>
-        <th>Rol</th>
-        <th>Activo</th>
-        <th class="action-cell">Acciones</th>
-      </tr>
-    </thead>
-    <tbody id="tbody-asistentes-vinculados">
-      <tr><td colspan="6" class="muted">Seleccione un centro médico para ver sus asistentes vinculados.</td></tr>
-    </tbody>
-  </table>
-  <div id="error-tabla-asistentes" class="error" style="margin-top:6px;"></div>
-  <div style="margin-top:18px;text-align:right;">
-    <button type="button" class="btn primary" id="abrir-modal-asistente-btn">Vincular asistente a centro médico</button>
-  </div>
-</div>
-
-<!-- Modal para vinculación de asistentes -->
-<div id="modal-asistente" class="modal" style="display:none;">
-  <div class="modal-content">
-    <span class="close" id="cerrar-modal-asistente">&times;</span>
-    <h4>Vincular asistente a centro médico</h4>
-    <form id="form-vincular-asistente">
-      <label for="asistente_modal_select">Seleccione asistente</label>
-      <select id="asistente_modal_select" required>
-        <option value="" disabled selected>Cargando asistentes...</option>
-      </select>
-      <label for="centro_modal_asistente_select">Seleccione centro médico</label>
-      <select id="centro_modal_asistente_select" required>
-        <option value="" disabled selected>Cargando centros...</option>
-      </select>
-      <label for="activo_asistente_select">Activo</label>
-      <select id="activo_asistente_select">
-        <option value="true" selected>Activo</option>
-        <option value="false">Inactivo</option>
-      </select>
-      <button type="submit" class="btn primary" style="margin-top:10px;">Vincular</button>
-      <div id="status-form-asistente" class="muted" style="margin-top:10px;"></div>
-      <div id="error-form-asistente" class="error" style="margin-top:6px;"></div>
-    </form>
-  </div>
-</div>
-
 <script type="module">
-import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import supabase from './supabaseClient.js';
+import { getCentrosActivos } from './centrosService.js';
 
 // ELEMENTOS UI
 const centroAsistenteSelect = document.getElementById('centro_asistente_select');
@@ -105,36 +15,33 @@ const centroModalAsistenteSelect = document.getElementById('centro_modal_asisten
 const statusFormAsistente = document.getElementById('status-form-asistente');
 const errorFormAsistente = document.getElementById('error-form-asistente');
 
-// -------- Centros (selector superior y modal)
+/* -------- Centros (selector superior y modal) via centrosService -------- */
 async function cargarCentrosAsistenteSelect() {
   centroAsistenteSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
   centroModalAsistenteSelect.innerHTML = `<option value="" disabled selected>Cargando centros...</option>`;
-  const { data, error } = await supabase
-    .from('centros_medicos')
-    .select('id, nombre')
-    .eq('activo', true);
 
-  if (error || !data) {
+  try {
+    const centros = await getCentrosActivos(); // <- usa tu servicio
+    centroAsistenteSelect.innerHTML = `<option value="" disabled selected>Seleccione centro médico</option>`;
+    centroModalAsistenteSelect.innerHTML = `<option value="" disabled selected>Seleccione centro médico</option>`;
+    (centros || []).forEach(c => {
+      const opt1 = document.createElement('option');
+      opt1.value = c.id;
+      opt1.textContent = c.nombre;
+      centroAsistenteSelect.appendChild(opt1);
+
+      const opt2 = document.createElement('option');
+      opt2.value = c.id;
+      opt2.textContent = c.nombre;
+      centroModalAsistenteSelect.appendChild(opt2);
+    });
+  } catch (e) {
     centroAsistenteSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
     centroModalAsistenteSelect.innerHTML = `<option value="" disabled>Error al cargar centros</option>`;
-    return;
   }
-  centroAsistenteSelect.innerHTML = `<option value="" disabled selected>Seleccione centro médico</option>`;
-  centroModalAsistenteSelect.innerHTML = `<option value="" disabled selected>Seleccione centro médico</option>`;
-  data.forEach(c => {
-    const opt1 = document.createElement('option');
-    opt1.value = c.id;
-    opt1.textContent = c.nombre;
-    centroAsistenteSelect.appendChild(opt1);
-
-    const opt2 = document.createElement('option');
-    opt2.value = c.id;
-    opt2.textContent = c.nombre;
-    centroModalAsistenteSelect.appendChild(opt2);
-  });
 }
 
-// -------- Asistentes (solo rol asistente) para modal
+/* -------- Asistentes (solo rol asistente) -------- */
 async function cargarAsistenteSelect() {
   asistenteModalSelect.innerHTML = `<option value="" disabled selected>Cargando asistentes...</option>`;
   const { data, error } = await supabase
@@ -155,7 +62,7 @@ async function cargarAsistenteSelect() {
   });
 }
 
-// -------- Tabla: vínculos del centro (solo asistentes)
+/* -------- Tabla: vínculos del centro (solo asistentes) -------- */
 async function cargarTablaAsistentesVinculados(centro_id) {
   if (!centro_id) {
     tbodyAsistentesVinculados.innerHTML = `<tr><td colspan="6" class="muted">Seleccione un centro médico para ver sus asistentes vinculados.</td></tr>`;
@@ -208,7 +115,7 @@ async function cargarTablaAsistentesVinculados(centro_id) {
     </tr>
   `).join('');
 
-  // 👇 ENGANCHE DE EVENTO: desasociar (delegación sobre el tbody)
+  // Enganche del click para los botones renderizados
   tbodyAsistentesVinculados.querySelectorAll('.desasociar-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const profId = btn.getAttribute('data-prof-id');
@@ -218,7 +125,7 @@ async function cargarTablaAsistentesVinculados(centro_id) {
   });
 }
 
-// -------- Desasociar (marca activo=false en la relación)
+/* -------- Desasociar (marca activo=false en la relación) -------- */
 async function desasociarAsistenteCentro(profesionalIdAsistente, centroId) {
   if (!confirm('¿Seguro que quieres desasociar este asistente del centro médico?')) return;
   const { error } = await supabase
@@ -234,12 +141,12 @@ async function desasociarAsistenteCentro(profesionalIdAsistente, centroId) {
   await cargarTablaAsistentesVinculados(centroId);
 }
 
-// -------- Eventos
+/* -------- Eventos -------- */
 centroAsistenteSelect.addEventListener('change', async function() {
   await cargarTablaAsistentesVinculados(this.value);
 });
 
-abrirModalAsistenteBtn.addEventListener('click', async () => {
+document.getElementById('abrir-modal-asistente-btn').addEventListener('click', async () => {
   formVincularAsistente.reset();
   statusFormAsistente.textContent = '';
   errorFormAsistente.textContent = '';
@@ -252,12 +159,11 @@ abrirModalAsistenteBtn.addEventListener('click', async () => {
 cerrarModalAsistente.addEventListener('click', () => {
   modalAsistente.style.display = 'none';
 });
-
 window.addEventListener('click', (e) => {
   if (e.target === modalAsistente) modalAsistente.style.display = 'none';
 });
 
-// -------- Vincular asistente
+/* -------- Vincular asistente -------- */
 formVincularAsistente.addEventListener('submit', async function(e) {
   e.preventDefault();
   const profesional_id = asistenteModalSelect.value;
@@ -310,8 +216,6 @@ formVincularAsistente.addEventListener('submit', async function(e) {
   centroAsistenteSelect.value = centro_id;
 });
 
-// -------- Init
+/* -------- Init -------- */
 await cargarCentrosAsistenteSelect();
 </script>
-</body>
-</html>
