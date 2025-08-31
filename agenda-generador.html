@@ -1,3 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Generador de Agenda de Disponibilidad</title>
+  <style>
+    .agenda-generador { max-width: 740px; margin: 24px auto; }
+    .horarios-table-compact { border-collapse:collapse;width:100%;background:#f7f4fa;font-size:13px; }
+    .horarios-table-compact th, .horarios-table-compact td { border:1px solid #e3d8f6;padding:5px;text-align:center; }
+    .horarios-table-compact th { background:#ece3fa;font-weight:600;font-size:13px; }
+    .input-hora { width:70px; padding:2px 4px; font-size:13px; border-radius:5px; border:1px solid #d2c6ed; }
+    .horarios-table-compact td input[type="checkbox"] { transform:scale(1.1); }
+    .btn.primary { background: #7656b0; }
+    .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 5px 12px; cursor:pointer; margin: 2px;}
+    .btn:disabled { background: #d2c6ed; color:#fff; cursor:not-allowed;}
+    .btn:hover:not(:disabled) { background: #7f62b6; }
+    .card { background: #fff; padding: 22px; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.09); }
+    .bloque-fechas label, .bloque-duracion-turno label { font-size:13px; }
+    .bloque-nombre-agenda label { font-size:15px; margin-bottom:2px; color:#381e60; }
+    .obligatorio { color: #c2001d; font-weight:700; font-size:1em; }
+    .hidden { display:none; }
+    .agenda-footer-sticky {
+      position: sticky;
+      bottom: 0;
+      left: 0;
+      background: #f7f4fa;
+      width: 100%;
+      padding: 14px 0 10px 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      z-index: 99;
+      border-top: 1px solid #ece3fa;
+    }
+    .centro-form-block {
+      background: #f3eafc;
+      border-radius: 8px;
+      box-shadow: 0 1px 6px rgba(120,80,180,.07);
+      padding: 14px 16px 12px 16px;
+      margin-top: 8px;
+      margin-bottom: 8px;
+      max-width:320px;
+    }
+    .centro-form-block h4 {margin-top:0;margin-bottom:8px;color:#7656b0;font-size:16px;}
+    .centro-form-block label {display:block;font-size:13px;margin-bottom:2px;margin-top:8px;}
+    .centro-form-block input {width:95%;margin-bottom:4px;}
+    .agendas-list-card { max-width:440px; margin: 28px auto 18px auto; background: #fff; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.08); padding: 18px 22px; }
+    .agendas-list-card h3 { margin-top:0; margin-bottom:14px; color:#391e60; font-size:18px;}
+  </style>
+</head>
+<body>
 <!-- Generador de Agenda de Disponibilidad de Turnos -->
 <div class="card agenda-generador">
   <h2>Generar Agenda de Disponibilidad</h2>
@@ -114,7 +165,6 @@ const DIAS = [
 ];
 
 // --- Renderizar tabla horarios ---
-// Todos los días deshabilitados y horarios null
 function generarOpcionesHora(inicio, fin) {
   const opciones = ['<option value="">--</option>'];
   for (let h = inicio; h < fin; h++) {
@@ -131,8 +181,8 @@ function renderTablaHorarios() {
   const tbody = document.getElementById('horarios-body');
   tbody.innerHTML = '';
   DIAS.forEach((dia, idx)=>{
-    const opcionesMañana = generarOpcionesHora(7, 13);   // 07:00 a 13:00
-    const opcionesTarde  = generarOpcionesHora(13, 21);  // 13:00 a 21:00
+    const opcionesMañana = generarOpcionesHora(7, 13);
+    const opcionesTarde  = generarOpcionesHora(13, 21);
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td style="font-size:13px;"><b>${dia.label}</b></td>
@@ -145,7 +195,6 @@ function renderTablaHorarios() {
     tbody.appendChild(tr);
   });
 
-  // Habilita selects solo si el día está chequeado
   DIAS.forEach((dia, idx)=>{
     document.querySelector(`[name="hab_${idx}"]`).onchange = function() {
       const disabled = !this.checked;
@@ -260,18 +309,15 @@ function horarioValido() {
     const tm_fin = document.querySelector(`[name="tm_fin_${idx}"]`).value;
     const tt_ini = document.querySelector(`[name="tt_ini_${idx}"]`).value;
     const tt_fin = document.querySelector(`[name="tt_fin_${idx}"]`).value;
-    // Si hay horarios seleccionados, validar rangos
     if (tm_ini && tm_fin && tm_ini >= tm_fin) valido = false;
     if (tt_ini && tt_fin && tt_ini >= tt_fin) valido = false;
-    // Mañana debe terminar antes de 13:00
     if(tm_fin && tm_fin > '13:00') valido = false;
-    // Tarde debe iniciar a partir de 13:00
     if(tt_ini && tt_ini < '13:00') valido = false;
   });
   return valido;
 }
 
-// --- Generar agenda: inserta solo rangos de disponibilidad (NO slots divididos) ---
+// --- Generar agenda ---
 document.getElementById('btn-generar-agenda').onclick = async function() {
   const msg = document.getElementById('msg-agenda');
   msg.textContent = '';
@@ -289,7 +335,6 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
   DIAS.forEach((dia, idx)=>{
     const habilitado = document.querySelector(`[name="hab_${idx}"]`).checked;
     if(!habilitado) return;
-    // Mañana
     const tm_ini = document.querySelector(`[name="tm_ini_${idx}"]`).value;
     const tm_fin = document.querySelector(`[name="tm_fin_${idx}"]`).value;
     if(tm_ini && tm_fin && tm_ini < tm_fin && tm_fin <= '13:00'){
@@ -299,7 +344,6 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
         hora_fin:tm_fin,
       });
     }
-    // Tarde
     const tt_ini = document.querySelector(`[name="tt_ini_${idx}"]`).value;
     const tt_fin = document.querySelector(`[name="tt_fin_${idx}"]`).value;
     if(tt_ini && tt_fin && tt_ini < tt_fin && tt_ini >= '13:00'){
@@ -322,34 +366,42 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
   const fechaFin = new Date(fecha_fin);
 
   while(fechaActual <= fechaFin){
-    const diaSemanaNum = fechaActual.getDay(); // 0=domingo, 1=lunes, ..., 6=sábado
+    const diaSemanaNum = fechaActual.getDay();
     const diaMap = {1:'lunes',2:'martes',3:'miercoles',4:'jueves',5:'viernes',6:'sabado'};
     const diaSemana = diaMap[diaSemanaNum];
     if(!diaSemana) { fechaActual.setDate(fechaActual.getDate()+1); continue; }
     const bloquesDia = bloques.filter(b=>b.dia===diaSemana);
     for(const b of bloquesDia){
-      // Insertar UNA fila por rango horario
-      await supabase
+      // --- DEPURACIÓN: Verifica los datos antes de enviar a Supabase ---
+      const registro = {
+        centro_id,
+        profesional_id,
+        fecha: fechaActual.toISOString().slice(0,10),
+        hora_inicio: b.hora_inicio,
+        hora_fin: b.hora_fin,
+        capacidad: 1,
+        estado: 'disponible',
+        notas: '',
+        "Nombre de Agenda": nombre_agenda,
+        tipo_turno: 'nueva_consulta', // Usa valor válido de tu enum
+      };
+      console.log("Registro a insertar en agenda:", registro);
+
+      const { error: upsertError } = await supabase
         .from('agenda')
-        .upsert({
-          centro_id,
-          profesional_id,
-          fecha: fechaActual.toISOString().slice(0,10),
-          hora_inicio: b.hora_inicio,
-          hora_fin: b.hora_fin,
-          capacidad: 1,
-          estado: 'disponible',
-          notas: '',
-          "Nombre de Agenda": nombre_agenda,
-          tipo_turno: '', // Se asigna en la reserva
-        }, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
+        .upsert(registro, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
+
+      if (upsertError) {
+        console.error("Supabase error:", upsertError);
+        msg.textContent = "Error al crear agenda: " + upsertError.message;
+        return;
+      }
       totalRangos++;
     }
     fechaActual.setDate(fechaActual.getDate()+1);
   }
   msg.textContent = `Agenda generada (${totalRangos} rangos de disponibilidad).`;
 
-  // Actualizar el select de agendas para eliminar
   await cargarNombresAgendas();
 };
 
@@ -403,82 +455,6 @@ document.getElementById('btn-eliminar-agenda').onclick = async function() {
     document.getElementById('btn-eliminar-agenda').disabled = true;
   }
 };
-
-
-console.log({
-  centro_id,
-  profesional_id,
-  fecha: fechaActual.toISOString().slice(0,10),
-  hora_inicio: b.hora_inicio,
-  hora_fin: b.hora_fin,
-  capacidad: 1,
-  estado: 'disponible',
-  notas: '',
-  "Nombre de Agenda": nombre_agenda,
-  tipo_turno: '', // Se asigna en la reserva
-});
-
-const { error: upsertError } = await supabase
-  .from('agenda')
-  .upsert({
-    centro_id,
-    profesional_id,
-    fecha: fechaActual.toISOString().slice(0,10),
-    hora_inicio: b.hora_inicio,
-    hora_fin: b.hora_fin,
-    capacidad: 1,
-    estado: 'disponible',
-    notas: '',
-    "Nombre de Agenda": nombre_agenda,
-    tipo_turno: 'nueva_consulta', // Usa el valor por defecto para que no falle
-  }, { onConflict: ['centro_id','profesional_id','fecha','hora_inicio','hora_fin'] });
-
-if (upsertError) {
-  console.error("Supabase error:", upsertError);
-}
 </script>
-
-<style>
-.agenda-generador { max-width: 740px; margin: 24px auto; }
-.horarios-table-compact { border-collapse:collapse;width:100%;background:#f7f4fa;font-size:13px; }
-.horarios-table-compact th, .horarios-table-compact td { border:1px solid #e3d8f6;padding:5px;text-align:center; }
-.horarios-table-compact th { background:#ece3fa;font-weight:600;font-size:13px; }
-.input-hora { width:70px; padding:2px 4px; font-size:13px; border-radius:5px; border:1px solid #d2c6ed; }
-.horarios-table-compact td input[type="checkbox"] { transform:scale(1.1); }
-.btn.primary { background: #7656b0; }
-.btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 5px 12px; cursor:pointer; margin: 2px;}
-.btn:disabled { background: #d2c6ed; color:#fff; cursor:not-allowed;}
-.btn:hover:not(:disabled) { background: #7f62b6; }
-.card { background: #fff; padding: 22px; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.09); }
-.bloque-fechas label, .bloque-duracion-turno label { font-size:13px; }
-.bloque-nombre-agenda label { font-size:15px; margin-bottom:2px; color:#381e60; }
-.obligatorio { color: #c2001d; font-weight:700; font-size:1em; }
-.hidden { display:none; }
-.agenda-footer-sticky {
-  position: sticky;
-  bottom: 0;
-  left: 0;
-  background: #f7f4fa;
-  width: 100%;
-  padding: 14px 0 10px 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  z-index: 99;
-  border-top: 1px solid #ece3fa;
-}
-.centro-form-block {
-  background: #f3eafc;
-  border-radius: 8px;
-  box-shadow: 0 1px 6px rgba(120,80,180,.07);
-  padding: 14px 16px 12px 16px;
-  margin-top: 8px;
-  margin-bottom: 8px;
-  max-width:320px;
-}
-.centro-form-block h4 {margin-top:0;margin-bottom:8px;color:#7656b0;font-size:16px;}
-.centro-form-block label {display:block;font-size:13px;margin-bottom:2px;margin-top:8px;}
-.centro-form-block input {width:95%;margin-bottom:4px;}
-.agendas-list-card { max-width:440px; margin: 28px auto 18px auto; background: #fff; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.08); padding: 18px 22px; }
-.agendas-list-card h3 { margin-top:0; margin-bottom:14px; color:#391e60; font-size:18px;}
-</style>
+</body>
+</html>
