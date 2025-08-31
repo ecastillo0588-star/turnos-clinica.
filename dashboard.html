@@ -6,116 +6,137 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="stylesheet" href="app.css">
   <style>
-    .power-btn {
-      background: none;
-      border: none;
-      cursor: pointer;
-      padding: 0;
-      margin: 0;
-      width: 44px;
-      height: 44px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border-radius: 50%;
-      transition: background 0.18s;
-      position: relative;
-    }
-    .power-btn:hover {
-      background: rgba(220,0,40,0.08);
-    }
-    .power-btn svg {
-      width: 30px;
-      height: 30px;
-      stroke: #b00020;
-      transition: stroke 0.18s;
-    }
-    .power-btn:hover svg {
-      stroke: #8e0c2f;
-    }
-    .power-btn .tooltip {
-      display: none;
-      position: absolute;
-      left: 44px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: #381e60;
-      color: #fff;
-      padding: 4px 12px;
-      border-radius: 6px;
-      font-size: 14px;
-      white-space: nowrap;
-      z-index: 999;
-    }
-    .power-btn:hover .tooltip {
-      display: block;
-    }
+    body { background: #f7f9fb; }
+    .app { display: flex; min-height: 100vh; }
     .sidebar {
+      width: 270px;
+      background: #fff;
+      box-shadow: 0 2px 18px rgba(60,40,140,0.07);
       display: flex;
       flex-direction: column;
-      justify-content: flex-start;
-      height: 100vh;
+      padding: 22px 18px 0 24px;
+      min-width: 240px;
     }
-    .sidebar .settings-slot {
-      margin-top: auto;
-      margin-bottom: 8px;
-    }
-    .sidebar .logout-slot {
-      margin-bottom: 18px;
-      margin-top: 8px;
+    .sidebar .user-mini {
       display: flex;
-      justify-content: center;
+      flex-direction: column;
+      align-items: flex-start;
+      margin-bottom: 7px;
+      gap: 2px;
     }
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 18px;
-      margin-bottom: 18px;
-      padding: 8px 0 10px 0;
-      border-bottom: 1px solid #ece5fc;
-      background: #f7f9fb;
+    .sidebar .user-mini .user-name {
+      font-size: 14px;
+      color: #6b6480;
+      font-weight: 500;
+      margin-bottom: 2px;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      max-width: 160px;
     }
-    .user-info {
-      display: flex;
-      flex-direction: row;
-      align-items: center;
-      gap: 18px;
-      font-size: 16px;
-      color: #381e60;
+    .sidebar .user-mini .user-rol {
+      font-size: 12px;
+      background: #a490d7;
+      color: #fff;
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-weight: 400;
+      margin-bottom: 1px;
+      letter-spacing: 0.03em;
+      text-transform: lowercase;
+      white-space: nowrap;
+      max-width: 95px;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .user-info .user-name { font-weight: 500; }
-    .user-info .user-rol { background: #7656b0; color: #fff; border-radius: 6px; padding: 2px 10px; font-size: 14px;}
-    #centro-select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 2px 8px; font-size: 15px; background: #fff;}
-    #centro-nombre-top { font-weight: 500; }
-    .brand-title { font-weight: bold; font-size: 21px; color: #381e60; margin-top: 18px; margin-bottom: 8px;}
+    .brand-title { font-weight: bold; font-size: 21px; color: #381e60; margin-bottom: 8px;}
     .brand-sub { font-size: 15px; color: #6b6480; margin-bottom: 12px;}
-    .separator { border-bottom: 1px solid #ece5fc; margin: 10px 0; }
-    .menu { display: flex; flex-direction: column; gap: 6px; }
-    .menu button { background: #f7f9fb; border: none; padding: 10px 16px; border-radius: 6px; font-size: 15px; color: #381e60; cursor: pointer; transition: background 0.12s; }
+    .centro-row { display: flex; align-items: center; gap: 6px; margin-bottom: 14px;}
+    .centro-label { font-size: 15px; color: #6b6480; }
+    .custom-select {
+      position: relative;
+      width: 130px;
+      font-size: 14px;
+      margin-left: 4px;
+      margin-right: 2px;
+    }
+    .custom-select select {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      background: #f7f9fb;
+      border: 1.5px solid #ece5fc;
+      border-radius: 7px;
+      padding: 5px 28px 5px 10px;
+      font-size: 14px;
+      color: #4f3b7a;
+      width: 100%;
+      font-weight: 500;
+      cursor: pointer;
+      transition: border 0.14s;
+      outline: none;
+      box-shadow: none;
+    }
+    .custom-select select:focus {
+      border-color: #a490d7;
+    }
+    .custom-select::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      right: 11px;
+      width: 11px;
+      height: 11px;
+      pointer-events: none;
+      transform: translateY(-50%);
+      background: url('data:image/svg+xml;utf8,<svg fill="none" stroke="rgb(164,144,215)" stroke-width="2" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><path d="M3 6l4 4 4-4"/></svg>') no-repeat center/contain;
+    }
+    .menu { display: flex; flex-direction: column; gap: 6px; margin-top: 20px;}
+    .menu button { background: #f7f9fb; border: none; padding: 10px 16px; border-radius: 6px; font-size: 15px; color: #381e60; cursor: pointer; transition: background 0.12s; text-align: left;}
     .menu button.active, .menu-subitem.active { background: #e7e2fa; color: #7656b0; }
     .menu button:hover, .menu-subitem:hover { background: #ece5fc; }
+    .separator { border-bottom: 1px solid #ece5fc; margin: 14px 0 10px 0; }
     .submenu-toggle { display: flex; align-items: center; gap: 5px; cursor: pointer; padding: 7px 16px; font-weight: 500; color: #381e60; }
+    .submenu-toggle .caret { font-size: 15px; margin-left: 5px; transition: transform 0.18s; }
     .submenu-toggle.open .caret { transform: rotate(90deg); }
     .submenu-items { display: none; flex-direction: column; gap: 6px; margin-left: 18px; }
     .submenu-items.show { display: flex; }
     .menu-subitem { background: #f7f9fb; border: none; padding: 8px 12px; border-radius: 6px; font-size: 14px; color: #381e60; cursor: pointer; text-align: left; }
-    .settings-btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 7px 18px; font-size: 15px; cursor:pointer; font-weight: 500;}
+    .settings-slot { margin-top: auto; margin-bottom: 16px; }
+    .settings-btn { background: #7656b0; color: #fff; border: none; border-radius: 7px; padding: 11px 0; font-size: 16px; cursor:pointer; font-weight: 500; width: 92%; margin-left: 2px;}
     .settings-btn:hover { background: #7f62b6; }
+    .logout-slot { margin-bottom: 18px; margin-top: 8px; display: flex; justify-content: center; }
+    .power-btn {
+      background: none; border: none; cursor: pointer; padding: 0; margin: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; transition: background 0.18s; position: relative;
+    }
+    .power-btn:hover { background: rgba(220,0,40,0.08);}
+    .power-btn svg { width: 30px; height: 30px; stroke: #b00020; transition: stroke 0.18s;}
+    .power-btn:hover svg { stroke: #8e0c2f;}
+    .power-btn .tooltip {
+      display: none; position: absolute; left: 44px; top: 50%; transform: translateY(-50%);
+      background: #381e60; color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 14px; white-space: nowrap; z-index: 999;
+    }
+    .power-btn:hover .tooltip { display: block;}
     .main { padding: 32px 20px; min-height: 100vh; background: #f7f9fb;}
+    .topbar { display: none; }
     .card { background: #fff; padding: 28px 22px; border-radius: 14px; box-shadow: 0 2px 12px rgba(80,60,160,0.10); max-width: 700px; margin: 0 auto; }
+    .card h2 { margin-top: 0;}
     .hidden { display: none; }
   </style>
 </head>
 <body>
   <div class="app">
     <aside class="sidebar">
-      <div>
-        <div class="brand-title">EG Health</div>
-        <div class="brand-sub">
-          Centro:
-          <select id="centro-select" style="margin-left:4px; min-width:90px;"></select>
-        </div>
+      <div class="user-mini">
+        <span class="user-name" id="user-name"></span>
+        <span class="user-rol" id="user-rol"></span>
+      </div>
+      <div class="brand-title">EG Health</div>
+      <div class="centro-row">
+        <span class="centro-label">Centro:</span>
+        <span class="custom-select"><select id="centro-select"></select></span>
       </div>
       <nav class="menu">
         <button id="btn-dashboard" class="active">Inicio</button>
@@ -145,12 +166,6 @@
       </div>
     </aside>
     <main class="main">
-      <div class="topbar">
-        <div class="user-info">
-          <span class="user-name" id="user-name"></span>
-          <span class="user-rol" id="user-rol"></span>
-        </div>
-      </div>
       <div id="main-content" class="card">
         <h2>Bienvenido</h2>
         <img src="https://i.postimg.cc/ZY8mGGf2/Chat-GPT-Image-30-ago-2025-17-14-28.png" alt="EG Health Solutions Logo" style="max-width:140px;margin-bottom:18px;display:block;">
@@ -160,28 +175,24 @@
     </main>
   </div>
   <script type="module">
-    // Datos de usuario y centros
     const userName = localStorage.getItem('user_name') || 'Sin usuario';
     const userRol = localStorage.getItem('user_role') || '';
     const centroId = localStorage.getItem('centro_medico_id');
     const profesionalId = localStorage.getItem('profesional_id');
+
+    document.getElementById('user-name').textContent = userName;
+    document.getElementById('user-rol').textContent = userRol;
 
     // Ocultar botón configuración para asistentes
     if (userRol === "asistente") {
       document.getElementById('btn-config').style.display = 'none';
     }
 
-    // Carga centros médicos asociados (usando Supabase)
     import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
     const supabaseUrl = 'https://vwkszvdvswznlgxlfdtz.supabase.co';
     const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ3a3N6dmR2c3d6bmxneGxmZHR6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1NDM4NDQsImV4cCI6MjA3MTExOTg0NH0.TnDGheCSTUqGwTCMiHZ_CUgcAztCqVTc1cINkMud8p0';
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // Mostrar datos en la barra superior
-    document.getElementById('user-name').textContent = userName;
-    document.getElementById('user-rol').textContent = userRol;
-
-    // Manejo de centros médicos
     async function cargarCentrosUsuario() {
       let centros = [];
       if (profesionalId) {
@@ -215,7 +226,6 @@
         const seleccionado = centros.find(c=>c.id === this.value);
         localStorage.setItem('centro_medico_id', seleccionado.id);
         localStorage.setItem('centro_medico_nombre', seleccionado.nombre);
-        // Aquí podrías recargar paneles o datos según el nuevo centro
       }
     }
 
@@ -229,7 +239,6 @@
       submenuToggle.classList.toggle('open');
     });
 
-    // Mostrar y ocultar paneles
     function showPanel(panel) {
       document.getElementById('main-content').classList.add('hidden');
       document.getElementById('configuracion-panel').classList.add('hidden');
