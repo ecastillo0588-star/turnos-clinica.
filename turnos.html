@@ -928,12 +928,21 @@ UI.nextMonth.addEventListener('click',async()=>{ if(++view.m>11){view.m=0;view.y
 /* ====== Init ====== */
 (function renderDow(){UI.calDow.innerHTML=DOW.map(d=>`<div>${d}</div>`).join('');})();
 (async function init(){
-  if(!currentCentroId){
-    UI.status.textContent='Seleccioná un centro para ver turnos.'; return;
-  }
+  // mostrar los nombres de los días
+  (function(){ UI.calDow.innerHTML = DOW.map(d=>`<div>${d}</div>`).join(''); })();
+
+  // SIEMPRE preparar el selector de centro
   await ensureCentro();
+
+  // si después de ensureCentro seguimos sin un centro elegido, mostramos mensaje y salimos
+  if(!currentCentroId){
+    UI.status.textContent = 'Seleccioná un centro para ver turnos.';
+    return;
+  }
+
   await loadProfesionales();
   await loadDuraciones(currentProfesional);
   await renderCalendar();
 })();
+
 </script>
