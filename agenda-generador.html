@@ -330,6 +330,10 @@ const formatLocalYMD = (d) => {
 let fechaActual = parseLocalDate(fecha_inicio);
 const fechaFin   = parseLocalDate(fecha_fin);
 
+msg.textContent = "Generando agenda...";  // (opcional pero recomendable)
+let totalRangos = 0;                       // (OBLIGATORIA)
+
+
 
   while(fechaActual <= fechaFin){
     const diaSemanaNum = fechaActual.getDay();
