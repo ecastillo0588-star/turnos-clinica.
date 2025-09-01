@@ -129,25 +129,77 @@
     }
 
     async function cargarCentrosAsociados(profId) {
-      // Opción JOIN directa
-      const { data, error } = await supabase
-        .from('profesional_centro')
-        .select('centros_medicos ( id, nombre, activo )')
-        .eq('profesional_id', profId)
-        .eq('activo', true); // activo de la relación; si quieres validar centro activo también filtramos abajo
+  if (!profId) {
+    console.warn("[cargarCentrosAsociados] profId requerido");
+    return { centros: [], error: new Error("profId requerido") };
+  }
 
-      if (error) {
-        console.error("[DEBUG] Error consultando profesional_centro:", error);
-        return { centros: [], error };
-      }
+  // Helper para normalizar, filtrar activos, deduplicar y ordenar
+  const normalize = (rows) => {
+    const list = (rows || [])
+      .map(r => r?.centros_medicos ?? r)                 // embed o filas planas
+      .filter(c => c && c.id && c.activo !== false)      // solo activos
+      .map(c => ({ id: c.id, nombre: c.nombre, activo: c.activo }));
+    // dedup + orden por nombre
+    const map = new Map(list.map(c => [c.id, c]));
+    return Array.from(map.values()).sort((a, b) =>
+      (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" })
+    );
+  };
 
-      const lista = (data || [])
-        .map(r => r.centros_medicos)
-        .filter(c => c && c.activo !== false);
+  // 1) Embed estándar (funciona si tenés 1 sola FK a centros_medicos)
+  let { data, error } = await supabase
+    .from('profesional_centro')
+    .select('centros_medicos ( id, nombre, activo )')
+    .eq('profesional_id', profId)
+    .eq('activo', true);
 
-      console.log("[DEBUG] Centros asociados encontrados:", lista);
-      return { centros: lista, error: null };
-    }
+  if (!error) {
+    return { centros: normalize(data), error: null };
+  }
+  console.warn("[cargarCentrosAsociados] embed estándar falló:", JSON.stringify(error, null, 2));
+
+  // 2) Embed con alias de FK (por si aún hay varias y debés desambiguar)
+  ({ data, error } = await supabase
+    .from('profesional_centro')
+    .select('centros_medicos:centros_medicos!profesional_centro_centro_fkey ( id, nombre, activo )')
+    .eq('profesional_id', profId)
+    .eq('activo', true));
+
+  if (!error) {
+    return { centros: normalize(data), error: null };
+  }
+  console.warn("[cargarCentrosAsociados] embed con alias falló:", JSON.stringify(error, null, 2));
+
+  // 3) Fallback robusto: 2 queries (IDs -> IN)
+  const { data: links, error: e1 } = await supabase
+    .from('profesional_centro')
+    .select('centro_id')
+    .eq('profesional_id', profId)
+    .eq('activo', true);
+
+  if (e1) {
+    console.warn("[cargarCentrosAsociados] error trayendo vínculos:", JSON.stringify(e1, null, 2));
+    return { centros: [], error: e1 };
+  }
+
+  const ids = (links || []).map(r => r.centro_id).filter(Boolean);
+  if (!ids.length) return { centros: [], error: null };
+
+  const { data: centros, error: e2 } = await supabase
+    .from('centros_medicos')
+    .select('id, nombre, activo')
+    .in('id', ids)
+    .eq('activo', true);
+
+  if (e2) {
+    console.warn("[cargarCentrosAsociados] error trayendo centros:", JSON.stringify(e2, null, 2));
+    return { centros: [], error: e2 };
+  }
+
+  return { centros: normalize(centros), error: null };
+}
+
 
     async function mostrarSelectorCentros(listaCentros) {
       document.getElementById('login-form').classList.add('hidden');
