@@ -235,11 +235,85 @@
 import supabase from './supabaseClient.js';
 import { isValidHourRange } from './validators.js';
 
-/* ====== Carga Flatpickr (ESM) para el selector con “puntitos” ====== */
-const [{ default: flatpickr }, { Spanish }] = await Promise.all([
-  import('https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/esm/index.js'),
-  import('https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/es.js')
-]);
+/* ====== Flatpickr: carga bajo demanda ====== */
+let flatpickrLib = null;
+let fpLocaleEs   = null;
+let datepickerInstance = null;   // <-- declarar acá
+let datepickerAvailMap = null;   // <-- declarar acá
+
+async function loadFlatpickr(){
+  if (flatpickrLib) return;
+  try {
+    const [{ default: fp }, { Spanish }] = await Promise.all([
+      import('https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/esm/index.js'),
+      import('https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/es.js')
+    ]);
+    flatpickrLib = fp;
+    fpLocaleEs   = Spanish;
+  } catch (e){
+    console.warn('Flatpickr no disponible (uso <input type="date">):', e);
+  }
+}
+
+async function ensureDatepicker(defaultISO){
+  await loadFlatpickr();
+
+  // Fallback nativo si la CDN falla
+  if (!flatpickrLib){
+    UI.modalDateInput.type = 'date';
+    UI.modalDateInput.value = defaultISO;
+    if (!UI.modalDateInput.dataset.nativeInit){
+      UI.modalDateInput.addEventListener('change', async ()=>{
+        if (UI.modalDateInput.value) await loadModalDate(UI.modalDateInput.value);
+      });
+      UI.modalDateInput.dataset.nativeInit = '1';
+    }
+    return;
+  }
+
+  if (!datepickerInstance){
+    datepickerInstance = flatpickrLib(UI.modalDateInput, {
+      locale: fpLocaleEs,
+      dateFormat:'Y-m-d',
+      defaultDate: defaultISO,
+      onChange: async (_, d, inst)=>{ if(d){ await loadModalDate(d); await refreshDatepickerDecorations(inst);} },
+      onMonthChange: async (_, __, inst)=>{ await refreshDatepickerDecorations(inst); },
+      onYearChange:  async (_, __, inst)=>{ await refreshDatepickerDecorations(inst); },
+      onReady:       async (_, __, inst)=>{ await refreshDatepickerDecorations(inst); },
+      onDayCreate(dObj,dStr,inst,dayElem){
+        const iso = dayElem.dateObj.toISOString().slice(0,10);
+        const s = datepickerAvailMap?.[iso];
+        dayElem.classList.remove('has-free','has-busy','has-none');
+        if (s==='free') dayElem.classList.add('has-free');
+        else if (s==='busy') dayElem.classList.add('has-busy');
+        else if (s==='none') dayElem.classList.add('has-none');
+      }
+    });
+  } else {
+    datepickerInstance.setDate(defaultISO, false);
+  }
+}
+
+/* ====== UI refs ====== */
+const UI = {
+  centroSelect: document.getElementById('turnos-centro-select'),
+  centroNombre: document.getElementById('turnos-centro-nombre'),
+  profesionalSelect: document.getElementById('turnos-profesional-select'),
+  tipoTurno: document.getElementById('turnos-tipo'),
+  btnHoy: document.getElementById('turnos-btn-hoy'),
+  pacInput: document.getElementById('turnos-paciente-input'),
+  pacSuggest: document.getElementById('turnos-paciente-suggest'),
+  pacChip: document.getElementById('turnos-paciente-chip'),
+  pacChipText: document.getElementById('turnos-paciente-chip-text'),
+  pacClear: document.getElementById('turnos-paciente-clear'),
+  calDow: document.getElementById('turnos-cal-dow'),
+  calGrid: document.getElementById('turnos-cal-grid'),
+  calTitle: document.getElementById('turnos-cal-title'),
+  status: document.getElementById('turnos-status'),
+  prevMonth: document.getElementById('turnos-prev-month'),
+  // ...
+};
+
 
 /* ====== UI refs ====== */
 const UI = {
