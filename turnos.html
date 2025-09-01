@@ -1,5 +1,8 @@
 <!-- Vista TURNOS (partial) - se inyecta dentro de #main-content -->
 <div id="turnos-view" data-view="turnos">
+  <!-- CSS base Flatpickr para el selector -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
   <style>
     :root {
       --tw-brand:#7656b0; --tw-brand2:#a490d7; --tw-ink:#381e60; --tw-muted:#6b6480;
@@ -65,19 +68,21 @@
     .tw-inline{display:flex;gap:10px;align-items:center}
     .tw-upload-zone{background:#fff;border:2px dashed var(--tw-line);border-radius:14px;padding:14px;text-align:center}
     .tw-upload-preview{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;align-items:center}
-    .tw-upload-preview img{width:62px;height:62px;object-fit:cover;border-radius:14px;border:1px solid var(--tw-line)}
+    .tw-upload-preview img{width:62px;height:62px;object-fit:cover;border:1px solid var(--tw-line)}
     .tw-actions{margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
     @media (max-width:900px){ .tw-toolbar{grid-template-columns:1fr 1fr;row-gap:14px} .tw-toolbar .tw-field:nth-child(5){grid-column:1/3} }
 
-    /* Mini-calendario dentro del modal */
-    .tw-mini{display:grid;grid-template-columns:repeat(7,18px);gap:4px;margin-left:8px;align-items:center}
-    .tw-mini .dot{width:14px;height:14px;border-radius:4px;border:1px solid var(--tw-line);background:#faf9ff}
-    .tw-mini .dot.none{background:#f1effa;opacity:.7}
-    .tw-mini .dot.busy{background:#fff4e6}
-    .tw-mini .dot.free{background:#e9fff1}
-    .tw-mini .dot.clickable{cursor:pointer}
-    .tw-mini .dot.today{outline:2px solid var(--tw-brand2)}
-    .tw-mini .dot.selected{box-shadow:0 0 0 2px var(--tw-accent) inset}
+    /* Puntos de disponibilidad dentro del calendario del datepicker (Flatpickr) */
+    .flatpickr-calendar .flatpickr-day{ position:relative; }
+    .flatpickr-day.has-free::after,
+    .flatpickr-day.has-busy::after,
+    .flatpickr-day.has-none::after{
+      content:""; position:absolute; left:50%; transform:translateX(-50%);
+      bottom:4px; width:6px; height:6px; border-radius:50%;
+    }
+    .flatpickr-day.has-free::after{ background:#0f6c36; }   /* libre */
+    .flatpickr-day.has-busy::after{ background:#ffb869; }   /* sin hueco */
+    .flatpickr-day.has-none::after{ background:#d2c7eb; }   /* sin agenda */
   </style>
 
   <div class="tw-toolbar">
@@ -138,10 +143,8 @@
       <h3 id="turnos-modal-title" class="tw-modal-title">Turnos del día</h3>
       <div class="tw-day-nav">
         <button class="tw-icon-btn" id="turnos-modal-prev-day" data-tip="Día anterior">◀</button>
-        <input type="date" id="turnos-modal-date" class="tw-inp tw-date">
+        <input type="text" id="turnos-modal-date" class="tw-inp tw-date" aria-label="Elegir fecha">
         <button class="tw-icon-btn" id="turnos-modal-next-day" data-tip="Día siguiente">▶</button>
-        <!-- Mini calendario mensual dentro del modal -->
-        <div id="turnos-mini-cal" class="tw-mini" aria-label="Disponibilidad del mes"></div>
       </div>
       <button class="tw-close" id="turnos-modal-close">×</button>
     </div>
@@ -232,6 +235,12 @@
 import supabase from './supabaseClient.js';
 import { isValidHourRange } from './validators.js';
 
+/* ====== Carga Flatpickr (ESM) para el selector con “puntitos” ====== */
+const [{ default: flatpickr }, { Spanish }] = await Promise.all([
+  import('https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/esm/index.js'),
+  import('https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/es.js')
+]);
+
 /* ====== UI refs ====== */
 const UI = {
   centroSelect: document.getElementById('turnos-centro-select'),
@@ -291,7 +300,6 @@ const UI = {
   npCredPreview: document.getElementById('np-cred-preview'),
   npGuardar: document.getElementById('turnos-guardar-paciente'),
   npMsg: document.getElementById('turnos-np-msg'),
-  miniCal: document.getElementById('turnos-mini-cal'),
 };
 
 /* ====== State ====== */
@@ -377,8 +385,9 @@ async function ensureCentro(){
       localStorage.setItem('centro_medico_nombre',currentCentroNombre);
       await loadProfesionales();
       await loadDuraciones(currentProfesional);
+      monthAvailCache.clear();
       await renderCalendar();
-      if(UI.modal.style.display==='flex') await renderMiniCalFor(modalDateISO);
+      if(UI.modal.style.display==='flex'){ await ensureDatepicker(modalDateISO); await refreshDatepickerDecorations(datepickerInstance); }
     });
   }
 }
@@ -656,30 +665,55 @@ async function renderCalendar(){
   UI.status.textContent=agenda.length?'':'No hay agenda cargada para este mes.';
 }
 
-/* ====== Mini-calendario en modal ====== */
-async function renderMiniCalFor(isoDate){
-  if(!currentProfesional || !isoDate || !UI.miniCal) return;
-  const d=new Date(isoDate+'T00:00:00'); const y=d.getFullYear(), m=d.getMonth();
-  UI.miniCal.innerHTML='';
+/* ====== Disponibilidad para pintar puntitos en el datepicker ====== */
+const monthAvailCache=new Map();
+async function getMonthAvailability(y,m){
+  const key=`${y}-${pad(m+1)}`;
+  if(monthAvailCache.has(key)) return monthAvailCache.get(key);
   const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, y, m);
   const gA=groupByFecha(agenda||[]), gT=groupByFecha(turnos||[]);
-  const first=new Date(y,m,1), last=new Date(y,m+1,0); const offset=nativeFirstDow(first);
-  const selectedDay=d.getDate(); const today=todayInfo(); const tipo=UI.tipoTurno.value;
-  for(let i=0;i<offset;i++){ const dot=document.createElement('div'); dot.className='dot none'; UI.miniCal.appendChild(dot); }
-  for(let day=1;day<=last.getDate();day++){
+  const first=new Date(y,m,1), last=new Date(y,m+1,0); const tipo=UI.tipoTurno.value;
+  const map={};
+  for(let day=1; day<=last.getDate(); day++){
     const iso=toISODate(y,m,day);
     const agendaDia=gA.get(iso)||[]; const turnosDia=gT.get(iso)||[];
     const preview=generarSlots(agendaDia,turnosDia,tipo,reprogramState?.turno?.id||null);
     const libres=preview.filter(s=>s.disponible).length;
-    let cls='dot '; let title=''; let clickable=false;
-    if(!agendaDia.length){ cls+='none'; title='Sin agenda'; }
-    else if(libres>0){ cls+='free'; title=`${libres} libres`; clickable=true; }
-    else { cls+='busy'; title='Sin huecos'; clickable=true; }
-    const dot=document.createElement('div'); dot.className=cls+(clickable?' clickable':''); if(title) dot.title=`${day}/${m+1} · ${title}`;
-    if(day===selectedDay) dot.classList.add('selected'); if(y===today.y&&m===today.m&&day===today.d) dot.classList.add('today');
-    if(clickable){ dot.addEventListener('click', async ()=>{ const newISO=toISODate(y,m,day); await loadModalDate(newISO); await renderMiniCalFor(newISO); }); }
-    UI.miniCal.appendChild(dot);
+    map[iso]=!agendaDia.length?'none':(libres>0?'free':'busy');
   }
+  monthAvailCache.set(key,map);
+  return map;
+}
+let datepickerInstance=null;
+let datepickerAvailMap=null;
+
+async function ensureDatepicker(defaultISO){
+  if(!datepickerInstance){
+    datepickerInstance=flatpickr(UI.modalDateInput,{
+      locale: Spanish,
+      dateFormat:'Y-m-d',
+      defaultDate: defaultISO,
+      onChange: async (selectedDates, dateStr, inst)=>{ if(dateStr){ await loadModalDate(dateStr); await refreshDatepickerDecorations(inst);} },
+      onMonthChange: async (_, __, inst)=>{ await refreshDatepickerDecorations(inst); },
+      onYearChange: async (_, __, inst)=>{ await refreshDatepickerDecorations(inst); },
+      onReady: async (_, __, inst)=>{ await refreshDatepickerDecorations(inst); },
+      onDayCreate: function(dObj,dStr,inst,dayElem){
+        const iso=dateToISO(dayElem.dateObj);
+        const status=datepickerAvailMap?.[iso];
+        dayElem.classList.remove('has-free','has-busy','has-none');
+        if(status==='free') dayElem.classList.add('has-free');
+        else if(status==='busy') dayElem.classList.add('has-busy');
+        else if(status==='none') dayElem.classList.add('has-none');
+      }
+    });
+  } else {
+    datepickerInstance.setDate(defaultISO, false);
+  }
+}
+async function refreshDatepickerDecorations(inst){
+  const y=inst.currentYear, m=inst.currentMonth;
+  datepickerAvailMap=await getMonthAvailability(y,m);
+  inst.redraw();
 }
 
 /* ====== Modal día ====== */
@@ -687,12 +721,12 @@ async function openDayModal(isoDate,agendaDia,turnosDiaRaw,{preserveReprogram=fa
   if(!preserveReprogram)reprogramState=null;
   modalDateISO=isoDate;
   UI.modalTitle.innerHTML=buildModalTitle(isoDate);
-  UI.modalDateInput.value=isoDate;
   UI.modal.style.display='flex';
+  await ensureDatepicker(isoDate);
   const exclude=reprogramState?.turno.id||null;
   const slots=generarSlots(agendaDia,turnosDiaRaw,UI.tipoTurno.value,exclude);
   renderSlots(slots);
-  await renderMiniCalFor(isoDate);
+  await refreshDatepickerDecorations(datepickerInstance);
 }
 UI.modalClose.addEventListener('click',()=>UI.modal.style.display='none');
 window.addEventListener('click',e=>{
@@ -792,9 +826,10 @@ async function tryAgendar(slot){
     const { data: inserted, error } = await supabase.from('turnos').insert([payload]).select('id').single();
     if(error){
       const msg=(error.message||'').toLowerCase();
-      if(error.code==='23505'){ // unique violation
-        await refreshDayModal();
-        // ¿ya existía para este mismo paciente y horario?
+      const isDup = error.code==='23505' || msg.includes('duplicate key');
+      if(isDup){
+        await refreshDayModal(); // refrescar primero la UI
+        // ¿ya existía para ESTE paciente y horario? => mostrar OK
         const { data: exists } = await supabase.from('turnos')
           .select('id')
           .eq('centro_id', currentCentroId).eq('profesional_id', currentProfesional)
@@ -816,7 +851,9 @@ async function tryAgendar(slot){
     }
   } finally {
     bookingBusy=false; setSlotsDisabled(false);
+    monthAvailCache.clear();
     await refreshDayModal(); await renderCalendar(); refreshModalTitle();
+    if(datepickerInstance) await refreshDatepickerDecorations(datepickerInstance);
   }
 }
 function startReprogram(turno){
@@ -839,7 +876,10 @@ async function confirmReprogram(slot){
       reprogramState=null;
     }
   } finally {
-    reprogramBusy=false; await refreshDayModal(); await renderCalendar();
+    reprogramBusy=false;
+    monthAvailCache.clear();
+    await refreshDayModal(); await renderCalendar();
+    if(datepickerInstance) await refreshDatepickerDecorations(datepickerInstance);
   }
 }
 async function cancelarTurno(t){
@@ -847,16 +887,17 @@ async function cancelarTurno(t){
   const { error } = await supabase.from('turnos').update({estado:'cancelado'}).eq('id',t.id);
   if(error){alert(error.message||'No se pudo anular.');}
   else if(reprogramState?.turno.id===t.id) reprogramState=null;
+  monthAvailCache.clear();
   await refreshDayModal(); await renderCalendar();
+  if(datepickerInstance) await refreshDatepickerDecorations(datepickerInstance);
 }
 
 /* ====== Navegación Modal Día ====== */
 async function loadModalDate(newISO){
   modalDateISO=newISO;
-  UI.modalDateInput.value=newISO;
   UI.modalTitle.innerHTML=buildModalTitle(newISO);
   await refreshDayModal();
-  await renderMiniCalFor(newISO);
+  if(datepickerInstance){ datepickerInstance.setDate(newISO, false); await refreshDatepickerDecorations(datepickerInstance); }
 }
 UI.modalPrevDay.addEventListener('click',async()=>{
   if(!modalDateISO)return; const d=new Date(modalDateISO+'T00:00:00'); d.setDate(d.getDate()-1);
@@ -866,31 +907,30 @@ UI.modalNextDay.addEventListener('click',async()=>{
   if(!modalDateISO)return; const d=new Date(modalDateISO+'T00:00:00'); d.setDate(d.getDate()+1);
   await loadModalDate(dateToISO(d));
 });
-UI.modalDateInput.addEventListener('change',async()=>{
-  if(UI.modalDateInput.value){ await loadModalDate(UI.modalDateInput.value); }
-});
 
 /* ====== Eventos globales ====== */
 UI.tipoTurno.addEventListener('change',async()=>{
+  monthAvailCache.clear();
   await renderCalendar();
-  if(UI.modal.style.display==='flex'){ await refreshDayModal(); await renderMiniCalFor(modalDateISO); }
+  if(UI.modal.style.display==='flex'){ await refreshDayModal(); if(datepickerInstance) await refreshDatepickerDecorations(datepickerInstance); }
 });
 UI.profesionalSelect.addEventListener('change',async()=>{
   currentProfesional=UI.profesionalSelect.value||null;
   await loadDuraciones(currentProfesional);
+  monthAvailCache.clear();
   await renderCalendar();
-  if(UI.modal.style.display==='flex'){ await refreshDayModal(); await renderMiniCalFor(modalDateISO); }
+  if(UI.modal.style.display==='flex'){ await refreshDayModal(); if(datepickerInstance) await refreshDatepickerDecorations(datepickerInstance); }
 });
 UI.btnHoy.addEventListener('click',async()=>{ view=todayInfo(); await renderCalendar(); });
 UI.prevMonth.addEventListener('click',async()=>{ if(--view.m<0){view.m=11;view.y--;} await renderCalendar(); });
 UI.nextMonth.addEventListener('click',async()=>{ if(++view.m>11){view.m=0;view.y++;} await renderCalendar(); });
 
 /* ====== Init ====== */
+(function renderDow(){UI.calDow.innerHTML=DOW.map(d=>`<div>${d}</div>`).join('');})();
 (async function init(){
   if(!currentCentroId){
     UI.status.textContent='Seleccioná un centro para ver turnos.'; return;
   }
-  renderDow();
   await ensureCentro();
   await loadProfesionales();
   await loadDuraciones(currentProfesional);
