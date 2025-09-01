@@ -159,26 +159,34 @@
       document.getElementById('center-form').classList.remove('hidden');
     }
 
-    async function mostrarFormularioAsociar() {
-      // Traer todos los centros activos para asociar (puedes filtrar más si quieres)
-      const { data: allCentros, error: allCentrosError } = await supabase
-        .from('centros_medicos')
-        .select('id, nombre')
-        .eq('activo', true);
+async function mostrarFormularioAsociar() {
+  // Sólo propietario (o incluye 'medico' si lo habilitaste en la RPC)
+  if (!['propietario'].includes(userRole)) {
+    document.getElementById('error-message').textContent =
+      'No tenés permisos para asociar centros. Contactá al administrador.';
+    return;
+  }
 
-      if (allCentrosError || !allCentros?.length) {
-        document.getElementById('error-message').textContent = 'No hay centros médicos disponibles para asociar.';
-        return;
-      }
-      centros = allCentros;
-      document.getElementById('login-form').classList.add('hidden');
-      document.getElementById('associate-select-div').innerHTML = `
-        <label for="associate-centro">Asocia un centro médico a tu perfil:</label>
-        <select id="associate-centro" required>
-          ${allCentros.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')}
-        </select>`;
-      document.getElementById('associate-form').classList.remove('hidden');
-    }
+  // Traer centros disponibles para asociar al profesional actual
+  const { data: allCentros, error: allCentrosError } = await supabase
+    .rpc('centros_listar_para_asociar', { prof_id: profesionalId });
+
+  if (allCentrosError || !allCentros?.length) {
+    document.getElementById('error-message').textContent =
+      'No hay centros médicos disponibles para asociar.';
+    return;
+  }
+
+  centros = allCentros;
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('associate-select-div').innerHTML = `
+    <label for="associate-centro">Asociar un centro médico:</label>
+    <select id="associate-centro" required>
+      ${allCentros.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')}
+    </select>`;
+  document.getElementById('associate-form').classList.remove('hidden');
+}
+
 
     // --- LOGIN ---
     document.getElementById('login-form').addEventListener('submit', async (e) => {
