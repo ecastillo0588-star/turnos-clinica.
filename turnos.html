@@ -68,6 +68,16 @@
     .tw-upload-preview img{width:62px;height:62px;object-fit:cover;border-radius:14px;border:1px solid var(--tw-line)}
     .tw-actions{margin-top:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
     @media (max-width:900px){ .tw-toolbar{grid-template-columns:1fr 1fr;row-gap:14px} .tw-toolbar .tw-field:nth-child(5){grid-column:1/3} }
+
+    /* Mini-calendario dentro del modal */
+    .tw-mini{display:grid;grid-template-columns:repeat(7,18px);gap:4px;margin-left:8px;align-items:center}
+    .tw-mini .dot{width:14px;height:14px;border-radius:4px;border:1px solid var(--tw-line);background:#faf9ff}
+    .tw-mini .dot.none{background:#f1effa;opacity:.7}
+    .tw-mini .dot.busy{background:#fff4e6}
+    .tw-mini .dot.free{background:#e9fff1}
+    .tw-mini .dot.clickable{cursor:pointer}
+    .tw-mini .dot.today{outline:2px solid var(--tw-brand2)}
+    .tw-mini .dot.selected{box-shadow:0 0 0 2px var(--tw-accent) inset}
   </style>
 
   <div class="tw-toolbar">
@@ -130,6 +140,8 @@
         <button class="tw-icon-btn" id="turnos-modal-prev-day" data-tip="Día anterior">◀</button>
         <input type="date" id="turnos-modal-date" class="tw-inp tw-date">
         <button class="tw-icon-btn" id="turnos-modal-next-day" data-tip="Día siguiente">▶</button>
+        <!-- Mini calendario mensual dentro del modal -->
+        <div id="turnos-mini-cal" class="tw-mini" aria-label="Disponibilidad del mes"></div>
       </div>
       <button class="tw-close" id="turnos-modal-close">×</button>
     </div>
@@ -279,6 +291,7 @@ const UI = {
   npCredPreview: document.getElementById('np-cred-preview'),
   npGuardar: document.getElementById('turnos-guardar-paciente'),
   npMsg: document.getElementById('turnos-np-msg'),
+  miniCal: document.getElementById('turnos-mini-cal'),
 };
 
 /* ====== State ====== */
@@ -294,6 +307,8 @@ let modalDateISO = null;
 let pacienteSeleccionado = null;
 let obrasSocialesCache = [];
 let reprogramState = null; // { turno, durMin }
+let bookingBusy = false;
+let reprogramBusy = false;
 
 /* ====== Helpers Fecha / Formato ====== */
 function todayInfo(){const d=new Date();return{y:d.getFullYear(),m:d.getMonth(),d:d.getDate()};}
@@ -310,6 +325,17 @@ function buildWA({pac,fechaISO,start,end,prof,centro,dir}){return`Hola ${pac.ape
 function dateToISO(d){return d.toISOString().slice(0,10);}
 const DOW=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 function nativeFirstDow(d){const g=d.getDay();return g===0?6:g-1;}
+function getProfLabel(){return UI.profesionalSelect.options[UI.profesionalSelect.selectedIndex]?.textContent||'Profesional';}
+function pacFromTurno(t){const p=t?.pacientes||null; if(!p && pacienteSeleccionado) return pacienteSeleccionado; return p ? {id:p.id,nombre:p.nombre,apellido:p.apellido,dni:p.dni,telefono:p.telefono} : null;}
+function buildModalTitle(iso){
+  const fecha=new Date(iso).toLocaleDateString('es-AR');
+  const badge=pacienteSeleccionado
+    ? ` <span class="tw-ok-badge">Paciente: ${pacienteSeleccionado.apellido}, ${pacienteSeleccionado.nombre}${pacienteSeleccionado.dni?(' · DNI '+pacienteSeleccionado.dni):''}</span>`
+    : '';
+  return `Turnos del ${fecha}${badge}`;
+}
+function refreshModalTitle(){ if(modalDateISO) UI.modalTitle.innerHTML=buildModalTitle(modalDateISO); }
+function setSlotsDisabled(disabled){ UI.slotsList.querySelectorAll('.tw-icon-btn').forEach(b=>{ b.disabled=disabled; }); }
 
 /* ====== Centros / Profesionales ====== */
 async function fetchCentroById(id){
@@ -352,6 +378,7 @@ async function ensureCentro(){
       await loadProfesionales();
       await loadDuraciones(currentProfesional);
       await renderCalendar();
+      if(UI.modal.style.display==='flex') await renderMiniCalFor(modalDateISO);
     });
   }
 }
@@ -415,8 +442,7 @@ async function loadObrasSociales(){
 UI.npObra?.addEventListener('change',()=>{
   const sel=obrasSocialesCache.find(o=>o.obra_social===UI.npObra.value);
   if(!sel){UI.npObraInfo.textContent='';return;}
-  const cond=sel.condicion_copago?`Condición: ${sel.condicion_copago}`:'';
-  const val=(sel.valor_copago!=null)?` · Copago: ${sel.valor_copago}`:'';
+  const cond=sel.condicion_copago?`Condición: ${sel.condicion_copago}`:''; const val=(sel.valor_copago!=null)?` · Copago: ${sel.valor_copago}`:'';
   UI.npObraInfo.textContent=cond||val?cond+val:'';
 });
 
@@ -498,10 +524,12 @@ function selectPaciente(p){
   UI.pacChip.style.display='flex';
   hideSuggest();
   enforceTipoTurnoByPaciente(p.id);
+  if(UI.modal.style.display==='flex') refreshModalTitle();
 }
 UI.pacClear.addEventListener('click',()=>{
   pacienteSeleccionado=null;UI.pacChip.style.display='none';
   enforceTipoTurnoByPaciente(null);
+  if(UI.modal.style.display==='flex') refreshModalTitle();
 });
 async function enforceTipoTurnoByPaciente(pacienteId){
   const optNueva=UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
@@ -514,26 +542,20 @@ async function enforceTipoTurnoByPaciente(pacienteId){
     optNueva.disabled=true;
     if(UI.tipoTurno.value==='nueva_consulta') UI.tipoTurno.value='recurrente';
   } else {
-    optNueva.disabled=true;
+    optNueva.disabled=false; // FIX
   }
 }
 
 /* ====== Modal Paciente ====== */
 async function openPacienteModalPrefilled(q){
   if(!obrasSocialesCache.length) await loadObrasSociales();
-  UI.npDni.value=/^\d{6,}$/.test(q)?q:'';
-  const parts=q.split(/\s+/).filter(Boolean);
-  UI.npApellido.value=parts[0]||'';
-  UI.npNombre.value=parts[1]||'';
-  UI.npFechaNac.value='';
-  UI.npTel.value='';UI.npEmail.value='';
-  UI.npObra.value='';UI.npObraInfo.textContent='';
-  UI.npAfiliado.value='';
+  UI.npDni.value=/^\d{6,}$/.test(q)?q:''; const parts=q.split(/\s+/).filter(Boolean);
+  UI.npApellido.value=parts[0]||''; UI.npNombre.value=parts[1]||'';
+  UI.npFechaNac.value=''; UI.npTel.value=''; UI.npEmail.value='';
+  UI.npObra.value=''; UI.npObraInfo.textContent=''; UI.npAfiliado.value='';
   UI.npConNom.value=UI.npConApe.value=UI.npConCel.value=UI.npVinculo.value='';
-  UI.npHistoria.value='';
-  UI.npCredFile.value='';UI.npCredPreview.style.display='none';UI.npCredPreview.innerHTML='';
-  UI.npMsg.textContent='';
-  UI.modalPac.style.display='flex';
+  UI.npHistoria.value=''; UI.npCredFile.value=''; UI.npCredPreview.style.display='none'; UI.npCredPreview.innerHTML='';
+  UI.npMsg.textContent=''; UI.modalPac.style.display='flex';
 }
 UI.modalPacClose.addEventListener('click',()=>UI.modalPac.style.display='none');
 window.addEventListener('click',e=>{if(e.target===UI.modalPac)UI.modalPac.style.display='none';});
@@ -544,158 +566,133 @@ UI.npCredFile.addEventListener('change',()=>{
   UI.npCredPreview.innerHTML='';
   if(!f){UI.npCredPreview.style.display='none';return;}
   if(/^image\//.test(f.type)){
-    const img=document.createElement('img');
-    img.src=URL.createObjectURL(f);img.alt='credencial';
+    const img=document.createElement('img'); img.src=URL.createObjectURL(f); img.alt='credencial';
     UI.npCredPreview.appendChild(img);
   }
-  const meta=document.createElement('div');
-  meta.className='tw-hint';
+  const meta=document.createElement('div'); meta.className='tw-hint';
   meta.innerHTML=`${f.name} · ${(f.size/1024).toFixed(0)} KB <a href="#" id="np-cred-remove">Quitar</a>`;
-  UI.npCredPreview.appendChild(meta);
-  UI.npCredPreview.style.display='flex';
+  UI.npCredPreview.appendChild(meta); UI.npCredPreview.style.display='flex';
   meta.querySelector('#np-cred-remove').addEventListener('click',ev=>{
     ev.preventDefault();UI.npCredFile.value='';UI.npCredPreview.style.display='none';UI.npCredPreview.innerHTML='';
   });
 });
 UI.npGuardar.addEventListener('click',async()=>{
-  const dni=UI.npDni.value.trim();
-  const nombre=UI.npNombre.value.trim();
-  const apellido=UI.npApellido.value.trim();
-  const fecha_nacimiento=UI.npFechaNac.value||'';
-  const telefono=UI.npTel.value.trim();
-  if(!dni||!nombre||!apellido||!fecha_nacimiento||!telefono){
-    UI.npMsg.textContent='Completá los campos obligatorios (*)';return;
-  }
+  const dni=UI.npDni.value.trim(), nombre=UI.npNombre.value.trim(), apellido=UI.npApellido.value.trim(), fecha_nacimiento=UI.npFechaNac.value||'', telefono=UI.npTel.value.trim();
+  if(!dni||!nombre||!apellido||!fecha_nacimiento||!telefono){ UI.npMsg.textContent='Completá los campos obligatorios (*)';return; }
   UI.npMsg.textContent='Guardando...';
   let credencialUrl=null;
   const file=UI.npCredFile.files?.[0];
   if(file){
     const ext=(file.name.split('.').pop()||'bin').toLowerCase();
     const path=`${dni}_${Date.now()}.${ext}`;
-    const { data: up, error: upErr } = await supabase.storage
-      .from('credenciales')
-      .upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type});
+    const { data: up, error: upErr } = await supabase.storage.from('credenciales').upload(path,file,{cacheControl:'3600',upsert:false,contentType:file.type});
     if(upErr){UI.npMsg.textContent='No se pudo subir credencial: '+(upErr.message||'');return;}
     const { data: pub } = supabase.storage.from('credenciales').getPublicUrl(up.path);
     credencialUrl=pub?.publicUrl||null;
   }
   const payload={
     dni,nombre,apellido,fecha_nacimiento,telefono,
-    email:UI.npEmail.value.trim()||null,
-    obra_social:UI.npObra.value||null,
-    numero_afiliado:UI.npAfiliado.value.trim()||null,
-    contacto_nombre:UI.npConNom.value.trim()||null,
-    contacto_apellido:UI.npConApe.value.trim()||null,
-    contacto_celular:UI.npConCel.value.trim()||null,
-    vinculo:UI.npVinculo.value.trim()||null,
-    credencial:credencialUrl,
-    historia_clinica:UI.npHistoria.value.trim()||null,
-    activo:true
+    email:UI.npEmail.value.trim()||null, obra_social:UI.npObra.value||null, numero_afiliado:UI.npAfiliado.value.trim()||null,
+    contacto_nombre:UI.npConNom.value.trim()||null, contacto_apellido:UI.npConApe.value.trim()||null, contacto_celular:UI.npConCel.value.trim()||null,
+    vinculo:UI.npVinculo.value.trim()||null, credencial:credencialUrl, historia_clinica:UI.npHistoria.value.trim()||null, activo:true
   };
-  const { data, error } = await supabase.from('pacientes')
-    .insert([payload])
-    .select('id,dni,nombre,apellido,telefono')
-    .single();
+  const { data, error } = await supabase.from('pacientes').insert([payload]).select('id,dni,nombre,apellido,telefono').single();
   if(error){UI.npMsg.textContent='Error: '+(error.message||'no se pudo crear');return;}
-  UI.modalPac.style.display='none';
-  selectPaciente(data);
-  const optNueva=UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
-  if(optNueva) optNueva.disabled=false;
-  UI.tipoTurno.value='nueva_consulta';
+  UI.modalPac.style.display='none'; selectPaciente(data);
+  const optNueva=UI.tipoTurno.querySelector('option[value="nueva_consulta"]'); if(optNueva) optNueva.disabled=false; UI.tipoTurno.value='nueva_consulta';
 });
 
 /* ====== Agenda / Turnos ====== */
 async function fetchAgendaYTurnos(pid,y,m){
-  const first=new Date(y,m,1), last=new Date(y,m+1,0);
-  const start=toISODate(y,m,1), end=toISODate(y,m,last.getDate());
+  const last=new Date(y,m+1,0); const start=toISODate(y,m,1), end=toISODate(y,m,last.getDate());
   const [agendaRes, turnosRes] = await Promise.all([
     supabase.from('agenda')
       .select('id,fecha,hora_inicio,hora_fin')
-      .eq('centro_id',currentCentroId)
-      .eq('profesional_id',pid)
-      .gte('fecha',start).lte('fecha',end)
-      .order('fecha',{ascending:true}),
+      .eq('centro_id',currentCentroId).eq('profesional_id',pid)
+      .gte('fecha',start).lte('fecha',end).order('fecha',{ascending:true}),
     supabase.from('turnos')
       .select('id,fecha,hora_inicio,hora_fin,estado,paciente_id,agenda_id,pacientes(id,apellido,nombre,dni,telefono)')
-      .eq('centro_id',currentCentroId)
-      .eq('profesional_id',pid)
-      .gte('fecha',start).lte('fecha',end)
-      .order('hora_inicio',{ascending:true})
+      .eq('centro_id',currentCentroId).eq('profesional_id',pid)
+      .gte('fecha',start).lte('fecha',end).order('hora_inicio',{ascending:true})
   ]);
   return { agenda:agendaRes.data||[], turnos:turnosRes.data||[] };
 }
 function generarSlots(agendaDia,turnosDia,tipo,excludeId){
-  const dur=Number(duracionCfg[tipo]||15);
-  if(!dur||dur<=0)return[];
-  const out=[];
-  const vivos=(turnosDia||[]).filter(t=>(t.estado||'').toLowerCase()!=='cancelado'&&t.id!==excludeId);
+  const dur=Number(duracionCfg[tipo]||15); if(!dur||dur<=0)return[];
+  const out=[]; const vivos=(turnosDia||[]).filter(t=>(t.estado||'').toLowerCase()!=='cancelado'&&t.id!==excludeId);
   for(const bloque of (agendaDia||[])){
-    const bStart=toHM(bloque.hora_inicio), bEnd=toHM(bloque.hora_fin);
-    let t=bStart;
+    const bStart=toHM(bloque.hora_inicio), bEnd=toHM(bloque.hora_fin); let t=bStart;
     while(addMinutes(t,dur)<=bEnd){
       const start=t,end=addMinutes(t,dur);
-      const oc=vivos.find(tr=>{
-        const s=toHM(tr.hora_inicio),e=toHM(tr.hora_fin);
-        return overlaps(start,end,s,e);
-      });
-      out.push({start,end,agenda_id:bloque.id,disponible:!oc,turno:oc||null});
-      t=end;
+      const oc=vivos.find(tr=>{const s=toHM(tr.hora_inicio),e=toHM(tr.hora_fin);return overlaps(start,end,s,e);});
+      out.push({start,end,agenda_id:bloque.id,disponible:!oc,turno:oc||null}); t=end;
     }
   }
   return out;
 }
 function renderDow(){UI.calDow.innerHTML=DOW.map(d=>`<div>${d}</div>`).join('');}
 async function renderCalendar(){
-  if(!currentProfesional){
-    UI.status.textContent='No hay profesional seleccionado.';UI.calGrid.innerHTML='';return;
-  }
+  if(!currentProfesional){ UI.status.textContent='No hay profesional seleccionado.'; UI.calGrid.innerHTML=''; return; }
   UI.status.textContent='Cargando agenda...';
   const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional,view.y,view.m);
-  const gA=groupByFecha(agenda), gT=groupByFecha(turnos);
-  const tipo=UI.tipoTurno.value;
-  UI.calGrid.innerHTML='';
-  const first=new Date(view.y,view.m,1);
-  const last=new Date(view.y,view.m+1,0);
+  const gA=groupByFecha(agenda), gT=groupByFecha(turnos); const tipo=UI.tipoTurno.value;
+  UI.calGrid.innerHTML=''; const first=new Date(view.y,view.m,1), last=new Date(view.y,view.m+1,0);
   UI.calTitle.textContent=first.toLocaleString('es-AR',{month:'long',year:'numeric'});
-  const offset=nativeFirstDow(first);
-  const total=offset+last.getDate();
-  const rows=Math.ceil(total/7);
-  let day=1;
+  const offset=nativeFirstDow(first); const total=offset+last.getDate(); const rows=Math.ceil(total/7); let day=1;
   for(let i=0;i<rows*7;i++){
     const cell=document.createElement('div');
-    if(i<offset||day>last.getDate()){
-      cell.className='tw-day empty';UI.calGrid.appendChild(cell);continue;
-    }
+    if(i<offset||day>last.getDate()){cell.className='tw-day empty';UI.calGrid.appendChild(cell);continue;}
     const iso=toISODate(view.y,view.m,day);
-    const agendaDia=gA.get(iso)||[];
-    const turnosDia=gT.get(iso)||[];
-    const preview=generarSlots(agendaDia,turnosDia,tipo,null);
-    const libres=preview.filter(s=>s.disponible).length;
+    const agendaDia=gA.get(iso)||[]; const turnosDia=gT.get(iso)||[];
+    const preview=generarSlots(agendaDia,turnosDia,tipo,null); const libres=preview.filter(s=>s.disponible).length;
     let cls='tw-day';let badge='sin agenda';
     if(!agendaDia.length){cls+=' empty';}
     else if(libres>0){cls+=' free clickable';badge=`${libres} libres`;}
     else{cls+=' busy clickable';badge='sin huecos';}
-    cell.className=cls;
-    cell.innerHTML=`<div class="num">${day}</div><div class="badge">${badge}</div>`;
-    if(cls.includes('clickable')){
-      cell.addEventListener('click',()=>openDayModal(iso,agendaDia,turnosDia,{preserveReprogram:!!reprogramState}));
-    }
-    UI.calGrid.appendChild(cell);
-    day++;
+    cell.className=cls; cell.innerHTML=`<div class="num">${day}</div><div class="badge">${badge}</div>`;
+    if(cls.includes('clickable')){ cell.addEventListener('click',()=>openDayModal(iso,agendaDia,turnosDia,{preserveReprogram:!!reprogramState})); }
+    UI.calGrid.appendChild(cell); day++;
   }
   UI.status.textContent=agenda.length?'':'No hay agenda cargada para este mes.';
+}
+
+/* ====== Mini-calendario en modal ====== */
+async function renderMiniCalFor(isoDate){
+  if(!currentProfesional || !isoDate || !UI.miniCal) return;
+  const d=new Date(isoDate+'T00:00:00'); const y=d.getFullYear(), m=d.getMonth();
+  UI.miniCal.innerHTML='';
+  const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, y, m);
+  const gA=groupByFecha(agenda||[]), gT=groupByFecha(turnos||[]);
+  const first=new Date(y,m,1), last=new Date(y,m+1,0); const offset=nativeFirstDow(first);
+  const selectedDay=d.getDate(); const today=todayInfo(); const tipo=UI.tipoTurno.value;
+  for(let i=0;i<offset;i++){ const dot=document.createElement('div'); dot.className='dot none'; UI.miniCal.appendChild(dot); }
+  for(let day=1;day<=last.getDate();day++){
+    const iso=toISODate(y,m,day);
+    const agendaDia=gA.get(iso)||[]; const turnosDia=gT.get(iso)||[];
+    const preview=generarSlots(agendaDia,turnosDia,tipo,reprogramState?.turno?.id||null);
+    const libres=preview.filter(s=>s.disponible).length;
+    let cls='dot '; let title=''; let clickable=false;
+    if(!agendaDia.length){ cls+='none'; title='Sin agenda'; }
+    else if(libres>0){ cls+='free'; title=`${libres} libres`; clickable=true; }
+    else { cls+='busy'; title='Sin huecos'; clickable=true; }
+    const dot=document.createElement('div'); dot.className=cls+(clickable?' clickable':''); if(title) dot.title=`${day}/${m+1} · ${title}`;
+    if(day===selectedDay) dot.classList.add('selected'); if(y===today.y&&m===today.m&&day===today.d) dot.classList.add('today');
+    if(clickable){ dot.addEventListener('click', async ()=>{ const newISO=toISODate(y,m,day); await loadModalDate(newISO); await renderMiniCalFor(newISO); }); }
+    UI.miniCal.appendChild(dot);
+  }
 }
 
 /* ====== Modal día ====== */
 async function openDayModal(isoDate,agendaDia,turnosDiaRaw,{preserveReprogram=false}={}){
   if(!preserveReprogram)reprogramState=null;
   modalDateISO=isoDate;
-  UI.modalTitle.textContent=`Turnos del ${new Date(isoDate).toLocaleDateString('es-AR')}`;
+  UI.modalTitle.innerHTML=buildModalTitle(isoDate);
   UI.modalDateInput.value=isoDate;
   UI.modal.style.display='flex';
   const exclude=reprogramState?.turno.id||null;
   const slots=generarSlots(agendaDia,turnosDiaRaw,UI.tipoTurno.value,exclude);
   renderSlots(slots);
+  await renderMiniCalFor(isoDate);
 }
 UI.modalClose.addEventListener('click',()=>UI.modal.style.display='none');
 window.addEventListener('click',e=>{
@@ -707,15 +704,11 @@ async function refreshDayModal(){
   if(!modalDateISO)return;
   const { data:agendaDia } = await supabase.from('agenda')
     .select('id,fecha,hora_inicio,hora_fin')
-    .eq('centro_id',currentCentroId)
-    .eq('profesional_id',currentProfesional)
-    .eq('fecha',modalDateISO)
+    .eq('centro_id',currentCentroId).eq('profesional_id',currentProfesional).eq('fecha',modalDateISO)
     .order('hora_inicio',{ascending:true});
   const { data:turnosDiaRaw } = await supabase.from('turnos')
     .select('id,fecha,hora_inicio,hora_fin,estado,paciente_id,agenda_id,pacientes(id,apellido,nombre,dni,telefono)')
-    .eq('centro_id',currentCentroId)
-    .eq('profesional_id',currentProfesional)
-    .eq('fecha',modalDateISO)
+    .eq('centro_id',currentCentroId).eq('profesional_id',currentProfesional).eq('fecha',modalDateISO)
     .order('hora_inicio',{ascending:true});
   const slots=generarSlots(agendaDia||[],turnosDiaRaw||[],UI.tipoTurno.value,reprogramState?.turno.id||null);
   renderSlots(slots);
@@ -731,18 +724,12 @@ function renderSlots(slots){
       Seleccioná nuevo horario (${reprogramState.durMin} min).
     </div><button class="tw-linklike" id="tw-cancel-rep">Cancelar</button>`;
     UI.slotsList.appendChild(banner);
-    banner.querySelector('#tw-cancel-rep').addEventListener('click',()=>{
-      reprogramState=null;refreshDayModal();
-    });
+    banner.querySelector('#tw-cancel-rep').addEventListener('click',()=>{ reprogramState=null; refreshDayModal(); });
   }
   for(const s of slots){
-    const row=document.createElement('div');
-    const dur=minutesDiff(s.start,s.end);
-    const reprogramando=!!reprogramState;
-    const sameDur=reprogramando?(dur===reprogramState.durMin):true;
-    const habil=s.disponible && (!reprogramando || sameDur);
-    const turno=s.turno;
-    const ocupado=!!turno;
+    const row=document.createElement('div'); const dur=minutesDiff(s.start,s.end);
+    const reprogramando=!!reprogramState; const sameDur=reprogramando?(dur===reprogramState.durMin):true;
+    const habil=s.disponible && (!reprogramando || sameDur); const turno=s.turno; const ocupado=!!turno;
     row.className='tw-slot'+(ocupado?' ocupado':'')+(!habil && !ocupado?' unavailable':'');
     if(!ocupado){
       row.innerHTML=`
@@ -753,13 +740,10 @@ function renderSlots(slots){
         <div>
           ${habil?`<button class="tw-icon-btn" data-tip="${reprogramando?'Mover aquí':'Agendar'}">${reprogramando?'✅':'➕'}</button>`:`<button class="tw-icon-btn" disabled data-tip="No disponible">✖</button>`}
         </div>`;
-      if(habil){
-        row.querySelector('button').addEventListener('click',()=>reprogramando?confirmReprogram(s):tryAgendar(s));
-      }
+      if(habil){ row.querySelector('button').addEventListener('click',()=>reprogramando?confirmReprogram(s):tryAgendar(s)); }
     } else {
       const pac=turno.pacientes?`${turno.pacientes.apellido}, ${turno.pacientes.nombre}`:'Paciente';
-      const dni=turno.pacientes?.dni||'—';
-      const tel=turno.pacientes?.telefono||'—';
+      const dni=turno.pacientes?.dni||'—'; const tel=turno.pacientes?.telefono||'—';
       row.innerHTML=`
         <div>
           <div class="time">${toHM(turno.hora_inicio)} — ${toHM(turno.hora_fin)}</div>
@@ -788,122 +772,123 @@ function openOkModal({pac,fechaISO,start,end,profLabel}){
   const msg=buildWA({pac,fechaISO,start,end,prof:profLabel,centro:currentCentroNombre||'',dir:currentCentroDireccion||''});
   const to=normalizePhoneForWA(pac.telefono||'');
   const href=to?`https://wa.me/${to}?text=${encodeURIComponent(msg)}`:'javascript:void(0)';
-  UI.okWa.href=href;
-  UI.okWa.textContent=to?'Enviar por WhatsApp':'WhatsApp (falta teléfono)';
-  UI.okWa.style.pointerEvents=to?'auto':'none';
-  UI.okMsg.textContent='';
-  UI.okCopy.onclick=()=>{
-    const link=to?href:msg;
-    navigator.clipboard.writeText(link)
-      .then(()=>UI.okMsg.textContent='Copiado')
-      .catch(()=>UI.okMsg.textContent='No se pudo copiar');
-  };
+  UI.okWa.href=href; UI.okWa.textContent=to?'Enviar por WhatsApp':'WhatsApp (falta teléfono)'; UI.okWa.style.pointerEvents=to?'auto':'none';
+  UI.okMsg.textContent=''; UI.okCopy.onclick=()=>{ const link=to?href:msg; navigator.clipboard.writeText(link).then(()=>UI.okMsg.textContent='Copiado').catch(()=>UI.okMsg.textContent='No se pudo copiar'); };
   UI.okBackdrop.style.display='flex';
 }
 UI.okClose.addEventListener('click',()=>UI.okBackdrop.style.display='none');
 
 /* ====== Acciones Turnos ====== */
 async function tryAgendar(slot){
-  if(!pacienteSeleccionado){alert('Seleccioná un paciente primero.');return;}
-  if(!isValidHourRange(slot.start,slot.end)){alert('Rango horario inválido.');return;}
-  const { error } = await supabase.from('turnos').insert([{
-    agenda_id:slot.agenda_id||null,
-    centro_id:currentCentroId,
-    profesional_id:currentProfesional,
-    paciente_id:pacienteSeleccionado.id,
-    fecha:modalDateISO,
-    hora_inicio:slot.start,
-    hora_fin:slot.end,
-    estado:'asignado',
-    notas:(UI.tipoTurno.value==='sobreturno')?'Sobreturno':null
-  }]);
-  if(error){
-    const msg=(error.message||'').toLowerCase().includes('solap')?'Ese horario se ocupó recién.':(error.message||'No se pudo agendar.');
-    alert(msg);
-  }else{
-    const profLabel=UI.profesionalSelect.options[UI.profesionalSelect.selectedIndex]?.textContent||'Profesional';
-    openOkModal({pac:pacienteSeleccionado,fechaISO:modalDateISO,start:slot.start,end:slot.end,profLabel});
+  if(bookingBusy) return; bookingBusy=true; setSlotsDisabled(true);
+  try{
+    if(!pacienteSeleccionado){ alert('Seleccioná un paciente primero.'); return; }
+    if(!isValidHourRange(slot.start,slot.end)){ alert('Rango horario inválido.'); return; }
+    const payload={
+      agenda_id:slot.agenda_id||null, centro_id:currentCentroId, profesional_id:currentProfesional,
+      paciente_id:pacienteSeleccionado.id, fecha:modalDateISO, hora_inicio:slot.start, hora_fin:slot.end,
+      estado:'asignado', notas:(UI.tipoTurno.value==='sobreturno')?'Sobreturno':null
+    };
+    const { data: inserted, error } = await supabase.from('turnos').insert([payload]).select('id').single();
+    if(error){
+      const msg=(error.message||'').toLowerCase();
+      if(error.code==='23505'){ // unique violation
+        await refreshDayModal();
+        // ¿ya existía para este mismo paciente y horario?
+        const { data: exists } = await supabase.from('turnos')
+          .select('id')
+          .eq('centro_id', currentCentroId).eq('profesional_id', currentProfesional)
+          .eq('fecha', modalDateISO).eq('hora_inicio', slot.start).eq('hora_fin', slot.end)
+          .eq('paciente_id', pacienteSeleccionado.id).limit(1);
+        if (exists && exists.length){
+          openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
+        } else {
+          alert('Ese horario se ocupó recién.');
+        }
+      } else if (msg.includes('solap')) {
+        await refreshDayModal();
+        alert('Ese horario se ocupó recién.');
+      } else {
+        alert(error.message||'No se pudo agendar.');
+      }
+    } else {
+      openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
+    }
+  } finally {
+    bookingBusy=false; setSlotsDisabled(false);
+    await refreshDayModal(); await renderCalendar(); refreshModalTitle();
   }
-  await refreshDayModal();
-  await renderCalendar();
 }
 function startReprogram(turno){
   const durMin=minutesDiff(toHM(turno.hora_inicio),toHM(turno.hora_fin));
-  reprogramState={turno,durMin};
-  refreshDayModal();
+  reprogramState={turno,durMin}; refreshDayModal();
 }
 async function confirmReprogram(slot){
-  if(!reprogramState)return;
-  const t=reprogramState.turno;
-  if(!isValidHourRange(slot.start,slot.end)){alert('Rango horario inválido.');return;}
-  const { error } = await supabase.from('turnos')
-    .update({fecha:modalDateISO,hora_inicio:slot.start,hora_fin:slot.end,agenda_id:slot.agenda_id||null})
-    .eq('id',t.id);
-  if(error){alert(error.message||'No se pudo reprogramar.');}
-  else reprogramState=null;
-  await refreshDayModal();
-  await renderCalendar();
+  if(!reprogramState) return;
+  if(reprogramBusy) return; reprogramBusy=true;
+  try{
+    const t=reprogramState.turno;
+    if(!isValidHourRange(slot.start,slot.end)){ alert('Rango horario inválido.'); return; }
+    const { error } = await supabase.from('turnos')
+      .update({fecha:modalDateISO,hora_inicio:slot.start,hora_fin:slot.end,agenda_id:slot.agenda_id||null})
+      .eq('id',t.id);
+    if(error){ alert(error.message||'No se pudo reprogramar.'); }
+    else {
+      const pac=pacFromTurno(t);
+      if(pac){ openOkModal({ pac, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() }); }
+      reprogramState=null;
+    }
+  } finally {
+    reprogramBusy=false; await refreshDayModal(); await renderCalendar();
+  }
 }
 async function cancelarTurno(t){
   if(!confirm('¿Anular este turno?'))return;
-  const { error } = await supabase.from('turnos')
-    .update({estado:'cancelado'})
-    .eq('id',t.id);
+  const { error } = await supabase.from('turnos').update({estado:'cancelado'}).eq('id',t.id);
   if(error){alert(error.message||'No se pudo anular.');}
   else if(reprogramState?.turno.id===t.id) reprogramState=null;
-  await refreshDayModal();
-  await renderCalendar();
+  await refreshDayModal(); await renderCalendar();
 }
 
 /* ====== Navegación Modal Día ====== */
 async function loadModalDate(newISO){
   modalDateISO=newISO;
   UI.modalDateInput.value=newISO;
-  UI.modalTitle.textContent=`Turnos del ${new Date(newISO).toLocaleDateString('es-AR')}`;
+  UI.modalTitle.innerHTML=buildModalTitle(newISO);
   await refreshDayModal();
+  await renderMiniCalFor(newISO);
 }
 UI.modalPrevDay.addEventListener('click',async()=>{
-  if(!modalDateISO)return;
-  const d=new Date(modalDateISO+'T00:00:00');d.setDate(d.getDate()-1);
+  if(!modalDateISO)return; const d=new Date(modalDateISO+'T00:00:00'); d.setDate(d.getDate()-1);
   await loadModalDate(dateToISO(d));
 });
 UI.modalNextDay.addEventListener('click',async()=>{
-  if(!modalDateISO)return;
-  const d=new Date(modalDateISO+'T00:00:00');d.setDate(d.getDate()+1);
+  if(!modalDateISO)return; const d=new Date(modalDateISO+'T00:00:00'); d.setDate(d.getDate()+1);
   await loadModalDate(dateToISO(d));
 });
 UI.modalDateInput.addEventListener('change',async()=>{
-  if(UI.modalDateInput.value) await loadModalDate(UI.modalDateInput.value);
+  if(UI.modalDateInput.value){ await loadModalDate(UI.modalDateInput.value); }
 });
 
 /* ====== Eventos globales ====== */
 UI.tipoTurno.addEventListener('change',async()=>{
   await renderCalendar();
-  if(UI.modal.style.display==='flex') refreshDayModal();
+  if(UI.modal.style.display==='flex'){ await refreshDayModal(); await renderMiniCalFor(modalDateISO); }
 });
 UI.profesionalSelect.addEventListener('change',async()=>{
   currentProfesional=UI.profesionalSelect.value||null;
   await loadDuraciones(currentProfesional);
   await renderCalendar();
-  if(UI.modal.style.display==='flex') refreshDayModal();
+  if(UI.modal.style.display==='flex'){ await refreshDayModal(); await renderMiniCalFor(modalDateISO); }
 });
-UI.btnHoy.addEventListener('click',async()=>{
-  view=todayInfo();await renderCalendar();
-});
-UI.prevMonth.addEventListener('click',async()=>{
-  if(--view.m<0){view.m=11;view.y--;}
-  await renderCalendar();
-});
-UI.nextMonth.addEventListener('click',async()=>{
-  if(++view.m>11){view.m=0;view.y++;}
-  await renderCalendar();
-});
+UI.btnHoy.addEventListener('click',async()=>{ view=todayInfo(); await renderCalendar(); });
+UI.prevMonth.addEventListener('click',async()=>{ if(--view.m<0){view.m=11;view.y--;} await renderCalendar(); });
+UI.nextMonth.addEventListener('click',async()=>{ if(++view.m>11){view.m=0;view.y++;} await renderCalendar(); });
 
 /* ====== Init ====== */
 (async function init(){
   if(!currentCentroId){
-    UI.status.textContent='Seleccioná un centro para ver turnos.';
-    return;
+    UI.status.textContent='Seleccioná un centro para ver turnos.'; return;
   }
   renderDow();
   await ensureCentro();
