@@ -310,10 +310,26 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     return;
   }
 
-  msg.textContent = "Generando agenda...";
-  let totalRangos = 0;
-  let fechaActual = new Date(fecha_inicio);
-  const fechaFin = new Date(fecha_fin);
+// helpers (ponelos arriba del archivo, una sola vez)
+const parseLocalDate = (s) => {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d); // 00:00 local, sin UTC
+};
+const formatLocalYMD = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+// antes:
+/// let fechaActual = new Date(fecha_inicio);
+/// const fechaFin = new Date(fecha_fin);
+
+// después:
+let fechaActual = parseLocalDate(fecha_inicio);
+const fechaFin   = parseLocalDate(fecha_fin);
+
 
   while(fechaActual <= fechaFin){
     const diaSemanaNum = fechaActual.getDay();
@@ -326,7 +342,8 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
       const registro = {
         centro_id,
         profesional_id,
-        fecha: fechaActual.toISOString().slice(0,10),
+        // después:
+        fecha: formatLocalYMD(fechaActual),
         hora_inicio: b.hora_inicio,
         hora_fin: b.hora_fin,
         capacidad: 1,
