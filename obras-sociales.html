@@ -1,6 +1,12 @@
-<div>
+<!-- Contenedor principal de Obras Sociales -->
+<div class="os-container">
   <h3>Obras Sociales</h3>
-  <button class="btn" id="btn-agregar">Agregar Obra Social</button>
+  <div class="os-header-actions">
+    <button class="btn os-btn-primary" id="btn-agregar-os">
+      <svg width="16" height="16" fill="none"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+      Nueva Obra Social
+    </button>
+  </div>
   <table class="os-table" id="tabla-obras-sociales">
     <thead>
       <tr>
@@ -12,35 +18,182 @@
       </tr>
     </thead>
     <tbody>
-      <!-- Filas dinámicas -->
+      <!-- Filas dinámicas JS -->
     </tbody>
   </table>
 </div>
 
-<!-- Modal para agregar obra social -->
-<div id="modal-agregar" style="display:none; position: fixed; top: 30%; left: 50%; transform: translate(-50%, -30%); background: #fff; border: 1px solid #ccc; padding: 20px; z-index:1000;">
-  <h4>Agregar Obra Social</h4>
-  <form id="form-agregar">
-    <label>Nombre Obra Social:<br>
+<!-- Modal para agregar/editar obra social -->
+<div id="modal-os-overlay" class="modal-overlay"></div>
+
+<div id="modal-os" class="modal-os">
+  <h4 id="modal-os-title">Nueva Obra Social</h4>
+  <form id="form-os">
+    <label>Nombre Obra Social<span class="req">*</span>
       <input type="text" name="obra_social" required />
-    </label><br><br>
-    <label>Condición Copago:<br>
+    </label>
+    <label>Condición Copago
       <select name="condicion_copago">
         <option value="true">Sí</option>
         <option value="false">No</option>
       </select>
-    </label><br><br>
-    <label>Valor Copago:<br>
+    </label>
+    <label>Valor Copago
       <input type="number" name="valor_copago" min="0" />
-    </label><br><br>
-    <label>Cantidad de Turnos:<br>
+    </label>
+    <label>Cantidad de Turnos
       <input type="number" name="cantidad_turnos" min="0" />
-    </label><br><br>
-    <button type="submit" class="btn">Guardar</button>
-    <button type="button" class="btn" id="btn-cancelar">Cancelar</button>
+    </label>
+    <div class="modal-os-actions">
+      <button type="submit" class="btn os-btn-primary">Guardar</button>
+      <button type="button" class="btn os-btn-secondary" id="btn-cancelar-os">Cancelar</button>
+    </div>
   </form>
 </div>
 
+<!-- Estilos -->
+<style>
+.os-container {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(48, 48, 128, 0.04);
+  padding: 32px;
+  max-width: 900px;
+  margin: 32px auto;
+}
+.os-header-actions {
+  text-align: right;
+  margin-bottom: 18px;
+}
+.os-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px rgba(48,48,128,0.03);
+  overflow: hidden;
+}
+.os-table th, .os-table td {
+  padding: 12px 10px;
+  text-align: left;
+  font-size: 15px;
+}
+.os-table th {
+  background: #ece9fa;
+  color: #7f6acf;
+  font-weight: 600;
+  border-bottom: 2px solid #d4cbe6;
+}
+.os-table td {
+  border-bottom: 1px solid #f3f0fa;
+  background: #fff;
+}
+.os-table tr:last-child td {
+  border-bottom: none;
+}
+.os-table td input, .os-table td select {
+  font-size: 14px;
+  border: 1px solid #d4cbe6;
+  border-radius: 6px;
+  padding: 4px 8px;
+  width: 90%;
+}
+.os-table td input[type="number"] {
+  width: 70px;
+}
+.os-btn-primary {
+  background: #7f6acf;
+  color: #fff;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.2s;
+}
+.os-btn-primary:hover { background: #5f54b9; }
+.os-btn-secondary {
+  background: #ece9fa;
+  color: #7f6acf;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.os-actions-btns {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+}
+.os-action-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-radius: 5px;
+}
+.os-action-btn:hover {
+  background: #f3f0fa;
+}
+.os-action-btn svg { vertical-align: middle; }
+.req { color: #c44; margin-left: 3px; font-weight: bold; }
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(127, 106, 207, 0.12);
+  z-index: 999;
+}
+.modal-os {
+  display: none;
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  background: #f7f3fc;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(48,48,128,0.09);
+  padding: 26px 34px 18px;
+  z-index: 1000;
+  min-width: 320px;
+  max-width: 360px;
+  border: 1px solid #ece9fa;
+}
+.modal-os h4 {
+  margin-top: 0;
+  color: #7f6acf;
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.modal-os label {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 15px;
+  color: #504180;
+}
+.modal-os input, .modal-os select {
+  width: 100%;
+  border: 1px solid #d4cbe6;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 15px;
+  margin-top: 3px;
+  background: #fff;
+}
+.modal-os-actions {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+</style>
+
+<!-- JS: Lógica de renderizado y acciones -->
 <script type="module">
 import supabase from './supabaseClient.js';
 
@@ -50,6 +203,15 @@ function getIdProfesionalLogueado() {
 
 let obrasSociales = [];
 let todasObrasSociales = [];
+let editIdx = null; // Para saber si estamos editando
+
+const tbody = document.querySelector('#tabla-obras-sociales tbody');
+const modal = document.getElementById('modal-os');
+const overlay = document.getElementById('modal-os-overlay');
+const btnAgregar = document.getElementById('btn-agregar-os');
+const btnCancelar = document.getElementById('btn-cancelar-os');
+const formModal = document.getElementById('form-os');
+const modalTitle = document.getElementById('modal-os-title');
 
 async function cargarObrasSociales() {
   const id_profesional = getIdProfesionalLogueado();
@@ -60,7 +222,7 @@ async function cargarObrasSociales() {
     alert('Error al cargar obras sociales: ' + errorOS.message);
     return;
   }
-  todasObrasSociales = todasOS;
+  todasObrasSociales = todasOS ?? [];
 
   const { data: vinculos, error: errorV } = await supabase
     .from('medico_obras_sociales')
@@ -84,26 +246,29 @@ async function cargarObrasSociales() {
 }
 
 function renderTabla() {
-  const tbody = document.querySelector('#tabla-obras-sociales tbody');
   tbody.innerHTML = '';
   obrasSociales.forEach((fila, idx) => {
     tbody.innerHTML += `
       <tr>
         <td>${fila.obra_social}</td>
+        <td>${fila.condicion_copago ? 'Sí' : 'No'}</td>
+        <td>${fila.valor_copago ?? ''}</td>
+        <td>${fila.cantidad_turnos ?? ''}</td>
         <td>
-          <select data-idx="${idx}" data-campo="condicion_copago">
-            <option value="true" ${fila.condicion_copago?'selected':''}>Sí</option>
-            <option value="false" ${!fila.condicion_copago?'selected':''}>No</option>
-          </select>
-        </td>
-        <td><input type="number" data-idx="${idx}" data-campo="valor_copago" value="${fila.valor_copago ?? ''}" /></td>
-        <td><input type="number" data-idx="${idx}" data-campo="cantidad_turnos" value="${fila.cantidad_turnos ?? ''}" /></td>
-        <td>
-          ${fila.configurado
-            ? `<button class="btn" data-accion="eliminar" data-idx="${idx}">Eliminar</button>
-               <button class="btn" data-accion="guardar" data-idx="${idx}">Guardar</button>`
-            : `<button class="btn" data-accion="agregar" data-idx="${idx}">Agregar</button>`
-          }
+          <div class="os-actions-btns">
+            ${fila.configurado ? `
+              <button class="os-action-btn" data-accion="editar" data-idx="${idx}" title="Editar">
+                <svg width="20" height="20" fill="none"><path d="M4 16l1.5-5.5L14 2.5a2 2 0 112.8 2.8L8.3 14.5L4 16z" stroke="#7f6acf" stroke-width="2"/></svg>
+              </button>
+              <button class="os-action-btn" data-accion="borrar" data-idx="${idx}" title="Borrar">
+                <svg width="20" height="20" fill="none"><circle cx="10" cy="10" r="9" stroke="#c44" stroke-width="2"/><path d="M7 7l6 6M13 7l-6 6" stroke="#c44" stroke-width="2"/></svg>
+              </button>
+            ` : `
+              <button class="os-action-btn" data-accion="agregar" data-idx="${idx}" title="Agregar">
+                <svg width="20" height="20" fill="none"><path d="M10 4v12M4 10h12" stroke="#7f6acf" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+            `}
+          </div>
         </td>
       </tr>
     `;
@@ -111,138 +276,132 @@ function renderTabla() {
   agregarEventListeners();
 }
 
+// Acciones de tabla
 function agregarEventListeners() {
-  document.querySelectorAll('#tabla-obras-sociales input, #tabla-obras-sociales select').forEach(el => {
-    el.addEventListener('change', (e) => {
-      const idx = Number(el.dataset.idx);
-      obrasSociales[idx][el.dataset.campo] = el.type === 'select-one'
-        ? (el.value === 'true')
-        : el.value;
-    });
-  });
-  document.querySelectorAll('#tabla-obras-sociales button').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const idx = Number(btn.dataset.idx);
-      const accion = btn.dataset.accion;
-      if (accion === 'guardar') await guardarFila(idx);
-      if (accion === 'eliminar') await eliminarFila(idx);
-      if (accion === 'agregar') await agregarFila(idx);
-    });
+  document.querySelectorAll('.os-action-btn').forEach(btn => {
+    const idx = Number(btn.dataset.idx);
+    const accion = btn.dataset.accion;
+    btn.onclick = () => {
+      if (accion === 'editar') abrirModal(idx, true);
+      if (accion === 'borrar') borrarObraSocial(idx);
+      if (accion === 'agregar') abrirModal(idx, false);
+    };
   });
 }
 
-async function guardarFila(idx) {
-  const fila = obrasSociales[idx];
-  if (!fila.id) return;
-  const { error } = await supabase
-    .from('medico_obras_sociales')
-    .update({
-      condicion_copago: fila.condicion_copago,
-      valor_copago: fila.valor_copago,
-      cantidad_turnos: fila.cantidad_turnos
-    })
-    .eq('id', fila.id);
-  if (error) {
-    alert('Error al guardar: ' + error.message);
+// Modal
+function abrirModal(idx, esEdicion) {
+  editIdx = idx;
+  modalTitle.textContent = esEdicion ? 'Editar Obra Social' : 'Nueva Obra Social';
+  overlay.style.display = 'block';
+  modal.style.display = 'block';
+  formModal.reset();
+
+  // Si es edición, llenar valores
+  if (esEdicion) {
+    const fila = obrasSociales[idx];
+    formModal.obra_social.value = fila.obra_social;
+    formModal.condicion_copago.value = fila.condicion_copago ? 'true' : 'false';
+    formModal.valor_copago.value = fila.valor_copago ?? '';
+    formModal.cantidad_turnos.value = fila.cantidad_turnos ?? '';
+    formModal.obra_social.disabled = true; // No editar el nombre
   } else {
-    alert('Guardado!');
-    cargarObrasSociales();
+    formModal.obra_social.value = obrasSociales[idx].obra_social;
+    formModal.condicion_copago.value = 'false';
+    formModal.valor_copago.value = '';
+    formModal.cantidad_turnos.value = '';
+    formModal.obra_social.disabled = false;
   }
 }
 
-async function eliminarFila(idx) {
+function cerrarModal() {
+  modal.style.display = 'none';
+  overlay.style.display = 'none';
+  editIdx = null;
+}
+
+// Borrar
+async function borrarObraSocial(idx) {
   const fila = obrasSociales[idx];
   if (!fila.id) return;
+  if (!confirm(`¿Seguro que deseas borrar la configuración de "${fila.obra_social}" para este profesional?`)) return;
   const { error } = await supabase
     .from('medico_obras_sociales')
     .delete()
     .eq('id', fila.id);
   if (error) {
-    alert('Error al eliminar: ' + error.message);
+    alert('Error al borrar: ' + error.message);
   } else {
-    alert('Eliminado!');
     cargarObrasSociales();
   }
 }
 
-async function agregarFila(idx) {
-  const fila = obrasSociales[idx];
-  const id_profesional = getIdProfesionalLogueado();
-  const { error } = await supabase
-    .from('medico_obras_sociales')
-    .insert([{
-      medico_id: id_profesional,
-      obra_social_id: fila.obra_social_id,
-      condicion_copago: fila.condicion_copago,
-      valor_copago: fila.valor_copago,
-      cantidad_turnos: fila.cantidad_turnos
-    }]);
-  if (error) {
-    alert('Error al agregar: ' + error.message);
-  } else {
-    alert('Agregado!');
-    cargarObrasSociales();
-  }
-}
-
-// --- Modal para agregar nueva obra social ---
-const modal = document.getElementById('modal-agregar');
-const btnAgregar = document.getElementById('btn-agregar');
-const btnCancelar = document.getElementById('btn-cancelar');
-const formAgregar = document.getElementById('form-agregar');
-
-btnAgregar.addEventListener('click', () => {
-  modal.style.display = 'block';
-});
-
-btnCancelar.addEventListener('click', () => {
-  modal.style.display = 'none';
-});
-
-// Al enviar el formulario del modal
-formAgregar.addEventListener('submit', async (e) => {
+// Guardar/agregar
+formModal.onsubmit = async (e) => {
   e.preventDefault();
-  const fd = new FormData(formAgregar);
+  const fd = new FormData(formModal);
   const obra_social = fd.get('obra_social');
   const condicion_copago = fd.get('condicion_copago') === 'true';
   const valor_copago = fd.get('valor_copago') || null;
   const cantidad_turnos = fd.get('cantidad_turnos') || null;
   const id_profesional = getIdProfesionalLogueado();
 
-  // 1) Crear la obra social general
-  const { data: nuevaOS, error: errorOS } = await supabase
-    .from('obras_sociales')
-    .insert([{ obra_social }])
-    .select()
-    .single();
-
-  if (errorOS) {
-    alert('Error al crear obra social: ' + errorOS.message);
-    return;
+  if (editIdx !== null && obrasSociales[editIdx].configurado) {
+    // Editar config existente
+    const fila = obrasSociales[editIdx];
+    const { error } = await supabase
+      .from('medico_obras_sociales')
+      .update({
+        condicion_copago,
+        valor_copago,
+        cantidad_turnos
+      })
+      .eq('id', fila.id);
+    if (error) {
+      alert('Error al guardar: ' + error.message);
+    } else {
+      cerrarModal();
+      cargarObrasSociales();
+    }
+  } else {
+    // Agregar nueva config (y obra social si no existe)
+    let obra_social_id = obrasSociales[editIdx]?.obra_social_id;
+    if (!obra_social_id) {
+      // Crear nueva obra social
+      const { data: nuevaOS, error: errorOS } = await supabase
+        .from('obras_sociales')
+        .insert([{ obra_social }])
+        .select()
+        .single();
+      if (errorOS) {
+        alert('Error al crear obra social: ' + errorOS.message);
+        return;
+      }
+      obra_social_id = nuevaOS.id;
+    }
+    // Vincular obra social al profesional
+    const { error: errorV } = await supabase
+      .from('medico_obras_sociales')
+      .insert([{
+        medico_id: id_profesional,
+        obra_social_id,
+        condicion_copago,
+        valor_copago,
+        cantidad_turnos
+      }]);
+    if (errorV) {
+      alert('Error al vincular: ' + errorV.message);
+    } else {
+      cerrarModal();
+      cargarObrasSociales();
+    }
   }
+};
 
-  // 2) Vincular al profesional con la obra social y config
-  const { error: errorV } = await supabase
-    .from('medico_obras_sociales')
-    .insert([{
-      medico_id: id_profesional,
-      obra_social_id: nuevaOS.id,
-      condicion_copago,
-      valor_copago,
-      cantidad_turnos
-    }]);
+btnAgregar.onclick = () => abrirModal(0, false);
+btnCancelar.onclick = cerrarModal;
+overlay.onclick = cerrarModal;
 
-  if (errorV) {
-    alert('Error al vincular: ' + errorV.message);
-    return;
-  }
-
-  alert('Obra social agregada y vinculada!');
-  modal.style.display = 'none';
-  formAgregar.reset();
-  cargarObrasSociales();
-});
-
-// Inicializa la tabla al cargar
+// Inicializa
 cargarObrasSociales();
 </script>
