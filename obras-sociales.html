@@ -2,6 +2,7 @@
 <div class="os-container">
   <h3>Obras Sociales</h3>
   <div class="os-header-actions">
+    <input type="text" id="buscar-os" class="os-buscar-input" placeholder="Buscar por nombre de obra social..." />
     <button class="btn os-btn-primary" id="btn-agregar-os">
       <svg width="16" height="16" fill="none"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
       Nueva Obra Social
@@ -25,7 +26,6 @@
 
 <!-- Modal para agregar/editar obra social -->
 <div id="modal-os-overlay" class="modal-overlay"></div>
-
 <div id="modal-os" class="modal-os">
   <h4 id="modal-os-title">Nueva Obra Social</h4>
   <form id="form-os">
@@ -51,149 +51,25 @@
   </form>
 </div>
 
-<!-- Estilos -->
 <style>
-.os-container {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(48, 48, 128, 0.04);
-  padding: 32px;
-  max-width: 900px;
-  margin: 32px auto;
-}
 .os-header-actions {
-  text-align: right;
+  display: flex;
+  gap: 18px;
+  justify-content: flex-end;
+  align-items: center;
   margin-bottom: 18px;
 }
-.os-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 4px rgba(48,48,128,0.03);
-  overflow: hidden;
-}
-.os-table th, .os-table td {
-  padding: 12px 10px;
-  text-align: left;
-  font-size: 15px;
-}
-.os-table th {
-  background: #ece9fa;
-  color: #7f6acf;
-  font-weight: 600;
-  border-bottom: 2px solid #d4cbe6;
-}
-.os-table td {
-  border-bottom: 1px solid #f3f0fa;
-  background: #fff;
-}
-.os-table tr:last-child td {
-  border-bottom: none;
-}
-.os-table td input, .os-table td select {
-  font-size: 14px;
+.os-buscar-input {
+  padding: 7px 14px;
+  border-radius: 6px;
   border: 1px solid #d4cbe6;
-  border-radius: 6px;
-  padding: 4px 8px;
-  width: 90%;
-}
-.os-table td input[type="number"] {
-  width: 70px;
-}
-.os-btn-primary {
-  background: #7f6acf;
-  color: #fff;
-  border: none;
-  padding: 8px 20px;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: background 0.2s;
-}
-.os-btn-primary:hover { background: #5f54b9; }
-.os-btn-secondary {
-  background: #ece9fa;
-  color: #7f6acf;
-  border: none;
-  padding: 8px 18px;
-  border-radius: 6px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.os-actions-btns {
-  display: flex;
-  gap: 8px;
-  justify-content: flex-start;
-}
-.os-action-btn {
-  background: none;
-  border: none;
-  padding: 4px;
-  cursor: pointer;
-  transition: background 0.15s;
-  border-radius: 5px;
-}
-.os-action-btn:hover {
-  background: #f3f0fa;
-}
-.os-action-btn svg { vertical-align: middle; }
-.req { color: #c44; margin-left: 3px; font-weight: bold; }
-.modal-overlay {
-  display: none;
-  position: fixed;
-  top: 0; left: 0; width: 100vw; height: 100vh;
-  background: rgba(127, 106, 207, 0.12);
-  z-index: 999;
-}
-.modal-os {
-  display: none;
-  position: fixed;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
+  font-size: 15px;
+  width: 260px;
   background: #f7f3fc;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(48,48,128,0.09);
-  padding: 26px 34px 18px;
-  z-index: 1000;
-  min-width: 320px;
-  max-width: 360px;
-  border: 1px solid #ece9fa;
-}
-.modal-os h4 {
-  margin-top: 0;
-  color: #7f6acf;
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 14px;
-}
-.modal-os label {
-  display: block;
-  margin-bottom: 12px;
-  font-size: 15px;
   color: #504180;
-}
-.modal-os input, .modal-os select {
-  width: 100%;
-  border: 1px solid #d4cbe6;
-  border-radius: 6px;
-  padding: 5px 8px;
-  font-size: 15px;
-  margin-top: 3px;
-  background: #fff;
-}
-.modal-os-actions {
-  margin-top: 18px;
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
 }
 </style>
 
-<!-- JS: Lógica de renderizado y acciones -->
 <script type="module">
 import supabase from './supabaseClient.js';
 
@@ -204,6 +80,7 @@ function getIdProfesionalLogueado() {
 let obrasSociales = [];
 let todasObrasSociales = [];
 let editIdx = null; // Para saber si estamos editando
+let filtroNombre = '';
 
 const tbody = document.querySelector('#tabla-obras-sociales tbody');
 const modal = document.getElementById('modal-os');
@@ -212,6 +89,7 @@ const btnAgregar = document.getElementById('btn-agregar-os');
 const btnCancelar = document.getElementById('btn-cancelar-os');
 const formModal = document.getElementById('form-os');
 const modalTitle = document.getElementById('modal-os-title');
+const buscarInput = document.getElementById('buscar-os');
 
 async function cargarObrasSociales() {
   const id_profesional = getIdProfesionalLogueado();
@@ -247,7 +125,14 @@ async function cargarObrasSociales() {
 
 function renderTabla() {
   tbody.innerHTML = '';
-  obrasSociales.forEach((fila, idx) => {
+  let datosParaMostrar = obrasSociales;
+  if (filtroNombre) {
+    const texto = filtroNombre.trim().toLowerCase();
+    datosParaMostrar = obrasSociales.filter(fila =>
+      fila.obra_social.toLowerCase().includes(texto)
+    );
+  }
+  datosParaMostrar.forEach((fila, idx) => {
     tbody.innerHTML += `
       <tr>
         <td>${fila.obra_social}</td>
@@ -401,6 +286,12 @@ formModal.onsubmit = async (e) => {
 btnAgregar.onclick = () => abrirModal(0, false);
 btnCancelar.onclick = cerrarModal;
 overlay.onclick = cerrarModal;
+
+// Filtro de búsqueda
+buscarInput.addEventListener('input', (e) => {
+  filtroNombre = buscarInput.value;
+  renderTabla();
+});
 
 // Inicializa
 cargarObrasSociales();
