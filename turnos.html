@@ -891,35 +891,47 @@ async function cancelarTurno(t) {
 
 // Marca turnos como 'vencido' si ya terminó hace más de una hora
 async function marcarTurnosVencidos() {
-  // Obtener la hora actual
   const now = new Date();
-
   // Buscar turnos asignados
   const { data: turnos, error } = await supabase
     .from('turnos')
-    .select('id, fecha, hora_fin, estado')
+    .select('id, fecha, hora_inicio, hora_fin, estado, paciente_id')
     .eq('estado', 'asignado');
 
   if (error || !turnos) return;
 
   for (const turno of turnos) {
-    // Construir fecha/hora de fin del turno + 1h
+    // Calcular fecha/hora de fin + 1 hora
     const finTurno = new Date(`${turno.fecha}T${turno.hora_fin}:00`);
     finTurno.setHours(finTurno.getHours() + 1);
-    // Si ya pasó, marcar como vencido
+
     if (now > finTurno) {
+      // Marcar como vencido
       await supabase
         .from('turnos')
         .update({ estado: 'vencido' })
         .eq('id', turno.id);
+
+      // Buscar datos del paciente para la notificación
+      const { data: paciente, error: errorPaciente } = await supabase
+        .from('pacientes')
+        .select('nombre, dni')
+        .eq('id', turno.paciente_id)
+        .single();
+
+      if (!errorPaciente && paciente) {
+        // Notificación emergente con nombre, DNI, fecha y hora
+        alert(
+          `Turno vencido\nPaciente: ${paciente.nombre}\nDNI: ${paciente.dni}\nFecha: ${turno.fecha}\nHorario: ${turno.hora_inicio} - ${turno.hora_fin}`
+        );
+      }
     }
   }
 }
 
-// Ejecutar cada 15 minutos
+// Ejecutar cada 15 minutos automáticamente
 setInterval(marcarTurnosVencidos, 15 * 60 * 1000);
-
-// Opcional: ejecutar una vez al cargar
+// (Opcional) Ejecutar una vez al cargar
 marcarTurnosVencidos();
 
 /* ====== Navegación Modal Día ====== */
