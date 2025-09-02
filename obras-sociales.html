@@ -1,0 +1,76 @@
+<div>
+  <h3>Obras Sociales</h3>
+  <button class="btn" onclick="agregarFila()">Agregar Obra Social</button>
+  <table class="os-table" id="tabla-obras-sociales">
+    <thead>
+      <tr>
+        <th>Obra Social</th>
+        <th>Condición Copago</th>
+        <th>Valor Copago</th>
+        <th>Cantidad de Turnos</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Aquí se insertarán las filas dinámicamente -->
+    </tbody>
+  </table>
+</div>
+
+<script type="module">
+let obrasSociales = [
+  // Ejemplo de datos iniciales, debes reemplazar con fetch a tu backend
+  {obra_social: "OSDE", condicion_copago: true, valor_copago: 850, cantidad_turnos: 12},
+  {obra_social: "Swiss Medical", condicion_copago: false, valor_copago: null, cantidad_turnos: 8}
+];
+
+function renderTabla() {
+  const tbody = document.querySelector('#tabla-obras-sociales tbody');
+  tbody.innerHTML = '';
+  obrasSociales.forEach((fila, idx) => {
+    tbody.innerHTML += `
+      <tr>
+        <td><input type="text" value="${fila.obra_social}" onchange="actualizarValor(${idx}, 'obra_social', this.value)" /></td>
+        <td>
+          <select onchange="actualizarValor(${idx}, 'condicion_copago', this.value=='true')">
+            <option value="true" ${fila.condicion_copago?'selected':''}>Sí</option>
+            <option value="false" ${!fila.condicion_copago?'selected':''}>No</option>
+          </select>
+        </td>
+        <td><input type="number" value="${fila.valor_copago??''}" onchange="actualizarValor(${idx}, 'valor_copago', this.value)" /></td>
+        <td><input type="number" value="${fila.cantidad_turnos??''}" onchange="actualizarValor(${idx}, 'cantidad_turnos', this.value)" /></td>
+        <td>
+          <button class="btn" onclick="eliminarFila(${idx})">Eliminar</button>
+        </td>
+      </tr>
+    `;
+  });
+}
+
+// Funciones para editar/agregar/eliminar
+window.actualizarValor = function(idx, campo, valor){
+  obrasSociales[idx][campo] = campo==='condicion_copago'? (valor=='true') : valor;
+  renderTabla();
+  // Aquí puedes hacer un fetch/POST a tu backend para actualizar
+}
+
+window.eliminarFila = function(idx){
+  obrasSociales.splice(idx,1);
+  renderTabla();
+  // Aquí puedes hacer un fetch/DELETE a tu backend
+}
+
+window.agregarFila = function(){
+  obrasSociales.push({
+    obra_social: "",
+    condicion_copago: false,
+    valor_copago: null,
+    cantidad_turnos: null
+  });
+  renderTabla();
+  // Aquí puedes hacer un fetch/POST a tu backend
+}
+
+// Inicializar la tabla al cargar
+renderTabla();
+</script>
