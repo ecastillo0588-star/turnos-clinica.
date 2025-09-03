@@ -397,9 +397,12 @@ function renderAtencion(list){
 
 /* ===== Acciones "En atención" ===== */
 function abrirFichaPaciente(turnoId){
+  // guardo también por si la ficha necesita fallback
+  try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
+
   const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
-  const w = window.open(fichaUrl, '_blank', 'noopener'); // importante: sin 'noreferrer'
-  if (!w) window.location.href = fichaUrl; // fallback si el popup es bloqueado
+  const w = window.open(fichaUrl, '_blank', 'noopener'); // sin 'noreferrer'
+  if (!w) window.location.href = fichaUrl; // fallback si bloquean el popup
 }
 
 async function volverASalaEspera(turnoId){
@@ -450,15 +453,22 @@ async function anularTurno(turnoId){
 }
 async function pasarAEnAtencion(turnoId, ev) {
   if (ev) ev.preventDefault();
+
   const role = localStorage.getItem('user_role');
-  if (role !== 'medico') { alert('Solo los médicos pueden atender pacientes.'); return; }
+  if (role !== 'medico') {
+    alert('Solo los médicos pueden atender pacientes.');
+    return;
+  }
+
+  // guardo por si la ficha usa fallback
+  try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
 
   const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
 
-  // 1) abrir primero (acción de usuario => evita bloqueos)
+  // abrir primero (gesto de usuario) para evitar bloqueos
   const newWin = window.open(fichaUrl, '_blank', 'noopener'); // sin 'noreferrer'
 
-  // 2) actualizar estado
+  // actualizar estado
   const { error } = await supabase.from('turnos')
     .update({ estado: EST.EN_ATENCION })
     .eq('id', turnoId);
@@ -469,32 +479,9 @@ async function pasarAEnAtencion(turnoId, ev) {
     return;
   }
 
-  // 3) si bloquearon el popup, navegamos esta pestaña
+  // si bloquearon el popup, navego esta pestaña
   if (!newWin) window.location.href = fichaUrl;
 }
-
-  const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
-
-  // Abrimos primero (esto evita bloqueos de popups)
-  const newWin = window.open(fichaUrl, '_blank', 'noopener'); // sin 'noreferrer'
-
-  // Actualizamos estado; si falla, cerramos la nueva ventana y avisamos
-  const { error } = await supabase.from('turnos')
-    .update({ estado: EST.EN_ATENCION })
-    .eq('id', turnoId);
-
-  if (error) {
-    if (newWin && !newWin.closed) newWin.close();
-    alert('No se pudo pasar a "En atención".');
-    return;
-  }
-
-  // Si el popup fue bloqueado (newWin === null), navegamos en esta pestaña
-  if (!newWin) {
-    window.location.href = fichaUrl;
-  }
-}
-
 
 /* ===== KPIs ===== */
 function computeHorasDisponibles(agenda, turnos){
