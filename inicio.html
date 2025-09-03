@@ -398,8 +398,8 @@ function renderAtencion(list){
 /* ===== Acciones "En atención" ===== */
 function abrirFichaPaciente(turnoId){
   const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
-  const w = window.open(fichaUrl, '_blank', 'noopener'); // sin 'noreferrer'
-  if (!w) window.location.href = fichaUrl; // fallback si lo bloquean
+  const w = window.open(fichaUrl, '_blank', 'noopener'); // importante: sin 'noreferrer'
+  if (!w) window.location.href = fichaUrl; // fallback si el popup es bloqueado
 }
 
 async function volverASalaEspera(turnoId){
@@ -451,10 +451,27 @@ async function anularTurno(turnoId){
 async function pasarAEnAtencion(turnoId, ev) {
   if (ev) ev.preventDefault();
   const role = localStorage.getItem('user_role');
-  if (role !== 'medico') {
-    alert('Solo los médicos pueden atender pacientes.');
+  if (role !== 'medico') { alert('Solo los médicos pueden atender pacientes.'); return; }
+
+  const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
+
+  // 1) abrir primero (acción de usuario => evita bloqueos)
+  const newWin = window.open(fichaUrl, '_blank', 'noopener'); // sin 'noreferrer'
+
+  // 2) actualizar estado
+  const { error } = await supabase.from('turnos')
+    .update({ estado: EST.EN_ATENCION })
+    .eq('id', turnoId);
+
+  if (error) {
+    if (newWin && !newWin.closed) newWin.close();
+    alert('No se pudo pasar a "En atención".');
     return;
   }
+
+  // 3) si bloquearon el popup, navegamos esta pestaña
+  if (!newWin) window.location.href = fichaUrl;
+}
 
   const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
 
