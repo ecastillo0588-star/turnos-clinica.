@@ -223,63 +223,78 @@
     /* ============== cargar turno + paciente ============== */
     let turno=null, pacienteId=null;
 
-    async function load(){
-      if (!TURNO_ID){ setStatus('Falta parámetro turno_id', 'warn'); return; }
+   let turno = null, pacienteId = null;
 
-      // IMPORTANTE: usar nombres de FK para evitar 400 (Bad Request)
-      const { data: tdata, error: terr } = await supabase
-        .from('turnos')
-        .select(`
-          id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, notas, paciente_id,
-          profesionales!turnos_profesional_id_fkey ( id, display_name, nombre, apellido ),
-          centros_medicos!turnos_centro_id_fkey    ( id, nombre, direccion ),
-          pacientes!turnos_paciente_id_fkey (
-            id, dni, apellido, nombre, fecha_nacimiento, telefono, email,
-            obra_social, numero_afiliado, credencial,
-            contacto_nombre, contacto_apellido, contacto_celular, vinculo,
-            historia_clinica
-          )
-        `)
-        .eq('id', TURNO_ID)
-        .single();
+async function load(){
+  if (!TURNO_ID){ setStatus('Falta parámetro turno_id', 'warn'); return; }
+  setStatus('Cargando...');
 
-      if (terr || !tdata){ setStatus('No se pudo cargar el turno', 'warn'); return; }
-      turno = tdata;
-      const p = turno.pacientes || {};
-      pacienteId = p.id;
+  // 1) Traer el turno "plano"
+  const { data: t, error: terr } = await supabase
+    .from('turnos')
+    .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, notas, paciente_id, profesional_id, centro_id')
+    .eq('id', TURNO_ID)
+    .maybeSingle();
 
-      // resumen
-      const prof = turno.profesionales ? (turno.profesionales.display_name || [turno.profesionales.apellido, turno.profesionales.nombre].filter(Boolean).join(', ')) : '—';
-      UI.p_prof.textContent = `Profesional: ${prof}`;
-      UI.p_centro.textContent = `Centro: ${turno.centros_medicos?.nombre || '—'}`;
-      UI.p_dir.textContent    = `Dirección: ${turno.centros_medicos?.direccion || '—'}`;
-      UI.p_fecha.textContent  = `Fecha: ${turno.fecha || '—'}`;
-      UI.p_hora.textContent   = `Hora: ${turno.hora_inicio ? toHM(turno.hora_inicio) : '—'}`;
-      UI.p_copago.textContent = `Copago: ${turno.copago!=null ? money(turno.copago) : '—'}`;
-      UI.p_estado.textContent = `Estado: ${turno.estado || '—'}`;
-      UI.notas.value          = turno.notas || '';
+  if (terr || !t){
+    console.error('Error cargando turno:', terr);
+    setStatus('No se pudo cargar el turno', 'warn');
+    return;
+  }
+  turno = t;
+  pacienteId = t.paciente_id;
 
-      // paciente
-      UI.dni.value = p.dni || ''; UI.apellido.value = p.apellido || ''; UI.nombre.value = p.nombre || '';
-      UI.fecha_nacimiento.value = p.fecha_nacimiento || ''; renderEdad();
-      UI.telefono.value = p.telefono || ''; UI.email.value = p.email || '';
-      UI.historia_clinica.value = p.historia_clinica || '';
-      UI.btnHC.href  = p.historia_clinica ? p.historia_clinica : '#';
-      UI.btnHC.target = p.historia_clinica ? '_blank' : '_self';
+  // 2) Traer entidades relacionadas por separado
+  const [pRes, profRes, centroRes] = await Promise.all([
+    supabase.from('pacientes').select('id, dni, apellido, nombre, fecha_nacimiento, telefono, email, obra_social, numero_afiliado, credencial, contacto_nombre, contacto_apellido, contacto_celular, vinculo, historia_clinica').eq('id', t.paciente_id).maybeSingle(),
+    supabase.from('profesionales').select('id, display_name, nombre, apellido').eq('id', t.profesional_id).maybeSingle(),
+    supabase.from('centros_medicos').select('id, nombre, direccion').eq('id', t.centro_id).maybeSingle(),
+  ]);
 
-      await loadObrasSociales(p.obra_social || '');
-      UI.numero_afiliado.value = p.numero_afiliado || '';
-      UI.credencial.value = p.credencial || '';
-      UI.btnCred.href  = p.credencial ? p.credencial : '#';
-      UI.btnCred.target = p.credencial ? '_blank' : '_self';
+  const prof = profRes?.data || null;
+  const centro = centroRes?.data || null;
+  const p = pRes?.data || null;
 
-      UI.contacto_nombre.value = p.contacto_nombre || '';
-      UI.contacto_apellido.value = p.contacto_apellido || '';
-      UI.contacto_celular.value = p.contacto_celular || '';
-      UI.vinculo.value = p.vinculo || '';
+  // 3) Render resumen
+  const profLabel = prof ? (prof.display_name || [prof.apellido, prof.nombre].filter(Boolean).join(', ')) : '—';
+  UI.p_prof.textContent = `Profesional: ${profLabel}`;
+  UI.p_centro.textContent = `Centro: ${centro?.nombre || '—'}`;
+  UI.p_dir.textContent    = `Dirección: ${centro?.direccion || '—'}`;
+  UI.p_fecha.textContent  = `Fecha: ${turno.fecha || '—'}`;
+  UI.p_hora.textContent   = `Hora: ${turno.hora_inicio ? toHM(turno.hora_inicio) : '—'}`;
+  UI.p_copago.textContent = `Copago: ${turno.copago!=null ? money(turno.copago) : '—'}`;
+  UI.p_estado.textContent = `Estado: ${turno.estado || '—'}`;
+  UI.notas.value          = turno.notas || '';
 
-      setStatus('');
-    }
+  // 4) Render paciente
+  if (p){
+    UI.dni.value = p.dni || '';
+    UI.apellido.value = p.apellido || '';
+    UI.nombre.value = p.nombre || '';
+    UI.fecha_nacimiento.value = p.fecha_nacimiento || ''; renderEdad();
+    UI.telefono.value = p.telefono || '';
+    UI.email.value = p.email || '';
+    UI.historia_clinica.value = p.historia_clinica || '';
+    UI.btnHC.href  = p.historia_clinica ? p.historia_clinica : '#';
+    UI.btnHC.target = p.historia_clinica ? '_blank' : '_self';
+
+    await loadObrasSociales(p.obra_social || '');
+    UI.numero_afiliado.value = p.numero_afiliado || '';
+    UI.credencial.value = p.credencial || '';
+    UI.btnCred.href  = p.credencial ? p.credencial : '#';
+    UI.btnCred.target = p.credencial ? '_blank' : '_self';
+
+    UI.contacto_nombre.value = p.contacto_nombre || '';
+    UI.contacto_apellido.value = p.contacto_apellido || '';
+    UI.contacto_celular.value = p.contacto_celular || '';
+    UI.vinculo.value = p.vinculo || '';
+  } else {
+    await loadObrasSociales('');
+  }
+
+  setStatus('');
+}
+
 
     function renderEdad(){
       const a = calcEdad(UI.fecha_nacimiento.value);
