@@ -155,20 +155,21 @@
       </div>
     </div>
 
-    <!-- Drawer Ficha Paciente -->
-    <aside id="fichaDrawer" class="drawer" aria-hidden="true">
+          <!-- Drawer Ficha Paciente -->
       <header class="drawer-head">
-        <div class="ph-left">
-          <div class="pname" id="fd-pname">Paciente —</div>
-          <div class="prow">
-            <span class="dni-badge" id="fd-dni-badge">DNI —</span>
-            <a id="fd-hc-link" class="hc-link" href="#" target="_blank" rel="noopener" title="Historia clínica" style="display:none">📄</a>
-          </div>
+        <div class="title-wrap">
+          <div id="fd-title" class="title">—</div>
+          <a id="fd-hc" class="hc-link" href="#" target="_blank" rel="noopener" style="display:none">
+            <svg class="hc-ico" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6" fill="currentColor"/>
+            </svg>
+            <span>Historia clínica</span>
+          </a>
         </div>
-        <span class="spacer" style="flex:1"></span>
         <span id="fd-status" class="pill">—</span>
         <button id="fd-close" class="icon" title="Cerrar">✖️</button>
       </header>
+
 
       <div class="drawer-body">
         <!-- MODO LITE (resumen) -->
@@ -279,6 +280,30 @@ function minutesDiff(start,end){
 }
 function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
 function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
+
+function capWord(w){
+  if (!w) return w;
+  return w.charAt(0).toLocaleUpperCase('es-AR') + w.slice(1).toLocaleLowerCase('es-AR');
+}
+function titleCaseName(s){
+  if (!s) return '';
+  // separa por espacios, y respeta guiones / apóstrofes dentro de palabras
+  return s
+    .trim()
+    .split(/\s+/)
+    .map(part => part.split(/([-’'])/).map(capWord).join(''))
+    .join(' ');
+}
+function calcEdad(fechaISO){
+  if (!fechaISO) return null;
+  const d = new Date(fechaISO); if (isNaN(d)) return null;
+  const t = new Date();
+  let a = t.getFullYear() - d.getFullYear();
+  const m = t.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
+  return Math.max(0, a);
+}
+
 
 /* Rol en body */
 if (userRole !== 'medico') document.body.classList.add('role-asistente'); else document.body.classList.remove('role-asistente');
