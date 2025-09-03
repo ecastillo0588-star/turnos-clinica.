@@ -840,18 +840,21 @@ async function volverASalaEspera(turnoId){
 }
 async function finalizarAtencion(turnoId){
   if(!confirm('¿Finalizar atención?')) return;
+
   const { error } = await supabase
     .from('turnos')
-    .update({ estado: EST.FINALIZADO }) // EST.FINALIZADO -> 'atendido'
+    .update({ estado: EST.ATENDIDO})
     .eq('id', turnoId);
 
-  if (error){ 
+  if (error){
     console.error('No se pudo marcar atendido:', error);
     alert('No se pudo finalizar.');
     return;
   }
-  await refreshAll();
+
+  await refreshAll(); // mueve a "Atendidos" y actualiza KPIs
 }
+
 
 async function marcarLlegadaYCopago(turnoId){
   const { data: t } = await supabase
@@ -888,6 +891,8 @@ async function pasarAEnAtencion(turnoId, ev) {
   if (role !== 'medico') { alert('Solo los médicos pueden atender pacientes.'); return; }
   const { error } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
   if (error) { alert('No se pudo pasar a "En atención".'); return; }
+  // ✅ Refrescar tableros para que se mueva de "Presentes" a "En atención"
+  await refreshAll();
   await openFicha(turnoId);
 }
 
