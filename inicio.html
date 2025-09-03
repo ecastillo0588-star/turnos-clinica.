@@ -81,20 +81,6 @@
     @media (min-width:1100px){
       .boards .board:last-child { grid-column: span 2; }
     }
-
-    /* === Drawer ficha paciente (off-canvas) === */
-    .drawer{
-      position:fixed; top:0; right:0; height:100vh; width:min(980px,96vw);
-      background:#fff; border-left:1px solid var(--line);
-      box-shadow:-12px 0 40px rgba(0,0,0,.18);
-      transform:translateX(100%); transition:transform .28s ease; z-index:9999;
-      display:flex; flex-direction:column;
-    }
-    .drawer.open{ transform:translateX(0); }
-    .drawer-head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#e8def8;border-bottom:1px solid var(--line)}
-    .drawer-head h3{margin:0;font-size:16px;color:#4b3a78}
-    .drawer-body{flex:1;overflow:auto;padding:12px}
-    .drawer-foot{padding:10px 12px;border-top:1px solid var(--line);background:#faf7ff;display:flex;gap:10px;justify-content:flex-end}
   </style>
 </head>
 <body>
@@ -145,51 +131,11 @@
       </div>
     </div>
 
-    <!-- Drawer Ficha Paciente -->
-    <aside id="fichaDrawer" class="drawer" aria-hidden="true">
-      <header class="drawer-head">
-        <h3>Ficha paciente</h3>
-        <span id="fd-status" class="pill" style="margin-left:auto">—</span>
-        <button id="fd-close" class="icon" title="Cerrar">✖️</button>
-      </header>
-
-      <div class="drawer-body">
-        <!-- Resumen -->
-        <div class="stats" id="fd-summary">
-          <div class="chip" id="fd-prof">Prof: —</div>
-          <div class="chip" id="fd-centro">Centro: —</div>
-          <div class="chip" id="fd-fecha">Fecha: —</div>
-          <div class="chip" id="fd-hora">Hora: —</div>
-          <div class="chip" id="fd-estado">Estado: —</div>
-          <div class="chip" id="fd-copago">Copago: —</div>
-        </div>
-
-        <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
-
-        <!-- Datos básicos -->
-        <div class="row3">
-          <div class="field"><label>DNI</label><input id="fd-dni" class="inp" disabled></div>
-          <div class="field"><label>Apellido</label><input id="fd-apellido" class="inp" disabled></div>
-          <div class="field"><label>Nombre</label><input id="fd-nombre" class="inp" disabled></div>
-        </div>
-        <div class="row3">
-          <div class="field"><label>Nacimiento</label><input id="fd-nac" type="date" class="inp" disabled></div>
-          <div class="field"><label>Teléfono</label><input id="fd-tel" class="inp" disabled></div>
-          <div class="field"><label>Email</label><input id="fd-mail" class="inp" disabled></div>
-        </div>
-      </div>
-
-      <footer class="drawer-foot">
-        <button id="fd-volver" class="btn ghost">Volver</button>
-        <button id="fd-finalizar" class="btn">Finalizar</button>
-      </footer>
-    </aside>
-
   </section>
 </div>
 
 <script type="module">
-import supabase from '/supabaseClient.js';
+import supabase from './supabaseClient.js';
 
 const EST = { ASIGNADO:'asignado', EN_ESPERA:'en_espera', EN_ATENCION:'en_atencion', CANCELADO:'cancelado', FINALIZADO:'finalizado' };
 
@@ -208,27 +154,6 @@ const UI = {
   kpiSub: document.getElementById('kpi-sub'),
 };
 
-// Drawer refs
-const Drawer = {
-  el: document.getElementById('fichaDrawer'),
-  close: document.getElementById('fd-close'),
-  status: document.getElementById('fd-status'),
-  prof: document.getElementById('fd-prof'),
-  centro: document.getElementById('fd-centro'),
-  fecha: document.getElementById('fd-fecha'),
-  hora: document.getElementById('fd-hora'),
-  estado: document.getElementById('fd-estado'),
-  copago: document.getElementById('fd-copago'),
-  dni: document.getElementById('fd-dni'),
-  ape: document.getElementById('fd-apellido'),
-  nom: document.getElementById('fd-nombre'),
-  nac: document.getElementById('fd-nac'),
-  tel: document.getElementById('fd-tel'),
-  mail: document.getElementById('fd-mail'),
-  btnVolver: document.getElementById('fd-volver'),
-  btnFin: document.getElementById('fd-finalizar'),
-};
-
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
 const userRole = localStorage.getItem('user_role');
@@ -241,18 +166,16 @@ let centroWatchTimer = null;
 function pad(n){return n<10?'0'+n:''+n}
 function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function toHM(t){return (t??'').toString().slice(0,5)}
-function minutesDiff(start,end){const [h1,m1]=start.split(':').map(Number),[h2,m2]=end.split(':').map(Number);return (h2*60+m2)-(h1*60+m2)}
+function minutesDiff(start,end){
+  const [h1,m1]=String(start||'00:00').split(':').map(Number);
+  const [h2,m2]=String(end||'00:00').split(':').map(Number);
+  return (h2*60+m2)-(h1*60+m1);
+}
 function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
 function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
 
 /* Rol en body */
 if (userRole !== 'medico') document.body.classList.add('role-asistente'); else document.body.classList.remove('role-asistente');
-
-/* ====== Drawer helpers ====== */
-function showDrawer(){ Drawer.el.classList.add('open'); Drawer.el.setAttribute('aria-hidden','false'); }
-function hideDrawer(){ Drawer.el.classList.remove('open'); Drawer.el.setAttribute('aria-hidden','true'); }
-if (Drawer.close) Drawer.close.onclick = hideDrawer;
-if (Drawer.btnVolver) Drawer.btnVolver.onclick = hideDrawer;
 
 /* ====== centro ====== */
 async function fetchCentroById(id){
@@ -383,7 +306,7 @@ function renderPendientes(list){
   });
 }
 
-/* ===== Espera: badges y copago ===== */
+/* ===== Espera ===== */
 let waitTimer=null;
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
@@ -397,14 +320,12 @@ function updateWaitBadges(){
     n.textContent = hh? `${hh}h ${mm}m` : `${mm}m`;
   });
 }
-
 function renderPresentes(list){
   const grid='90px 100px 1fr 1fr 1fr 110px 180px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
       <th class="cell">Apellido</th><th class="cell">Obra social</th><th class="cell">Copago</th>
       <th class="cell right">Acciones</th></tr></thead>`;
-
   const puedeAtender = (userRole === 'medico');
 
   const rows=(list||[]).map(t=>{
@@ -441,7 +362,7 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
-/* ===== Render: En atención ===== */
+/* ===== En atención ===== */
 function renderAtencion(list){
   const grid='100px 120px 1fr 1fr 1fr 180px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
@@ -449,7 +370,8 @@ function renderAtencion(list){
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
       <th class="cell right">Acciones</th></tr></thead>`;
   const puedeFinalizar = (userRole === 'medico');
-  const rows=(list||{}).map? (list||[]).map(t=>{
+
+  const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const acciones = `
@@ -465,83 +387,31 @@ function renderAtencion(list){
       <td class="cell">${p.obra_social||'—'}</td>
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
-  }).join('') : '';
+  }).join('');
   UI.tblAtencion.innerHTML = head + '<tbody>' + rows + '</tbody>';
 
   UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
+    if(act==='abrir-ficha') btn.onclick=()=> abrirFichaPaciente(id);
     if(act==='volver-espera') btn.onclick=()=> volverASalaEspera(id);
     if(act==='finalizar') btn.onclick=()=> finalizarAtencion(id);
   });
 }
 
-/* ===== Ficha: abrir en Drawer ===== */
-async function openFicha(turnoId){
+/* ===== Acciones ===== */
+function abrirFichaPaciente(turnoId){
   try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
   try { localStorage.setItem('inicio_url', location.href); } catch {}
-  if (Drawer.status) Drawer.status.textContent = 'Cargando…';
-  showDrawer();
-
-  // 1) turno base
-  const { data:t, error:terr } = await supabase
-    .from('turnos')
-    .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, notas, paciente_id, profesional_id, centro_id')
-    .eq('id', turnoId)
-    .maybeSingle();
-
-  if (terr || !t){ if (Drawer.status) Drawer.status.textContent='No se pudo cargar'; console.error(terr); return; }
-
-  // 2) relacionados
-  const [pRes, profRes, centroRes] = await Promise.all([
-    supabase.from('pacientes').select('dni,apellido,nombre,fecha_nacimiento,telefono,email').eq('id', t.paciente_id).maybeSingle(),
-    supabase.from('profesionales').select('display_name,nombre,apellido').eq('id', t.profesional_id).maybeSingle(),
-    supabase.from('centros_medicos').select('nombre').eq('id', t.centro_id).maybeSingle(),
-  ]);
-
-  const prof = profRes?.data;
-  const centro = centroRes?.data;
-  const p = pRes?.data;
-
-  if (Drawer.prof)   Drawer.prof.textContent   = `Prof: ${prof ? (prof.display_name || [prof.apellido, prof.nombre].filter(Boolean).join(', ')) : '—'}`;
-  if (Drawer.centro) Drawer.centro.textContent = `Centro: ${centro?.nombre || '—'}`;
-  if (Drawer.fecha)  Drawer.fecha.textContent  = `Fecha: ${t.fecha || '—'}`;
-  if (Drawer.hora)   Drawer.hora.textContent   = `Hora: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
-  if (Drawer.estado) Drawer.estado.textContent = `Estado: ${t.estado || '—'}`;
-  if (Drawer.copago) Drawer.copago.textContent = `Copago: ${t.copago!=null ? fmtMoney(t.copago) : '—'}`;
-
-  if (Drawer.dni)  Drawer.dni.value  = p?.dni || '';
-  if (Drawer.ape)  Drawer.ape.value  = p?.apellido || '';
-  if (Drawer.nom)  Drawer.nom.value  = p?.nombre || '';
-  if (Drawer.nac)  Drawer.nac.value  = p?.fecha_nacimiento || '';
-  if (Drawer.tel)  Drawer.tel.value  = p?.telefono || '';
-  if (Drawer.mail) Drawer.mail.value = p?.email || '';
-
-  if (Drawer.status) Drawer.status.textContent = 'Listo';
+  const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
+  window.location.href = fichaUrl; // misma pestaña
 }
-
-/* ===== Finalizar desde el drawer (solo médico) ===== */
-if (Drawer.btnFin){
-  Drawer.btnFin.onclick = async ()=>{
-    if (userRole !== 'medico'){ alert('Solo los médicos pueden finalizar.'); return; }
-    const turnoId = localStorage.getItem('current_turno_id');
-    if (!turnoId) return;
-    if (!confirm('¿Finalizar atención?')) return;
-    const { error } = await supabase.from('turnos').update({ estado: EST.FINALIZADO, hora_fin: nowHHMMSS() }).eq('id', turnoId);
-    if (error){ alert('No se pudo finalizar.'); return; }
-    hideDrawer();
-    await refreshAll();
-  };
-}
-
-/* ===== Acciones ===== */
 async function volverASalaEspera(turnoId){
   await supabase.from('turnos').update({estado:EST.EN_ESPERA}).eq('id', turnoId);
   await refreshAll();
 }
 async function finalizarAtencion(turnoId){
   if(!confirm('¿Finalizar atención?')) return;
-  await supabase.from('turnos').update({estado:EST.FINALIZADO}).eq('id', turnoId);
+  await supabase.from('turnos').update({estado:EST.FINALIZADO, hora_fin: nowHHMMSS()}).eq('id', turnoId);
   await refreshAll();
 }
 async function marcarLlegadaYCopago(turnoId){
@@ -579,14 +449,14 @@ async function pasarAEnAtencion(turnoId, ev) {
   if (role !== 'medico') { alert('Solo los médicos pueden atender pacientes.'); return; }
   const { error } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
   if (error) { alert('No se pudo pasar a "En atención".'); return; }
-  await openFicha(turnoId);
+  abrirFichaPaciente(turnoId);
 }
 
 /* ===== KPIs ===== */
 function computeHorasDisponibles(agenda, turnos){
-  const totalAgendaMin=(agenda||[]).reduce((acc,b)=>acc+minutesDiff(toHM(b.hora_inicio), toHM(b.hora_fin)),0);
+  const totalAgendaMin=(agenda||[]).reduce((acc,b)=>acc+Math.max(0, minutesDiff(toHM(b.hora_inicio), toHM(b.hora_fin))),0);
   const ocupadosMin=(turnos||[]).filter(t=>t.estado!==EST.CANCELADO)
-    .reduce((acc,t)=>acc+(t.hora_fin?minutesDiff(toHM(t.hora_inicio), toHM(t.hora_fin)):0),0);
+    .reduce((acc,t)=>acc+Math.max(0, t.hora_fin?minutesDiff(toHM(t.hora_inicio), toHM(t.hora_fin)):0),0);
   const libresMin=Math.max(0,totalAgendaMin-ocupadosMin);
   return { horas:(libresMin/60).toFixed(1), libresMin, totalAgendaMin };
 }
