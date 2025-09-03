@@ -11,7 +11,7 @@
     *{box-sizing:border-box}
     :root{
       --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
-      --bg:#f7f9fb; --card:#fff; --line:#ece5fc;
+      --bg:#f7f9fb; --card:#fff; --line:#ece5fc; --ok:#0a7d38; --warn:#8a5800;
     }
     body{background:var(--bg);margin:0;font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
     .shell{padding:10px}
@@ -91,13 +91,19 @@
       display:flex; flex-direction:column;
     }
     .drawer.open{ transform:translateX(0); }
-    .drawer-head{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#e8def8;border-bottom:1px solid var(--line)}
-    .drawer-head h3{margin:0;font-size:16px;color:#4b3a78}
+    .drawer-head{
+      display:flex; align-items:center; gap:12px; padding:10px 12px;
+      background:#e8def8; border-bottom:1px solid var(--line)
+    }
+    .ph-left{display:flex; flex-direction:column; gap:4px; min-width:0}
+    .pname{font-size:18px; font-weight:800; color:#4b3a78; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .prow{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+    .dni-badge{display:inline-flex; align-items:center; gap:6px; background:#eef7ff; border:1px solid #cfe6ff; color:#0b4c8a; border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700}
+    .hc-link{display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:#f2effc; border:1px solid var(--line); text-decoration:none}
+    .hc-link:hover{background:#ebe6ff}
     .drawer-body{flex:1;overflow:auto;padding:12px}
     .drawer-foot{padding:10px 12px;border-top:1px solid var(--line);background:#faf7ff;display:flex;gap:10px;justify-content:flex-end}
-    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .mini{font-size:12px;color:#6b6480}
+    .mini{font-size:12px;color:var(--muted)}
     .link{color:#4b3a78;text-decoration:underline;cursor:pointer}
   </style>
 </head>
@@ -152,47 +158,50 @@
     <!-- Drawer Ficha Paciente -->
     <aside id="fichaDrawer" class="drawer" aria-hidden="true">
       <header class="drawer-head">
-        <h3 id="fd-title">Ficha paciente</h3>
-        <span id="fd-status" class="pill" style="margin-left:auto">—</span>
+        <div class="ph-left">
+          <div class="pname" id="fd-pname">Paciente —</div>
+          <div class="prow">
+            <span class="dni-badge" id="fd-dni-badge">DNI —</span>
+            <a id="fd-hc-link" class="hc-link" href="#" target="_blank" rel="noopener" title="Historia clínica" style="display:none">📄</a>
+          </div>
+        </div>
+        <span class="spacer" style="flex:1"></span>
+        <span id="fd-status" class="pill">—</span>
         <button id="fd-close" class="icon" title="Cerrar">✖️</button>
       </header>
 
       <div class="drawer-body">
-        <!-- Resumen -->
-        <div class="stats" id="fd-summary">
-          <div class="chip" id="fd-prof">Prof: —</div>
-          <div class="chip" id="fd-centro">Centro: —</div>
-          <div class="chip" id="fd-fecha">Fecha: —</div>
-          <div class="chip" id="fd-hora">Hora: —</div>
-          <div class="chip" id="fd-estado">Estado: —</div>
-          <div class="chip" id="fd-copago">Copago: —</div>
+        <!-- MODO LITE (resumen) -->
+        <div id="fd-lite">
+          <div class="stats" id="fd-summary">
+            <div class="chip" id="fd-prof">Prof: —</div>
+            <div class="chip" id="fd-centro">Centro: —</div>
+            <div class="chip" id="fd-fecha">Fecha: —</div>
+            <div class="chip" id="fd-hora">Hora: —</div>
+            <div class="chip" id="fd-estado">Estado: —</div>
+            <div class="chip" id="fd-copago">Copago: —</div>
+          </div>
+
+          <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
+
+          <div class="row3">
+            <div class="field"><label>DNI</label><input id="fd-dni" class="inp" disabled></div>
+            <div class="field"><label>Apellido</label><input id="fd-apellido" class="inp" disabled></div>
+            <div class="field"><label>Nombre</label><input id="fd-nombre" class="inp" disabled></div>
+          </div>
+          <div class="row3">
+            <div class="field"><label>Nacimiento</label><input id="fd-nac" type="date" class="inp" disabled></div>
+            <div class="field"><label>Teléfono</label><input id="fd-tel" class="inp" disabled></div>
+            <div class="field"><label>Email</label><input id="fd-mail" class="inp" disabled></div>
+          </div>
+
+          <div class="mini" style="margin-top:10px">
+            ¿Editar/actualizar datos? <a id="fd-open-full" class="link">Abrir ficha completa</a>
+          </div>
         </div>
 
-        <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
-
-        <!-- Encabezado con historia clínica -->
-        <div class="field" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-          <div id="fd-encabezado" class="mini">—</div>
-          <a id="fd-hc-link" class="link mini" href="#" target="_blank" rel="noopener" style="display:none">📄 Historia clínica</a>
-        </div>
-
-        <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
-
-        <!-- Datos básicos (lectura rápida) -->
-        <div class="row3">
-          <div class="field"><label>DNI</label><input id="fd-dni" class="inp" disabled></div>
-          <div class="field"><label>Apellido</label><input id="fd-apellido" class="inp" disabled></div>
-          <div class="field"><label>Nombre</label><input id="fd-nombre" class="inp" disabled></div>
-        </div>
-        <div class="row3">
-          <div class="field"><label>Nacimiento</label><input id="fd-nac" type="date" class="inp" disabled></div>
-          <div class="field"><label>Teléfono</label><input id="fd-tel" class="inp" disabled></div>
-          <div class="field"><label>Email</label><input id="fd-mail" class="inp" disabled></div>
-        </div>
-
-        <div class="mini" style="margin-top:10px">
-          ¿Editar más datos? <a id="fd-open-full" class="link">Abrir ficha completa</a>
-        </div>
+        <!-- MODO FULL (iframe) -->
+        <iframe id="fd-iframe" style="display:none;border:0;width:100%;height:100%" title="Ficha paciente"></iframe>
       </div>
 
       <footer class="drawer-foot">
@@ -205,7 +214,7 @@
 </div>
 
 <script type="module">
-import supabase from './supabaseClient.js';
+import supabase from '/supabaseClient.js';
 
 const EST = { ASIGNADO:'asignado', EN_ESPERA:'en_espera', EN_ATENCION:'en_atencion', CANCELADO:'cancelado', FINALIZADO:'finalizado' };
 
@@ -229,9 +238,6 @@ const Drawer = {
   el: document.getElementById('fichaDrawer'),
   close: document.getElementById('fd-close'),
   status: document.getElementById('fd-status'),
-  title: document.getElementById('fd-title'),
-  encabezado: document.getElementById('fd-encabezado'),
-  hcLink: document.getElementById('fd-hc-link'),
   prof: document.getElementById('fd-prof'),
   centro: document.getElementById('fd-centro'),
   fecha: document.getElementById('fd-fecha'),
@@ -246,7 +252,12 @@ const Drawer = {
   mail: document.getElementById('fd-mail'),
   btnVolver: document.getElementById('fd-volver'),
   btnFin: document.getElementById('fd-finalizar'),
+  lite: document.getElementById('fd-lite'),
+  iframe: document.getElementById('fd-iframe'),
   btnOpenFull: document.getElementById('fd-open-full'),
+  pname: document.getElementById('fd-pname'),
+  dniBadge: document.getElementById('fd-dni-badge'),
+  hcLink: document.getElementById('fd-hc-link'),
 };
 
 let currentCentroId = localStorage.getItem('centro_medico_id');
@@ -257,27 +268,46 @@ let currentProfesional = null;
 let currentFechaISO = null;
 let centroWatchTimer = null;
 
-/* ===== helpers ===== */
+/* ====== helpers ====== */
 function pad(n){return n<10?'0'+n:''+n}
 function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function toHM(t){return (t??'').toString().slice(0,5)}
 function minutesDiff(start,end){
   const [h1,m1]=String(start||'00:00').split(':').map(Number);
-  const [h2,m2]=String(end||'00:00').split(':').map(Number);
+  const [h2,m2]=String(end  ||'00:00').split(':').map(Number);
   return (h2*60+m2)-(h1*60+m1);
 }
 function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
 function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
+
+/* Rol en body */
 if (userRole !== 'medico') document.body.classList.add('role-asistente'); else document.body.classList.remove('role-asistente');
 
-/* ===== Drawer helpers ===== */
+/* ====== Drawer helpers ====== */
 function showDrawer(){ Drawer.el.classList.add('open'); Drawer.el.setAttribute('aria-hidden','false'); }
-function hideDrawer(){ Drawer.el.classList.remove('open'); Drawer.el.setAttribute('aria-hidden','true'); }
+function hideDrawer(){
+  Drawer.el.classList.remove('open'); Drawer.el.setAttribute('aria-hidden','true');
+  showLite();
+}
 if (Drawer.close) Drawer.close.onclick = hideDrawer;
 if (Drawer.btnVolver) Drawer.btnVolver.onclick = hideDrawer;
 
-/* ===== centro ===== */
+function showLite(){
+  if (Drawer.iframe) { Drawer.iframe.style.display = 'none'; Drawer.iframe.src = 'about:blank'; }
+  if (Drawer.lite) Drawer.lite.style.display = '';
+}
+function showFull(turnoId){
+  if (Drawer.lite) Drawer.lite.style.display = 'none';
+  if (Drawer.iframe){
+    const url = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
+    Drawer.iframe.src = url;
+    Drawer.iframe.style.display = 'block';
+  }
+}
+
+/* ====== centro ====== */
 async function fetchCentroById(id){
+  if (!id) return '';
   const { data } = await supabase.from('centros_medicos').select('nombre').eq('id', id).maybeSingle();
   return data?.nombre || '';
 }
@@ -296,7 +326,7 @@ async function syncCentroFromStorage(force=false){
 }
 function startCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=setInterval(()=>syncCentroFromStorage(false), 1000); }
 
-/* ===== profesionales ===== */
+/* ====== profesionales ====== */
 async function loadProfesionales(){
   const sel=UI.profSelect;
 
@@ -338,12 +368,12 @@ async function loadProfesionales(){
 }
 UI.profSelect.addEventListener('change', async ()=>{ currentProfesional = UI.profSelect.value || null; await refreshAll(); });
 
-/* ===== Fecha ===== */
+/* ====== Fecha ====== */
 UI.fecha.value=todayISO(); currentFechaISO=UI.fecha.value;
 UI.fecha.addEventListener('change', ()=>{ currentFechaISO=UI.fecha.value||todayISO(); refreshAll(); });
 UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
 
-/* ===== data día ===== */
+/* ====== data día ====== */
 async function fetchDiaData(){
   if(!currentProfesional) return { pendientes:[], presentes:[], atencion:[], agenda:[], turnos:[] };
   const common={centro_id:currentCentroId, profesional_id:currentProfesional, fecha:currentFechaISO};
@@ -405,7 +435,7 @@ function renderPendientes(list){
   });
 }
 
-/* ===== Espera ===== */
+/* ===== Espera: badges y copago ===== */
 let waitTimer=null;
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
@@ -419,12 +449,14 @@ function updateWaitBadges(){
     n.textContent = hh? `${hh}h ${mm}m` : `${mm}m`;
   });
 }
+
 function renderPresentes(list){
   const grid='90px 100px 1fr 1fr 1fr 110px 180px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
       <th class="cell">Apellido</th><th class="cell">Obra social</th><th class="cell">Copago</th>
       <th class="cell right">Acciones</th></tr></thead>`;
+
   const puedeAtender = (userRole === 'medico');
 
   const rows=(list||[]).map(t=>{
@@ -461,7 +493,7 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
-/* ===== En atención ===== */
+/* ===== Render: En atención ===== */
 function renderAtencion(list){
   const grid='100px 120px 1fr 1fr 1fr 180px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
@@ -469,12 +501,11 @@ function renderAtencion(list){
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
       <th class="cell right">Acciones</th></tr></thead>`;
   const puedeFinalizar = (userRole === 'medico');
-
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const acciones = `
-      <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha (drawer)">📄</button>
+      <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha (slidebar)">📄</button>
       <button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">⏪</button>
       ${puedeFinalizar ? `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Finalizar atención">✅</button>` : ''}
     `;
@@ -491,17 +522,18 @@ function renderAtencion(list){
 
   UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);                 // <-- abre drawer
+    if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
     if(act==='volver-espera') btn.onclick=()=> volverASalaEspera(id);
     if(act==='finalizar') btn.onclick=()=> finalizarAtencion(id);
   });
 }
 
-/* ===== Ficha (drawer): cargar y mostrar ===== */
+/* ===== Ficha en Drawer ===== */
 async function openFicha(turnoId){
   try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
   try { localStorage.setItem('inicio_url', location.href); } catch {}
   if (Drawer.status) Drawer.status.textContent = 'Cargando…';
+  showLite();
   showDrawer();
 
   // 1) turno base
@@ -513,7 +545,7 @@ async function openFicha(turnoId){
 
   if (terr || !t){ if (Drawer.status) Drawer.status.textContent='No se pudo cargar'; console.error(terr); return; }
 
-  // 2) relacionados
+  // 2) relacionados (paciente incluye historia_clinica)
   const [pRes, profRes, centroRes] = await Promise.all([
     supabase.from('pacientes').select('dni,apellido,nombre,fecha_nacimiento,telefono,email,historia_clinica').eq('id', t.paciente_id).maybeSingle(),
     supabase.from('profesionales').select('display_name,nombre,apellido').eq('id', t.profesional_id).maybeSingle(),
@@ -522,9 +554,23 @@ async function openFicha(turnoId){
 
   const prof = profRes?.data;
   const centro = centroRes?.data;
-  const p = pRes?.data;
+  const p = pRes?.data || {};
 
-  if (Drawer.title) Drawer.title.textContent = 'Ficha paciente';
+  // Header: nombre grande + DNI + ícono 📄 historia clínica
+  const fullName = [p.apellido, p.nombre].filter(Boolean).join(', ') || 'Paciente';
+  if (Drawer.pname) Drawer.pname.textContent = fullName;
+  if (Drawer.dniBadge) Drawer.dniBadge.textContent = `DNI ${p.dni || '—'}`;
+  if (Drawer.hcLink){
+    if (p.historia_clinica){
+      Drawer.hcLink.href = p.historia_clinica;
+      Drawer.hcLink.style.display = 'inline-flex';
+    }else{
+      Drawer.hcLink.href = '#';
+      Drawer.hcLink.style.display = 'none';
+    }
+  }
+
+  // Resumen chips
   if (Drawer.prof)   Drawer.prof.textContent   = `Prof: ${prof ? (prof.display_name || [prof.apellido, prof.nombre].filter(Boolean).join(', ')) : '—'}`;
   if (Drawer.centro) Drawer.centro.textContent = `Centro: ${centro?.nombre || '—'}`;
   if (Drawer.fecha)  Drawer.fecha.textContent  = `Fecha: ${t.fecha || '—'}`;
@@ -532,19 +578,7 @@ async function openFicha(turnoId){
   if (Drawer.estado) Drawer.estado.textContent = `Estado: ${t.estado || '—'}`;
   if (Drawer.copago) Drawer.copago.textContent = `Copago: ${t.copago!=null ? fmtMoney(t.copago) : '—'}`;
 
-  // Encabezado + historia clínica
-  const enc = p ? `${p.apellido || ''}, ${p.nombre || ''} · DNI ${p.dni || '—'}`.replace(/^\s*,\s*/,'') : '—';
-  if (Drawer.encabezado) Drawer.encabezado.textContent = enc;
-  if (Drawer.hcLink){
-    if (p?.historia_clinica){
-      Drawer.hcLink.href = p.historia_clinica;
-      Drawer.hcLink.style.display = '';
-    } else {
-      Drawer.hcLink.removeAttribute('href');
-      Drawer.hcLink.style.display = 'none';
-    }
-  }
-
+  // Campos (solo lectura en modo lite)
   if (Drawer.dni)  Drawer.dni.value  = p?.dni || '';
   if (Drawer.ape)  Drawer.ape.value  = p?.apellido || '';
   if (Drawer.nom)  Drawer.nom.value  = p?.nombre || '';
@@ -552,12 +586,8 @@ async function openFicha(turnoId){
   if (Drawer.tel)  Drawer.tel.value  = p?.telefono || '';
   if (Drawer.mail) Drawer.mail.value = p?.email || '';
 
-  if (Drawer.btnOpenFull){
-    Drawer.btnOpenFull.onclick = ()=>{
-      const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
-      window.location.href = fichaUrl; // abre ficha completa en esta pestaña
-    };
-  }
+  // Botón "Abrir ficha completa" -> iframe
+  if (Drawer.btnOpenFull) Drawer.btnOpenFull.onclick = ()=> showFull(turnoId);
 
   if (Drawer.status) Drawer.status.textContent = 'Listo';
 }
@@ -576,14 +606,23 @@ if (Drawer.btnFin){
   };
 }
 
-/* ===== Acciones varias ===== */
+/* ===== Mensajes desde el iframe (si la ficha guarda/finaliza) ===== */
+window.addEventListener('message', async (ev)=>{
+  const msg = ev?.data || {};
+  if (msg?.type === 'turno_actualizado' || msg?.type === 'turno_finalizado') {
+    await refreshAll();
+    if (msg?.type === 'turno_finalizado') hideDrawer();
+  }
+});
+
+/* ===== Acciones ===== */
 async function volverASalaEspera(turnoId){
   await supabase.from('turnos').update({estado:EST.EN_ESPERA}).eq('id', turnoId);
   await refreshAll();
 }
 async function finalizarAtencion(turnoId){
   if(!confirm('¿Finalizar atención?')) return;
-  await supabase.from('turnos').update({estado:EST.FINALIZADO, hora_fin: nowHHMMSS()}).eq('id', turnoId);
+  await supabase.from('turnos').update({estado:EST.FINALIZADO}).eq('id', turnoId);
   await refreshAll();
 }
 async function marcarLlegadaYCopago(turnoId){
@@ -621,14 +660,14 @@ async function pasarAEnAtencion(turnoId, ev) {
   if (role !== 'medico') { alert('Solo los médicos pueden atender pacientes.'); return; }
   const { error } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
   if (error) { alert('No se pudo pasar a "En atención".'); return; }
-  openFicha(turnoId); // <-- abre el drawer después de actualizar estado
+  await openFicha(turnoId);
 }
 
 /* ===== KPIs ===== */
 function computeHorasDisponibles(agenda, turnos){
-  const totalAgendaMin=(agenda||[]).reduce((acc,b)=>acc+Math.max(0, minutesDiff(toHM(b.hora_inicio), toHM(b.hora_fin))),0);
+  const totalAgendaMin=(agenda||[]).reduce((acc,b)=>acc+minutesDiff(toHM(b.hora_inicio), toHM(b.hora_fin)),0);
   const ocupadosMin=(turnos||[]).filter(t=>t.estado!==EST.CANCELADO)
-    .reduce((acc,t)=>acc+Math.max(0, t.hora_fin?minutesDiff(toHM(t.hora_inicio), toHM(t.hora_fin)):0),0);
+    .reduce((acc,t)=>acc+(t.hora_fin?minutesDiff(toHM(t.hora_inicio), toHM(t.hora_fin)):0),0);
   const libresMin=Math.max(0,totalAgendaMin-ocupadosMin);
   return { horas:(libresMin/60).toFixed(1), libresMin, totalAgendaMin };
 }
