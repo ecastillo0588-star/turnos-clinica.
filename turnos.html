@@ -318,9 +318,25 @@ function addMinutes(hhmm,mm){const[h,m]=hhmm.split(':').map(Number);const base=n
 function groupByFecha(arr){const map=new Map();for(const x of arr){if(!map.has(x.fecha)) map.set(x.fecha,[]);map.get(x.fecha).push(x);}return map;}
 function toHM(t){return (t||'').substring(0,5);}
 function overlaps(aS,aE,bS,bE){return(aS<bE)&&(bS<aE);}
-function fmtDateLong(iso){return new Date(iso+'T12:00:00').toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long',year:'numeric'});}
+function fmtDateLong(iso){
+  // iso = 'YYYY-MM-DD'
+  // Split y arma fecha local
+  const [y,m,d]=iso.split('-').map(Number);
+  return new Date(y, m-1, d).toLocaleDateString('es-AR',{
+    weekday:'long', day:'numeric', month:'long', year:'numeric'
+  });
+}
 function minutesDiff(a,b){const[h1,m1]=a.split(':').map(Number);const[h2,m2]=b.split(':').map(Number);return(h2*60+m2)-(h1*60+m1);}
-function normalizePhoneForWA(raw){if(!raw)return'';let p=String(raw).replace(/[^\d]/g,'');if(p.startsWith('0'))p=p.slice(1);if(!p.startsWith('54'))p='54'+p;return p;}
+function normalizePhoneForWA(raw){
+  if(!raw) return '';
+  let p = String(raw).replace(/[^\d]/g,'');
+  if(p.startsWith('0')) p = p.slice(1);
+  // Si no empieza con 54, agregar
+  if(!p.startsWith('54')) p = '549' + p;
+  // Si empieza con 54 pero no con 549, agregar el 9 después del 54
+  else if(p.startsWith('54') && !p.startsWith('549')) p = '549' + p.slice(2);
+  return p;
+}
 function buildWA({pac,fechaISO,start,end,prof,centro,dir}){return`Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fmtDateLong(fechaISO)} de ${start} a ${end} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;}
 function dateToISO(d){return d.toISOString().slice(0,10);}
 const DOW=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
