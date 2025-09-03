@@ -389,21 +389,30 @@
 
     /* ============== terminar consulta (solo médico) ============== */
     async function terminarConsulta(){
-      if (!isMedico){ alert('Solo los médicos pueden finalizar.'); return; }
-      if (!confirm('¿Marcar este turno como FINALIZADO?')) return;
+      if (!isMedico){ alert('Solo los médicos pueden terminar la consulta.'); return; }
+      if (!confirm('¿Marcar este turno como ATENDIDO?')) return;
       setStatus('Finalizando...');
-
+    
       const { error } = await supabase
         .from('turnos')
-        .update({ estado: 'finalizado', hora_fin: nowHHMMSS() })
+        .update({ estado: 'atendido', hora_fin: nowHHMMSS() })
         .eq('id', TURNO_ID);
-
+    
       if (error){
-        setStatus('No se pudo finalizar: '+error.message, 'warn'); return;
+        alert('No se pudo marcar ATENDIDO.');
+        setStatus('No se pudo finalizar.', 'warn'); 
+        return;
       }
-      setStatus('Turno finalizado.', 'ok');
-      setTimeout(()=>goBack(), 800);
+    
+      setStatus('Consulta finalizada (ATENDIDO).', 'ok');
+      setTimeout(()=>{ 
+        try { if (window.opener) window.opener.postMessage({type:'turno_atendido', id:TURNO_ID}, '*'); } catch {}
+        // volver
+        const backTo = localStorage.getItem('inicio_url');
+        if (backTo) location.href = backTo; else window.close();
+      }, 700);
     }
+
 
     /* ============== navegación ============== */
     function goBack(){
