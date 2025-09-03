@@ -329,6 +329,7 @@
   let modalDateISO = null;
   let pacienteSeleccionado = null;
   let obrasSocialesCache = [];
+  const obrasSocialesById = new Map();
   let reprogramState = null; // { turno, durMin }
   let bookingBusy = false;
   let reprogramBusy = false;
@@ -430,7 +431,9 @@
    * ===================== */
   async function loadObrasSociales(){
     const { data } = await supabase.from('obras_sociales').select('id,obra_social,condicion_copago,valor_copago').order('obra_social',{ascending:true});
-    obrasSocialesCache=data||[];
+    obrasSocialesCache = data || [];
+    obrasSocialesById.clear();
+    (obrasSocialesCache||[]).forEach(o=>{ obrasSocialesById.set(String(o.id), o); });
     if(UI.npObra){
       UI.npObra.innerHTML='<option value="">(Sin obra social)</option>' + obrasSocialesCache.map(o=>`<option value="${o.obra_social}">${o.obra_social}</option>`).join('');
     }
@@ -575,7 +578,7 @@
     const last=new Date(y,m+1,0); const start=toISODate(y,m,1), end=toISODate(y,m,last.getDate());
     const [agendaRes, turnosRes] = await Promise.all([
       supabase.from('agenda').select('id,fecha,hora_inicio,hora_fin').eq('centro_id',currentCentroId).eq('profesional_id',pid).gte('fecha',start).lte('fecha',end).order('fecha',{ascending:true}),
-      supabase.from('turnos').select('id,fecha,hora_inicio,hora_fin,estado,paciente_id,agenda_id,pacientes(id,apellido,nombre,dni,telefono)').eq('centro_id',currentCentroId).eq('profesional_id',pid).gte('fecha',start).lte('fecha',end).order('hora_inicio',{ascending:true})
+      supabase.from('turnos').select('id,fecha,hora_inicio,hora_fin,estado,paciente_id,obra_social_id,agenda_id,pacientes(id,apellido,nombre,dni,telefono)').eq('centro_id',currentCentroId).eq('profesional_id',pid).gte('fecha',start).lte('fecha',end).order('hora_inicio',{ascending:true})
     ]);
     return { agenda:agendaRes.data||[], turnos:turnosRes.data||[] };
   }
@@ -639,11 +642,19 @@
     filtroSlots.forEach(slot=>{
       const slotElem=document.createElement('div');
       slotElem.style='display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e8e2f2;padding:10px 18px;min-height:44px;font-size:15px;transition:background 0.2s, opacity 0.2s;';
-      if(slot.turno){ slotElem.style.background='#eae6f7'; slotElem.style.opacity='0.7'; }
+      if(slot.turno){ slotElem.style.background='#eae6f7'; }
 
       const horario=document.createElement('span'); horario.textContent=`${toHM(slot.start)} - ${toHM(slot.end)}`; horario.style='font-weight:500;font-size:1em;min-width:110px;margin-right:16px;';
       const nombrePaciente=document.createElement('span'); nombrePaciente.style='color:#6b6480;font-size:1em;font-style:italic;margin-right:auto;margin-left:10px;min-width:140px;white-space:nowrap;';
-      if(slot.turno){ const p=slot.turno.pacientes; nombrePaciente.textContent=p?`${p.apellido}, ${p.nombre}`:'Ocupado'; } else { nombrePaciente.textContent=''; }
+      if(slot.turno){
+        const p = slot.turno.pacientes;
+        const osName = (slot.turno.obra_social_id && obrasSocialesById.get(String(slot.turno.obra_social_id))?.obra_social) || 'Particular';
+        if(p){
+          nombrePaciente.textContent = `${p.apellido}, ${p.nombre} · DNI ${p.dni} · ${osName}`;
+        } else {
+          nombrePaciente.textContent = `Ocupado · ${osName}`;
+        }
+      } else { nombrePaciente.textContent=''; }
       const btns=document.createElement('div'); btns.style='display:flex;gap:8px;';
 
       if(slot.turno && String(slot.turno.paciente_id)===String(pacienteSeleccionado?.id||'')){
@@ -674,7 +685,7 @@
   async function refreshDayModal(){
     if(!modalDateISO) return;
     const { data:agendaDia } = await supabase.from('agenda').select('id,fecha,hora_inicio,hora_fin').eq('centro_id',currentCentroId).eq('profesional_id',currentProfesional).eq('fecha',modalDateISO).order('hora_inicio',{ascending:true});
-    const { data:turnosDiaRaw } = await supabase.from('turnos').select('id,fecha,hora_inicio,hora_fin,estado,paciente_id,agenda_id,pacientes(id,apellido,nombre,dni,telefono)').eq('centro_id',currentCentroId).eq('profesional_id',currentProfesional).eq('fecha',modalDateISO).order('hora_inicio',{ascending:true});
+    const { data:turnosDiaRaw } = await supabase.from('turnos').select('id,fecha,hora_inicio,hora_fin,estado,paciente_id,obra_social_id,agenda_id,pacientes(id,apellido,nombre,dni,telefono)').eq('centro_id',currentCentroId).eq('profesional_id',currentProfesional).eq('fecha',modalDateISO).order('hora_inicio',{ascending:true});
     const slots=generarSlots(agendaDia||[],turnosDiaRaw||[],UI.tipoTurno.value,reprogramState?.turno.id||null); renderSlots(slots);
   }
 
@@ -809,6 +820,6 @@
   (async function init(){
     renderDow();
     if(!currentCentroId){ UI.status.textContent='Seleccioná un centro para ver turnos.'; return; }
-    await ensureCentro(); await loadProfesionales(); await loadDuraciones(currentProfesional); await renderCalendar();
+    await ensureCentro(); await loadObrasSociales(); await loadProfesionales(); await loadDuraciones(currentProfesional); await renderCalendar();
   })();
 </script>
