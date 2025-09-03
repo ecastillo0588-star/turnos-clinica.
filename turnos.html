@@ -657,7 +657,7 @@
       } else { nombrePaciente.textContent=''; }
       const btns=document.createElement('div'); btns.style='display:flex;gap:8px;';
 
-      if(slot.turno && String(slot.turno.paciente_id)===String(pacienteSeleccionado?.id||'')){
+      if(slot.turno){
         const mkBtn=(txt,title)=>{ const b=document.createElement('button'); b.textContent=txt; b.title=title; b.style='background:#7b5da7;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:1em;transition:background 0.2s;'; b.onmouseover=()=>b.style.background='#6b4b98'; b.onmouseout=()=>b.style.background='#7b5da7'; return b; };
         const btnBorrar=mkBtn('🗑️','Eliminar turno'); btnBorrar.onclick=()=>cancelarTurno(slot.turno); btns.appendChild(btnBorrar);
         const durMin = reprogramState?.durMin || slot.turno_duracion || minutesDiff(toHM(slot.turno.hora_inicio), toHM(slot.turno.hora_fin));
