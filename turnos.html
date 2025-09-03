@@ -787,11 +787,12 @@
       if(now>finTurno){
         await supabase.from('turnos').update({ estado: 'vencido' }).eq('id', turno.id);
         const { data: paciente, error: errorPaciente } = await supabase.from('pacientes').select('nombre, dni').eq('id', turno.paciente_id).single();
-        if(!errorPaciente && paciente){ alert(`Turno vencido\nPaciente: ${paciente.nombre}\nDNI: ${paciente.dni}\nFecha: ${turno.fecha}\nHorario: ${toHM(turno.hora_inicio)} - ${toHM(turno.hora_fin)}`); }
+        if(!errorPaciente && paciente){ /* aviso deshabilitado */ console.info(`Turno vencido\nPaciente: ${paciente.nombre}\nDNI: ${paciente.dni}\nFecha: ${turno.fecha}\nHorario: ${toHM(turno.hora_inicio)} - ${toHM(turno.hora_fin)}`); }
       }
     }
   }
-  setInterval(marcarTurnosVencidos, 15 * 60 * 1000); marcarTurnosVencidos();
+  // setInterval(marcarTurnosVencidos, 15 * 60 * 1000);
+// marcarTurnosVencidos();
 
   /* =====================
    *  Navegación / eventos globales
