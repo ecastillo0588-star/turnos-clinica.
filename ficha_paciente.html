@@ -1,5 +1,12 @@
 <script type="module">
-  import supabase from './supabaseClient.js';
+  // ✅ cliente Supabase inline (no uses service_role, solo la anon key)
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+const SUPABASE_URL = 'https://TU-PROYECTO.supabase.co';
+const SUPABASE_ANON_KEY = 'TU_PUBLIC_ANON_KEY';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 
   /* ============== helpers UI ============== */
   const qs = (id) => document.getElementById(id);
