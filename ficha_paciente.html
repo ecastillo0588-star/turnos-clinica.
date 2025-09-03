@@ -51,6 +51,19 @@
     .ok{color:var(--ok)} .warn{color:var(--warn)}
     .hl{background:#fff;border:2px dashed #e0d6ff}
     @media (max-width:980px){ .grid{grid-template-columns:1fr} }
+      /* Botón "Finalizar turno" en rojo */
+      #btnTerminar{
+        background:#d32f2f;   /* rojo principal */
+        color:#fff;
+      }
+      #btnTerminar:hover{
+        background:#b71c1c;
+      }
+      #btnTerminar:focus-visible{
+        outline:2px solid #7f1d1d;
+        outline-offset:2px;
+      }
+
   </style>
 </head>
 <body>
@@ -173,6 +186,7 @@
       </footer>
     </section>
   </div>
+
 
   <script type="module">
     import supabase from './supabaseClient.js';
