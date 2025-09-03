@@ -783,26 +783,27 @@ async function renderCalendar(){
   UI.status.textContent=agenda.length?'':'No hay agenda cargada para este mes.';
 }
 
-function renderSlots(slots){
+function renderSlots(slots) {
   const ahora = new Date();
   const hoyISO = dateToISO(ahora);
-  const ahoraHM = pad(ahora.getHours()) + ':' + pad(ahora.getMinutes();
+  const ahoraHM = pad(ahora.getHours()) + ':' + pad(ahora.getMinutes()); // Paréntesis corregido
 
   // Filtra slots válidos
   const filtroSlots = slots.filter(s => {
     if (!modalDateISO) return true;
     if (modalDateISO > hoyISO) return true;
     if (modalDateISO < hoyISO) return false;
+    // Si es hoy, solo mostrar los slots cuya hora de inicio es mayor a ahora
     return s.start > ahoraHM;
   });
 
-  if(!filtroSlots.length){
+  if (!filtroSlots.length) {
     UI.slotsList.innerHTML = '<div class="tw-hint">No hay horarios disponibles.</div>';
     return;
   }
 
   UI.slotsList.innerHTML = '';
-  if(reprogramState){
+  if (reprogramState) {
     const banner = document.createElement('div');
     banner.className = 'tw-banner-rep';
     banner.innerHTML = `<div>
@@ -810,7 +811,7 @@ function renderSlots(slots){
       Seleccioná nuevo horario (${reprogramState.durMin} min).
     </div><button class="tw-linklike" id="tw-cancel-rep">Cancelar</button>`;
     UI.slotsList.appendChild(banner);
-    banner.querySelector('#tw-cancel-rep').addEventListener('click',()=>{
+    banner.querySelector('#tw-cancel-rep').addEventListener('click', () => {
       reprogramState = null;
       refreshDayModal();
     });
@@ -820,9 +821,8 @@ function renderSlots(slots){
     const slotElem = document.createElement('div');
     slotElem.className = 'tw-slot';
 
-    // Estado del slot (libre/ocupado)
-    // Suponiendo que cada slot puede tener: slot.turno (objeto si está ocupado), slot.paciente_id, slot.estado, etc.
-    let label = toHM(slot.start) + ' - ' + toHM(slot.end);
+    // Construye el contenido del slot
+    let label = `${toHM(slot.start)} - ${toHM(slot.end)}`;
 
     // Indicar obra social especial
     if (pacienteSeleccionado && pacienteSeleccionado.obra_social_label) {
@@ -831,12 +831,21 @@ function renderSlots(slots){
       }
     }
 
+    // Elemento para el label
+    const labelElem = document.createElement('span');
+    labelElem.innerHTML = label;
+    slotElem.appendChild(labelElem);
+
     // --- ESTADO Y ACCIONES ---
     if (slot.turno) {
       // Slot ocupado
       if (slot.turno.paciente_id === pacienteSeleccionado?.id) {
         // Es el turno del paciente actual
-        label += ' <span class="tw-slot-yo">[Tu turno]</span>';
+        const yoElem = document.createElement('span');
+        yoElem.className = 'tw-slot-yo';
+        yoElem.innerText = ' [Tu turno]';
+        slotElem.appendChild(yoElem);
+
         // Botón eliminar
         const btnBorrar = document.createElement('button');
         btnBorrar.className = 'tw-slot-btn';
@@ -854,11 +863,13 @@ function renderSlots(slots){
         slotElem.appendChild(btnReprog);
       } else {
         // Ocupado por otro paciente
-        label += ' <span class="tw-slot-ocupado">[Ocupado]</span>';
+        const ocupadoElem = document.createElement('span');
+        ocupadoElem.className = 'tw-slot-ocupado';
+        ocupadoElem.innerText = ' [Ocupado]';
+        slotElem.appendChild(ocupadoElem);
       }
     } else {
       // Slot libre
-      // Botón reservar
       const btnReservar = document.createElement('button');
       btnReservar.className = 'tw-slot-btn';
       btnReservar.innerText = '+';
@@ -867,11 +878,9 @@ function renderSlots(slots){
       slotElem.appendChild(btnReservar);
     }
 
-    slotElem.innerHTML = label;
     UI.slotsList.appendChild(slotElem);
   });
 }
-
 /* ====== Mini-calendario en modal ====== */
 async function renderMiniCalFor(isoDate){
   if(!currentProfesional || !isoDate || !UI.miniCal) return;
