@@ -78,6 +78,85 @@
     .tw-mini .dot.clickable{cursor:pointer}
     .tw-mini .dot.today{outline:2px solid var(--tw-brand2)}
     .tw-mini .dot.selected{box-shadow:0 0 0 2px var(--tw-accent) inset}
+
+    /* Modal Cupo Agotado - Estilos */
+.modal-cupo-agotado {
+  position: fixed;
+  z-index: 9999;
+  left: 0; top: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s;
+}
+
+.modal-cupo-agotado .modal-content {
+  background: #fffbe6;
+  border: 2px solid #faad14;
+  border-radius: 10px;
+  max-width: 370px;
+  width: 90vw;
+  padding: 24px 16px 16px 16px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+  animation: shake-modal 0.3s;
+}
+
+@keyframes shake-modal {
+  0% { transform: translateX(-6px);}
+  25%{ transform: translateX(6px);}
+  50%{ transform: translateX(-2px);}
+  75%{ transform: translateX(2px);}
+  100%{ transform: translateX(0);}
+}
+
+.modal-header-alert {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.icon-alert {
+  font-size: 2em;
+  margin-right: 8px;
+  color: #d46b08;
+}
+.modal-title {
+  font-weight: bold;
+  font-size: 1.2em;
+  color: #d46b08;
+}
+.modal-body {
+  font-size: 1em;
+  color: #333;
+  margin-bottom: 18px;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.btn-accept {
+  background: #52c41a;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-weight: bold;
+  font-size: 1em;
+  cursor: pointer;
+}
+.btn-cancel {
+  background: #bbb;
+  color: #222;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 20px;
+  font-size: 1em;
+  cursor: pointer;
+}
+.btn-accept:hover { background: #389e0d; }
+.btn-cancel:hover { background: #888; }
   </style>
 
   <div class="tw-toolbar">
@@ -224,6 +303,26 @@
     <div class="tw-actions">
       <button class="tw-btn" id="turnos-guardar-paciente">Guardar paciente</button>
       <span id="turnos-np-msg" class="tw-hint"></span>
+    </div>
+  </div>
+</div>
+
+<div id="modal-cupo-agotado" class="modal-cupo-agotado" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header-alert">
+      <span class="icon-alert">⚠️</span>
+      <span class="modal-title">Cupo agotado para obra social</span>
+    </div>
+    <div class="modal-body">
+      <p id="modal-cupo-msg">
+        No quedan cupos disponibles para la obra social seleccionada.<br>
+        ¿Desea reservar el turno de forma <b>particular</b>?<br>
+        El mismo tiene un costo de <b id="modal-cupo-copago">$0</b>.
+      </p>
+    </div>
+    <div class="modal-actions">
+      <button id="modal-cupo-aceptar" class="btn-accept">Aceptar</button>
+      <button id="modal-cupo-cancelar" class="btn-cancel">Cancelar</button>
     </div>
   </div>
 </div>
@@ -741,94 +840,103 @@ async function refreshDayModal(){
   const slots=generarSlots(agendaDia||[],turnosDiaRaw||[],UI.tipoTurno.value,reprogramState?.turno.id||null);
   renderSlots(slots);
 }
-function renderSlots(slots){
-  // Hora actual en formato 'HH:MM'
-  const ahora = new Date();
-  const hoyISO = dateToISO(ahora);
-  const ahoraHM = pad(ahora.getHours()) + ':' + pad(ahora.getMinutes());
+async function tryAgendar(slot) {
+  if (bookingBusy) return;
+  bookingBusy = true;
+  setSlotsDisabled(true);
 
-  // Filtra slots: muestra solo slots de hoy en adelante, y para hoy solo los que no empezaron
-  const filtroSlots = slots.filter(s => {
-    if (!modalDateISO) return true;
-    if (modalDateISO > hoyISO) return true;
-    if (modalDateISO < hoyISO) return false;
-    // Si es hoy, solo mostrar los slots cuya hora de inicio es mayor a ahora
-    return s.start > ahoraHM;
-  });
+  try {
+    if (!pacienteSeleccionado) {
+      alert('Seleccioná un paciente primero.');
+      return;
+    }
+    if (!isValidHourRange(slot.start, slot.end)) {
+      alert('Rango horario inválido.');
+      return;
+    }
 
-  if(!filtroSlots.length){
-    UI.slotsList.innerHTML = '<div class="tw-hint">No hay horarios disponibles.</div>';
-    return;
-  }
+    // --- NUEVO: Chequeo de cupo obra social ---
+    let cupoDisponible = true;
+    let copagoParticular = 0;
+    let obraSocialId = pacienteSeleccionado.obra_social_id || null;
 
-  UI.slotsList.innerHTML = '';
-  if(reprogramState){
-    const banner = document.createElement('div');
-    banner.className = 'tw-banner-rep';
-    banner.innerHTML = `<div>
-      Reprogramando turno ${toHM(reprogramState.turno.hora_inicio)}–${toHM(reprogramState.turno.hora_fin)}.
-      Seleccioná nuevo horario (${reprogramState.durMin} min).
-    </div><button class="tw-linklike" id="tw-cancel-rep">Cancelar</button>`;
-    UI.slotsList.appendChild(banner);
-    banner.querySelector('#tw-cancel-rep').addEventListener('click',()=>{
-      reprogramState = null;
-      refreshDayModal();
-    });
-  }
+    if (obraSocialId) {
+      // Reemplaza esta función con tu lógica real
+      cupoDisponible = await getCupoObraSocial(obraSocialId, currentCentroId, currentProfesional, modalDateISO);
 
-  for(const s of filtroSlots){
-    const row = document.createElement('div');
-    const dur = minutesDiff(s.start, s.end);
-    const reprogramando = !!reprogramState;
-    const sameDur = reprogramando ? (dur === reprogramState.durMin) : true;
-    const habil = s.disponible && (!reprogramando || sameDur);
-    const turno = s.turno;
-    const ocupado = !!turno;
+      if (!cupoDisponible) {
+        // Reemplaza con lógica real para obtener el copago particular
+        copagoParticular = await getCopagoParticular(currentCentroId, currentProfesional, modalDateISO);
 
-    row.className = 'tw-slot' + (ocupado ? ' ocupado' : '') + (!habil && !ocupado ? ' unavailable' : '');
+        // Mostrar modal de cupo agotado y esperar la respuesta
+        abrirModalCupoAgotado(copagoParticular);
 
-    // Estado textual del slot
-    let estadoText = '';
-    if(ocupado)      estadoText = 'Ocupado';
-    else if(habil)   estadoText = 'Disponible';
-    else             estadoText = 'No disponible';
+        // Espera la respuesta del modal (aceptar o cancelar)
+        const resultado = await new Promise(resolve => {
+          document.getElementById('modal-cupo-aceptar').onclick = function() {
+            cerrarModalCupoAgotado();
+            resolve('aceptar');
+          };
+          document.getElementById('modal-cupo-cancelar').onclick = function() {
+            cerrarModalCupoAgotado();
+            resolve('cancelar');
+          };
+        });
 
-    if(!ocupado){
-      row.innerHTML = `
-        <div>
-          <div class="time">${s.start} — ${s.end}</div>
-          <div class="mini">${reprogramando ? (sameDur ? 'Seleccionar nuevo horario' : 'Duración distinta') : 'Agenda'}</div>
-          <div class="tw-status"><b>${estadoText}</b></div>
-        </div>
-        <div>
-          ${habil
-            ? `<button class="tw-icon-btn" data-tip="${reprogramando ? 'Mover aquí' : 'Agendar'}">${reprogramando ? '✅' : '➕'}</button>`
-            : `<button class="tw-icon-btn" disabled data-tip="No disponible">⛔</button>`
-          }
-        </div>
-      `;
-      if(habil){
-        row.querySelector('button').addEventListener('click',()=>reprogramando?confirmReprogram(s):tryAgendar(s));
+        if (resultado !== 'aceptar') {
+          return; // Canceló, no agenda
+        }
+
+        // Si acepta, agenda como particular (obra social null y copago seteado)
+        obraSocialId = null;
+      }
+    }
+
+    // Arma el payload con obra social (o null si es particular)
+    const payload = {
+      agenda_id: slot.agenda_id || null,
+      centro_id: currentCentroId,
+      profesional_id: currentProfesional,
+      paciente_id: pacienteSeleccionado.id,
+      fecha: modalDateISO,
+      hora_inicio: slot.start,
+      hora_fin: slot.end,
+      estado: 'asignado',
+      notas: (UI.tipoTurno.value === 'sobreturno') ? 'Sobreturno' : null,
+      obra_social_id: obraSocialId,
+      copago: obraSocialId === null ? copagoParticular : null // <-- NUEVO: agrega copago si es particular
+    };
+
+    const { data: inserted, error } = await supabase.from('turnos').insert([payload]).select('id').single();
+    if (error) {
+      const msg = (error.message || '').toLowerCase();
+      if (error.code === '23505') { // unique violation
+        await refreshDayModal();
+        const { data: exists } = await supabase.from('turnos')
+          .select('id')
+          .eq('centro_id', currentCentroId).eq('profesional_id', currentProfesional)
+          .eq('fecha', modalDateISO).eq('hora_inicio', slot.start).eq('hora_fin', slot.end)
+          .eq('paciente_id', pacienteSeleccionado.id).limit(1);
+        if (exists && exists.length) {
+          openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
+        } else {
+          alert('Ese horario se ocupó recién.');
+        }
+      } else if (msg.includes('solap')) {
+        await refreshDayModal();
+        alert('Ese horario se ocupó recién.');
+      } else {
+        alert(error.message || 'No se pudo agendar.');
       }
     } else {
-      const pac = turno.pacientes ? `${turno.pacientes.apellido}, ${turno.pacientes.nombre}` : 'Paciente';
-      const dni = turno.pacientes?.dni || '—';
-      const tel = turno.pacientes?.telefono || '—';
-      row.innerHTML = `
-        <div>
-          <div class="time">${toHM(turno.hora_inicio)} — ${toHM(turno.hora_fin)}</div>
-          <div class="mini">${pac} · DNI ${dni} · ${tel}</div>
-          <div class="tw-status"><b>${estadoText}</b></div>
-        </div>
-        <div style="display:flex;gap:8px">
-          <button class="tw-icon-btn" data-tip="Reprogramar" data-act="rep">↪️</button>
-          <button class="tw-icon-btn" data-tip="Anular" data-act="del">🗑️</button>
-        </div>
-      `;
-      row.querySelector('[data-act="rep"]').addEventListener('click',()=>startReprogram(turno));
-      row.querySelector('[data-act="del"]').addEventListener('click',()=>cancelarTurno(turno));
+      openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
     }
-    UI.slotsList.appendChild(row);
+  } finally {
+    bookingBusy = false;
+    setSlotsDisabled(false);
+    await refreshDayModal();
+    await renderCalendar();
+    refreshModalTitle();
   }
 }
 
@@ -855,16 +963,55 @@ async function tryAgendar(slot) {
   if (bookingBusy) return;
   bookingBusy = true;
   setSlotsDisabled(true);
+
   try {
     if (!pacienteSeleccionado) {
       alert('Seleccioná un paciente primero.');
       return;
     }
-     console.log('Paciente seleccionado para agendar:', pacienteSeleccionado);
     if (!isValidHourRange(slot.start, slot.end)) {
       alert('Rango horario inválido.');
       return;
     }
+
+    // --- NUEVO: Chequeo de cupo obra social ---
+    let cupoDisponible = true;
+    let copagoParticular = 0;
+    let obraSocialId = pacienteSeleccionado.obra_social_id || null;
+
+    if (obraSocialId) {
+      // Reemplaza esta función con tu lógica real
+      cupoDisponible = await getCupoObraSocial(obraSocialId, currentCentroId, currentProfesional, modalDateISO);
+
+      if (!cupoDisponible) {
+        // Reemplaza con lógica real para obtener el copago particular
+        copagoParticular = await getCopagoParticular(currentCentroId, currentProfesional, modalDateISO);
+
+        // Mostrar modal de cupo agotado y esperar la respuesta
+        abrirModalCupoAgotado(copagoParticular);
+
+        // Espera la respuesta del modal (aceptar o cancelar)
+        const resultado = await new Promise(resolve => {
+          document.getElementById('modal-cupo-aceptar').onclick = function() {
+            cerrarModalCupoAgotado();
+            resolve('aceptar');
+          };
+          document.getElementById('modal-cupo-cancelar').onclick = function() {
+            cerrarModalCupoAgotado();
+            resolve('cancelar');
+          };
+        });
+
+        if (resultado !== 'aceptar') {
+          return; // Canceló, no agenda
+        }
+
+        // Si acepta, agenda como particular (obra social null y copago seteado)
+        obraSocialId = null;
+      }
+    }
+
+    // Arma el payload con obra social (o null si es particular)
     const payload = {
       agenda_id: slot.agenda_id || null,
       centro_id: currentCentroId,
@@ -875,8 +1022,10 @@ async function tryAgendar(slot) {
       hora_fin: slot.end,
       estado: 'asignado',
       notas: (UI.tipoTurno.value === 'sobreturno') ? 'Sobreturno' : null,
-      obra_social_id: pacienteSeleccionado.obra_social_id || null // <-- NUEVO: se guarda la obra social
+      obra_social_id: obraSocialId,
+      copago: obraSocialId === null ? copagoParticular : null // <-- NUEVO: agrega copago si es particular
     };
+
     const { data: inserted, error } = await supabase.from('turnos').insert([payload]).select('id').single();
     if (error) {
       const msg = (error.message || '').toLowerCase();
