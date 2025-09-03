@@ -1,392 +1,247 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <title>Ficha Paciente — EG Health Solutions</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    :root{
-      --brand:#7656b0; --brand2:#a490d7; --ink:#381e60; --muted:#6b6480;
-      --bg:#f7f9fb; --card:#fff; --line:#ece5fc; --ok:#0a7d38; --warn:#8a5800;
+<script type="module">
+  import supabase from './supabaseClient.js';
+
+  /* ============== helpers UI ============== */
+  const qs = (id) => document.getElementById(id);
+  const UI = {
+    root: qs('root'),
+    status: qs('status'),
+    btnBack: qs('btnBack'), btnReload: qs('btnReload'), btnCerrar: qs('btnCerrar'),
+    btnGuardar: qs('btnGuardar'), btnTerminar: qs('btnTerminar'),
+    // resumen
+    p_prof: qs('p_prof'), p_centro: qs('p_centro'), p_dir: qs('p_dir'),
+    p_fecha: qs('p_fecha'), p_hora: qs('p_hora'), p_copago: qs('p_copago'), p_estado: qs('p_estado'),
+    // paciente
+    dni: qs('dni'), apellido: qs('apellido'), nombre: qs('nombre'),
+    fecha_nacimiento: qs('fecha_nacimiento'), edad: qs('edad'),
+    telefono: qs('telefono'), email: qs('email'),
+    historia_clinica: qs('historia_clinica'), btnHC: qs('btnHC'),
+    obra_social: qs('obra_social'), numero_afiliado: qs('numero_afiliado'),
+    credencial: qs('credencial'), btnCred: qs('btnCred'),
+    contacto_nombre: qs('contacto_nombre'), contacto_apellido: qs('contacto_apellido'),
+    contacto_celular: qs('contacto_celular'), vinculo: qs('vinculo'),
+    notas: qs('notas'),
+  };
+
+  function setStatus(msg, tone=''){ UI.status.textContent=msg||''; UI.status.className='msg '+(tone||''); }
+
+  const userRole = localStorage.getItem('user_role') || '';
+  const isMedico = (userRole === 'medico');
+
+  if (!isMedico) {
+    // Asistente puede editar datos, pero no finalizar.
+    UI.btnTerminar.style.display = 'none';
+  }
+
+  function pad(n){return n<10?'0'+n:''+n}
+  function toHM(t){ return (t??'').toString().slice(0,5); }
+  function nowHHMMSS(){ const d=new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` }
+  function calcEdad(f){ if(!f) return null; const d=new Date(f); if(isNaN(d)) return null; const t=new Date();
+    let a=t.getFullYear()-d.getFullYear(); const m=t.getMonth()-d.getMonth();
+    if (m<0 || (m===0 && t.getDate()<d.getDate())) a--; return Math.max(a,0);
+  }
+  function money(n){ return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0)); }
+
+  /* ============== obtener TURNO_ID (querystring -> localStorage fallback) ============== */
+  let TURNO_ID = new URLSearchParams(location.search).get('turno_id') || null;
+  if (!TURNO_ID) {
+    try { TURNO_ID = localStorage.getItem('current_turno_id') || null; } catch {}
+  }
+  if (!TURNO_ID) {
+    setStatus('Falta parámetro turno_id', 'warn');
+  }
+
+  /* ============== catálogos ============== */
+  async function loadObrasSociales(currentLabel){
+    UI.obra_social.innerHTML = '<option value="">(Sin obra social)</option>';
+    const { data, error } = await supabase
+      .from('obras_sociales')
+      .select('obra_social')
+      .order('obra_social',{ascending:true});
+
+    if (error) { console.error('Error obras_sociales:', error); }
+
+    const labels = (data||[]).map(r=>r.obra_social);
+    labels.forEach(lbl => {
+      const opt=document.createElement('option'); opt.value=lbl; opt.textContent=lbl; UI.obra_social.appendChild(opt);
+    });
+    if (currentLabel && !labels.includes(currentLabel)) {
+      const opt=document.createElement('option'); opt.value=currentLabel; opt.textContent=currentLabel; UI.obra_social.appendChild(opt);
     }
-    *{box-sizing:border-box}
-    body{margin:0;background:rgba(0,0,0,.22);font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
-    .overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:18px}
-    .modal{
-      width:min(1100px,96vw); max-height:92vh; background:var(--card);
-      border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 40px rgba(0,0,0,.35);
-      display:flex; flex-direction:column; overflow:hidden;
+    UI.obra_social.value = currentLabel || '';
+  }
+
+  /* ============== cargar turno + paciente (2 pasos, robusto) ============== */
+  let turno = null;
+  let pacienteId = null;
+
+  async function load(){
+    if (!TURNO_ID){ setStatus('Falta parámetro turno_id', 'warn'); return; }
+    setStatus('Cargando...');
+
+    // 1) Traer el turno "plano"
+    const { data: t, error: terr } = await supabase
+      .from('turnos')
+      .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, notas, paciente_id, profesional_id, centro_id')
+      .eq('id', TURNO_ID)
+      .maybeSingle();
+
+    if (terr || !t){
+      console.error('Error cargando turno:', terr);
+      setStatus('No se pudo cargar el turno', 'warn');
+      return;
     }
-    .head{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#e8def8;border-bottom:1px solid var(--line)}
-    .head h2{margin:0;font-size:18px;color:#4b3a78}
-    .iconbtn{border:none;background:transparent;cursor:pointer;font-size:18px;padding:6px 8px;border-radius:8px}
-    .iconbtn:hover{background:rgba(0,0,0,.06)}
-    .spacer{flex:1}
-    .content{padding:14px;overflow:auto}
-    .krow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
-    .pill{display:inline-flex;align-items:center;gap:6px;background:#f2effc;border:1px solid var(--line);color:#4b3a78;padding:6px 10px;border-radius:999px;font-size:13px}
-    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;min-width:820px}
-    .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
-    h3{margin:0 0 10px 0;font-size:15px;color:#4b3a78}
-    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-    .field{display:flex;flex-direction:column;gap:6px}
-    .field label{font-size:12px;color:var(--muted)}
-    .inp,.sel,textarea{
-      background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:14px;outline:none;color:#333;width:100%;
+    turno = t;
+    pacienteId = t.paciente_id;
+
+    // 2) Traer entidades relacionadas por separado
+    const [pRes, profRes, centroRes] = await Promise.all([
+      supabase.from('pacientes').select(
+        'id, dni, apellido, nombre, fecha_nacimiento, telefono, email, '+
+        'obra_social, numero_afiliado, credencial, contacto_nombre, contacto_apellido, '+
+        'contacto_celular, vinculo, historia_clinica'
+      ).eq('id', t.paciente_id).maybeSingle(),
+
+      supabase.from('profesionales').select('id, display_name, nombre, apellido')
+        .eq('id', t.profesional_id).maybeSingle(),
+
+      supabase.from('centros_medicos').select('id, nombre, direccion')
+        .eq('id', t.centro_id).maybeSingle(),
+    ]);
+
+    const prof = profRes?.data || null;
+    const centro = centroRes?.data || null;
+    const p = pRes?.data || null;
+
+    // resumen
+    const profLabel = prof ? (prof.display_name || [prof.apellido, prof.nombre].filter(Boolean).join(', ')) : '—';
+    UI.p_prof.textContent = `Profesional: ${profLabel}`;
+    UI.p_centro.textContent = `Centro: ${centro?.nombre || '—'}`;
+    UI.p_dir.textContent    = `Dirección: ${centro?.direccion || '—'}`;
+    UI.p_fecha.textContent  = `Fecha: ${turno.fecha || '—'}`;
+    UI.p_hora.textContent   = `Hora: ${turno.hora_inicio ? toHM(turno.hora_inicio) : '—'}`;
+    UI.p_copago.textContent = `Copago: ${turno.copago!=null ? money(turno.copago) : '—'}`;
+    UI.p_estado.textContent = `Estado: ${turno.estado || '—'}`;
+    UI.notas.value          = turno.notas || '';
+
+    // paciente
+    if (p){
+      UI.dni.value = p.dni || '';
+      UI.apellido.value = p.apellido || '';
+      UI.nombre.value = p.nombre || '';
+      UI.fecha_nacimiento.value = p.fecha_nacimiento || '';
+      renderEdad();
+      UI.telefono.value = p.telefono || '';
+      UI.email.value = p.email || '';
+      UI.historia_clinica.value = p.historia_clinica || '';
+      UI.btnHC.href  = p.historia_clinica ? p.historia_clinica : '#';
+      UI.btnHC.target = p.historia_clinica ? '_blank' : '_self';
+
+      await loadObrasSociales(p.obra_social || '');
+      UI.numero_afiliado.value = p.numero_afiliado || '';
+      UI.credencial.value = p.credencial || '';
+      UI.btnCred.href  = p.credencial ? p.credencial : '#';
+      UI.btnCred.target = p.credencial ? '_blank' : '_self';
+
+      UI.contacto_nombre.value = p.contacto_nombre || '';
+      UI.contacto_apellido.value = p.contacto_apellido || '';
+      UI.contacto_celular.value = p.contacto_celular || '';
+      UI.vinculo.value = p.vinculo || '';
+    } else {
+      await loadObrasSociales('');
     }
-    .inp:focus,.sel:focus,textarea:focus{border-color:var(--brand2)}
-    textarea{resize:vertical;min-height:70px}
-    .req::after{content:' *';color:#b00020}
-    .age{display:inline-flex;align-items:center;gap:6px;background:#eef7ff;border:1px solid #cfe6ff;color:#0b4c8a;border-radius:999px;padding:2px 8px;font-size:12px}
-    .foot{padding:10px 12px;border-top:1px solid var(--line);background:#faf7ff;display:flex;gap:10px;align-items:center}
-    .right{margin-left:auto}
-    .btn{appearance:none;border:none;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer}
-    .btn.primary{background:var(--brand);color:#fff}
-    .btn.ghost{background:#f2effc;border:1px solid var(--line);color:#4b3a78}
-    .btn.success{background:#0f9960;color:#fff}
-    .btn[disabled]{opacity:.6;cursor:not-allowed}
-    .msg{font-size:13px}
-    .ok{color:var(--ok)} .warn{color:var(--warn)}
-    .readonly .primary, .readonly .success{display:none}
-    @media (max-width:980px){ .grid{grid-template-columns:1fr} }
-  </style>
-</head>
-<body>
-  <div class="overlay">
-    <section class="modal" id="root">
-      <header class="head">
-        <button id="btnBack" class="iconbtn" title="Volver">⬅️</button>
-        <h2>Ficha Paciente</h2>
-        <span class="spacer"></span>
-        <button id="btnReload" class="iconbtn" title="Actualizar ficha">🔄</button>
-      </header>
 
-      <div class="content">
-        <!-- Resumen del turno -->
-        <div class="krow" id="resumen">
-          <span class="pill" id="p_prof">Profesional: —</span>
-          <span class="pill" id="p_centro">Centro: —</span>
-          <span class="pill" id="p_dir">Dirección: —</span>
-          <span class="pill" id="p_fecha">Fecha: —</span>
-          <span class="pill" id="p_hora">Hora: —</span>
-          <span class="pill" id="p_copago">Copago: —</span>
-          <span class="pill" id="p_estado">Estado: —</span>
-        </div>
+    setStatus('');
+  }
 
-        <div class="grid">
-          <!-- Datos del paciente -->
-          <div class="card">
-            <h3>Datos del paciente</h3>
+  function renderEdad(){
+    const a = calcEdad(UI.fecha_nacimiento.value);
+    UI.edad.textContent = (a==null) ? '—' : `${a} años`;
+  }
 
-            <div class="row3">
-              <div class="field"><label class="req">DNI</label><input id="dni" class="inp" /></div>
-              <div class="field"><label class="req">Apellido</label><input id="apellido" class="inp" /></div>
-              <div class="field"><label class="req">Nombre</label><input id="nombre" class="inp" /></div>
-            </div>
+  /* ============== guardar paciente + notas ============== */
+  function validate(){
+    const req = [
+      ['dni', UI.dni.value.trim()],
+      ['apellido', UI.apellido.value.trim()],
+      ['nombre', UI.nombre.value.trim()],
+      ['fecha_nacimiento', UI.fecha_nacimiento.value],
+      ['telefono', UI.telefono.value.trim()],
+    ];
+    const faltan = req.filter(([,v])=>!v);
+    if (faltan.length){ setStatus('Faltan campos obligatorios', 'warn'); return false; }
+    return true;
+  }
 
-            <div class="row3">
-              <div class="field"><label class="req">Fecha de nacimiento</label><input id="fecha_nacimiento" type="date" class="inp" /></div>
-              <div class="field"><label>Edad</label><div id="edad" class="age">—</div></div>
-              <div class="field"><label class="req">Teléfono</label><input id="telefono" class="inp" /></div>
-            </div>
+  async function guardar(){
+    if (!validate()) return;
+    setStatus('Guardando...');
 
-            <div class="row2">
-              <div class="field"><label>Email</label><input id="email" class="inp" placeholder="correo@dominio.com" /></div>
-              <div class="field">
-                <label>Historia clínica (URL Google Docs)</label>
-                <div style="display:flex;gap:8px;align-items:center">
-                  <input id="historia_clinica" class="inp" placeholder="https://docs.google.com/..." />
-                  <a id="btnHC" class="btn ghost" href="#" target="_blank" rel="noopener">Abrir</a>
-                </div>
-              </div>
-            </div>
-
-            <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
-
-            <h3>Obra social</h3>
-            <div class="row3">
-              <div class="field">
-                <label>Obra social</label>
-                <select id="obra_social" class="sel"></select>
-              </div>
-              <div class="field"><label>N° afiliado</label><input id="numero_afiliado" class="inp" /></div>
-              <div class="field">
-                <label>Credencial (URL imagen)</label>
-                <div style="display:flex;gap:8px;align-items:center">
-                  <input id="credencial" class="inp" placeholder="https://..." />
-                  <a id="btnCred" class="btn ghost" href="#" target="_blank" rel="noopener">Ver</a>
-                </div>
-              </div>
-            </div>
-
-            <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
-
-            <h3>Contacto de emergencia</h3>
-            <div class="row2">
-              <div class="field"><label>Contacto – Nombre</label><input id="contacto_nombre" class="inp" /></div>
-              <div class="field"><label>Contacto – Apellido</label><input id="contacto_apellido" class="inp" /></div>
-            </div>
-            <div class="row2">
-              <div class="field"><label>Contacto – Celular</label><input id="contacto_celular" class="inp" /></div>
-              <div class="field"><label>Vínculo</label><input id="vinculo" class="inp" /></div>
-            </div>
-          </div>
-
-          <!-- Turno & acciones -->
-          <div class="card">
-            <h3>Turno y acciones</h3>
-
-            <div class="field"><label>Notas del turno</label><textarea id="notas" placeholder="Observaciones internas..."></textarea></div>
-            <div class="field" style="font-size:12px;color:var(--muted)">“Terminar consulta” solo está disponible para el rol <b>médico</b>.</div>
-          </div>
-        </div>
-      </div>
-
-      <footer class="foot" id="foot">
-        <span id="status" class="msg"></span>
-        <div class="right">
-          <button id="btnGuardar" class="btn primary">Guardar cambios</button>
-          <button id="btnTerminar" class="btn success">Terminar consulta</button>
-          <button id="btnCerrar" class="btn ghost">Cerrar</button>
-        </div>
-      </footer>
-    </section>
-  </div>
-
-  <script type="module">
-    import supabase from './supabaseClient.js';
-
-    /* ============== helpers UI ============== */
-    const qs = (id) => document.getElementById(id);
-    const UI = {
-      root: qs('root'),
-      status: qs('status'),
-      btnBack: qs('btnBack'), btnReload: qs('btnReload'), btnCerrar: qs('btnCerrar'),
-      btnGuardar: qs('btnGuardar'), btnTerminar: qs('btnTerminar'),
-      // resumen
-      p_prof: qs('p_prof'), p_centro: qs('p_centro'), p_dir: qs('p_dir'),
-      p_fecha: qs('p_fecha'), p_hora: qs('p_hora'), p_copago: qs('p_copago'), p_estado: qs('p_estado'),
-      // paciente
-      dni: qs('dni'), apellido: qs('apellido'), nombre: qs('nombre'),
-      fecha_nacimiento: qs('fecha_nacimiento'), edad: qs('edad'),
-      telefono: qs('telefono'), email: qs('email'),
-      historia_clinica: qs('historia_clinica'), btnHC: qs('btnHC'),
-      obra_social: qs('obra_social'), numero_afiliado: qs('numero_afiliado'),
-      credencial: qs('credencial'), btnCred: qs('btnCred'),
-      contacto_nombre: qs('contacto_nombre'), contacto_apellido: qs('contacto_apellido'),
-      contacto_celular: qs('contacto_celular'), vinculo: qs('vinculo'),
-      notas: qs('notas'),
+    const payloadP = {
+      dni: UI.dni.value.trim(),
+      apellido: UI.apellido.value.trim(),
+      nombre: UI.nombre.value.trim(),
+      fecha_nacimiento: UI.fecha_nacimiento.value || null,
+      telefono: UI.telefono.value.trim() || null,
+      email: UI.email.value.trim() || null,
+      obra_social: UI.obra_social.value || null,
+      numero_afiliado: UI.numero_afiliado.value.trim() || null,
+      credencial: UI.credencial.value.trim() || null,
+      contacto_nombre: UI.contacto_nombre.value.trim() || null,
+      contacto_apellido: UI.contacto_apellido.value.trim() || null,
+      contacto_celular: UI.contacto_celular.value.trim() || null,
+      vinculo: UI.vinculo.value.trim() || null,
+      historia_clinica: UI.historia_clinica.value.trim() || null,
     };
 
-    let TURNO_ID = new URLSearchParams(location.search).get('turno_id') || null;
-    if (!TURNO_ID) {
-      try { TURNO_ID = localStorage.getItem('current_turno_id') || null; } catch {}
-    }
-    if (!TURNO_ID) {
-      setStatus('Falta parámetro turno_id', 'warn');
-    }
+    const [r1, r2] = await Promise.all([
+      supabase.from('pacientes').update(payloadP).eq('id', pacienteId),
+      supabase.from('turnos').update({ notas: UI.notas.value || null }).eq('id', TURNO_ID),
+    ]);
 
-
-    const userRole = localStorage.getItem('user_role') || '';
-    const isMedico = userRole === 'medico';
-
-    if (!isMedico) {
-      // Asistente puede editar datos, pero no finalizar.
-      UI.btnTerminar.style.display = 'none';
-    }
-
-    function pad(n){return n<10?'0'+n:''+n}
-    function toHM(t){ return (t??'').toString().slice(0,5); }
-    function nowHHMMSS(){ const d=new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` }
-    function calcEdad(f){ if(!f) return null; const d=new Date(f); if(isNaN(d)) return null; const t=new Date();
-      let a=t.getFullYear()-d.getFullYear(); const m=t.getMonth()-d.getMonth();
-      if (m<0 || (m===0 && t.getDate()<d.getDate())) a--; return Math.max(a,0);
-    }
-    function money(n){ return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0)); }
-    function setStatus(msg, tone=''){ UI.status.textContent=msg||''; UI.status.className='msg '+(tone||''); }
-
-    /* ============== catálogos ============== */
-    async function loadObrasSociales(currentLabel){
-      UI.obra_social.innerHTML = '<option value="">(Sin obra social)</option>';
-      const { data } = await supabase.from('obras_sociales').select('obra_social').order('obra_social',{ascending:true});
-      const labels = (data||[]).map(r=>r.obra_social);
-      labels.forEach(lbl => {
-        const opt=document.createElement('option'); opt.value=lbl; opt.textContent=lbl; UI.obra_social.appendChild(opt);
-      });
-      if (currentLabel && !labels.includes(currentLabel)) {
-        const opt=document.createElement('option'); opt.value=currentLabel; opt.textContent=currentLabel; UI.obra_social.appendChild(opt);
-      }
-      UI.obra_social.value = currentLabel || '';
-    }
-
-    /* ============== cargar turno + paciente ============== */
-    let turno=null, pacienteId=null;
-
-   let turno = null, pacienteId = null;
-
-async function load(){
-  if (!TURNO_ID){ setStatus('Falta parámetro turno_id', 'warn'); return; }
-  setStatus('Cargando...');
-
-  // 1) Traer el turno "plano"
-  const { data: t, error: terr } = await supabase
-    .from('turnos')
-    .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, notas, paciente_id, profesional_id, centro_id')
-    .eq('id', TURNO_ID)
-    .maybeSingle();
-
-  if (terr || !t){
-    console.error('Error cargando turno:', terr);
-    setStatus('No se pudo cargar el turno', 'warn');
-    return;
-  }
-  turno = t;
-  pacienteId = t.paciente_id;
-
-  // 2) Traer entidades relacionadas por separado
-  const [pRes, profRes, centroRes] = await Promise.all([
-    supabase.from('pacientes').select('id, dni, apellido, nombre, fecha_nacimiento, telefono, email, obra_social, numero_afiliado, credencial, contacto_nombre, contacto_apellido, contacto_celular, vinculo, historia_clinica').eq('id', t.paciente_id).maybeSingle(),
-    supabase.from('profesionales').select('id, display_name, nombre, apellido').eq('id', t.profesional_id).maybeSingle(),
-    supabase.from('centros_medicos').select('id, nombre, direccion').eq('id', t.centro_id).maybeSingle(),
-  ]);
-
-  const prof = profRes?.data || null;
-  const centro = centroRes?.data || null;
-  const p = pRes?.data || null;
-
-  // 3) Render resumen
-  const profLabel = prof ? (prof.display_name || [prof.apellido, prof.nombre].filter(Boolean).join(', ')) : '—';
-  UI.p_prof.textContent = `Profesional: ${profLabel}`;
-  UI.p_centro.textContent = `Centro: ${centro?.nombre || '—'}`;
-  UI.p_dir.textContent    = `Dirección: ${centro?.direccion || '—'}`;
-  UI.p_fecha.textContent  = `Fecha: ${turno.fecha || '—'}`;
-  UI.p_hora.textContent   = `Hora: ${turno.hora_inicio ? toHM(turno.hora_inicio) : '—'}`;
-  UI.p_copago.textContent = `Copago: ${turno.copago!=null ? money(turno.copago) : '—'}`;
-  UI.p_estado.textContent = `Estado: ${turno.estado || '—'}`;
-  UI.notas.value          = turno.notas || '';
-
-  // 4) Render paciente
-  if (p){
-    UI.dni.value = p.dni || '';
-    UI.apellido.value = p.apellido || '';
-    UI.nombre.value = p.nombre || '';
-    UI.fecha_nacimiento.value = p.fecha_nacimiento || ''; renderEdad();
-    UI.telefono.value = p.telefono || '';
-    UI.email.value = p.email || '';
-    UI.historia_clinica.value = p.historia_clinica || '';
-    UI.btnHC.href  = p.historia_clinica ? p.historia_clinica : '#';
-    UI.btnHC.target = p.historia_clinica ? '_blank' : '_self';
-
-    await loadObrasSociales(p.obra_social || '');
-    UI.numero_afiliado.value = p.numero_afiliado || '';
-    UI.credencial.value = p.credencial || '';
-    UI.btnCred.href  = p.credencial ? p.credencial : '#';
-    UI.btnCred.target = p.credencial ? '_blank' : '_self';
-
-    UI.contacto_nombre.value = p.contacto_nombre || '';
-    UI.contacto_apellido.value = p.contacto_apellido || '';
-    UI.contacto_celular.value = p.contacto_celular || '';
-    UI.vinculo.value = p.vinculo || '';
-  } else {
-    await loadObrasSociales('');
+    if (r1.error){ setStatus('Error guardando paciente: '+r1.error.message, 'warn'); return; }
+    if (r2.error){ setStatus('Error guardando notas: '+r2.error.message, 'warn'); return; }
+    setStatus('Cambios guardados.', 'ok');
+    setTimeout(()=>setStatus(''), 1800);
   }
 
-  setStatus('');
-}
+  /* ============== terminar consulta (solo médico) ============== */
+  async function terminarConsulta(){
+    if (!isMedico){ alert('Solo los médicos pueden terminar la consulta.'); return; }
+    if (!confirm('¿Marcar este turno como FINALIZADO?')) return;
+    setStatus('Finalizando...');
 
+    const { error } = await supabase
+      .from('turnos')
+      .update({ estado: 'finalizado', hora_fin: nowHHMMSS() }) // consistente con tu tablero
+      .eq('id', TURNO_ID);
 
-    function renderEdad(){
-      const a = calcEdad(UI.fecha_nacimiento.value);
-      UI.edad.textContent = (a==null) ? '—' : `${a} años`;
+    if (error){
+      alert('No se pudo marcar FINALIZADO.');
+      setStatus('No se pudo finalizar.', 'warn'); return;
     }
+    setStatus('Consulta finalizada.', 'ok');
+    try{ if (window.opener) window.opener.postMessage({type:'turno_finalizado', id:TURNO_ID}, '*'); }catch{}
+    setTimeout(()=>window.close(), 900);
+  }
 
-    /* ============== guardar paciente + notas ============== */
-    function validate(){
-      const req = [
-        ['dni', UI.dni.value.trim()],
-        ['apellido', UI.apellido.value.trim()],
-        ['nombre', UI.nombre.value.trim()],
-        ['fecha_nacimiento', UI.fecha_nacimiento.value],
-        ['telefono', UI.telefono.value.trim()],
-      ];
-      const faltan = req.filter(([,v])=>!v);
-      if (faltan.length){ setStatus('Faltan campos obligatorios', 'warn'); return false; }
-      return true;
-    }
+  /* ============== eventos ============== */
+  UI.btnBack.onclick = ()=> window.close();
+  UI.btnCerrar.onclick = ()=> window.close();
+  UI.btnReload.onclick = ()=> load();
+  UI.btnGuardar.onclick = ()=> guardar();
+  UI.btnTerminar.onclick = ()=> terminarConsulta();
 
-    async function guardar(){
-      if (!validate()) return;
-      setStatus('Guardando...');
+  UI.fecha_nacimiento.addEventListener('change', renderEdad);
+  UI.historia_clinica.addEventListener('input', ()=>{
+    UI.btnHC.href = UI.historia_clinica.value || '#';
+    UI.btnHC.target = UI.historia_clinica.value ? '_blank' : '_self';
+  });
+  UI.credencial.addEventListener('input', ()=>{
+    UI.btnCred.href = UI.credencial.value || '#';
+    UI.btnCred.target = UI.credencial.value ? '_blank' : '_self';
+  });
 
-      const payloadP = {
-        dni: UI.dni.value.trim(),
-        apellido: UI.apellido.value.trim(),
-        nombre: UI.nombre.value.trim(),
-        fecha_nacimiento: UI.fecha_nacimiento.value || null,
-        telefono: UI.telefono.value.trim() || null,
-        email: UI.email.value.trim() || null,
-        obra_social: UI.obra_social.value || null,
-        numero_afiliado: UI.numero_afiliado.value.trim() || null,
-        credencial: UI.credencial.value.trim() || null,
-        contacto_nombre: UI.contacto_nombre.value.trim() || null,
-        contacto_apellido: UI.contacto_apellido.value.trim() || null,
-        contacto_celular: UI.contacto_celular.value.trim() || null,
-        vinculo: UI.vinculo.value.trim() || null,
-        historia_clinica: UI.historia_clinica.value.trim() || null,
-      };
-
-      const [r1, r2] = await Promise.all([
-        supabase.from('pacientes').update(payloadP).eq('id', pacienteId),
-        supabase.from('turnos').update({ notas: UI.notas.value || null }).eq('id', TURNO_ID),
-      ]);
-
-      if (r1.error){ setStatus('Error guardando paciente: '+r1.error.message, 'warn'); return; }
-      if (r2.error){ setStatus('Error guardando notas: '+r2.error.message, 'warn'); return; }
-      setStatus('Cambios guardados.', 'ok');
-      setTimeout(()=>setStatus(''), 1800);
-    }
-
-    /* ============== terminar consulta (solo médico) ============== */
-    async function terminarConsulta(){
-      if (!isMedico){ alert('Solo los médicos pueden terminar la consulta.'); return; }
-      if (!confirm('¿Marcar este turno como ATENDIDO?')) return;
-      setStatus('Finalizando...');
-
-      const { error } = await supabase
-        .from('turnos')
-        .update({ estado: 'atendido', hora_fin: nowHHMMSS() })
-        .eq('id', TURNO_ID);
-
-      if (error){
-        alert('No se pudo marcar ATENDIDO. Verificá que appointment_status tenga el valor "atendido".');
-        setStatus('No se pudo finalizar.', 'warn'); return;
-      }
-      setStatus('Consulta finalizada (ATENDIDO).', 'ok');
-      // si existe una ventana anterior, avisar que refresque via storage flag
-      try{ if (window.opener) window.opener.postMessage({type:'turno_atendido', id:TURNO_ID}, '*'); }catch{}
-      setTimeout(()=>window.close(), 900);
-    }
-
-    /* ============== eventos ============== */
-    UI.btnBack.onclick = ()=> window.close();
-    UI.btnCerrar.onclick = ()=> window.close();
-    UI.btnReload.onclick = ()=> load();
-    UI.btnGuardar.onclick = ()=> guardar();
-    UI.btnTerminar.onclick = ()=> terminarConsulta();
-
-    UI.fecha_nacimiento.addEventListener('change', renderEdad);
-    UI.historia_clinica.addEventListener('input', ()=>{
-      UI.btnHC.href = UI.historia_clinica.value || '#';
-      UI.btnHC.target = UI.historia_clinica.value ? '_blank' : '_self';
-    });
-    UI.credencial.addEventListener('input', ()=>{
-      UI.btnCred.href = UI.credencial.value || '#';
-      UI.btnCred.target = UI.credencial.value ? '_blank' : '_self';
-    });
-
-    // init
-    await load();
-  </script>
-</body>
-</html>
+  // init
+  await load();
+</script>
