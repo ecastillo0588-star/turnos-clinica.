@@ -395,12 +395,7 @@ function renderAtencion(list){
   });
 }
 
-/* ===== Acciones "En atención" ===== */
-function abrirFichaPaciente(turnoId){
-  try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
-  const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
-  window.location.href = fichaUrl; // misma pestaña
-}
+
 
 async function volverASalaEspera(turnoId){
   await supabase.from('turnos').update({estado:EST.EN_ESPERA}).eq('id', turnoId);
