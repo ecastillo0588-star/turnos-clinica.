@@ -274,7 +274,7 @@
 <script type="module">
 import supabase from './supabaseClient.js';
 
-const EST = { ASIGNADO:'asignado', EN_ESPERA:'en_espera', EN_ATENCION:'en_atencion', CANCELADO:'cancelado', FINALIZADO:'finalizado' };
+const EST = { ASIGNADO:'asignado', EN_ESPERA:'en_espera', EN_ATENCION:'en_atencion', CANCELADO:'cancelado', FINALIZADO:'atendido' };
 
 const UI = {
   centroChip: document.getElementById('centro-chip'),
@@ -757,7 +757,7 @@ async function finalizarDesdeDrawer(){
   if (userRole !== 'medico'){ alert('Solo los médicos pueden finalizar.'); return; }
   if (!drawerTurnoId) return;
   if (!confirm('¿Finalizar atención?')) return;
-  const { error } = await supabase.from('turnos').update({ estado: EST.FINALIZADO, hora_fin: nowHHMMSS() }).eq('id', drawerTurnoId);
+  const { error } = await supabase.from('turnos').update({ estado: EST.atendido, hora_fin: nowHHMMSS() }).eq('id', drawerTurnoId);
   if (error){ alert('No se pudo finalizar.'); return; }
   hideDrawer(); await refreshAll();
 }
