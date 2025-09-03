@@ -812,13 +812,6 @@ async function marcarAtendido(turnoId){
   return true;
 }
 
-async function finalizarDesdeDrawer(){
-  if (userRole !== 'medico'){ alert('Solo los médicos pueden finalizar.'); return; }
-  if (!drawerTurnoId) return;
-  if (!confirm('¿Marcar este turno como ATENDIDO?')) return;
-  const ok = await marcarAtendido(drawerTurnoId);
-  if (ok){ hideDrawer(); await refreshAll(); }
-}
 
 /* bindings */
 if (Drawer.btnGuardar) Drawer.btnGuardar.onclick = guardarFicha;
@@ -838,22 +831,39 @@ async function volverASalaEspera(turnoId){
   await supabase.from('turnos').update({estado:EST.EN_ESPERA}).eq('id', turnoId);
   await refreshAll();
 }
-async function finalizarAtencion(turnoId){
-  if(!confirm('¿Finalizar atención?')) return;
 
-  const { error } = await supabase
+// Usada desde grilla y (opcional) desde el drawer
+async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
+  if (userRole !== 'medico') { 
+    alert('Solo los médicos pueden finalizar.'); 
+    return; 
+  }
+  const id = turnoId ?? drawerTurnoId;
+  if (!id) return;
+
+  if (!confirm('¿Marcar este turno como ATENDIDO?')) return;
+
+  const { data, error } = await supabase
     .from('turnos')
-    .update({ estado: EST.ATENDIDO})
-    .eq('id', turnoId);
+    .update({ estado: EST.ATENDIDO })     // no tocamos hora_fin si es programada
+    .eq('id', id)
+    .eq('estado', EST.EN_ATENCION)        // evita carreras y clics dobles
+    .select('id');                         // para detectar 0 filas
 
   if (error){
     console.error('No se pudo marcar atendido:', error);
     alert('No se pudo finalizar.');
     return;
   }
+  if (!data?.length){
+    alert('El turno no estaba en "En atención" (quizás cambió en otra pestaña).');
+    return;
+  }
 
-  await refreshAll(); // mueve a "Atendidos" y actualiza KPIs
+  if (closeDrawer) hideDrawer();
+  await refreshAll();
 }
+
 
 
 async function marcarLlegadaYCopago(turnoId){
@@ -889,12 +899,21 @@ async function pasarAEnAtencion(turnoId, ev) {
   if (ev) ev.preventDefault();
   const role = localStorage.getItem('user_role');
   if (role !== 'medico') { alert('Solo los médicos pueden atender pacientes.'); return; }
-  const { error } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
+
+  const { error } = await supabase
+    .from('turnos')
+    .update({ estado: EST.EN_ATENCION })
+    .eq('id', turnoId);
+
   if (error) { alert('No se pudo pasar a "En atención".'); return; }
-  // ✅ Refrescar tableros para que se mueva de "Presentes" a "En atención"
+
+  // Refresca columnas para que el turno pase a "En atención"
   await refreshAll();
-  await openFicha(turnoId);
+
+  // ✅ Abrir el drawer del mismo HTML (no navegar)
+  await openFicha(turnoId);  // openFicha ya hace showDrawer() y carga todo
 }
+
 
 /* ===== KPIs ===== */
 function computeHorasDisponibles(agenda, turnos){
