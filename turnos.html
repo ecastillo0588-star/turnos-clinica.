@@ -783,6 +783,64 @@ async function renderCalendar(){
   UI.status.textContent=agenda.length?'':'No hay agenda cargada para este mes.';
 }
 
+function renderSlots(slots){
+  // Hora actual en formato 'HH:MM'
+  const ahora = new Date();
+  const hoyISO = dateToISO(ahora);
+  const ahoraHM = pad(ahora.getHours()) + ':' + pad(ahora.getMinutes());
+
+  // Filtra slots: muestra solo slots de hoy en adelante, y para hoy solo los que no empezaron
+  const filtroSlots = slots.filter(s => {
+    if (!modalDateISO) return true;
+    if (modalDateISO > hoyISO) return true;
+    if (modalDateISO < hoyISO) return false;
+    // Si es hoy, solo mostrar los slots cuya hora de inicio es mayor a ahora
+    return s.start > ahoraHM;
+  });
+
+  if(!filtroSlots.length){
+    UI.slotsList.innerHTML = '<div class="tw-hint">No hay horarios disponibles.</div>';
+    return;
+  }
+
+  UI.slotsList.innerHTML = '';
+  if(reprogramState){
+    const banner = document.createElement('div');
+    banner.className = 'tw-banner-rep';
+    banner.innerHTML = `<div>
+      Reprogramando turno ${toHM(reprogramState.turno.hora_inicio)}–${toHM(reprogramState.turno.hora_fin)}.
+      Seleccioná nuevo horario (${reprogramState.durMin} min).
+    </div><button class="tw-linklike" id="tw-cancel-rep">Cancelar</button>`;
+    UI.slotsList.appendChild(banner);
+    banner.querySelector('#tw-cancel-rep').addEventListener('click',()=>{
+      reprogramState = null;
+      refreshDayModal();
+    });
+  }
+
+  // Renderiza cada slot
+  filtroSlots.forEach(slot => {
+    const slotElem = document.createElement('div');
+    slotElem.className = 'tw-slot';
+
+    // --- NUEVO: Indicar obra social especial (ejemplo: PAMI) ---
+    let label = toHM(slot.start) + ' - ' + toHM(slot.end);
+    if (pacienteSeleccionado && pacienteSeleccionado.obra_social_label) {
+      if (pacienteSeleccionado.obra_social_label.toUpperCase().includes('PAMI')) {
+        label += ' <span class="tw-slot-os">(PAMI)</span>';
+      }
+      // Puedes agregar otros indicadores aquí si tienes más obras sociales especiales
+    }
+
+    slotElem.innerHTML = label;
+
+    // --- Click para agendar ---
+    slotElem.addEventListener('click', () => tryAgendar(slot));
+
+    UI.slotsList.appendChild(slotElem);
+  });
+}
+
 /* ====== Mini-calendario en modal ====== */
 async function renderMiniCalFor(isoDate){
   if(!currentProfesional || !isoDate || !UI.miniCal) return;
