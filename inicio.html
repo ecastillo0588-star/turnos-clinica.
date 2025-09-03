@@ -510,6 +510,7 @@ async function initInicio(){
   renderCentroChip();
   await loadProfesionales();
   currentFechaISO = UI.fecha.value || todayISO();
+  try { localStorage.setItem('inicio_url', location.href); } catch {}
   await refreshAll();
   startCentroWatcher();
 }
