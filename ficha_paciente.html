@@ -179,8 +179,14 @@
       notas: qs('notas'),
     };
 
-    const params = new URLSearchParams(location.search);
-    const TURNO_ID = params.get('turno_id');
+    let TURNO_ID = new URLSearchParams(location.search).get('turno_id') || null;
+    if (!TURNO_ID) {
+      try { TURNO_ID = localStorage.getItem('current_turno_id') || null; } catch {}
+    }
+    if (!TURNO_ID) {
+      setStatus('Falta parámetro turno_id', 'warn');
+    }
+
 
     const userRole = localStorage.getItem('user_role') || '';
     const isMedico = userRole === 'medico';
