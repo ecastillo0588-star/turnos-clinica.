@@ -11,7 +11,8 @@
     *{box-sizing:border-box}
     :root{
       --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
-      --bg:#f7f9fb; --card:#fff; --line:#ece5fc; --ok:#0a7d38; --warn:#8a5800;
+      --bg:#f7f9fb; --card:#fff; --line:#ece5fc;
+      --ok:#0a7d38; --warn:#8a5800;
     }
     body{background:var(--bg);margin:0;font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
     .shell{padding:10px}
@@ -31,7 +32,7 @@
       background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:7px 9px;
       font-size:13px;color:var(--ink);outline:none;width:100%;
     }
-    .inp:focus,.sel:focus{border-color:var(--brand-2)}
+    .inp:focus,.sel:focus,textarea:focus{border-color:var(--brand-2)}
     .sel.compact{max-width:240px}
     .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer}
     .btn.secondary{background:#e7e2fa;color:#5a3e9a}
@@ -91,20 +92,31 @@
       display:flex; flex-direction:column;
     }
     .drawer.open{ transform:translateX(0); }
-    .drawer-head{
-      display:flex; align-items:center; gap:12px; padding:10px 12px;
-      background:#e8def8; border-bottom:1px solid var(--line)
-    }
-    .ph-left{display:flex; flex-direction:column; gap:4px; min-width:0}
-    .pname{font-size:18px; font-weight:800; color:#4b3a78; line-height:1.2; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-    .prow{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-    .dni-badge{display:inline-flex; align-items:center; gap:6px; background:#eef7ff; border:1px solid #cfe6ff; color:#0b4c8a; border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700}
-    .hc-link{display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:8px; background:#f2effc; border:1px solid var(--line); text-decoration:none}
-    .hc-link:hover{background:#ebe6ff}
+    .drawer-head{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#e8def8;border-bottom:1px solid var(--line)}
+    .drawer-title{margin:0;font-size:17px;color:#4b3a78;font-weight:700}
+    .drawer-sub{font-size:12px;color:#6b6480}
     .drawer-body{flex:1;overflow:auto;padding:12px}
     .drawer-foot{padding:10px 12px;border-top:1px solid var(--line);background:#faf7ff;display:flex;gap:10px;justify-content:flex-end}
-    .mini{font-size:12px;color:var(--muted)}
-    .link{color:#4b3a78;text-decoration:underline;cursor:pointer}
+    .msg{font-size:13px}
+    .ok{color:var(--ok)} .warn{color:var(--warn)}
+
+    /* grids del formulario del drawer */
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+    .card h4{margin:0 0 10px 0;font-size:14px;color:#4b3a78}
+
+    /* Botón/enlace de Historia Clínica con alto contraste */
+    .hc-link{
+      display:inline-flex; align-items:center; gap:6px;
+      font-weight:600; text-decoration:none;
+      color:#3b2b66; background:#ffffff; border:1px solid #cbbbe8;
+      padding:6px 10px; border-radius:8px; box-shadow:0 1px 0 rgba(0,0,0,.05);
+    }
+    .hc-link:hover{ background:#fff; border-color:#b6a3ea; box-shadow:0 2px 6px rgba(0,0,0,.08); }
+    .hc-link:focus-visible{ outline:2px solid #5a3e9a; outline-offset:2px; }
+    .hc-ico{ display:block; flex:0 0 auto; opacity:.95; }
+
   </style>
 </head>
 <body>
@@ -130,7 +142,7 @@
       </div>
     </div>
 
-    <!-- KPIs -->
+    <!-- KPIs chips -->
     <div class="stats">
       <div class="chip"><span>Pendientes</span> <span class="v" id="kpi-pend">0</span></div>
       <div class="chip"><span>Presentes</span> <span class="v" id="kpi-esp">0</span></div>
@@ -155,58 +167,103 @@
       </div>
     </div>
 
-          <!-- Drawer Ficha Paciente -->
+    <!-- Drawer Ficha Paciente -->
+    <aside id="fichaDrawer" class="drawer" aria-hidden="true">
       <header class="drawer-head">
-        <div class="title-wrap">
-          <div id="fd-title" class="title">—</div>
-          <a id="fd-hc" class="hc-link" href="#" target="_blank" rel="noopener" style="display:none">
-            <svg class="hc-ico" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6" fill="currentColor"/>
-            </svg>
-            <span>Historia clínica</span>
-          </a>
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+          <div id="fd-title" class="drawer-title">Paciente —</div>
+          <div id="fd-sub" class="drawer-sub">DNI — · Edad —</div>
         </div>
-        <span id="fd-status" class="pill">—</span>
+        <span id="fd-spacer" style="flex:1"></span>
+        <a id="fd-hc" class="hc-link" href="#" target="_blank" rel="noopener" style="display:none">
+          <svg class="hc-ico" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6" fill="currentColor"/>
+          </svg>
+          <span>Historia clínica</span>
+        </a>
         <button id="fd-close" class="icon" title="Cerrar">✖️</button>
       </header>
 
-
       <div class="drawer-body">
-        <!-- MODO LITE (resumen) -->
-        <div id="fd-lite">
-          <div class="stats" id="fd-summary">
-            <div class="chip" id="fd-prof">Prof: —</div>
-            <div class="chip" id="fd-centro">Centro: —</div>
-            <div class="chip" id="fd-fecha">Fecha: —</div>
-            <div class="chip" id="fd-hora">Hora: —</div>
-            <div class="chip" id="fd-estado">Estado: —</div>
-            <div class="chip" id="fd-copago">Copago: —</div>
-          </div>
+        <div id="fd-status" class="msg" style="margin-bottom:8px"></div>
 
-          <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
+        <!-- Resumen turno -->
+        <div class="stats" id="fd-summary" style="margin-bottom:10px">
+          <div class="chip" id="fd-prof">Prof: —</div>
+          <div class="chip" id="fd-centro">Centro: —</div>
+          <div class="chip" id="fd-fecha">Fecha: —</div>
+          <div class="chip" id="fd-hora">Hora: —</div>
+          <div class="chip" id="fd-estado">Estado: —</div>
+          <div class="chip" id="fd-copago">Copago: —</div>
+        </div>
 
+        <!-- Formulario paciente -->
+        <div class="card">
+          <h4>Datos del paciente</h4>
           <div class="row3">
-            <div class="field"><label>DNI</label><input id="fd-dni" class="inp" disabled></div>
-            <div class="field"><label>Apellido</label><input id="fd-apellido" class="inp" disabled></div>
-            <div class="field"><label>Nombre</label><input id="fd-nombre" class="inp" disabled></div>
+            <div class="field"><label>DNI</label><input id="fd-dni" class="inp"></div>
+            <div class="field"><label>Apellido</label><input id="fd-apellido" class="inp"></div>
+            <div class="field"><label>Nombre</label><input id="fd-nombre" class="inp"></div>
           </div>
-          <div class="row3">
-            <div class="field"><label>Nacimiento</label><input id="fd-nac" type="date" class="inp" disabled></div>
-            <div class="field"><label>Teléfono</label><input id="fd-tel" class="inp" disabled></div>
-            <div class="field"><label>Email</label><input id="fd-mail" class="inp" disabled></div>
-          </div>
-
-          <div class="mini" style="margin-top:10px">
-            ¿Editar/actualizar datos? <a id="fd-open-full" class="link">Abrir ficha completa</a>
+          <div class="row3" style="margin-top:10px">
+            <div class="field"><label>Fecha de nacimiento</label><input id="fd-nac" type="date" class="inp"></div>
+            <div class="field"><label>Teléfono</label><input id="fd-tel" class="inp"></div>
+            <div class="field"><label>Email</label><input id="fd-mail" class="inp"></div>
           </div>
         </div>
 
-        <!-- MODO FULL (iframe) -->
-        <iframe id="fd-iframe" style="display:none;border:0;width:100%;height:100%" title="Ficha paciente"></iframe>
+        <div class="card">
+          <h4>Obra social</h4>
+          <div class="row3">
+            <div class="field">
+              <label>Obra social</label>
+              <select id="fd-obra" class="sel"></select>
+            </div>
+            <div class="field"><label>N° afiliado</label><input id="fd-afiliado" class="inp"></div>
+            <div class="field">
+              <label>Credencial (URL)</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input id="fd-cred" class="inp" placeholder="https://..." />
+                <a id="fd-cred-link" class="btn secondary" href="#" target="_blank" rel="noopener">Ver</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Contacto de emergencia</h4>
+          <div class="row2">
+            <div class="field"><label>Nombre</label><input id="fd-ec-nom" class="inp" /></div>
+            <div class="field"><label>Apellido</label><input id="fd-ec-ape" class="inp" /></div>
+          </div>
+          <div class="row2" style="margin-top:10px">
+            <div class="field"><label>Celular</label><input id="fd-ec-cel" class="inp" /></div>
+            <div class="field"><label>Vínculo</label><input id="fd-ec-vin" class="inp" /></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Seguimiento</h4>
+          <div class="row3">
+            <div class="field"><label>Próximo control</label><input id="fd-prox" type="date" class="inp" /></div>
+            <div class="field"><label>Renovación de receta</label><input id="fd-renov" type="date" class="inp" /></div>
+            <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:22px">
+              <input id="fd-activo" type="checkbox" /><label for="fd-activo">Activo</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Notas del turno</h4>
+          <div class="field"><textarea id="fd-notas" class="inp" placeholder="Observaciones internas..." style="min-height:80px"></textarea></div>
+        </div>
+
       </div>
 
       <footer class="drawer-foot">
-        <button id="fd-volver" class="btn secondary">Volver</button>
+        <span id="fd-msg" class="msg"></span>
+        <button id="fd-cerrar" class="btn secondary">Cerrar</button>
+        <button id="fd-guardar" class="btn">Guardar cambios</button>
         <button id="fd-finalizar" class="btn">Finalizar</button>
       </footer>
     </aside>
@@ -215,7 +272,7 @@
 </div>
 
 <script type="module">
-import supabase from '/supabaseClient.js';
+import supabase from './supabaseClient.js';
 
 const EST = { ASIGNADO:'asignado', EN_ESPERA:'en_espera', EN_ATENCION:'en_atencion', CANCELADO:'cancelado', FINALIZADO:'finalizado' };
 
@@ -239,26 +296,44 @@ const Drawer = {
   el: document.getElementById('fichaDrawer'),
   close: document.getElementById('fd-close'),
   status: document.getElementById('fd-status'),
+  msg: document.getElementById('fd-msg'),
+  title: document.getElementById('fd-title'),
+  sub: document.getElementById('fd-sub'),
+  hc: document.getElementById('fd-hc'),
+
   prof: document.getElementById('fd-prof'),
   centro: document.getElementById('fd-centro'),
   fecha: document.getElementById('fd-fecha'),
   hora: document.getElementById('fd-hora'),
   estado: document.getElementById('fd-estado'),
   copago: document.getElementById('fd-copago'),
+
   dni: document.getElementById('fd-dni'),
   ape: document.getElementById('fd-apellido'),
   nom: document.getElementById('fd-nombre'),
   nac: document.getElementById('fd-nac'),
   tel: document.getElementById('fd-tel'),
   mail: document.getElementById('fd-mail'),
-  btnVolver: document.getElementById('fd-volver'),
-  btnFin: document.getElementById('fd-finalizar'),
-  lite: document.getElementById('fd-lite'),
-  iframe: document.getElementById('fd-iframe'),
-  btnOpenFull: document.getElementById('fd-open-full'),
-  pname: document.getElementById('fd-pname'),
-  dniBadge: document.getElementById('fd-dni-badge'),
-  hcLink: document.getElementById('fd-hc-link'),
+
+  obra: document.getElementById('fd-obra'),
+  afiliado: document.getElementById('fd-afiliado'),
+  cred: document.getElementById('fd-cred'),
+  credLink: document.getElementById('fd-cred-link'),
+
+  ecNom: document.getElementById('fd-ec-nom'),
+  ecApe: document.getElementById('fd-ec-ape'),
+  ecCel: document.getElementById('fd-ec-cel'),
+  ecVin: document.getElementById('fd-ec-vin'),
+
+  prox: document.getElementById('fd-prox'),
+  renov: document.getElementById('fd-renov'),
+  activo: document.getElementById('fd-activo'),
+
+  notas: document.getElementById('fd-notas'),
+
+  btnCerrar: document.getElementById('fd-cerrar'),
+  btnGuardar: document.getElementById('fd-guardar'),
+  btnFinalizar: document.getElementById('fd-finalizar'),
 };
 
 let currentCentroId = localStorage.getItem('centro_medico_id');
@@ -274,74 +349,29 @@ function pad(n){return n<10?'0'+n:''+n}
 function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function toHM(t){return (t??'').toString().slice(0,5)}
 function minutesDiff(start,end){
-  const [h1,m1]=String(start||'00:00').split(':').map(Number);
-  const [h2,m2]=String(end  ||'00:00').split(':').map(Number);
-  return (h2*60+m2)-(h1*60+m1);
+  const [h1,m1]=start.split(':').map(Number),[h2,m2]=end.split(':').map(Number);
+  return (h2*60+m2)-(h1*60+m1); /* fix */
 }
 function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
 function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
-
-function capWord(w){
-  if (!w) return w;
-  return w.charAt(0).toLocaleUpperCase('es-AR') + w.slice(1).toLocaleLowerCase('es-AR');
+function titleCase(s){ return (s||'').split(' ').filter(Boolean).map(w=>w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ') }
+function calcEdad(f){ if(!f) return null; const d=new Date(f); if(isNaN(d)) return null; const t=new Date();
+  let a=t.getFullYear()-d.getFullYear(); const m=t.getMonth()-d.getMonth(); if (m<0 || (m===0 && t.getDate()<d.getDate())) a--; return Math.max(a,0);
 }
-function titleCaseName(s){
-  if (!s) return '';
-  // separa por espacios, y respeta guiones / apóstrofes dentro de palabras
-  return s
-    .trim()
-    .split(/\s+/)
-    .map(part => part.split(/([-’'])/).map(capWord).join(''))
-    .join(' ');
-}
-function calcEdad(fechaISO){
-  if (!fechaISO) return null;
-  const d = new Date(fechaISO); if (isNaN(d)) return null;
-  const t = new Date();
-  let a = t.getFullYear() - d.getFullYear();
-  const m = t.getMonth() - d.getMonth();
-  if (m < 0 || (m === 0 && t.getDate() < d.getDate())) a--;
-  return Math.max(0, a);
-}
-
+function setDrawerMsg(msg,tone=''){ if(Drawer.msg){ Drawer.msg.textContent=msg||''; Drawer.msg.className='msg '+(tone||''); } }
+function setDrawerStatus(msg,tone=''){ if(Drawer.status){ Drawer.status.textContent=msg||''; Drawer.status.className='msg '+(tone||''); } }
 
 /* Rol en body */
 if (userRole !== 'medico') document.body.classList.add('role-asistente'); else document.body.classList.remove('role-asistente');
 
 /* ====== Drawer helpers ====== */
 function showDrawer(){ Drawer.el.classList.add('open'); Drawer.el.setAttribute('aria-hidden','false'); }
-function hideDrawer(){
-  Drawer.el.classList.remove('open'); Drawer.el.setAttribute('aria-hidden','true');
-  showLite();
-}
+function hideDrawer(){ Drawer.el.classList.remove('open'); Drawer.el.setAttribute('aria-hidden','true'); }
 if (Drawer.close) Drawer.close.onclick = hideDrawer;
-if (Drawer.btnVolver) Drawer.btnVolver.onclick = hideDrawer;
-
-function showLite(){
-  if (Drawer.iframe) { Drawer.iframe.style.display = 'none'; Drawer.iframe.src = 'about:blank'; }
-  if (Drawer.lite) Drawer.lite.style.display = '';
-}
-function showFull(turnoId){
-  // ocultá el modo lite y el botón "Abrir ficha completa"
-  if (Drawer.lite) Drawer.lite.style.display = 'none';
-  if (Drawer.btnOpenFull) Drawer.btnOpenFull.style.display = 'none';
-
-  if (Drawer.status) Drawer.status.textContent = 'Cargando…';
-
-  if (Drawer.iframe){
-    const url = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
-    Drawer.iframe.src = url;
-    Drawer.iframe.style.display = 'block';
-    Drawer.iframe.onload = () => {
-      if (Drawer.status) Drawer.status.textContent = '';
-    };
-  }
-}
-
+if (Drawer.btnCerrar) Drawer.btnCerrar.onclick = hideDrawer;
 
 /* ====== centro ====== */
 async function fetchCentroById(id){
-  if (!id) return '';
   const { data } = await supabase.from('centros_medicos').select('nombre').eq('id', id).maybeSingle();
   return data?.nombre || '';
 }
@@ -447,8 +477,8 @@ function renderPendientes(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell">${p.nombre||'—'}</td>
-      <td class="cell">${p.apellido||'—'}</td>
+      <td class="cell">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell">${titleCase(p.apellido)||'—'}</td>
       <td class="cell">${p.obra_social||'—'}</td>
       <td class="cell right">
         <div class="actions">
@@ -469,7 +499,7 @@ function renderPendientes(list){
   });
 }
 
-/* ===== Espera: badges y copago ===== */
+/* ===== Espera ===== */
 let waitTimer=null;
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
@@ -507,8 +537,8 @@ function renderPresentes(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell"><span class="wait" data-arribo-ts="${arriboISO}">—</span></td>
       <td class="cell nowrap">${hora}</td>
-      <td class="cell">${p.nombre||'—'}</td>
-      <td class="cell">${p.apellido||'—'}</td>
+      <td class="cell">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell">${titleCase(p.apellido)||'—'}</td>
       <td class="cell">${p.obra_social||'—'}</td>
       <td class="cell">${copBadge}</td>
       <td class="cell right"><div class="actions">${acciones}</div></td>
@@ -539,15 +569,15 @@ function renderAtencion(list){
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const acciones = `
-      <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha (slidebar)">📄</button>
+      <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente">📄</button>
       <button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">⏪</button>
       ${puedeFinalizar ? `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Finalizar atención">✅</button>` : ''}
     `;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell">${p.nombre||'—'}</td>
-      <td class="cell">${p.apellido||'—'}</td>
+      <td class="cell">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell">${titleCase(p.apellido)||'—'}</td>
       <td class="cell">${p.obra_social||'—'}</td>
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
@@ -563,25 +593,189 @@ function renderAtencion(list){
 }
 
 /* ===== Ficha en Drawer ===== */
-async function openFicha(turnoId){
-  try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
-  try { localStorage.setItem('inicio_url', location.href); } catch {}
-  if (Drawer.status) Drawer.status.textContent = 'Cargando…';
-  showDrawer();
+let drawerTurnoId = null;
 
-  // ... (si cargás datos para el header, dejalos)
-  showFull(turnoId);   // ⬅️ entra directo al iframe
+async function loadObrasSociales(currentLabel){
+  Drawer.obra.innerHTML = '<option value="">(Sin obra social)</option>';
+  const { data, error } = await supabase.from('obras_sociales').select('obra_social').order('obra_social',{ascending:true});
+  const labels = (data||[]).map(r=>r.obra_social);
+  labels.forEach(lbl => {
+    const opt=document.createElement('option');
+    opt.value=lbl; opt.textContent=lbl; Drawer.obra.appendChild(opt);
+  });
+  if (currentLabel && !labels.includes(currentLabel)) {
+    const opt=document.createElement('option'); opt.value=currentLabel; opt.textContent=currentLabel; Drawer.obra.appendChild(opt);
+  }
+  Drawer.obra.value = currentLabel || '';
 }
 
-
-
-/* ===== Mensajes desde el iframe (si la ficha guarda/finaliza) ===== */
-window.addEventListener('message', async (ev)=>{
-  const msg = ev?.data || {};
-  if (msg?.type === 'turno_actualizado' || msg?.type === 'turno_finalizado') {
-    await refreshAll();
-    if (msg?.type === 'turno_finalizado') hideDrawer();
+function renderHeaderPaciente(p){
+  const ape = titleCase(p?.apellido||'');
+  const nom = titleCase(p?.nombre||'');
+  const dni = (p?.dni || '—');
+  const edad = calcEdad(p?.fecha_nacimiento);
+  if (Drawer.title) Drawer.title.textContent = `${ape}, ${nom}`;
+  if (Drawer.sub) Drawer.sub.textContent = `DNI ${dni} · ${edad!=null? `${edad} años`:'Edad —'}`;
+  // historia clínica
+  if (p?.historia_clinica){
+    Drawer.hc.style.display='inline-flex';
+    Drawer.hc.href = p.historia_clinica;
+  } else {
+    Drawer.hc.style.display='none';
+    Drawer.hc.removeAttribute('href');
   }
+}
+
+async function openFicha(turnoId){
+  drawerTurnoId = turnoId;
+  try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
+  setDrawerStatus('Cargando...');
+  setDrawerMsg('');
+  showDrawer();
+
+  // 1) Turno base
+  const { data:t, error:terr } = await supabase
+    .from('turnos')
+    .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, notas, paciente_id, profesional_id, centro_id')
+    .eq('id', turnoId)
+    .maybeSingle();
+
+  if (terr || !t){ setDrawerStatus('No se pudo cargar el turno','warn'); console.error(terr); return; }
+
+  // 2) Relacionados
+  const [pRes, profRes, centroRes] = await Promise.all([
+    supabase.from('pacientes').select('id,dni,apellido,nombre,fecha_nacimiento,telefono,email,obra_social,numero_afiliado,credencial,contacto_nombre,contacto_apellido,contacto_celular,vinculo,historia_clinica,proximo_control,renovacion_receta,activo').eq('id', t.paciente_id).maybeSingle(),
+    supabase.from('profesionales').select('display_name,nombre,apellido').eq('id', t.profesional_id).maybeSingle(),
+    supabase.from('centros_medicos').select('nombre').eq('id', t.centro_id).maybeSingle(),
+  ]);
+
+  const p = pRes?.data || {};
+  const prof = profRes?.data || null;
+  const centro = centroRes?.data || null;
+
+  // Resumen turno
+  Drawer.prof.textContent   = `Prof: ${prof ? (prof.display_name || [prof.apellido, prof.nombre].filter(Boolean).join(', ')) : '—'}`;
+  Drawer.centro.textContent = `Centro: ${centro?.nombre || '—'}`;
+  Drawer.fecha.textContent  = `Fecha: ${t.fecha || '—'}`;
+  Drawer.hora.textContent   = `Hora: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
+  Drawer.estado.textContent = `Estado: ${t.estado || '—'}`;
+  Drawer.copago.textContent = `Copago: ${t.copago!=null ? fmtMoney(t.copago) : '—'}`;
+  Drawer.notas.value        = t.notas || '';
+
+  // Header paciente + HC
+  renderHeaderPaciente(p);
+
+  // Form paciente
+  Drawer.dni.value = p.dni || '';
+  Drawer.ape.value = p.apellido || '';
+  Drawer.nom.value = p.nombre || '';
+  Drawer.nac.value = p.fecha_nacimiento || '';
+  Drawer.tel.value = p.telefono || '';
+  Drawer.mail.value= p.email || '';
+  await loadObrasSociales(p.obra_social || '');
+  Drawer.afiliado.value = p.numero_afiliado || '';
+  Drawer.cred.value = p.credencial || '';
+  Drawer.credLink.href = p.credencial || '#';
+  if (!p.credencial) Drawer.credLink.setAttribute('tabindex','-1');
+
+  Drawer.ecNom.value = p.contacto_nombre || '';
+  Drawer.ecApe.value = p.contacto_apellido || '';
+  Drawer.ecCel.value = p.contacto_celular || '';
+  Drawer.ecVin.value = p.vinculo || '';
+
+  Drawer.prox.value = p.proximo_control || '';
+  Drawer.renov.value = p.renovacion_receta || '';
+  Drawer.activo.checked = !!p.activo;
+
+  setDrawerStatus('');
+}
+
+/* ===== Guardar / Finalizar ===== */
+function validatePaciente(){
+  const faltan = [];
+  if (!Drawer.dni.value.trim()) faltan.push('DNI');
+  if (!Drawer.ape.value.trim()) faltan.push('Apellido');
+  if (!Drawer.nom.value.trim()) faltan.push('Nombre');
+  if (faltan.length){ setDrawerMsg('Faltan: '+faltan.join(', '), 'warn'); return false; }
+  return true;
+}
+
+async function guardarFicha(){
+  if (!drawerTurnoId) return;
+  if (!validatePaciente()) return;
+  setDrawerMsg('Guardando...');
+
+  // necesitamos paciente_id del turno
+  const { data: t } = await supabase.from('turnos').select('paciente_id').eq('id', drawerTurnoId).maybeSingle();
+  const pacienteId = t?.paciente_id;
+  if (!pacienteId){ setDrawerMsg('No se encontró paciente del turno','warn'); return; }
+
+  const payloadP = {
+    dni: Drawer.dni.value.trim(),
+    apellido: Drawer.ape.value.trim(),
+    nombre: Drawer.nom.value.trim(),
+    fecha_nacimiento: Drawer.nac.value || null,
+    telefono: Drawer.tel.value.trim() || null,
+    email: Drawer.mail.value.trim() || null,
+    obra_social: Drawer.obra.value || null,
+    numero_afiliado: Drawer.afiliado.value.trim() || null,
+    credencial: Drawer.cred.value.trim() || null,
+    contacto_nombre: Drawer.ecNom.value.trim() || null,
+    contacto_apellido: Drawer.ecApe.value.trim() || null,
+    contacto_celular: Drawer.ecCel.value.trim() || null,
+    vinculo: Drawer.ecVin.value.trim() || null,
+    historia_clinica: Drawer.hc?.href || null,
+    proximo_control: Drawer.prox.value || null,
+    renovacion_receta: Drawer.renov.value || null,
+    activo: Drawer.activo.checked,
+  };
+
+  const payloadTurno = { notas: Drawer.notas.value || null };
+
+  const [r1, r2] = await Promise.all([
+    supabase.from('pacientes').update(payloadP).eq('id', pacienteId),
+    supabase.from('turnos').update(payloadTurno).eq('id', drawerTurnoId),
+  ]);
+
+  if (r1.error){ setDrawerMsg('Error guardando paciente: '+r1.error.message,'warn'); return; }
+  if (r2.error){ setDrawerMsg('Error guardando notas: '+r2.error.message,'warn'); return; }
+
+  // refrescar header por si cambió nombre/dni/fecha
+  renderHeaderPaciente({
+    dni: payloadP.dni,
+    apellido: payloadP.apellido,
+    nombre: payloadP.nombre,
+    fecha_nacimiento: payloadP.fecha_nacimiento,
+    historia_clinica: payloadP.historia_clinica
+  });
+
+  setDrawerMsg('Cambios guardados.','ok');
+  setTimeout(()=> setDrawerMsg(''), 1500);
+}
+
+async function finalizarDesdeDrawer(){
+  if (userRole !== 'medico'){ alert('Solo los médicos pueden finalizar.'); return; }
+  if (!drawerTurnoId) return;
+  if (!confirm('¿Finalizar atención?')) return;
+  const { error } = await supabase.from('turnos').update({ estado: EST.FINALIZADO, hora_fin: nowHHMMSS() }).eq('id', drawerTurnoId);
+  if (error){ alert('No se pudo finalizar.'); return; }
+  hideDrawer(); await refreshAll();
+}
+
+/* bindings */
+if (Drawer.btnGuardar) Drawer.btnGuardar.onclick = guardarFicha;
+if (Drawer.btnFinalizar){
+  if (userRole !== 'medico') Drawer.btnFinalizar.style.display='none';
+  else Drawer.btnFinalizar.onclick = finalizarDesdeDrawer;
+}
+if (Drawer.cred) Drawer.cred.addEventListener('input', ()=>{
+  Drawer.credLink.href = Drawer.cred.value || '#';
+});
+if (Drawer.nac) Drawer.nac.addEventListener('change', ()=>{
+  // actualizar edad en sub
+  const dniTxt = (Drawer.sub.textContent||'').split('·')[0] || '';
+  const edad = calcEdad(Drawer.nac.value);
+  Drawer.sub.textContent = `${dniTxt.trim()} · ${edad!=null? `${edad} años`:'Edad —'}`;
 });
 
 /* ===== Acciones ===== */
@@ -591,7 +785,7 @@ async function volverASalaEspera(turnoId){
 }
 async function finalizarAtencion(turnoId){
   if(!confirm('¿Finalizar atención?')) return;
-  await supabase.from('turnos').update({estado:EST.FINALIZADO}).eq('id', turnoId);
+  await supabase.from('turnos').update({estado:EST.FINALIZADO, hora_fin: nowHHMMSS()}).eq('id', turnoId);
   await refreshAll();
 }
 async function marcarLlegadaYCopago(turnoId){
