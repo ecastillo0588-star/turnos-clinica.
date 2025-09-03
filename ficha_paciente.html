@@ -23,16 +23,10 @@
     notas: qs('notas'),
   };
 
-  function setStatus(msg, tone=''){ UI.status.textContent=msg||''; UI.status.className='msg '+(tone||''); }
+  // utilidad de estado
+  function setStatus(msg, tone=''){ UI.status && (UI.status.textContent = msg || ''); UI.status && (UI.status.className='msg '+(tone||'')); }
 
-  const userRole = localStorage.getItem('user_role') || '';
-  const isMedico = (userRole === 'medico');
-
-  if (!isMedico) {
-    // Asistente puede editar datos, pero no finalizar.
-    UI.btnTerminar.style.display = 'none';
-  }
-
+  // helpers varios
   function pad(n){return n<10?'0'+n:''+n}
   function toHM(t){ return (t??'').toString().slice(0,5); }
   function nowHHMMSS(){ const d=new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` }
@@ -41,6 +35,11 @@
     if (m<0 || (m===0 && t.getDate()<d.getDate())) a--; return Math.max(a,0);
   }
   function money(n){ return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0)); }
+
+  // role
+  const userRole = localStorage.getItem('user_role') || '';
+  const isMedico = (userRole === 'medico');
+  if (!isMedico && UI.btnTerminar) UI.btnTerminar.style.display = 'none';
 
   /* ============== obtener TURNO_ID (querystring -> localStorage fallback) ============== */
   let TURNO_ID = new URLSearchParams(location.search).get('turno_id') || null;
@@ -53,13 +52,13 @@
 
   /* ============== catálogos ============== */
   async function loadObrasSociales(currentLabel){
+    if (!UI.obra_social) return;
     UI.obra_social.innerHTML = '<option value="">(Sin obra social)</option>';
     const { data, error } = await supabase
       .from('obras_sociales')
       .select('obra_social')
       .order('obra_social',{ascending:true});
-
-    if (error) { console.error('Error obras_sociales:', error); }
+    if (error) console.warn('Error obras_sociales:', error);
 
     const labels = (data||[]).map(r=>r.obra_social);
     labels.forEach(lbl => {
@@ -94,19 +93,15 @@
     turno = t;
     pacienteId = t.paciente_id;
 
-    // 2) Traer entidades relacionadas por separado
+    // 2) Relacionados
     const [pRes, profRes, centroRes] = await Promise.all([
       supabase.from('pacientes').select(
         'id, dni, apellido, nombre, fecha_nacimiento, telefono, email, '+
         'obra_social, numero_afiliado, credencial, contacto_nombre, contacto_apellido, '+
         'contacto_celular, vinculo, historia_clinica'
       ).eq('id', t.paciente_id).maybeSingle(),
-
-      supabase.from('profesionales').select('id, display_name, nombre, apellido')
-        .eq('id', t.profesional_id).maybeSingle(),
-
-      supabase.from('centros_medicos').select('id, nombre, direccion')
-        .eq('id', t.centro_id).maybeSingle(),
+      supabase.from('profesionales').select('id, display_name, nombre, apellido').eq('id', t.profesional_id).maybeSingle(),
+      supabase.from('centros_medicos').select('id, nombre, direccion').eq('id', t.centro_id).maybeSingle(),
     ]);
 
     const prof = profRes?.data || null;
@@ -115,38 +110,41 @@
 
     // resumen
     const profLabel = prof ? (prof.display_name || [prof.apellido, prof.nombre].filter(Boolean).join(', ')) : '—';
-    UI.p_prof.textContent = `Profesional: ${profLabel}`;
-    UI.p_centro.textContent = `Centro: ${centro?.nombre || '—'}`;
-    UI.p_dir.textContent    = `Dirección: ${centro?.direccion || '—'}`;
-    UI.p_fecha.textContent  = `Fecha: ${turno.fecha || '—'}`;
-    UI.p_hora.textContent   = `Hora: ${turno.hora_inicio ? toHM(turno.hora_inicio) : '—'}`;
-    UI.p_copago.textContent = `Copago: ${turno.copago!=null ? money(turno.copago) : '—'}`;
-    UI.p_estado.textContent = `Estado: ${turno.estado || '—'}`;
-    UI.notas.value          = turno.notas || '';
+    if (UI.p_prof)   UI.p_prof.textContent   = `Profesional: ${profLabel}`;
+    if (UI.p_centro) UI.p_centro.textContent = `Centro: ${centro?.nombre || '—'}`;
+    if (UI.p_dir)    UI.p_dir.textContent    = `Dirección: ${centro?.direccion || '—'}`;
+    if (UI.p_fecha)  UI.p_fecha.textContent  = `Fecha: ${turno.fecha || '—'}`;
+    if (UI.p_hora)   UI.p_hora.textContent   = `Hora: ${turno.hora_inicio ? toHM(turno.hora_inicio) : '—'}`;
+    if (UI.p_copago) UI.p_copago.textContent = `Copago: ${turno.copago!=null ? money(turno.copago) : '—'}`;
+    if (UI.p_estado) UI.p_estado.textContent = `Estado: ${turno.estado || '—'}`;
+    if (UI.notas)    UI.notas.value          = turno.notas || '';
 
     // paciente
     if (p){
-      UI.dni.value = p.dni || '';
-      UI.apellido.value = p.apellido || '';
-      UI.nombre.value = p.nombre || '';
-      UI.fecha_nacimiento.value = p.fecha_nacimiento || '';
-      renderEdad();
-      UI.telefono.value = p.telefono || '';
-      UI.email.value = p.email || '';
-      UI.historia_clinica.value = p.historia_clinica || '';
-      UI.btnHC.href  = p.historia_clinica ? p.historia_clinica : '#';
-      UI.btnHC.target = p.historia_clinica ? '_blank' : '_self';
+      if (UI.dni) UI.dni.value = p.dni || '';
+      if (UI.apellido) UI.apellido.value = p.apellido || '';
+      if (UI.nombre) UI.nombre.value = p.nombre || '';
+      if (UI.fecha_nacimiento) { UI.fecha_nacimiento.value = p.fecha_nacimiento || ''; renderEdad(); }
+      if (UI.telefono) UI.telefono.value = p.telefono || '';
+      if (UI.email) UI.email.value = p.email || '';
+      if (UI.historia_clinica) UI.historia_clinica.value = p.historia_clinica || '';
+      if (UI.btnHC) {
+        UI.btnHC.href  = p.historia_clinica ? p.historia_clinica : '#';
+        UI.btnHC.target = p.historia_clinica ? '_blank' : '_self';
+      }
 
       await loadObrasSociales(p.obra_social || '');
-      UI.numero_afiliado.value = p.numero_afiliado || '';
-      UI.credencial.value = p.credencial || '';
-      UI.btnCred.href  = p.credencial ? p.credencial : '#';
-      UI.btnCred.target = p.credencial ? '_blank' : '_self';
+      if (UI.numero_afiliado) UI.numero_afiliado.value = p.numero_afiliado || '';
+      if (UI.credencial) UI.credencial.value = p.credencial || '';
+      if (UI.btnCred) {
+        UI.btnCred.href  = p.credencial ? p.credencial : '#';
+        UI.btnCred.target = p.credencial ? '_blank' : '_self';
+      }
 
-      UI.contacto_nombre.value = p.contacto_nombre || '';
-      UI.contacto_apellido.value = p.contacto_apellido || '';
-      UI.contacto_celular.value = p.contacto_celular || '';
-      UI.vinculo.value = p.vinculo || '';
+      if (UI.contacto_nombre) UI.contacto_nombre.value = p.contacto_nombre || '';
+      if (UI.contacto_apellido) UI.contacto_apellido.value = p.contacto_apellido || '';
+      if (UI.contacto_celular) UI.contacto_celular.value = p.contacto_celular || '';
+      if (UI.vinculo) UI.vinculo.value = p.vinculo || '';
     } else {
       await loadObrasSociales('');
     }
@@ -155,18 +153,18 @@
   }
 
   function renderEdad(){
-    const a = calcEdad(UI.fecha_nacimiento.value);
-    UI.edad.textContent = (a==null) ? '—' : `${a} años`;
+    const a = calcEdad(UI.fecha_nacimiento?.value);
+    if (UI.edad) UI.edad.textContent = (a==null) ? '—' : `${a} años`;
   }
 
   /* ============== guardar paciente + notas ============== */
   function validate(){
     const req = [
-      ['dni', UI.dni.value.trim()],
-      ['apellido', UI.apellido.value.trim()],
-      ['nombre', UI.nombre.value.trim()],
-      ['fecha_nacimiento', UI.fecha_nacimiento.value],
-      ['telefono', UI.telefono.value.trim()],
+      ['dni', UI.dni?.value?.trim()],
+      ['apellido', UI.apellido?.value?.trim()],
+      ['nombre', UI.nombre?.value?.trim()],
+      ['fecha_nacimiento', UI.fecha_nacimiento?.value],
+      ['telefono', UI.telefono?.value?.trim()],
     ];
     const faltan = req.filter(([,v])=>!v);
     if (faltan.length){ setStatus('Faltan campos obligatorios', 'warn'); return false; }
@@ -206,6 +204,13 @@
   }
 
   /* ============== terminar consulta (solo médico) ============== */
+  function goBack(){
+    const backTo = (localStorage.getItem('inicio_url') || '');
+    if (backTo) { window.location.href = backTo; return; }
+    if (history.length > 1) { history.back(); return; }
+    window.location.href = 'index.html'; // último fallback
+  }
+
   async function terminarConsulta(){
     if (!isMedico){ alert('Solo los médicos pueden terminar la consulta.'); return; }
     if (!confirm('¿Marcar este turno como FINALIZADO?')) return;
@@ -213,7 +218,7 @@
 
     const { error } = await supabase
       .from('turnos')
-      .update({ estado: 'finalizado', hora_fin: nowHHMMSS() }) // consistente con tu tablero
+      .update({ estado: 'finalizado', hora_fin: nowHHMMSS() })
       .eq('id', TURNO_ID);
 
     if (error){
@@ -221,26 +226,32 @@
       setStatus('No se pudo finalizar.', 'warn'); return;
     }
     setStatus('Consulta finalizada.', 'ok');
-    try{ if (window.opener) window.opener.postMessage({type:'turno_finalizado', id:TURNO_ID}, '*'); }catch{}
-    setTimeout(()=>window.close(), 900);
+    setTimeout(()=>goBack(), 700);
   }
 
-  /* ============== eventos ============== */
-  UI.btnBack.onclick = ()=> window.close();
-  UI.btnCerrar.onclick = ()=> window.close();
-  UI.btnReload.onclick = ()=> load();
-  UI.btnGuardar.onclick = ()=> guardar();
-  UI.btnTerminar.onclick = ()=> terminarConsulta();
+  /* ============== bindings seguros ============== */
+  if (UI.btnBack)    UI.btnBack.onclick   = ()=> goBack();
+  if (UI.btnCerrar)  UI.btnCerrar.onclick = ()=> goBack();
+  if (UI.btnReload)  UI.btnReload.onclick = ()=> load();
+  if (UI.btnGuardar) UI.btnGuardar.onclick= ()=> guardar();
+  if (UI.btnTerminar)UI.btnTerminar.onclick= ()=> terminarConsulta();
 
-  UI.fecha_nacimiento.addEventListener('change', renderEdad);
-  UI.historia_clinica.addEventListener('input', ()=>{
-    UI.btnHC.href = UI.historia_clinica.value || '#';
-    UI.btnHC.target = UI.historia_clinica.value ? '_blank' : '_self';
-  });
-  UI.credencial.addEventListener('input', ()=>{
-    UI.btnCred.href = UI.credencial.value || '#';
-    UI.btnCred.target = UI.credencial.value ? '_blank' : '_self';
-  });
+  if (UI.fecha_nacimiento) UI.fecha_nacimiento.addEventListener('change', renderEdad);
+  if (UI.historia_clinica && UI.btnHC) {
+    UI.historia_clinica.addEventListener('input', ()=>{
+      UI.btnHC.href = UI.historia_clinica.value || '#';
+      UI.btnHC.target = UI.historia_clinica.value ? '_blank' : '_self';
+    });
+  }
+  if (UI.credencial && UI.btnCred) {
+    UI.credencial.addEventListener('input', ()=>{
+      UI.btnCred.href = UI.credencial.value || '#';
+      UI.btnCred.target = UI.credencial.value ? '_blank' : '_self';
+    });
+  }
+
+  // debug rápido (si te vuelve a salir el error de null):
+  Object.entries(UI).forEach(([k,el])=>{ if (el==null) console.warn('Falta nodo UI:', k); });
 
   // init
   await load();
