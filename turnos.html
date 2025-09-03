@@ -800,6 +800,7 @@ async function tryAgendar(slot) {
       alert('Seleccioná un paciente primero.');
       return;
     }
+     console.log('Paciente seleccionado para agendar:', pacienteSeleccionado);
     if (!isValidHourRange(slot.start, slot.end)) {
       alert('Rango horario inválido.');
       return;
