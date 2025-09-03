@@ -1,24 +1,24 @@
-<!-- Vista TURNOS (compacta v2) -->
-<div id="turnos-v2">
+<!-- Turnos – Compacto y estable -->
+<div id="turnos-app">
   <style>
-    :root{--b:#6f56d6;--b2:#b0a6ff;--ink:#241a3f;--mut:#6c6782;--line:#ece7fb}
-    *{box-sizing:border-box}#turnos-v2{font-family:Segoe UI,Arial,sans-serif;color:var(--ink)}
-    .tb{display:grid;grid-template-columns:1.1fr 1.1fr 1.5fr auto;gap:10px;align-items:end;margin:14px 0;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 16px;box-shadow:0 3px 10px rgba(80,60,160,.07)}
+    :root{--b:#6f56d6;--b2:#b0a6ff;--ink:#231b3f;--mut:#6e6784;--line:#ece7fb}
+    *{box-sizing:border-box} #turnos-app{font-family:Segoe UI,Arial,sans-serif;color:var(--ink)}
+    .tb{display:grid;grid-template-columns:1.2fr 1.6fr 1fr auto;gap:10px;align-items:end;margin:14px 0;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 16px;box-shadow:0 3px 10px rgba(80,60,160,.07)}
     label{font-size:12px;color:var(--mut);font-weight:700}
-    .inp,.sel{background:#f8f9fc;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px}
+    .inp,.sel{background:#f8f9fc;border:1.5px solid var(--line);border-radius:8px;padding:8px 10px;font-size:14px;width:100%}
     .inp:focus,.sel:focus{border-color:var(--b2);background:#fff;outline:0}
     .btn{border:0;border-radius:8px;padding:9px 14px;background:var(--b);color:#fff;font-weight:700;cursor:pointer}
-    .btn.ghost{background:#fff;color:#241a3f;border:1px solid var(--line)}
+    .btn.ghost{background:#fff;color:#231b3f;border:1px solid var(--line)}
     .head{display:flex;justify-content:space-between;align-items:center;margin:8px 0}
     .cal{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:0 2px 12px rgba(80,60,160,.07)}
     .dow,.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
     .dow div{font-size:12px;color:var(--mut);font-weight:800;text-align:center}
-    .day{min-height:90px;background:#faf9ff;border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column}
+    .day{min-height:92px;background:#faf9ff;border:1px solid var(--line);border-radius:12px;padding:8px;display:flex;flex-direction:column}
     .day .n{font-weight:800}.day .bd{margin-top:auto;font-size:11px;border-radius:999px;padding:2px 6px}
     .day.free .bd{background:#eafff1;color:#157a3b}.day.busy .bd{background:#fff4e6;color:#8a5800}.day.empty{opacity:.5}
     .day.click{cursor:pointer}.day.click:hover{box-shadow:0 6px 16px -8px rgba(0,0,0,.35);transform:translateY(-2px)}
     .st{color:var(--mut);font-size:12px;margin-top:8px}
-    .back{position:fixed;inset:0;background:rgba(36,26,63,.45);display:none;align-items:center;justify-content:center;z-index:50}
+    .back{position:fixed;inset:0;background:rgba(36,26,63,.45);display:none;align-items:center;justify-content:center;z-index:60}
     .modal{width:min(960px,96vw);max-height:92vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:18px;padding:16px 16px 18px;box-shadow:0 14px 38px -10px rgba(0,0,0,.35)}
     .mh{display:flex;align-items:center;gap:8px}
     .mh h3{margin:0;font-size:18px;font-weight:900}
@@ -26,7 +26,7 @@
     .slot{display:grid;grid-template-columns:110px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff;margin:6px 0}
     .time{font-weight:900;color:#0b5394}
     .pac{display:flex;flex-direction:column;gap:2px}
-    .pill{display:inline-block;background:#efe9ff;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;color:#584099}
+    .pill{display:inline-block;background:#efe9ff;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:12px;color:#584099;margin-right:6px}
     .act{display:flex;gap:8px}
     .ib{border:1px solid var(--line);background:#f4f1ff;border-radius:8px;height:36px;padding:0 12px;cursor:pointer}
     .ib[disabled]{opacity:.45}
@@ -35,20 +35,20 @@
   </style>
 
   <div class="tb">
-    <div><label>Profesional</label><select id="prof" class="sel"></select></div>
-    <div><label>Paciente (DNI o Apellido)</label><input id="pac-q" class="inp" placeholder="Buscar..."/></div>
-    <div><label>Tipo</label><select id="tipo" class="sel"><option value="nueva_consulta">Nueva</option><option value="recurrente">Recurrente</option><option value="sobreturno">Sobreturno</option></select></div>
-    <div style="align-self:end"><button id="btn-hoy" class="btn ghost">Hoy</button></div>
+    <div><label>Profesional</label><select id="ui-prof" class="sel"></select></div>
+    <div><label>Paciente (DNI o Apellido)</label><input id="ui-pac" class="inp" placeholder="Buscar y Enter..."/></div>
+    <div><label>Tipo</label><select id="ui-tipo" class="sel"><option value="nueva_consulta">Nueva</option><option value="recurrente">Recurrente</option><option value="sobreturno">Sobreturno</option></select></div>
+    <div style="align-self:end"><button id="ui-hoy" class="btn ghost">Hoy</button></div>
   </div>
 
-  <div class="head"><h2 id="m-title">Calendario</h2><div class="act"><button id="prev" class="btn ghost">◀</button><button id="next" class="btn ghost">▶</button></div></div>
-  <div class="cal"><div class="dow" id="dow"></div><div class="grid" id="grid"></div></div>
-  <div class="st" id="st"></div>
+  <div class="head"><h2 id="ui-title">Calendario</h2><div class="act"><button id="ui-prev" class="btn ghost">◀</button><button id="ui-next" class="btn ghost">▶</button></div></div>
+  <div class="cal"><div class="dow" id="ui-dow"></div><div class="grid" id="ui-grid"></div></div>
+  <div class="st" id="ui-st"></div>
 
-  <div class="back" id="mb">
+  <div class="back" id="ui-back">
     <div class="modal">
-      <div class="mh"><h3 id="mt">Turnos</h3><button id="mc" class="close">×</button></div>
-      <div class="slots" id="slots"></div>
+      <div class="mh"><h3 id="ui-mtitle">Turnos</h3><button id="ui-close" class="close">×</button></div>
+      <div class="slots" id="ui-slots"></div>
     </div>
   </div>
 </div>
@@ -56,78 +56,150 @@
 <script type="module">
 import supabase from './supabaseClient.js';
 
-const UI={prof:prof, q:pac-q, tipo:tipo, btnHoy:btn-hoy, prev:prev, next:next, mTitle:m-title, dow:dow, grid:grid, st:st, mb:mb, mc:mc, mt:mt, slots:slots};
-const D=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-let view=today(), profesional=null, paciente=null, modalISO=null, dur={nueva_consulta:15,recurrente:15,sobreturno:15};
-
-function today(){const d=new Date();return{y:d.getFullYear(),m:d.getMonth(),d:d.getDate()}}
-const pad=n=>n<10?'0'+n:n;
-const iso=(y,m,d)=>`${y}-${pad(m+1)}-${pad(d)}`;
-const hm=t=>String(t).slice(0,5);
+/* ===== Utilidades ===== */
+const pad=n=>n<10?'0'+n:n, iso=(y,m,d)=>`${y}-${pad(m+1)}-${pad(d)}`, hm=t=>String(t).slice(0,5);
 const toMin=s=>{const[a,b]=hm(s).split(':').map(Number);return a*60+b};
 const add=(s,mm)=>{const t=toMin(s)+mm;return `${pad(Math.floor(t/60))}:${pad(t%60)}`};
 const overlap=(aS,aE,bS,bE)=>toMin(aS)<toMin(bE)&&toMin(bS)<toMin(aE);
+const today=()=>{const d=new Date();return{y:d.getFullYear(),m:d.getMonth(),d:d.getDate()}};
 
-async function loadProfesionales(){const {data}=await supabase.from('profesionales').select('id,apellido,nombre,display_name').order('apellido');UI.prof.innerHTML=(data||[]).map(p=>`<option value="${p.id}">${p.display_name||p.apellido+', '+p.nombre}</option>`).join('');profesional=data?.[0]?.id||null;}
+/* ===== Estado UI ===== */
+const UI={prof:document.getElementById('ui-prof'),pac:document.getElementById('ui-pac'),tipo:document.getElementById('ui-tipo'),
+  hoy:document.getElementById('ui-hoy'),prev:document.getElementById('ui-prev'),next:document.getElementById('ui-next'),title:document.getElementById('ui-title'),
+  dow:document.getElementById('ui-dow'),grid:document.getElementById('ui-grid'),st:document.getElementById('ui-st'),
+  back:document.getElementById('ui-back'),close:document.getElementById('ui-close'),mtitle:document.getElementById('ui-mtitle'),slots:document.getElementById('ui-slots')};
+const D=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+let view=today(), profesional=null, pacienteSel=null, modalISO=null, dur={nueva_consulta:15,recurrente:15,sobreturno:15};
 
-async function monthData(pid,y,m){const last=new Date(y,m+1,0).getDate();const start=iso(y,m,1), end=iso(y,m,last);
+/* ===== Datos ===== */
+async function loadProfesionales(){
+  // Evito eq('id', …) para no gatillar el 400 si la PK no se llama 'id'
+  const {data,error}=await supabase.from('profesionales')
+    .select('id,apellido,nombre,display_name').order('apellido');
+  if(error){console.error(error); UI.prof.innerHTML='<option>(error)</option>'; return}
+  UI.prof.innerHTML=(data||[]).map(p=>`<option value="${p.id}">${p.display_name||p.apellido+', '+p.nombre}</option>`).join('');
+  profesional=data?.[0]?.id||null;
+}
+async function monthData(pid,y,m){
+  const last=new Date(y,m+1,0).getDate(); const start=iso(y,m,1), end=iso(y,m,last);
   const [ag,tr]=await Promise.all([
-    supabase.from('agenda').select('id,fecha,hora_inicio,hora_fin').eq('profesional_id',pid).gte('fecha',start).lte('fecha',end),
-    supabase.from('turnos').select('id,fecha,hora_inicio,hora_fin,obra_social_id,copago,estado,pacientes(id,apellido,nombre,dni,telefono)').eq('profesional_id',pid).gte('fecha',start).lte('fecha',end).order('hora_inicio')
+    supabase.from('agenda').select('id,fecha,hora_inicio,hora_fin')
+      .eq('profesional_id',pid).gte('fecha',start).lte('fecha',end),
+    supabase.from('turnos')
+      .select('id,fecha,hora_inicio,hora_fin,estado,obra_social_id,copago,pacientes(id,apellido,nombre,dni,telefono)')
+      .eq('profesional_id',pid).gte('fecha',start).lte('fecha',end)
+      .order('hora_inicio')
   ]);
   return{agenda:(ag.data||[]), turnos:(tr.data||[])};
 }
-
 function group(list,key){const m=new Map();(list||[]).forEach(x=>{const k=x[key];if(!m.has(k))m.set(k,[]);m.get(k).push(x)});return m}
-function slotsFor(agendaDia,turnosDia,mins){const out=[], vivos=(turnosDia||[]).filter(t=>(t.estado||'')!=='cancelado');
-  for(const b of (agendaDia||[])){let t=hm(b.hora_inicio), end=hm(b.hora_fin);while(add(t,mins)<=end){const s=t,e=add(t,mins);const oc=vivos.find(v=>overlap(s,e,hm(v.hora_inicio),hm(v.hora_fin)));out.push({start:s,end:e,turno:oc||null});t=e}}return out}
+function slotsFor(agendaDia,turnosDia,mins){
+  const out=[], vivos=(turnosDia||[]).filter(t=>(t.estado||'')!=='cancelado');
+  for(const b of (agendaDia||[])){
+    let t=hm(b.hora_inicio), end=hm(b.hora_fin);
+    while(add(t,mins)<=end){
+      const s=t,e=add(t,mins); const oc=vivos.find(v=>overlap(s,e,hm(v.hora_inicio),hm(v.hora_fin)));
+      out.push({start:s,end:e,turno:oc||null}); t=e;
+    }
+  }
+  return out;
+}
 
+/* ===== Render calendario ===== */
 function renderDOW(){UI.dow.innerHTML=D.map(x=>`<div>${x}</div>`).join('')}
-
-async function renderCal(){if(!profesional){UI.st.textContent='Seleccione un profesional';return}
-  UI.st.textContent='Cargando…';const {agenda,turnos}=await monthData(profesional,view.y,view.m);const gA=group(agenda,'fecha'), gT=group(turnos,'fecha');
-  UI.mTitle.textContent=new Date(view.y,view.m).toLocaleString('es-AR',{month:'long',year:'numeric'});
-  UI.grid.innerHTML='';const first=new Date(view.y,view.m,1), off=(first.getDay()+6)%7, days=new Date(view.y,view.m+1,0).getDate();
-  for(let i=0;i<off;i++){UI.grid.insertAdjacentHTML('beforeend',`<div class="day empty"></div>`)}
-  for(let d=1;d<=days;d++){const f=iso(view.y,view.m,d), A=gA.get(f)||[], T=gT.get(f)||[], S=slotsFor(A,T,dur[UI.tipo.value]||15), libres=S.filter(s=>!s.turno).length;
+async function renderCal(){
+  if(!profesional){UI.st.textContent='Seleccione un profesional';return}
+  UI.st.textContent='Cargando…';
+  const {agenda,turnos}=await monthData(profesional,view.y,view.m);
+  const gA=group(agenda,'fecha'), gT=group(turnos,'fecha');
+  UI.title.textContent=new Date(view.y,view.m).toLocaleString('es-AR',{month:'long',year:'numeric'});
+  UI.grid.innerHTML='';
+  const first=new Date(view.y,view.m,1), off=(first.getDay()+6)%7, days=new Date(view.y,view.m+1,0).getDate();
+  for(let i=0;i<off;i++) UI.grid.insertAdjacentHTML('beforeend','<div class="day empty"></div>');
+  for(let d=1;d<=days;d++){
+    const f=iso(view.y,view.m,d), A=gA.get(f)||[], T=gT.get(f)||[], S=slotsFor(A,T,dur[UI.tipo.value]||15), libres=S.filter(s=>!s.turno).length;
     const cls=!A.length?'day empty':'day '+(libres>0?'free click':'busy click');
-    const el=document.createElement('div');el.className=cls;el.innerHTML=`<div class="n">${d}</div><div class="bd">${!A.length?'sin agenda':libres>0?libres+' libres':'sin huecos'}</div>`;if(cls.includes('click')) el.onclick=()=>openDay(f,A,T);UI.grid.appendChild(el)}
+    const el=document.createElement('div');
+    el.className=cls;
+    el.innerHTML=`<div class="n">${d}</div><div class="bd">${!A.length?'sin agenda':libres>0?libres+' libres':'sin huecos'}</div>`;
+    if(cls.includes('click')) el.onclick=()=>openDay(f,A,T);
+    UI.grid.appendChild(el);
+  }
   UI.st.textContent='';
 }
 
-function patientLine(p){if(!p) return '<span class="pill">Libre</span>';
-  const nom=`${p.apellido||''}, ${p.nombre||''}`.trim();
+/* ===== Modal día ===== */
+function patientHTML(p){
+  if(!p) return '<span class="pill">Libre</span>';
+  const nom=(p.apellido?p.apellido+', ':'')+(p.nombre||'');
   const dni=p.dni?` · DNI ${p.dni}`:''; const tel=p.telefono?` · ${p.telefono}`:'';
-  return `<strong>${nom}</strong><small>${dni}${tel}</small>`}
-
-function renderSlots(slots){UI.slots.innerHTML=''; if(!slots.length){UI.slots.innerHTML='<div style="padding:12px;color:#777">No hay horarios disponibles.</div>';return}
-  for(const s of slots){const p=s.turno?.pacientes;const row=document.createElement('div');row.className='slot'+(s.turno?' ocupado':'');
+  return `<strong>${nom}</strong><small>${dni}${tel}</small>`;
+}
+function renderSlots(slots){
+  UI.slots.innerHTML='';
+  if(!slots.length){UI.slots.innerHTML='<div style="padding:12px;color:#777">No hay horarios disponibles.</div>';return}
+  for(const s of slots){
+    const p=s.turno?.pacientes;
+    const row=document.createElement('div'); row.className='slot';
     row.innerHTML=`<div class="time">${s.start}–${s.end}</div>
-      <div class="pac">${patientLine(p)}${s.turno?`<div><span class="pill">${s.turno.obra_social_id?('OS '+s.turno.obra_social_id):'Particular'}</span>${s.turno.copago?` <span class="pill">$${s.turno.copago}</span>`:''}</div>`:''}</div>
-      <div class="act">${s.turno?`<button class="ib" title="Eliminar" data-act="del">🗑️</button>`:`<button class="ib" title="Reservar" data-act="add">＋</button>`}</div>`;
+      <div class="pac">
+        ${patientHTML(p)}
+        ${s.turno?`<div>${s.turno.obra_social_id?`<span class='pill'>OS ${s.turno.obra_social_id}</span>`:`<span class='pill'>Particular</span>`}${s.turno.copago?`<span class='pill'>$${s.turno.copago}</span>`:''}</div>`:''}
+      </div>
+      <div class="act">${s.turno?`<button class="ib" data-act="del">🗑️</button>`:`<button class="ib" data-act="add">＋</button>`}</div>`;
     row.querySelector('[data-act]')?.addEventListener('click',async e=>{
-      const act=e.currentTarget.getAttribute('data-act'); if(act==='add'){ if(!paciente){alert('Buscá y seleccioná un paciente primero');return}
-        await supabase.from('turnos').insert([{profesional_id:profesional,paciente_id:paciente.id,fecha:modalISO,hora_inicio:s.start,hora_fin:s.end,estado:'asignado'}]); openDay(modalISO)}
-      else if(act==='del'&&s.turno){ if(!confirm('¿Eliminar turno?'))return; await supabase.from('turnos').delete().eq('id',s.turno.id); openDay(modalISO)}
+      const act=e.currentTarget.getAttribute('data-act');
+      if(act==='add'){
+        if(!pacienteSel){alert('Buscá y seleccioná un paciente primero');return}
+        await supabase.from('turnos').insert([{profesional_id:profesional,paciente_id:pacienteSel.id,fecha:modalISO,hora_inicio:s.start,hora_fin:s.end,estado:'asignado'}]);
+        openDay(modalISO); // refrescar
+      }else if(act==='del' && s.turno){
+        if(!confirm('¿Eliminar turno?'))return;
+        await supabase.from('turnos').delete().eq('id',s.turno.id);
+        openDay(modalISO);
+      }
     });
-    UI.slots.appendChild(row)
+    UI.slots.appendChild(row);
   }
 }
-
-async function openDay(f,agendaDia,turnosDia){modalISO=f; UI.mt.textContent=new Date(f).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
-  if(!agendaDia||!turnosDia){const {agenda,turnos}=await monthData(profesional,view.y,view.m);agendaDia=group(agenda,'fecha').get(f)||[];turnosDia=group(turnos,'fecha').get(f)||[]}
+async function openDay(f,agendaDia,turnosDia){
+  modalISO=f;
+  UI.mtitle.textContent=new Date(f).toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'});
+  if(!agendaDia||!turnosDia){
+    const {agenda,turnos}=await monthData(profesional,view.y,view.m);
+    agendaDia=group(agenda,'fecha').get(f)||[]; turnosDia=group(turnos,'fecha').get(f)||[];
+  }
   const slots=slotsFor(agendaDia,turnosDia,dur[UI.tipo.value]||15);
-  UI.mb.style.display='flex'; renderSlots(slots)
+  UI.back.style.display='flex'; renderSlots(slots);
 }
-UI.mc.onclick=()=>UI.mb.style.display='none';
+UI.close.onclick=()=>UI.back.style.display='none';
 
-// Buscar paciente sencillo: enter => busca por DNI exacto o por apellido (primera coincidencia)
-UI.q.addEventListener('keydown',async e=>{if(e.key!=='Enter')return;const q=UI.q.value.trim();if(!q) return; let r=null; if(/^\d{6,}$/.test(q)){const {data}=await supabase.from('pacientes').select('id,apellido,nombre,dni,telefono').eq('dni',q).limit(1);r=data?.[0]||null}else{const {data}=await supabase.from('pacientes').select('id,apellido,nombre,dni,telefono').ilike('apellido',`%${q}%`).order('apellido').limit(1);r=data?.[0]||null} if(r){paciente=r; UI.q.value=`${r.apellido}, ${r.nombre} · DNI ${r.dni}`} else {alert('No encontrado')}});
+/* ===== Búsqueda rápida de paciente (Enter) ===== */
+UI.pac.addEventListener('keydown',async e=>{
+  if(e.key!=='Enter')return;
+  const q=UI.pac.value.trim(); if(!q) return;
+  let r=null;
+  if(/^\d{6,}$/.test(q)){
+    const {data}=await supabase.from('pacientes').select('id,apellido,nombre,dni,telefono').eq('dni',q).limit(1);
+    r=data?.[0]||null;
+  }else{
+    const {data}=await supabase.from('pacientes').select('id,apellido,nombre,dni,telefono').ilike('apellido',`%${q}%`).order('apellido').limit(1);
+    r=data?.[0]||null;
+  }
+  if(r){pacienteSel=r; UI.pac.value=`${r.apellido}, ${r.nombre} · DNI ${r.dni}`;}
+  else{alert('No encontrado');}
+});
 
+/* ===== Eventos nav ===== */
+UI.prof.onchange=()=>{profesional=UI.prof.value; renderCal()};
 UI.tipo.onchange=()=>renderCal();
-UI.btnHoy.onclick=()=>{view=today();renderCal()};
+UI.hoy.onclick=()=>{view=today();renderCal()};
 UI.prev.onclick=()=>{if(--view.m<0){view.m=11;view.y--}renderCal()};
 UI.next.onclick=()=>{if(++view.m>11){view.m=0;view.y++}renderCal()};
 
-(function init(){UI.dow.innerHTML=D.map(x=>`<div>${x}</div>`).join('');loadProfesionales().then(renderCal)})();
+/* ===== Init ===== */
+(function init(){
+  UI.dow.innerHTML=D.map(x=>`<div>${x}</div>`).join('');
+  loadProfesionales().then(renderCal);
+})();
 </script>
