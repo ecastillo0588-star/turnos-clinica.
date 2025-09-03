@@ -853,14 +853,6 @@ async function getCupoObraSocial(obraSocialId, centroId, profesionalId, fechaISO
   return turnos.length < 2; // cambia "2" por el cupo real
 }
 
-// Simulación de consulta de copago particular
-async function getCopagoParticular(centroId, profesionalId, fechaISO) {
-  // Aquí deberías consultar tu base de datos o backend
-  // Simulación: $1000 fijo
-  return 1000;
-}
-
-// Modifica tryAgendar para usar los chequeos al intentar reservar
 // Simulación de consulta de cupo por obra social
 async function getCupoObraSocial(obraSocialId, centroId, profesionalId, fechaISO) {
   // Aquí deberías consultar tu base de datos o backend
