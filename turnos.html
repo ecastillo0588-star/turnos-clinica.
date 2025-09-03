@@ -788,6 +788,7 @@ function renderSlots(slots) {
   const hoyISO = dateToISO(ahora);
   const ahoraHM = pad(ahora.getHours()) + ':' + pad(ahora.getMinutes());
 
+  // Filtra slots válidos
   const filtroSlots = slots.filter(s => {
     if (!modalDateISO) return true;
     if (modalDateISO > hoyISO) return true;
@@ -816,81 +817,73 @@ function renderSlots(slots) {
   }
 
   filtroSlots.forEach(slot => {
+    // Estructura compacta: horario, nombre paciente, botones todo en una fila
     const slotElem = document.createElement('div');
-    slotElem.className = 'tw-slot';
+    slotElem.className = 'tw-slot-row';
 
-    // Si el slot está ocupado, aplicar clase de opacidad visual
-    if (slot.turno) slotElem.classList.add('tw-slot-ocupado');
+    // Horario
+    const horario = document.createElement('span');
+    horario.className = 'tw-slot-hora';
+    horario.textContent = `${toHM(slot.start)} - ${toHM(slot.end)}`;
+    slotElem.appendChild(horario);
 
-    // Columna izquierda: label del horario y paciente
-    const labelCol = document.createElement('div');
-    labelCol.className = 'tw-slot-label';
-
-    let label = `${toHM(slot.start)} - ${toHM(slot.end)}`;
-
-    // Indicar obra social especial
-    if (pacienteSeleccionado && pacienteSeleccionado.obra_social_label) {
-      if (pacienteSeleccionado.obra_social_label.toUpperCase().includes('PAMI')) {
-        label += ' <span class="tw-slot-os">(PAMI)</span>';
-      }
+    // Indicador de obra social especial
+    if (pacienteSeleccionado && pacienteSeleccionado.obra_social_label &&
+        pacienteSeleccionado.obra_social_label.toUpperCase().includes('PAMI')) {
+      const osSpan = document.createElement('span');
+      osSpan.className = 'tw-slot-os';
+      osSpan.textContent = ' (PAMI)';
+      slotElem.appendChild(osSpan);
     }
 
-    labelCol.innerHTML = label;
-
-    // Si el slot está ocupado, mostrar nombre del paciente
+    // Estado: ocupado/libre
     if (slot.turno) {
-      const pacElem = document.createElement('span');
-      pacElem.className = 'tw-slot-paciente';
-      pacElem.innerHTML = `&nbsp;${slot.turno.paciente_nombre}`;
-      labelCol.appendChild(pacElem);
-    }
+      slotElem.classList.add('tw-slot-ocupado');
 
-    slotElem.appendChild(labelCol);
+      // Nombre del paciente ocupando el turno
+      const nombrePaciente = document.createElement('span');
+      nombrePaciente.className = 'tw-slot-paciente';
+      // Usa slot.turno.paciente_nombre si existe, si no, pone "Ocupado"
+      nombrePaciente.textContent = slot.turno.paciente_nombre ? slot.turno.paciente_nombre : 'Ocupado';
+      slotElem.appendChild(nombrePaciente);
 
-    // Columna derecha: botones agrupados
-    const btnCol = document.createElement('div');
-    btnCol.className = 'tw-slot-btn-col';
-
-    // --- ESTADO Y ACCIONES ---
-    if (slot.turno) {
-      // Slot ocupado
+      // Si es el paciente actual, muestra botones
       if (slot.turno.paciente_id === pacienteSeleccionado?.id) {
-        // Es el turno del paciente actual
+        // Eliminar
         const btnBorrar = document.createElement('button');
-        btnBorrar.className = 'tw-btn tw-btn-danger';
-        btnBorrar.innerText = '🗑️';
+        btnBorrar.className = 'btn primary';
+        btnBorrar.textContent = '🗑️';
         btnBorrar.title = 'Eliminar turno';
         btnBorrar.onclick = () => eliminarTurno(slot.turno.id);
-        btnCol.appendChild(btnBorrar);
+        slotElem.appendChild(btnBorrar);
 
+        // Reprogramar
         const btnReprog = document.createElement('button');
-        btnReprog.className = 'tw-btn tw-btn-primary';
-        btnReprog.innerText = '↻';
+        btnReprog.className = 'btn primary';
+        btnReprog.textContent = '↻';
         btnReprog.title = 'Reprogramar';
         btnReprog.onclick = () => reprogramarTurno(slot.turno);
-        btnCol.appendChild(btnReprog);
+        slotElem.appendChild(btnReprog);
 
-        // Si quieres botón editar, agrégalo aquí
-        // const btnEdit = document.createElement('button');
-        // btnEdit.className = 'tw-btn tw-btn-warning';
-        // btnEdit.innerText = '✏️';
-        // btnEdit.title = 'Editar';
-        // btnEdit.onclick = () => editarTurno(slot.turno);
-        // btnCol.appendChild(btnEdit);
-
+        // Editar
+        const btnEdit = document.createElement('button');
+        btnEdit.className = 'btn primary';
+        btnEdit.textContent = '✏️';
+        btnEdit.title = 'Editar turno';
+        btnEdit.onclick = () => editarTurno(slot.turno);
+        slotElem.appendChild(btnEdit);
       }
-      // Si no es el paciente actual, no hay botones
+      // Si no es el paciente actual, no muestra botones
     } else {
-      // Slot libre
+      // Slot libre: mostrar botón +
       const btnReservar = document.createElement('button');
-      btnReservar.className = 'tw-btn tw-btn-success';
-      btnReservar.innerText = '+';
+      btnReservar.className = 'btn primary';
+      btnReservar.textContent = '+';
       btnReservar.title = 'Reservar turno';
       btnReservar.onclick = () => tryAgendar(slot);
-      btnCol.appendChild(btnReservar);
+      slotElem.appendChild(btnReservar);
     }
 
-    slotElem.appendChild(btnCol);
     UI.slotsList.appendChild(slotElem);
   });
 }
