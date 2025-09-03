@@ -297,8 +297,7 @@ function showLite(){
   if (Drawer.lite) Drawer.lite.style.display = '';
 }
 function showFull(turnoId){
-  if (Drawer.lite) Drawer.lite.style.display = 'none';
-  if (Drawer.iframe){
+    if (Drawer.iframe){
     const url = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
     Drawer.iframe.src = url;
     Drawer.iframe.style.display = 'block';
@@ -533,78 +532,20 @@ async function openFicha(turnoId){
   try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
   try { localStorage.setItem('inicio_url', location.href); } catch {}
   if (Drawer.status) Drawer.status.textContent = 'Cargando…';
-  showLite();
+
   showDrawer();
+  // showLite();  ❌  <-- sacalo
 
-  // 1) turno base
-  const { data:t, error:terr } = await supabase
-    .from('turnos')
-    .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, notas, paciente_id, profesional_id, centro_id')
-    .eq('id', turnoId)
-    .maybeSingle();
+  // ... (carga de turno y paciente como ya está)
 
-  if (terr || !t){ if (Drawer.status) Drawer.status.textContent='No se pudo cargar'; console.error(terr); return; }
+  // Al final de la carga (o apenas arranca), abrí la ficha completa:
+  showFull(turnoId); // ✅ ahora entra directo al modo completo (iframe)
 
-  // 2) relacionados (paciente incluye historia_clinica)
-  const [pRes, profRes, centroRes] = await Promise.all([
-    supabase.from('pacientes').select('dni,apellido,nombre,fecha_nacimiento,telefono,email,historia_clinica').eq('id', t.paciente_id).maybeSingle(),
-    supabase.from('profesionales').select('display_name,nombre,apellido').eq('id', t.profesional_id).maybeSingle(),
-    supabase.from('centros_medicos').select('nombre').eq('id', t.centro_id).maybeSingle(),
-  ]);
-
-  const prof = profRes?.data;
-  const centro = centroRes?.data;
-  const p = pRes?.data || {};
-
-  // Header: nombre grande + DNI + ícono 📄 historia clínica
-  const fullName = [p.apellido, p.nombre].filter(Boolean).join(', ') || 'Paciente';
-  if (Drawer.pname) Drawer.pname.textContent = fullName;
-  if (Drawer.dniBadge) Drawer.dniBadge.textContent = `DNI ${p.dni || '—'}`;
-  if (Drawer.hcLink){
-    if (p.historia_clinica){
-      Drawer.hcLink.href = p.historia_clinica;
-      Drawer.hcLink.style.display = 'inline-flex';
-    }else{
-      Drawer.hcLink.href = '#';
-      Drawer.hcLink.style.display = 'none';
-    }
-  }
-
-  // Resumen chips
-  if (Drawer.prof)   Drawer.prof.textContent   = `Prof: ${prof ? (prof.display_name || [prof.apellido, prof.nombre].filter(Boolean).join(', ')) : '—'}`;
-  if (Drawer.centro) Drawer.centro.textContent = `Centro: ${centro?.nombre || '—'}`;
-  if (Drawer.fecha)  Drawer.fecha.textContent  = `Fecha: ${t.fecha || '—'}`;
-  if (Drawer.hora)   Drawer.hora.textContent   = `Hora: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
-  if (Drawer.estado) Drawer.estado.textContent = `Estado: ${t.estado || '—'}`;
-  if (Drawer.copago) Drawer.copago.textContent = `Copago: ${t.copago!=null ? fmtMoney(t.copago) : '—'}`;
-
-  // Campos (solo lectura en modo lite)
-  if (Drawer.dni)  Drawer.dni.value  = p?.dni || '';
-  if (Drawer.ape)  Drawer.ape.value  = p?.apellido || '';
-  if (Drawer.nom)  Drawer.nom.value  = p?.nombre || '';
-  if (Drawer.nac)  Drawer.nac.value  = p?.fecha_nacimiento || '';
-  if (Drawer.tel)  Drawer.tel.value  = p?.telefono || '';
-  if (Drawer.mail) Drawer.mail.value = p?.email || '';
-
-  // Botón "Abrir ficha completa" -> iframe
-  if (Drawer.btnOpenFull) Drawer.btnOpenFull.onclick = ()=> showFull(turnoId);
-
+  // (opcional) ocultá el link de "Abrir ficha completa"
+  if (Drawer.btnOpenFull) Drawer.btnOpenFull.style.display = 'none';
   if (Drawer.status) Drawer.status.textContent = 'Listo';
 }
 
-/* ===== Finalizar desde el drawer (solo médico) ===== */
-if (Drawer.btnFin){
-  Drawer.btnFin.onclick = async ()=>{
-    if (userRole !== 'medico'){ alert('Solo los médicos pueden finalizar.'); return; }
-    const turnoId = localStorage.getItem('current_turno_id');
-    if (!turnoId) return;
-    if (!confirm('¿Finalizar atención?')) return;
-    const { error } = await supabase.from('turnos').update({ estado: EST.FINALIZADO, hora_fin: nowHHMMSS() }).eq('id', turnoId);
-    if (error){ alert('No se pudo finalizar.'); return; }
-    hideDrawer();
-    await refreshAll();
-  };
-}
 
 /* ===== Mensajes desde el iframe (si la ficha guarda/finaliza) ===== */
 window.addEventListener('message', async (ev)=>{
