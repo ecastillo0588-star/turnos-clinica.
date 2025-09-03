@@ -839,10 +839,20 @@ async function volverASalaEspera(turnoId){
   await refreshAll();
 }
 async function finalizarAtencion(turnoId){
-  if(!confirm('¿Marcar este turno como ATENDIDO?')) return;
-  const ok = await marcarAtendido(turnoId);
-  if (ok) await refreshAll();
+  if(!confirm('¿Finalizar atención?')) return;
+  const { error } = await supabase
+    .from('turnos')
+    .update({ estado: EST.FINALIZADO }) // EST.FINALIZADO -> 'atendido'
+    .eq('id', turnoId);
+
+  if (error){ 
+    console.error('No se pudo marcar atendido:', error);
+    alert('No se pudo finalizar.');
+    return;
+  }
+  await refreshAll();
 }
+
 async function marcarLlegadaYCopago(turnoId){
   const { data: t } = await supabase
     .from('turnos')
