@@ -399,8 +399,7 @@ function renderAtencion(list){
 function abrirFichaPaciente(turnoId){
   try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
   const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
-  const w = window.open(fichaUrl, '_blank', 'noopener'); // sin 'noreferrer'
-  if (!w) alert('Tu navegador bloqueó la ventana. Permití pop-ups para este sitio.');
+  window.location.href = fichaUrl; // misma pestaña
 }
 
 async function volverASalaEspera(turnoId){
@@ -449,6 +448,12 @@ async function anularTurno(turnoId){
   await supabase.from('turnos').update({estado:EST.CANCELADO}).eq('id', turnoId);
   await refreshAll();
 }
+function abrirFichaPaciente(turnoId){
+  try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
+  const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
+  window.location.href = fichaUrl; // misma pestaña
+}
+
 async function pasarAEnAtencion(turnoId, ev) {
   if (ev) ev.preventDefault();
 
@@ -459,21 +464,20 @@ async function pasarAEnAtencion(turnoId, ev) {
   }
 
   try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
-  const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
 
-  // abrir primero para evitar bloqueos
-  const newWin = window.open(fichaUrl, '_blank', 'noopener'); // sin 'noreferrer'
-  // actualizar estado
   const { error } = await supabase.from('turnos')
     .update({ estado: EST.EN_ATENCION })
     .eq('id', turnoId);
 
   if (error) {
-    if (newWin && !newWin.closed) newWin.close();
     alert('No se pudo pasar a "En atención".');
+    return;
   }
-  // IMPORTANTE: no redirigimos la pestaña actual
+
+  const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
+  window.location.href = fichaUrl; // misma pestaña
 }
+
 
 /* ===== KPIs ===== */
 function computeHorasDisponibles(agenda, turnos){
