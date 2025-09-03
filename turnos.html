@@ -854,7 +854,7 @@ function renderSlots(slots) {
         btnBorrar.className = 'btn primary';
         btnBorrar.textContent = '🗑️';
         btnBorrar.title = 'Eliminar turno';
-        btnBorrar.onclick = () => eliminarTurno(slot.turno.id);
+        btnBorrar.onclick = () => cancelarTurno(slot.turno);
         slotElem.appendChild(btnBorrar);
 
         // Reprogramar
@@ -862,16 +862,21 @@ function renderSlots(slots) {
         btnReprog.className = 'btn primary';
         btnReprog.textContent = '↻';
         btnReprog.title = 'Reprogramar';
-        btnReprog.onclick = () => reprogramarTurno(slot.turno);
+        btnReprog.onclick = () => {
+          reprogramState = { turno: slot.turno, durMin: slot.turno.duracion_minutos || 30 };
+          refreshDayModal();
+        };
         slotElem.appendChild(btnReprog);
 
-        // Editar
-        const btnEdit = document.createElement('button');
-        btnEdit.className = 'btn primary';
-        btnEdit.textContent = '✏️';
-        btnEdit.title = 'Editar turno';
-        btnEdit.onclick = () => editarTurno(slot.turno);
-        slotElem.appendChild(btnEdit);
+        // Editar (si existe la función)
+        if (typeof editarTurno === "function") {
+          const btnEdit = document.createElement('button');
+          btnEdit.className = 'btn primary';
+          btnEdit.textContent = '✏️';
+          btnEdit.title = 'Editar turno';
+          btnEdit.onclick = () => editarTurno(slot.turno);
+          slotElem.appendChild(btnEdit);
+        }
       }
       // Si no es el paciente actual, no muestra botones
     } else {
