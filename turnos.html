@@ -861,6 +861,27 @@ async function getCopagoParticular(centroId, profesionalId, fechaISO) {
 }
 
 // Modifica tryAgendar para usar los chequeos al intentar reservar
+// Simulación de consulta de cupo por obra social
+async function getCupoObraSocial(obraSocialId, centroId, profesionalId, fechaISO) {
+  // Aquí deberías consultar tu base de datos o backend
+  // Simulación: 2 cupos por obra social por día
+  const { data: turnos } = await supabase.from('turnos')
+    .select('id')
+    .eq('obra_social_id', obraSocialId)
+    .eq('centro_id', centroId)
+    .eq('profesional_id', profesionalId)
+    .eq('fecha', fechaISO);
+  return turnos.length < 2; // cambia "2" por el cupo real
+}
+
+// Simulación de consulta de copago particular
+async function getCopagoParticular(centroId, profesionalId, fechaISO) {
+  // Aquí deberías consultar tu base de datos o backend
+  // Simulación: $1000 fijo
+  return 1000;
+}
+
+// Modifica tryAgendar para usar los chequeos al intentar reservar
 async function tryAgendar(slot) {
   if (bookingBusy) return;
   bookingBusy = true;
@@ -924,124 +945,6 @@ async function tryAgendar(slot) {
 
     const { data: inserted, error } = await supabase.from('turnos').insert([payload]).select('id').single();
     // ... resto igual a tu versión actual ...
-  } finally {
-    bookingBusy = false;
-    setSlotsDisabled(false);
-    await refreshDayModal();
-    await renderCalendar();
-    refreshModalTitle();
-  }
-}
-/* ====== OK Modal ====== */
-function openOkModal({pac,fechaISO,start,end,profLabel}){
-  UI.okTitle.textContent=`${pac.apellido}, ${pac.nombre}`;
-  UI.okPaciente.textContent=`${pac.apellido}, ${pac.nombre}`;
-  UI.okDni.textContent=pac.dni||'—';
-  UI.okFechaHora.textContent=`${fmtDateLong(fechaISO)} · ${start}–${end}`;
-  UI.okProf.textContent=profLabel;
-  UI.okCentro.textContent=currentCentroNombre||'—';
-  UI.okDir.textContent=currentCentroDireccion||'—';
-  const msg=buildWA({pac,fechaISO,start,end,prof:profLabel,centro:currentCentroNombre||'',dir:currentCentroDireccion||''});
-  const to=normalizePhoneForWA(pac.telefono||'');
-  const href=to?`https://wa.me/${to}?text=${encodeURIComponent(msg)}`:'javascript:void(0)';
-  UI.okWa.href=href; UI.okWa.textContent=to?'Enviar por WhatsApp':'WhatsApp (falta teléfono)'; UI.okWa.style.pointerEvents=to?'auto':'none';
-  UI.okMsg.textContent=''; UI.okCopy.onclick=()=>{ const link=to?href:msg; navigator.clipboard.writeText(link).then(()=>UI.okMsg.textContent='Copiado').catch(()=>UI.okMsg.textContent='No se pudo copiar'); };
-  UI.okBackdrop.style.display='flex';
-}
-UI.okClose.addEventListener('click',()=>UI.okBackdrop.style.display='none');
-
-/* ====== Acciones Turnos ====== */
-async function tryAgendar(slot) {
-  if (bookingBusy) return;
-  bookingBusy = true;
-  setSlotsDisabled(true);
-
-  try {
-    if (!pacienteSeleccionado) {
-      alert('Seleccioná un paciente primero.');
-      return;
-    }
-    if (!isValidHourRange(slot.start, slot.end)) {
-      alert('Rango horario inválido.');
-      return;
-    }
-
-    // --- NUEVO: Chequeo de cupo obra social ---
-    let cupoDisponible = true;
-    let copagoParticular = 0;
-    let obraSocialId = pacienteSeleccionado.obra_social_id || null;
-
-    if (obraSocialId) {
-      // Reemplaza esta función con tu lógica real
-      cupoDisponible = await getCupoObraSocial(obraSocialId, currentCentroId, currentProfesional, modalDateISO);
-
-      if (!cupoDisponible) {
-        // Reemplaza con lógica real para obtener el copago particular
-        copagoParticular = await getCopagoParticular(currentCentroId, currentProfesional, modalDateISO);
-
-        // Mostrar modal de cupo agotado y esperar la respuesta
-        abrirModalCupoAgotado(copagoParticular);
-
-        // Espera la respuesta del modal (aceptar o cancelar)
-        const resultado = await new Promise(resolve => {
-          document.getElementById('modal-cupo-aceptar').onclick = function() {
-            cerrarModalCupoAgotado();
-            resolve('aceptar');
-          };
-          document.getElementById('modal-cupo-cancelar').onclick = function() {
-            cerrarModalCupoAgotado();
-            resolve('cancelar');
-          };
-        });
-
-        if (resultado !== 'aceptar') {
-          return; // Canceló, no agenda
-        }
-
-        // Si acepta, agenda como particular (obra social null y copago seteado)
-        obraSocialId = null;
-      }
-    }
-
-    // Arma el payload con obra social (o null si es particular)
-    const payload = {
-      agenda_id: slot.agenda_id || null,
-      centro_id: currentCentroId,
-      profesional_id: currentProfesional,
-      paciente_id: pacienteSeleccionado.id,
-      fecha: modalDateISO,
-      hora_inicio: slot.start,
-      hora_fin: slot.end,
-      estado: 'asignado',
-      notas: (UI.tipoTurno.value === 'sobreturno') ? 'Sobreturno' : null,
-      obra_social_id: obraSocialId,
-      copago: obraSocialId === null ? copagoParticular : null // <-- NUEVO: agrega copago si es particular
-    };
-
-    const { data: inserted, error } = await supabase.from('turnos').insert([payload]).select('id').single();
-    if (error) {
-      const msg = (error.message || '').toLowerCase();
-      if (error.code === '23505') { // unique violation
-        await refreshDayModal();
-        const { data: exists } = await supabase.from('turnos')
-          .select('id')
-          .eq('centro_id', currentCentroId).eq('profesional_id', currentProfesional)
-          .eq('fecha', modalDateISO).eq('hora_inicio', slot.start).eq('hora_fin', slot.end)
-          .eq('paciente_id', pacienteSeleccionado.id).limit(1);
-        if (exists && exists.length) {
-          openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
-        } else {
-          alert('Ese horario se ocupó recién.');
-        }
-      } else if (msg.includes('solap')) {
-        await refreshDayModal();
-        alert('Ese horario se ocupó recién.');
-      } else {
-        alert(error.message || 'No se pudo agendar.');
-      }
-    } else {
-      openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
-    }
   } finally {
     bookingBusy = false;
     setSlotsDisabled(false);
