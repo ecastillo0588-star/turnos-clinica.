@@ -104,3 +104,22 @@ tr:nth-child(even) td{background:#fff} tr:nth-child(odd) td{background:#fcfbfe}
   justify-content: space-between;
 }
 
+:root{
+  --success:#0f9960; --success-700:#0b7d50;
+  --danger:#d32f2f;  --danger-700:#b71c1c;
+}
+
+/* Estados de botón */
+.btn.success{
+  background:var(--success);
+  color:#fff;
+  border-color:var(--success-700);
+}
+.btn.success:hover{ background:var(--success-700); }
+
+.btn.danger{
+  background:var(--danger);
+  color:#fff;
+  border-color:var(--danger-700);
+}
+.btn.danger:hover{ background:var(--danger-700); }
