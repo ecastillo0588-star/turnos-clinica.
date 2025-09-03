@@ -43,6 +43,7 @@
       padding:6px 9px;border-radius:999px;font-size:12px;white-space:nowrap}
     .chip .v{font-size:16px;font-weight:800;line-height:1}
 
+    /* 2×2 para 4 tableros */
     .boards{display:grid;gap:12px;grid-template-columns:1fr 1fr;min-height:0}
     .board{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;min-height:380px}
     .board h3{margin:2px 2px 6px;font-size:14px}
@@ -75,12 +76,8 @@
     .role-asistente [data-act="volver-espera"]{ display:none !important; }
 
     @media (max-width:1100px){
-      .toolbar{grid-template-columns:1fr minmax(180px,.9fr) minmax(160px,.7fr) auto}
       .boards{grid-template-columns:1fr}
       .table{min-width:660px}
-    }
-    @media (min-width:1100px){
-      .boards .board:last-child { grid-column: span 2; }
     }
 
     /* === Drawer ficha paciente (off-canvas) === */
@@ -100,13 +97,12 @@
     .msg{font-size:13px}
     .ok{color:var(--ok)} .warn{color:var(--warn)}
 
-    /* grids del formulario del drawer */
     .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
     .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
     .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
     .card h4{margin:0 0 10px 0;font-size:14px;color:#4b3a78}
 
-    /* Botón/enlace de Historia Clínica con alto contraste */
+    /* Enlace Historia Clínica con alto contraste */
     .hc-link{
       display:inline-flex; align-items:center; gap:6px;
       font-weight:600; text-decoration:none;
@@ -117,6 +113,14 @@
     .hc-link:focus-visible{ outline:2px solid #5a3e9a; outline-offset:2px; }
     .hc-ico{ display:block; flex:0 0 auto; opacity:.95; }
 
+    /* Botón rojo (gana a app.css) */
+    #fichaDrawer .drawer-foot #fd-finalizar{
+      background:#d32f2f !important;
+      border-color:#b71c1c !important;
+      color:#fff !important;
+    }
+    #fichaDrawer .drawer-foot #fd-finalizar:hover{ background:#b71c1c !important; }
+    #fichaDrawer .drawer-foot #fd-finalizar:focus-visible{ outline:2px solid #7f1d1d; outline-offset:2px; }
   </style>
 </head>
 <body>
@@ -164,6 +168,10 @@
       <div class="board">
         <h3>En atención</h3>
         <div class="board-body"><table class="table" id="tbl-atencion"></table></div>
+      </div>
+      <div class="board">
+        <h3>Atendidos</h3>
+        <div class="board-body"><table class="table" id="tbl-done"></table></div>
       </div>
     </div>
 
@@ -274,7 +282,15 @@
 <script type="module">
 import supabase from './supabaseClient.js';
 
-const EST = { ASIGNADO:'asignado', EN_ESPERA:'en_espera', EN_ATENCION:'en_atencion', CANCELADO:'cancelado', FINALIZADO:'atendido' };
+/* === ESTADOS (coinciden con tu enum) === */
+const EST = {
+  ASIGNADO:'asignado',
+  EN_ESPERA:'en_espera',
+  EN_ATENCION:'en_atencion',
+  CANCELADO:'cancelado',
+  CONFIRMADO:'confirmado',
+  ATENDIDO:'atendido'
+};
 
 const UI = {
   centroChip: document.getElementById('centro-chip'),
@@ -284,6 +300,7 @@ const UI = {
   tblPend: document.getElementById('tbl-pend'),
   tblEsp: document.getElementById('tbl-esp'),
   tblAtencion: document.getElementById('tbl-atencion'),
+  tblDone: document.getElementById('tbl-done'),
   kpiPend: document.getElementById('kpi-pend'),
   kpiEsp: document.getElementById('kpi-esp'),
   kpiAtencion: document.getElementById('kpi-atencion'),
@@ -350,7 +367,7 @@ function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMon
 function toHM(t){return (t??'').toString().slice(0,5)}
 function minutesDiff(start,end){
   const [h1,m1]=start.split(':').map(Number),[h2,m2]=end.split(':').map(Number);
-  return (h2*60+m2)-(h1*60+m1); /* fix */
+  return (h2*60+m2)-(h1*60+m1);
 }
 function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
 function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
@@ -439,10 +456,10 @@ UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; 
 
 /* ====== data día ====== */
 async function fetchDiaData(){
-  if(!currentProfesional) return { pendientes:[], presentes:[], atencion:[], agenda:[], turnos:[] };
+  if(!currentProfesional) return { pendientes:[], presentes:[], atencion:[], atendidos:[], agenda:[], turnos:[] };
   const common={centro_id:currentCentroId, profesional_id:currentProfesional, fecha:currentFechaISO};
 
-  const [pend, pres, atenc, agenda, turnos] = await Promise.all([
+  const [pend, pres, atenc, done, agenda, turnos] = await Promise.all([
     supabase.from('turnos')
       .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social)')
       .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
@@ -455,13 +472,24 @@ async function fetchDiaData(){
       .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social)')
       .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
       .eq('estado', EST.EN_ATENCION).order('hora_inicio', {ascending:true}),
+    supabase.from('turnos')
+      .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social)')
+      .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
+      .eq('estado', EST.ATENDIDO).order('hora_inicio', {ascending:true}),
     supabase.from('agenda').select('id, fecha, hora_inicio, hora_fin')
       .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha).order('hora_inicio',{ascending:true}),
     supabase.from('turnos').select('id, hora_inicio, hora_fin, estado')
       .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
   ]);
 
-  return { pendientes: pend.data||[], presentes: pres.data||[], atencion: atenc.data||[], agenda: agenda.data||[], turnos: turnos.data||[] };
+  return {
+    pendientes: pend.data||[],
+    presentes: pres.data||[],
+    atencion:  atenc.data||[],
+    atendidos: done.data||[],
+    agenda:    agenda.data||[],
+    turnos:    turnos.data||[]
+  };
 }
 
 /* ===== Render: Pendientes ===== */
@@ -571,7 +599,7 @@ function renderAtencion(list){
     const acciones = `
       <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente">📄</button>
       <button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">⏪</button>
-      ${puedeFinalizar ? `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Finalizar atención">✅</button>` : ''}
+      ${puedeFinalizar ? `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>` : ''}
     `;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
@@ -592,12 +620,35 @@ function renderAtencion(list){
   });
 }
 
+/* ===== Render: Atendidos ===== */
+function renderAtendidos(list){
+  const grid='100px 120px 1fr 1fr 1fr 120px';
+  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
+      <th class="cell">Hora</th><th class="cell">DNI</th>
+      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
+      <th class="cell">Copago</th></tr></thead>`;
+  const rows=(list||[]).map(t=>{
+    const p=t.pacientes||{};
+    const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
+    const cop = (t.copago && Number(t.copago)>0)? fmtMoney(t.copago) : '—';
+    return `<tr class="row" style="grid-template-columns:${grid}">
+      <td class="cell nowrap">${hora}</td>
+      <td class="cell">${p.dni||'—'}</td>
+      <td class="cell">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell">${p.obra_social||'—'}</td>
+      <td class="cell">${cop}</td>
+    </tr>`;
+  }).join('');
+  UI.tblDone.innerHTML = head + '<tbody>' + rows + '</tbody>';
+}
+
 /* ===== Ficha en Drawer ===== */
 let drawerTurnoId = null;
 
 async function loadObrasSociales(currentLabel){
   Drawer.obra.innerHTML = '<option value="">(Sin obra social)</option>';
-  const { data, error } = await supabase.from('obras_sociales').select('obra_social').order('obra_social',{ascending:true});
+  const { data } = await supabase.from('obras_sociales').select('obra_social').order('obra_social',{ascending:true});
   const labels = (data||[]).map(r=>r.obra_social);
   labels.forEach(lbl => {
     const opt=document.createElement('option');
@@ -616,7 +667,6 @@ function renderHeaderPaciente(p){
   const edad = calcEdad(p?.fecha_nacimiento);
   if (Drawer.title) Drawer.title.textContent = `${ape}, ${nom}`;
   if (Drawer.sub) Drawer.sub.textContent = `DNI ${dni} · ${edad!=null? `${edad} años`:'Edad —'}`;
-  // historia clínica
   if (p?.historia_clinica){
     Drawer.hc.style.display='inline-flex';
     Drawer.hc.href = p.historia_clinica;
@@ -633,7 +683,7 @@ async function openFicha(turnoId){
   setDrawerMsg('');
   showDrawer();
 
-  // 1) Turno base
+  // Turno base
   const { data:t, error:terr } = await supabase
     .from('turnos')
     .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, notas, paciente_id, profesional_id, centro_id')
@@ -642,7 +692,7 @@ async function openFicha(turnoId){
 
   if (terr || !t){ setDrawerStatus('No se pudo cargar el turno','warn'); console.error(terr); return; }
 
-  // 2) Relacionados
+  // Relacionados
   const [pRes, profRes, centroRes] = await Promise.all([
     supabase.from('pacientes').select('id,dni,apellido,nombre,fecha_nacimiento,telefono,email,obra_social,numero_afiliado,credencial,contacto_nombre,contacto_apellido,contacto_celular,vinculo,historia_clinica,proximo_control,renovacion_receta,activo').eq('id', t.paciente_id).maybeSingle(),
     supabase.from('profesionales').select('display_name,nombre,apellido').eq('id', t.profesional_id).maybeSingle(),
@@ -653,7 +703,7 @@ async function openFicha(turnoId){
   const prof = profRes?.data || null;
   const centro = centroRes?.data || null;
 
-  // Resumen turno
+  // Resumen
   Drawer.prof.textContent   = `Prof: ${prof ? (prof.display_name || [prof.apellido, prof.nombre].filter(Boolean).join(', ')) : '—'}`;
   Drawer.centro.textContent = `Centro: ${centro?.nombre || '—'}`;
   Drawer.fecha.textContent  = `Fecha: ${t.fecha || '—'}`;
@@ -662,10 +712,8 @@ async function openFicha(turnoId){
   Drawer.copago.textContent = `Copago: ${t.copago!=null ? fmtMoney(t.copago) : '—'}`;
   Drawer.notas.value        = t.notas || '';
 
-  // Header paciente + HC
+  // Header + form
   renderHeaderPaciente(p);
-
-  // Form paciente
   Drawer.dni.value = p.dni || '';
   Drawer.ape.value = p.apellido || '';
   Drawer.nom.value = p.nombre || '';
@@ -705,7 +753,6 @@ async function guardarFicha(){
   if (!validatePaciente()) return;
   setDrawerMsg('Guardando...');
 
-  // necesitamos paciente_id del turno
   const { data: t } = await supabase.from('turnos').select('paciente_id').eq('id', drawerTurnoId).maybeSingle();
   const pacienteId = t?.paciente_id;
   if (!pacienteId){ setDrawerMsg('No se encontró paciente del turno','warn'); return; }
@@ -740,7 +787,6 @@ async function guardarFicha(){
   if (r1.error){ setDrawerMsg('Error guardando paciente: '+r1.error.message,'warn'); return; }
   if (r2.error){ setDrawerMsg('Error guardando notas: '+r2.error.message,'warn'); return; }
 
-  // refrescar header por si cambió nombre/dni/fecha
   renderHeaderPaciente({
     dni: payloadP.dni,
     apellido: payloadP.apellido,
@@ -753,13 +799,25 @@ async function guardarFicha(){
   setTimeout(()=> setDrawerMsg(''), 1500);
 }
 
+async function marcarAtendido(turnoId){
+  const { error } = await supabase
+    .from('turnos')
+    .update({ estado: EST.ATENDIDO, hora_fin: nowHHMMSS() })
+    .eq('id', turnoId);
+  if (error){
+    console.error('No se pudo marcar atendido:', error);
+    alert('No se pudo finalizar.');
+    return false;
+  }
+  return true;
+}
+
 async function finalizarDesdeDrawer(){
   if (userRole !== 'medico'){ alert('Solo los médicos pueden finalizar.'); return; }
   if (!drawerTurnoId) return;
-  if (!confirm('¿Finalizar atención?')) return;
-  const { error } = await supabase.from('turnos').update({ estado: EST.atendido, hora_fin: nowHHMMSS() }).eq('id', drawerTurnoId);
-  if (error){ alert('No se pudo finalizar.'); return; }
-  hideDrawer(); await refreshAll();
+  if (!confirm('¿Marcar este turno como ATENDIDO?')) return;
+  const ok = await marcarAtendido(drawerTurnoId);
+  if (ok){ hideDrawer(); await refreshAll(); }
 }
 
 /* bindings */
@@ -768,11 +826,8 @@ if (Drawer.btnFinalizar){
   if (userRole !== 'medico') Drawer.btnFinalizar.style.display='none';
   else Drawer.btnFinalizar.onclick = finalizarDesdeDrawer;
 }
-if (Drawer.cred) Drawer.cred.addEventListener('input', ()=>{
-  Drawer.credLink.href = Drawer.cred.value || '#';
-});
+if (Drawer.cred) Drawer.cred.addEventListener('input', ()=>{ Drawer.credLink.href = Drawer.cred.value || '#'; });
 if (Drawer.nac) Drawer.nac.addEventListener('change', ()=>{
-  // actualizar edad en sub
   const dniTxt = (Drawer.sub.textContent||'').split('·')[0] || '';
   const edad = calcEdad(Drawer.nac.value);
   Drawer.sub.textContent = `${dniTxt.trim()} · ${edad!=null? `${edad} años`:'Edad —'}`;
@@ -784,9 +839,9 @@ async function volverASalaEspera(turnoId){
   await refreshAll();
 }
 async function finalizarAtencion(turnoId){
-  if(!confirm('¿Finalizar atención?')) return;
-  await supabase.from('turnos').update({estado:EST.FINALIZADO, hora_fin: nowHHMMSS()}).eq('id', turnoId);
-  await refreshAll();
+  if(!confirm('¿Marcar este turno como ATENDIDO?')) return;
+  const ok = await marcarAtendido(turnoId);
+  if (ok) await refreshAll();
 }
 async function marcarLlegadaYCopago(turnoId){
   const { data: t } = await supabase
@@ -846,13 +901,14 @@ function renderKPIs({pendientes, presentes, atencion, agenda, turnos}){
 /* ===== Refresh & Init ===== */
 async function refreshAll(){
   if(!currentProfesional){
-    UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML='';
+    UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML=''; UI.tblDone.innerHTML='';
     UI.kpiSub.textContent=`${currentCentroNombre||''} · ${currentFechaISO}`; return;
   }
   const data = await fetchDiaData();
   renderPendientes(data.pendientes);
   renderPresentes(data.presentes);
   renderAtencion(data.atencion);
+  renderAtendidos(data.atendidos);
   renderKPIs(data);
 }
 async function initInicio(){
