@@ -797,18 +797,28 @@ function renderSlots(slots) {
   });
 
   if (!filtroSlots.length) {
-    UI.slotsList.innerHTML = '<div class="tw-hint">No hay horarios disponibles.</div>';
+    UI.slotsList.innerHTML = '<div style="color:#888;padding:14px;text-align:center;">No hay horarios disponibles.</div>';
     return;
   }
 
   UI.slotsList.innerHTML = '';
   if (reprogramState) {
     const banner = document.createElement('div');
-    banner.className = 'tw-banner-rep';
+    banner.style = `
+      background:#f2eefe;
+      padding:10px 18px;
+      margin-bottom:10px;
+      border-radius:10px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      font-size:15px;
+    `;
     banner.innerHTML = `<div>
       Reprogramando turno ${toHM(reprogramState.turno.hora_inicio)}–${toHM(reprogramState.turno.hora_fin)}.
       Seleccioná nuevo horario (${reprogramState.durMin} min).
-    </div><button class="tw-linklike" id="tw-cancel-rep">Cancelar</button>`;
+    </div>
+    <button style="background:none;border:none;color:#7b5da7;cursor:pointer;padding:4px 12px;border-radius:6px;font-size:14px;" id="tw-cancel-rep">Cancelar</button>`;
     UI.slotsList.appendChild(banner);
     banner.querySelector('#tw-cancel-rep').addEventListener('click', () => {
       reprogramState = null;
@@ -817,77 +827,124 @@ function renderSlots(slots) {
   }
 
   filtroSlots.forEach(slot => {
-    // Estructura compacta: horario, nombre paciente, botones todo en una fila
+    // Fila principal
     const slotElem = document.createElement('div');
-    slotElem.className = 'tw-slot-row';
 
-    // Horario
+    // Estilos inline para la fila
+    slotElem.style = `
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      border-bottom:1px solid #e8e2f2;
+      padding:10px 18px;
+      background:${slot.turno ? "#eae6f7" : "#fff"};
+      opacity:${slot.turno ? 0.7 : 1};
+      min-height:44px;
+      font-size:15px;
+      transition:background 0.2s, opacity 0.2s;
+    `;
+
+    // Horario (izquierda)
     const horario = document.createElement('span');
-    horario.className = 'tw-slot-hora';
     horario.textContent = `${toHM(slot.start)} - ${toHM(slot.end)}`;
-    slotElem.appendChild(horario);
+    horario.style = `
+      font-weight:500;
+      font-size:1em;
+      min-width:110px;
+      margin-right:16px;
+    `;
 
-    // Indicador de obra social especial
-    if (pacienteSeleccionado && pacienteSeleccionado.obra_social_label &&
-        pacienteSeleccionado.obra_social_label.toUpperCase().includes('PAMI')) {
-      const osSpan = document.createElement('span');
-      osSpan.className = 'tw-slot-os';
-      osSpan.textContent = ' (PAMI)';
-      slotElem.appendChild(osSpan);
+    // Paciente (centro)
+    const nombrePaciente = document.createElement('span');
+    nombrePaciente.style = `
+      color:#6b6480;
+      font-size:1em;
+      font-style:italic;
+      margin-right:auto;
+      margin-left:10px;
+      min-width:140px;
+      white-space:nowrap;
+    `;
+    if (slot.turno) {
+      nombrePaciente.textContent = slot.turno.paciente_nombre ? slot.turno.paciente_nombre : 'Ocupado';
+    } else {
+      nombrePaciente.textContent = "";
     }
 
-    // Estado: ocupado/libre
-    if (slot.turno) {
-      slotElem.classList.add('tw-slot-ocupado');
+    // Botones (derecha, agrupados)
+    const btns = document.createElement('div');
+    btns.style = 'display:flex;gap:8px;';
 
-      // Nombre del paciente ocupando el turno
-      const nombrePaciente = document.createElement('span');
-      nombrePaciente.className = 'tw-slot-paciente';
-      // Usa slot.turno.paciente_nombre si existe, si no, pone "Ocupado"
-      nombrePaciente.textContent = slot.turno.paciente_nombre ? slot.turno.paciente_nombre : 'Ocupado';
-      slotElem.appendChild(nombrePaciente);
+    // Renderizamos los botones según el estado
+    if (slot.turno && slot.turno.paciente_id === pacienteSeleccionado?.id) {
+      // Eliminar
+      const btnBorrar = document.createElement('button');
+      btnBorrar.textContent = '🗑️';
+      btnBorrar.title = 'Eliminar turno';
+      btnBorrar.style = `
+        background:#7b5da7;
+        color:#fff;
+        border:none;
+        border-radius:8px;
+        padding:6px 14px;
+        cursor:pointer;
+        font-size:1em;
+        transition:background 0.2s;
+      `;
+      btnBorrar.onmouseover = () => btnBorrar.style.background = "#6b4b98";
+      btnBorrar.onmouseout  = () => btnBorrar.style.background = "#7b5da7";
+      btnBorrar.onclick = () => cancelarTurno(slot.turno);
+      btns.appendChild(btnBorrar);
 
-      // Si es el paciente actual, muestra botones
-      if (slot.turno.paciente_id === pacienteSeleccionado?.id) {
-        // Eliminar
-        const btnBorrar = document.createElement('button');
-        btnBorrar.className = 'btn primary';
-        btnBorrar.textContent = '🗑️';
-        btnBorrar.title = 'Eliminar turno';
-        btnBorrar.onclick = () => cancelarTurno(slot.turno);
-        slotElem.appendChild(btnBorrar);
+      // Reprogramar
+      const btnReprog = document.createElement('button');
+      btnReprog.textContent = '↻';
+      btnReprog.title = 'Reprogramar';
+      btnReprog.style = btnBorrar.style;
+      btnReprog.onmouseover = () => btnReprog.style.background = "#6b4b98";
+      btnReprog.onmouseout  = () => btnReprog.style.background = "#7b5da7";
+      btnReprog.onclick = () => {
+        reprogramState = { turno: slot.turno, durMin: slot.turno.duracion_minutos || 30 };
+        refreshDayModal();
+      };
+      btns.appendChild(btnReprog);
 
-        // Reprogramar
-        const btnReprog = document.createElement('button');
-        btnReprog.className = 'btn primary';
-        btnReprog.textContent = '↻';
-        btnReprog.title = 'Reprogramar';
-        btnReprog.onclick = () => {
-          reprogramState = { turno: slot.turno, durMin: slot.turno.duracion_minutos || 30 };
-          refreshDayModal();
-        };
-        slotElem.appendChild(btnReprog);
-
-        // Editar (si existe la función)
-        if (typeof editarTurno === "function") {
-          const btnEdit = document.createElement('button');
-          btnEdit.className = 'btn primary';
-          btnEdit.textContent = '✏️';
-          btnEdit.title = 'Editar turno';
-          btnEdit.onclick = () => editarTurno(slot.turno);
-          slotElem.appendChild(btnEdit);
-        }
+      // Editar (si existe la función)
+      if (typeof editarTurno === "function") {
+        const btnEdit = document.createElement('button');
+        btnEdit.textContent = '✏️';
+        btnEdit.title = 'Editar turno';
+        btnEdit.style = btnBorrar.style;
+        btnEdit.onmouseover = () => btnEdit.style.background = "#6b4b98";
+        btnEdit.onmouseout  = () => btnEdit.style.background = "#7b5da7";
+        btnEdit.onclick = () => editarTurno(slot.turno);
+        btns.appendChild(btnEdit);
       }
-      // Si no es el paciente actual, no muestra botones
-    } else {
-      // Slot libre: mostrar botón +
+    } else if (!slot.turno) {
+      // Reservar
       const btnReservar = document.createElement('button');
-      btnReservar.className = 'btn primary';
       btnReservar.textContent = '+';
       btnReservar.title = 'Reservar turno';
+      btnReservar.style = `
+        background:#7b5da7;
+        color:#fff;
+        border:none;
+        border-radius:8px;
+        padding:6px 14px;
+        cursor:pointer;
+        font-size:1em;
+        transition:background 0.2s;
+      `;
+      btnReservar.onmouseover = () => btnReservar.style.background = "#6b4b98";
+      btnReservar.onmouseout  = () => btnReservar.style.background = "#7b5da7";
       btnReservar.onclick = () => tryAgendar(slot);
-      slotElem.appendChild(btnReservar);
+      btns.appendChild(btnReservar);
     }
+
+    // Orden: horario | paciente | botones
+    slotElem.appendChild(horario);
+    slotElem.appendChild(nombrePaciente);
+    slotElem.appendChild(btns);
 
     UI.slotsList.appendChild(slotElem);
   });
