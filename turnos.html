@@ -784,17 +784,15 @@ async function renderCalendar(){
 }
 
 function renderSlots(slots){
-  // Hora actual en formato 'HH:MM'
   const ahora = new Date();
   const hoyISO = dateToISO(ahora);
-  const ahoraHM = pad(ahora.getHours()) + ':' + pad(ahora.getMinutes());
+  const ahoraHM = pad(ahora.getHours()) + ':' + pad(ahora.getMinutes();
 
-  // Filtra slots: muestra solo slots de hoy en adelante, y para hoy solo los que no empezaron
+  // Filtra slots válidos
   const filtroSlots = slots.filter(s => {
     if (!modalDateISO) return true;
     if (modalDateISO > hoyISO) return true;
     if (modalDateISO < hoyISO) return false;
-    // Si es hoy, solo mostrar los slots cuya hora de inicio es mayor a ahora
     return s.start > ahoraHM;
   });
 
@@ -818,25 +816,58 @@ function renderSlots(slots){
     });
   }
 
-  // Renderiza cada slot
   filtroSlots.forEach(slot => {
     const slotElem = document.createElement('div');
     slotElem.className = 'tw-slot';
 
-    // --- NUEVO: Indicar obra social especial (ejemplo: PAMI) ---
+    // Estado del slot (libre/ocupado)
+    // Suponiendo que cada slot puede tener: slot.turno (objeto si está ocupado), slot.paciente_id, slot.estado, etc.
     let label = toHM(slot.start) + ' - ' + toHM(slot.end);
+
+    // Indicar obra social especial
     if (pacienteSeleccionado && pacienteSeleccionado.obra_social_label) {
       if (pacienteSeleccionado.obra_social_label.toUpperCase().includes('PAMI')) {
         label += ' <span class="tw-slot-os">(PAMI)</span>';
       }
-      // Puedes agregar otros indicadores aquí si tienes más obras sociales especiales
+    }
+
+    // --- ESTADO Y ACCIONES ---
+    if (slot.turno) {
+      // Slot ocupado
+      if (slot.turno.paciente_id === pacienteSeleccionado?.id) {
+        // Es el turno del paciente actual
+        label += ' <span class="tw-slot-yo">[Tu turno]</span>';
+        // Botón eliminar
+        const btnBorrar = document.createElement('button');
+        btnBorrar.className = 'tw-slot-btn';
+        btnBorrar.innerText = '🗑️';
+        btnBorrar.title = 'Eliminar turno';
+        btnBorrar.onclick = () => eliminarTurno(slot.turno.id);
+        slotElem.appendChild(btnBorrar);
+
+        // Botón reprogramar
+        const btnReprog = document.createElement('button');
+        btnReprog.className = 'tw-slot-btn';
+        btnReprog.innerText = '↻';
+        btnReprog.title = 'Reprogramar';
+        btnReprog.onclick = () => reprogramarTurno(slot.turno);
+        slotElem.appendChild(btnReprog);
+      } else {
+        // Ocupado por otro paciente
+        label += ' <span class="tw-slot-ocupado">[Ocupado]</span>';
+      }
+    } else {
+      // Slot libre
+      // Botón reservar
+      const btnReservar = document.createElement('button');
+      btnReservar.className = 'tw-slot-btn';
+      btnReservar.innerText = '+';
+      btnReservar.title = 'Reservar turno';
+      btnReservar.onclick = () => tryAgendar(slot);
+      slotElem.appendChild(btnReservar);
     }
 
     slotElem.innerHTML = label;
-
-    // --- Click para agendar ---
-    slotElem.addEventListener('click', () => tryAgendar(slot));
-
     UI.slotsList.appendChild(slotElem);
   });
 }
