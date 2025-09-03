@@ -459,51 +459,56 @@ UI.pacInput.addEventListener('input',()=>{
 window.addEventListener('click',e=>{
   if(!UI.pacSuggest.contains(e.target)&&e.target!==UI.pacInput){hideSuggest();}
 });
+
 async function fetchSuggestions(q){
-  let result=[];
-  if(/^\d{6,}$/.test(q)){
+  let result = [];
+  if (/^\d{6,}$/.test(q)) {
+    // Buscar por DNI
     const { data } = await supabase.from('pacientes')
-      .select('id,dni,apellido,nombre,telefono,email')
-      .eq('dni',q).limit(10);
-    result=data||[];
+      .select('id,dni,apellido,nombre,telefono,email,obra_social_id')
+      .eq('dni', q).limit(10);
+    result = data || [];
   } else {
-    const parts=q.toLowerCase().split(/\s+/).filter(Boolean);
-    let query=supabase.from('pacientes')
-      .select('id,dni,apellido,nombre,telefono,email')
-      .eq('activo',true)
+    // Buscar por apellido y nombre
+    const parts = q.toLowerCase().split(/\s+/).filter(Boolean);
+    let query = supabase.from('pacientes')
+      .select('id,dni,apellido,nombre,telefono,email,obra_social_id')
+      .eq('activo', true)
       .limit(10)
-      .order('apellido',{ascending:true});
-    if(parts[0]) query=query.ilike('apellido',`%${parts[0]}%`);
-    if(parts[1]) query=query.ilike('nombre',`%${parts[1]}%`);
+      .order('apellido', { ascending: true });
+    if (parts[0]) query = query.ilike('apellido', `%${parts[0]}%`);
+    if (parts[1]) query = query.ilike('nombre', `%${parts[1]}%`);
     const { data } = await query;
-    result=data||[];
+    result = data || [];
   }
-  if(!result.length){
-    UI.pacSuggest.innerHTML=`
+  if (!result.length) {
+    UI.pacSuggest.innerHTML = `
       <div class="tw-s-item" data-act="create">
         <div>
           <div class="tw-s-title">+ Crear nuevo paciente</div>
           <div class="tw-s-meta">No se encontraron coincidencias para “${q}”.</div>
         </div>
       </div>`;
-    showSuggest();bindSuggestHandlers(q,[]);return;
+    showSuggest(); bindSuggestHandlers(q, []);
+    return;
   }
-  UI.pacSuggest.innerHTML=
-    result.map(p=>`
+  UI.pacSuggest.innerHTML =
+    result.map(p => `
       <div class="tw-s-item" data-act="select" data-id="${p.id}">
         <div>
           <div class="tw-s-title">${p.apellido}, ${p.nombre}</div>
-          <div class="tw-s-meta">DNI ${p.dni}${p.telefono?' · '+p.telefono:''}${p.email?' · '+p.email:''}</div>
+          <div class="tw-s-meta">DNI ${p.dni}${p.telefono ? ' · ' + p.telefono : ''}${p.email ? ' · ' + p.email : ''}</div>
         </div>
-      </div>`).join('')+
+      </div>`).join('') +
     `<div class="tw-s-item" data-act="create">
       <div>
         <div class="tw-s-title">+ Crear nuevo paciente</div>
         <div class="tw-s-meta">Agregar manualmente.</div>
       </div>
     </div>`;
-  showSuggest();bindSuggestHandlers(q,result);
+  showSuggest(); bindSuggestHandlers(q, result);
 }
+
 function bindSuggestHandlers(q,result){
   UI.pacSuggest.querySelectorAll('.tw-s-item').forEach(el=>{
     el.addEventListener('click',async()=>{
@@ -519,12 +524,19 @@ function bindSuggestHandlers(q,result){
   });
 }
 function selectPaciente(p){
-  pacienteSeleccionado={id:p.id,nombre:p.nombre,apellido:p.apellido,dni:p.dni,telefono:p.telefono||''};
-  UI.pacChipText.textContent=`${p.apellido}, ${p.nombre} · DNI ${p.dni}`;
-  UI.pacChip.style.display='flex';
+  pacienteSeleccionado = {
+    id: p.id,
+    nombre: p.nombre,
+    apellido: p.apellido,
+    dni: p.dni,
+    telefono: p.telefono || '',
+    obra_social_id: p.obra_social_id || null // <--- esta línea agregada correctamente
+  };
+  UI.pacChipText.textContent = `${p.apellido}, ${p.nombre} · DNI ${p.dni}`;
+  UI.pacChip.style.display = 'flex';
   hideSuggest();
   enforceTipoTurnoByPaciente(p.id);
-  if(UI.modal.style.display==='flex') refreshModalTitle();
+  if (UI.modal.style.display === 'flex') refreshModalTitle();
 }
 UI.pacClear.addEventListener('click',()=>{
   pacienteSeleccionado=null;UI.pacChip.style.display='none';
@@ -779,28 +791,42 @@ function openOkModal({pac,fechaISO,start,end,profLabel}){
 UI.okClose.addEventListener('click',()=>UI.okBackdrop.style.display='none');
 
 /* ====== Acciones Turnos ====== */
-async function tryAgendar(slot){
-  if(bookingBusy) return; bookingBusy=true; setSlotsDisabled(true);
-  try{
-    if(!pacienteSeleccionado){ alert('Seleccioná un paciente primero.'); return; }
-    if(!isValidHourRange(slot.start,slot.end)){ alert('Rango horario inválido.'); return; }
-    const payload={
-      agenda_id:slot.agenda_id||null, centro_id:currentCentroId, profesional_id:currentProfesional,
-      paciente_id:pacienteSeleccionado.id, fecha:modalDateISO, hora_inicio:slot.start, hora_fin:slot.end,
-      estado:'asignado', notas:(UI.tipoTurno.value==='sobreturno')?'Sobreturno':null
+async function tryAgendar(slot) {
+  if (bookingBusy) return;
+  bookingBusy = true;
+  setSlotsDisabled(true);
+  try {
+    if (!pacienteSeleccionado) {
+      alert('Seleccioná un paciente primero.');
+      return;
+    }
+    if (!isValidHourRange(slot.start, slot.end)) {
+      alert('Rango horario inválido.');
+      return;
+    }
+    const payload = {
+      agenda_id: slot.agenda_id || null,
+      centro_id: currentCentroId,
+      profesional_id: currentProfesional,
+      paciente_id: pacienteSeleccionado.id,
+      fecha: modalDateISO,
+      hora_inicio: slot.start,
+      hora_fin: slot.end,
+      estado: 'asignado',
+      notas: (UI.tipoTurno.value === 'sobreturno') ? 'Sobreturno' : null,
+      obra_social_id: pacienteSeleccionado.obra_social_id || null // <-- NUEVO: se guarda la obra social
     };
     const { data: inserted, error } = await supabase.from('turnos').insert([payload]).select('id').single();
-    if(error){
-      const msg=(error.message||'').toLowerCase();
-      if(error.code==='23505'){ // unique violation
+    if (error) {
+      const msg = (error.message || '').toLowerCase();
+      if (error.code === '23505') { // unique violation
         await refreshDayModal();
-        // ¿ya existía para este mismo paciente y horario?
         const { data: exists } = await supabase.from('turnos')
           .select('id')
           .eq('centro_id', currentCentroId).eq('profesional_id', currentProfesional)
           .eq('fecha', modalDateISO).eq('hora_inicio', slot.start).eq('hora_fin', slot.end)
           .eq('paciente_id', pacienteSeleccionado.id).limit(1);
-        if (exists && exists.length){
+        if (exists && exists.length) {
           openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
         } else {
           alert('Ese horario se ocupó recién.');
@@ -809,19 +835,18 @@ async function tryAgendar(slot){
         await refreshDayModal();
         alert('Ese horario se ocupó recién.');
       } else {
-        alert(error.message||'No se pudo agendar.');
+        alert(error.message || 'No se pudo agendar.');
       }
     } else {
       openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
     }
   } finally {
-    bookingBusy=false; setSlotsDisabled(false);
-    await refreshDayModal(); await renderCalendar(); refreshModalTitle();
+    bookingBusy = false;
+    setSlotsDisabled(false);
+    await refreshDayModal();
+    await renderCalendar();
+    refreshModalTitle();
   }
-}
-function startReprogram(turno){
-  const durMin=minutesDiff(toHM(turno.hora_inicio),toHM(turno.hora_fin));
-  reprogramState={turno,durMin}; refreshDayModal();
 }
 // 1. Reprogramar turno
 async function confirmReprogram(slot) {
