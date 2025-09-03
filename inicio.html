@@ -297,12 +297,22 @@ function showLite(){
   if (Drawer.lite) Drawer.lite.style.display = '';
 }
 function showFull(turnoId){
-    if (Drawer.iframe){
+  // ocultá el modo lite y el botón "Abrir ficha completa"
+  if (Drawer.lite) Drawer.lite.style.display = 'none';
+  if (Drawer.btnOpenFull) Drawer.btnOpenFull.style.display = 'none';
+
+  if (Drawer.status) Drawer.status.textContent = 'Cargando…';
+
+  if (Drawer.iframe){
     const url = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
     Drawer.iframe.src = url;
     Drawer.iframe.style.display = 'block';
+    Drawer.iframe.onload = () => {
+      if (Drawer.status) Drawer.status.textContent = '';
+    };
   }
 }
+
 
 /* ====== centro ====== */
 async function fetchCentroById(id){
@@ -532,19 +542,12 @@ async function openFicha(turnoId){
   try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
   try { localStorage.setItem('inicio_url', location.href); } catch {}
   if (Drawer.status) Drawer.status.textContent = 'Cargando…';
-
   showDrawer();
-  // showLite();  ❌  <-- sacalo
 
-  // ... (carga de turno y paciente como ya está)
-
-  // Al final de la carga (o apenas arranca), abrí la ficha completa:
-  showFull(turnoId); // ✅ ahora entra directo al modo completo (iframe)
-
-  // (opcional) ocultá el link de "Abrir ficha completa"
-  if (Drawer.btnOpenFull) Drawer.btnOpenFull.style.display = 'none';
-  if (Drawer.status) Drawer.status.textContent = 'Listo';
+  // ... (si cargás datos para el header, dejalos)
+  showFull(turnoId);   // ⬅️ entra directo al iframe
 }
+
 
 
 /* ===== Mensajes desde el iframe (si la ficha guarda/finaliza) ===== */
