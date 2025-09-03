@@ -20,7 +20,6 @@
       padding:10px;display:flex;flex-direction:column;gap:10px;min-height:calc(100vh - 20px)
     }
 
-    /* Toolbar compacta (4 columnas) */
     .toolbar{
       display:grid;
       grid-template-columns: minmax(220px,1fr) minmax(180px,.8fr) minmax(160px,.6fr) auto;
@@ -36,21 +35,18 @@
     .sel.compact{max-width:240px}
     .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer}
     .btn.secondary{background:#e7e2fa;color:#5a3e9a}
-    .pill{display:inline-flex;align-items:center;gap:6px;background:#f2effc;border:1px solid var(--line);color:#4b3a78;padding:6px 10px;border-radius:999px;font-size:13px;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .pill{display:inline-flex;align-items:center;gap:6px;background:#f2effc;border:1px solid var(--line);color:#4b3a78;padding:6px 10px;border-radius:999px;font-size:13px;max-width:100%;white-space:nowrap;}
 
-    /* KPIs mínimos */
     .stats{display:flex;flex-wrap:wrap;gap:8px}
     .chip{display:flex;align-items:baseline;gap:6px;background:#f3f1fb;border:1px solid var(--line);
       padding:6px 9px;border-radius:999px;font-size:12px;white-space:nowrap}
     .chip .v{font-size:16px;font-weight:800;line-height:1}
 
-    /* Boards compactos */
     .boards{display:grid;gap:12px;grid-template-columns:1fr 1fr;min-height:0}
     .board{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;min-height:380px}
     .board h3{margin:2px 2px 6px;font-size:14px}
     .board-body{position:relative;overflow:auto;flex:1;padding:0 2px 6px}
 
-    /* Tablas compactas */
     .table{width:100%;border-collapse:separate;border-spacing:0 5px;min-width:720px;font-size:12.5px}
     .thead{position:sticky;top:0;z-index:2;background:#fff}
     .hrow,.row{display:grid;gap:0;align-items:center;border:1px solid var(--line);padding:5px 8px;border-radius:8px}
@@ -72,13 +68,18 @@
     .board-body::-webkit-scrollbar{height:8px;width:8px}
     .board-body::-webkit-scrollbar-thumb{background:#d8cfff;border-radius:8px}
 
-    /* Ocultar botón "En atención" si no es médico */
     .role-asistente [data-act="atender"]{ display:none !important; }
+    .role-asistente [data-act="abrir-ficha"]{ display:none !important; }
+    .role-asistente [data-act="finalizar"]{ display:none !important; }
+    .role-asistente [data-act="volver-espera"]{ display:none !important; }
 
     @media (max-width:1100px){
       .toolbar{grid-template-columns:1fr minmax(180px,.9fr) minmax(160px,.7fr) auto}
       .boards{grid-template-columns:1fr}
       .table{min-width:660px}
+    }
+    @media (min-width:1100px){
+      .boards .board:last-child { grid-column: span 2; }
     }
   </style>
 </head>
@@ -109,6 +110,7 @@
     <div class="stats">
       <div class="chip"><span>Pendientes</span> <span class="v" id="kpi-pend">0</span></div>
       <div class="chip"><span>Presentes</span> <span class="v" id="kpi-esp">0</span></div>
+      <div class="chip"><span>En atención</span> <span class="v" id="kpi-atencion">0</span></div>
       <div class="chip"><span>Horas libres</span> <span class="v" id="kpi-free">0.0 h</span></div>
       <div class="chip" id="kpi-sub" style="opacity:.8"></div>
     </div>
@@ -123,6 +125,10 @@
         <h3>Presentes</h3>
         <div class="board-body"><table class="table" id="tbl-esp"></table></div>
       </div>
+      <div class="board">
+        <h3>En atención</h3>
+        <div class="board-body"><table class="table" id="tbl-atencion"></table></div>
+      </div>
     </div>
 
   </section>
@@ -131,7 +137,7 @@
 <script type="module">
 import supabase from './supabaseClient.js';
 
-const EST = { ASIGNADO:'asignado', EN_ESPERA:'en_espera', EN_ATENCION:'en_atencion', CANCELADO:'cancelado' };
+const EST = { ASIGNADO:'asignado', EN_ESPERA:'en_espera', EN_ATENCION:'en_atencion', CANCELADO:'cancelado', FINALIZADO:'finalizado' };
 
 const UI = {
   centroChip: document.getElementById('centro-chip'),
@@ -140,8 +146,10 @@ const UI = {
   btnHoy: document.getElementById('btn-hoy'),
   tblPend: document.getElementById('tbl-pend'),
   tblEsp: document.getElementById('tbl-esp'),
+  tblAtencion: document.getElementById('tbl-atencion'),
   kpiPend: document.getElementById('kpi-pend'),
   kpiEsp: document.getElementById('kpi-esp'),
+  kpiAtencion: document.getElementById('kpi-atencion'),
   kpiFree: document.getElementById('kpi-free'),
   kpiSub: document.getElementById('kpi-sub'),
 };
@@ -234,10 +242,10 @@ UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; 
 
 /* ====== data día ====== */
 async function fetchDiaData(){
-  if(!currentProfesional) return { pendientes:[], presentes:[], agenda:[], turnos:[] };
+  if(!currentProfesional) return { pendientes:[], presentes:[], atencion:[], agenda:[], turnos:[] };
   const common={centro_id:currentCentroId, profesional_id:currentProfesional, fecha:currentFechaISO};
 
-  const [pend, pres, agenda, turnos] = await Promise.all([
+  const [pend, pres, atenc, agenda, turnos] = await Promise.all([
     supabase.from('turnos')
       .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social)')
       .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
@@ -246,13 +254,17 @@ async function fetchDiaData(){
       .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social)')
       .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
       .eq('estado', EST.EN_ESPERA).order('hora_inicio', {ascending:true}),
+    supabase.from('turnos')
+      .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social)')
+      .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
+      .eq('estado', EST.EN_ATENCION).order('hora_inicio', {ascending:true}),
     supabase.from('agenda').select('id, fecha, hora_inicio, hora_fin')
       .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha).order('hora_inicio',{ascending:true}),
     supabase.from('turnos').select('id, hora_inicio, hora_fin, estado')
       .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
   ]);
 
-  return { pendientes: pend.data||[], presentes: pres.data||[], agenda: agenda.data||[], turnos: turnos.data||[] };
+  return { pendientes: pend.data||[], presentes: pres.data||[], atencion: atenc.data||[], agenda: agenda.data||[], turnos: turnos.data||[] };
 }
 
 /* ===== Render: Pendientes (botón Llegó) ===== */
@@ -348,6 +360,56 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
+/* ===== Render: En atención ===== */
+function renderAtencion(list){
+  const grid='100px 120px 1fr 1fr 1fr 180px';
+  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
+      <th class="cell">Hora</th><th class="cell">DNI</th>
+      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
+      <th class="cell right">Acciones</th></tr></thead>`;
+  const puedeFinalizar = (userRole === 'medico');
+  const rows=(list||[]).map(t=>{
+    const p=t.pacientes||{};
+    const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
+    const acciones = `
+      <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente">📄</button>
+      <button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">⏪</button>
+      ${puedeFinalizar ? `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Finalizar atención">✅</button>` : ''}
+    `;
+    return `<tr class="row" style="grid-template-columns:${grid}">
+      <td class="cell nowrap">${hora}</td>
+      <td class="cell">${p.dni||'—'}</td>
+      <td class="cell">${p.nombre||'—'}</td>
+      <td class="cell">${p.apellido||'—'}</td>
+      <td class="cell">${p.obra_social||'—'}</td>
+      <td class="cell right"><div class="actions">${acciones}</div></td>
+    </tr>`;
+  }).join('');
+  UI.tblAtencion.innerHTML = head + '<tbody>' + rows + '</tbody>';
+
+  UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
+    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
+    if(act==='abrir-ficha') btn.onclick=()=> abrirFichaPaciente(id);
+    if(act==='volver-espera') btn.onclick=()=> volverASalaEspera(id);
+    if(act==='finalizar') btn.onclick=()=> finalizarAtencion(id);
+  });
+}
+
+/* ===== Acciones "En atención" ===== */
+function abrirFichaPaciente(turnoId){
+  const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
+  window.open(fichaUrl, '_blank', 'noopener,noreferrer');
+}
+async function volverASalaEspera(turnoId){
+  await supabase.from('turnos').update({estado:EST.EN_ESPERA}).eq('id', turnoId);
+  await refreshAll();
+}
+async function finalizarAtencion(turnoId){
+  if(!confirm('¿Finalizar atención?')) return;
+  await supabase.from('turnos').update({estado:EST.FINALIZADO}).eq('id', turnoId);
+  await refreshAll();
+}
+
 /* ===== Llegada + Copago ===== */
 async function marcarLlegadaYCopago(turnoId){
   const { data: t } = await supabase
@@ -385,19 +447,15 @@ async function anularTurno(turnoId){
   await refreshAll();
 }
 async function pasarAEnAtencion(turnoId, ev) {
-  if (ev) ev.preventDefault(); // evita navegaciones accidentales
+  if (ev) ev.preventDefault();
   const role = localStorage.getItem('user_role');
   if (role !== 'medico') {
     alert('Solo los médicos pueden atender pacientes.');
     return;
   }
-
-  // 1) Abrir la nueva pestaña PRIMERO para que el navegador no bloquee el pop-up
   const fichaUrl = `ficha_paciente.html?turno_id=${encodeURIComponent(turnoId)}`;
-  const win = window.open('', '_blank', 'noopener,noreferrer'); // ventana en blanco
-
+  const win = window.open('', '_blank', 'noopener,noreferrer');
   if (!win) {
-    // Si el bloqueador no deja abrir, caemos al mismo tab como último recurso
     const { error } = await supabase.from('turnos')
       .update({ estado: EST.EN_ATENCION })
       .eq('id', turnoId);
@@ -405,22 +463,17 @@ async function pasarAEnAtencion(turnoId, ev) {
     window.location.href = fichaUrl;
     return;
   }
-
-  // 2) Actualizar estado del turno
   const { error } = await supabase.from('turnos')
     .update({ estado: EST.EN_ATENCION })
     .eq('id', turnoId);
 
   if (error) {
-    win.close(); // cerramos la pestaña vacía
+    win.close();
     alert('No se pudo pasar a "En atención".');
     return;
   }
-
-  // 3) Redirigir la pestaña nueva a la ficha
   win.location.href = fichaUrl;
 }
-
 
 /* ===== KPIs ===== */
 function computeHorasDisponibles(agenda, turnos){
@@ -430,9 +483,10 @@ function computeHorasDisponibles(agenda, turnos){
   const libresMin=Math.max(0,totalAgendaMin-ocupadosMin);
   return { horas:(libresMin/60).toFixed(1), libresMin, totalAgendaMin };
 }
-function renderKPIs({pendientes, presentes, agenda, turnos}){
+function renderKPIs({pendientes, presentes, atencion, agenda, turnos}){
   UI.kpiPend.textContent=pendientes.length;
   UI.kpiEsp.textContent=presentes.length;
+  UI.kpiAtencion.textContent=atencion.length;
   const free=computeHorasDisponibles(agenda, turnos);
   UI.kpiFree.textContent=`${free.horas} h`;
   UI.kpiSub.textContent = `${currentCentroNombre || ''} · ${UI.profSelect.options[UI.profSelect.selectedIndex]?.textContent || ''} · ${currentFechaISO}`;
@@ -440,10 +494,14 @@ function renderKPIs({pendientes, presentes, agenda, turnos}){
 
 /* ===== Refresh & Init ===== */
 async function refreshAll(){
-  if(!currentProfesional){ UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.kpiSub.textContent=`${currentCentroNombre||''} · ${currentFechaISO}`; return; }
+  if(!currentProfesional){
+    UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML='';
+    UI.kpiSub.textContent=`${currentCentroNombre||''} · ${currentFechaISO}`; return;
+  }
   const data = await fetchDiaData();
   renderPendientes(data.pendientes);
   renderPresentes(data.presentes);
+  renderAtencion(data.atencion);
   renderKPIs(data);
 }
 async function initInicio(){
