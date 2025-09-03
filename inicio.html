@@ -814,11 +814,14 @@ async function marcarAtendido(turnoId){
 
 
 /* bindings */
-if (Drawer.btnGuardar) Drawer.btnGuardar.onclick = guardarFicha;
 if (Drawer.btnFinalizar){
-  if (userRole !== 'medico') Drawer.btnFinalizar.style.display='none';
-  else Drawer.btnFinalizar.onclick = finalizarDesdeDrawer;
+  if (userRole !== 'medico') {
+    Drawer.btnFinalizar.style.display = 'none';
+  } else {
+    Drawer.btnFinalizar.onclick = () => finalizarAtencion(drawerTurnoId, { closeDrawer: true });
+  }
 }
+
 if (Drawer.cred) Drawer.cred.addEventListener('input', ()=>{ Drawer.credLink.href = Drawer.cred.value || '#'; });
 if (Drawer.nac) Drawer.nac.addEventListener('change', ()=>{
   const dniTxt = (Drawer.sub.textContent||'').split('·')[0] || '';
