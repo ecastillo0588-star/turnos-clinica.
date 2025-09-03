@@ -742,45 +742,89 @@ async function refreshDayModal(){
   renderSlots(slots);
 }
 function renderSlots(slots){
-  if(!slots.length){UI.slotsList.innerHTML='<div class="tw-hint">No hay horarios disponibles.</div>';return;}
-  UI.slotsList.innerHTML='';
+  // Hora actual en formato 'HH:MM'
+  const ahora = new Date();
+  const hoyISO = dateToISO(ahora);
+  const ahoraHM = pad(ahora.getHours()) + ':' + pad(ahora.getMinutes());
+
+  // Filtra slots: muestra solo slots de hoy en adelante, y para hoy solo los que no empezaron
+  const filtroSlots = slots.filter(s => {
+    if (!modalDateISO) return true;
+    if (modalDateISO > hoyISO) return true;
+    if (modalDateISO < hoyISO) return false;
+    // Si es hoy, solo mostrar los slots cuya hora de inicio es mayor a ahora
+    return s.start > ahoraHM;
+  });
+
+  if(!filtroSlots.length){
+    UI.slotsList.innerHTML = '<div class="tw-hint">No hay horarios disponibles.</div>';
+    return;
+  }
+
+  UI.slotsList.innerHTML = '';
   if(reprogramState){
-    const banner=document.createElement('div');
-    banner.className='tw-banner-rep';
-    banner.innerHTML=`<div>
+    const banner = document.createElement('div');
+    banner.className = 'tw-banner-rep';
+    banner.innerHTML = `<div>
       Reprogramando turno ${toHM(reprogramState.turno.hora_inicio)}–${toHM(reprogramState.turno.hora_fin)}.
       Seleccioná nuevo horario (${reprogramState.durMin} min).
     </div><button class="tw-linklike" id="tw-cancel-rep">Cancelar</button>`;
     UI.slotsList.appendChild(banner);
-    banner.querySelector('#tw-cancel-rep').addEventListener('click',()=>{ reprogramState=null; refreshDayModal(); });
+    banner.querySelector('#tw-cancel-rep').addEventListener('click',()=>{
+      reprogramState = null;
+      refreshDayModal();
+    });
   }
-  for(const s of slots){
-    const row=document.createElement('div'); const dur=minutesDiff(s.start,s.end);
-    const reprogramando=!!reprogramState; const sameDur=reprogramando?(dur===reprogramState.durMin):true;
-    const habil=s.disponible && (!reprogramando || sameDur); const turno=s.turno; const ocupado=!!turno;
-    row.className='tw-slot'+(ocupado?' ocupado':'')+(!habil && !ocupado?' unavailable':'');
+
+  for(const s of filtroSlots){
+    const row = document.createElement('div');
+    const dur = minutesDiff(s.start, s.end);
+    const reprogramando = !!reprogramState;
+    const sameDur = reprogramando ? (dur === reprogramState.durMin) : true;
+    const habil = s.disponible && (!reprogramando || sameDur);
+    const turno = s.turno;
+    const ocupado = !!turno;
+
+    row.className = 'tw-slot' + (ocupado ? ' ocupado' : '') + (!habil && !ocupado ? ' unavailable' : '');
+
+    // Estado textual del slot
+    let estadoText = '';
+    if(ocupado)      estadoText = 'Ocupado';
+    else if(habil)   estadoText = 'Disponible';
+    else             estadoText = 'No disponible';
+
     if(!ocupado){
-      row.innerHTML=`
+      row.innerHTML = `
         <div>
           <div class="time">${s.start} — ${s.end}</div>
-          <div class="mini">${reprogramando?(sameDur?'Seleccionar nuevo horario':'Duración distinta'):'Agenda'}</div>
+          <div class="mini">${reprogramando ? (sameDur ? 'Seleccionar nuevo horario' : 'Duración distinta') : 'Agenda'}</div>
+          <div class="tw-status"><b>${estadoText}</b></div>
         </div>
         <div>
-          ${habil?`<button class="tw-icon-btn" data-tip="${reprogramando?'Mover aquí':'Agendar'}">${reprogramando?'✅':'➕'}</button>`:`<button class="tw-icon-btn" disabled data-tip="No disponible">✖</button>`}
-        </div>`;
-      if(habil){ row.querySelector('button').addEventListener('click',()=>reprogramando?confirmReprogram(s):tryAgendar(s)); }
+          ${habil
+            ? `<button class="tw-icon-btn" data-tip="${reprogramando ? 'Mover aquí' : 'Agendar'}">${reprogramando ? '✅' : '➕'}</button>`
+            : `<button class="tw-icon-btn" disabled data-tip="No disponible">⛔</button>`
+          }
+        </div>
+      `;
+      if(habil){
+        row.querySelector('button').addEventListener('click',()=>reprogramando?confirmReprogram(s):tryAgendar(s));
+      }
     } else {
-      const pac=turno.pacientes?`${turno.pacientes.apellido}, ${turno.pacientes.nombre}`:'Paciente';
-      const dni=turno.pacientes?.dni||'—'; const tel=turno.pacientes?.telefono||'—';
-      row.innerHTML=`
+      const pac = turno.pacientes ? `${turno.pacientes.apellido}, ${turno.pacientes.nombre}` : 'Paciente';
+      const dni = turno.pacientes?.dni || '—';
+      const tel = turno.pacientes?.telefono || '—';
+      row.innerHTML = `
         <div>
           <div class="time">${toHM(turno.hora_inicio)} — ${toHM(turno.hora_fin)}</div>
           <div class="mini">${pac} · DNI ${dni} · ${tel}</div>
+          <div class="tw-status"><b>${estadoText}</b></div>
         </div>
         <div style="display:flex;gap:8px">
           <button class="tw-icon-btn" data-tip="Reprogramar" data-act="rep">↪️</button>
           <button class="tw-icon-btn" data-tip="Anular" data-act="del">🗑️</button>
-        </div>`;
+        </div>
+      `;
       row.querySelector('[data-act="rep"]').addEventListener('click',()=>startReprogram(turno));
       row.querySelector('[data-act="del"]').addEventListener('click',()=>cancelarTurno(turno));
     }
