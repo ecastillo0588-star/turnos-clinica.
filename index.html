@@ -241,97 +241,92 @@ async function mostrarFormularioAsociar() {
 
 
     // --- LOGIN ---
-    document.getElementById('login-form').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-      const errorMessage = document.getElementById('error-message');
-      errorMessage.textContent = '';
+// --- LOGIN ---
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  const errorMessage = document.getElementById('error-message');
+  errorMessage.textContent = '';
 
-      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-      if (authError) {
-        errorMessage.textContent = 'Correo o contraseña incorrectos.';
-        console.warn("[DEBUG] Auth error:", authError);
-        return;
-      }
+  const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+  if (authError) {
+    errorMessage.textContent = 'Correo o contraseña incorrectos.';
+    console.warn("[DEBUG] Auth error:", authError);
+    return;
+  }
 
-      userEmail = email;
+  userEmail = email;
 
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, role, profesional_id, email, display_name')
-        .eq('email', email)
-        .single();
+  const { data: profileData, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, role, profesional_id, email, display_name')
+    .eq('email', email)
+    .single();
 
-      if (profileError || !profileData) {
-        errorMessage.textContent = 'Perfil no encontrado.';
-        console.warn("[DEBUG] Perfil no encontrado:", profileError);
-        return;
-      }
+  if (profileError || !profileData) {
+    errorMessage.textContent = 'Perfil no encontrado.';
+    console.warn("[DEBUG] Perfil no encontrado:", profileError);
+    return;
+  }
 
-      userRole = profileData.role;
-      userName = profileData.display_name || email;
+  userRole = profileData.role;
+  userName = profileData.display_name || email;
 
-      // Aseguramos profesional_id
-      profesionalId = await ensureProfesionalId(profileData);
+  // Aseguramos profesional_id
+  profesionalId = await ensureProfesionalId(profileData);
 
-      localStorage.setItem('usuario_id', profileData.id);
-      localStorage.setItem('profesional_id', profesionalId || '');
-      localStorage.setItem('email', userEmail);
-      localStorage.setItem('user_role', userRole);
-      localStorage.setItem('user_name', userName);
+  localStorage.setItem('usuario_id', profileData.id);
+  localStorage.setItem('profesional_id', profesionalId || '');
+  localStorage.setItem('email', userEmail);
+  localStorage.setItem('user_role', userRole);
+  localStorage.setItem('user_name', userName);
 
-      if (['propietario', 'medico'].includes(userRole)) {
-        if (!profesionalId) {
-          errorMessage.textContent = 'No se pudo determinar tu ID de profesional.';
-          return;
-        }
+  if (['propietario', 'medico'].includes(userRole)) {
+    if (!profesionalId) {
+      errorMessage.textContent = 'No se pudo determinar tu ID de profesional.';
+      return;
+    }
 
-        const { centros: asociados, error: centrosError } = await cargarCentrosAsociados(profesionalId);
-        if (centrosError) {
-          errorMessage.textContent = 'Error buscando centros asociados.';
-          return;
-        }
+    const { centros: asociados, error: centrosError } = await cargarCentrosAsociados(profesionalId);
+    if (centrosError) {
+      errorMessage.textContent = 'Error buscando centros asociados.';
+      return;
+    }
 
-        if (!asociados.length) {
-          console.log("[DEBUG] Sin centros asociados -> mostrar formulario de asociación.");
-          await mostrarFormularioAsociar();
-          return;
-        }
+    if (!asociados.length) {
+      console.log("[DEBUG] Sin centros asociados -> mostrar formulario de asociación.");
+      await mostrarFormularioAsociar();
+      return;
+    }
 
-        centros = asociados;
-        await mostrarSelectorCentros(centros);
+    centros = asociados;
+    await mostrarSelectorCentros(centros);
 
-      } else if (userRole === 'asistente') {
-        // Para asistentes asumes que profesional_id en profile es realmente el centro_id (según tu código original).
-        if (!profileData.profesional_id) {
-          errorMessage.textContent = 'No tienes centro médico asignado.';
-          return;
-        }
-        const { data: centroData, error: centroError } = await supabase
-          .from('centros_medicos')
-          .select('id, nombre, activo')
-          .eq('id', profileData.profesional_id)
-          .eq('activo', true)
-          .single();
+  } else if (userRole === 'asistente') {
+    if (!profesionalId) {
+      errorMessage.textContent = 'No se pudo determinar tu ID de profesional.';
+      return;
+    }
 
-        if (centroError || !centroData) {
-          errorMessage.textContent = 'Centro médico no encontrado o inactivo.';
-          console.warn("[DEBUG] Centro asistente error:", centroError);
-          return;
-        }
+    const { centros: asociados, error: centrosError } = await cargarCentrosAsociados(profesionalId);
+    if (centrosError) {
+      errorMessage.textContent = 'Error buscando centros asociados.';
+      return;
+    }
 
-        centros = [centroData];
-        document.getElementById('login-form').classList.add('hidden');
-        document.getElementById('center-select-div').innerHTML = `
-          <label>Centro médico asignado:</label>
-          <div style="font-weight:600;color:#0055a5;padding:10px 0;">${centroData.nombre}</div>`;
-        document.getElementById('center-form').classList.remove('hidden');
+    if (!asociados.length) {
+      errorMessage.textContent = 'No tienes centros médicos asignados.';
+      return;
+    }
 
-      } else {
-        errorMessage.textContent = 'Rol no reconocido.';
-      }
-    });
+    centros = asociados;
+    await mostrarSelectorCentros(centros);
+
+  } else {
+    errorMessage.textContent = 'Rol no reconocido.';
+  }
+});
 
     // --- Seleccionar centro ---
     document.getElementById('center-form').addEventListener('submit', (e) => {
