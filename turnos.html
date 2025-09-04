@@ -585,14 +585,35 @@ function buildModalTitle(iso){
   /* =====================
    *  Agenda / Turnos
    * ===================== */
-  async function fetchAgendaYTurnos(pid,y,m){
-    const last=new Date(y,m+1,0); const start=toISODate(y,m,1), end=toISODate(y,m,last.getDate());
-    const [agendaRes, turnosRes] = await Promise.all([
-      supabase.from('agenda').select('id,fecha,hora_inicio,hora_fin').eq('centro_id',currentCentroId).eq('profesional_id',pid).gte('fecha',start).lte('fecha',end).order('fecha',{ascending:true}),
-      supabase.from('turnos').select('id,fecha,hora_inicio,hora_fin,estado,paciente_id,obra_social_id,agenda_id,pacientes(id,apellido,nombre,dni,telefono)').eq('centro_id',currentCentroId).eq('profesional_id',pid).gte('fecha',start).lte('fecha',end).order('hora_inicio',{ascending:true})
-    ]);
-    return { agenda:agendaRes.data||[], turnos:turnosRes.data||[] };
-  }
+async function fetchAgendaYTurnos(pid, y, m){
+  const last = new Date(y, m+1, 0);
+  const start = toISODate(y, m, 1), end = toISODate(y, m, last.getDate());
+
+  const [agendaRes, turnosRes] = await Promise.all([
+    supabase
+      .from('agenda')
+      .select('id, fecha, hora_inicio, hora_fin')
+      .eq('centro_id', currentCentroId)
+      .eq('profesional_id', pid)
+      .gte('fecha', start).lte('fecha', end)
+      .order('fecha', { ascending: true }),
+
+    supabase
+      .from('turnos')
+      .select(
+        'id, fecha, hora_inicio, hora_fin, estado, paciente_id, obra_social_id, agenda_id, ' +
+        'centro_id, profesional_id, copago, ' +                          // ← agregar estos
+        'pacientes(id, apellido, nombre, dni, telefono)'
+      )
+      .eq('centro_id', currentCentroId)
+      .eq('profesional_id', pid)
+      .gte('fecha', start).lte('fecha', end)
+      .order('hora_inicio', { ascending: true })
+  ]);
+
+  return { agenda: agendaRes.data || [], turnos: turnosRes.data || [] };
+}
+
 
   function generarSlots(agendaDia,turnosDia,tipo,excludeId){
     const dur=Number(duracionCfg[tipo]||15); if(!dur||dur<=0) return [];
@@ -813,23 +834,35 @@ function buildModalTitle(iso){
 async function confirmReprogram(slot){
   if (!reprogramState || reprogramBusy) return;
   reprogramBusy = true;
+  setSlotsDisabled(true);
+
   try {
     const t = reprogramState.turno;
+
     if (!isValidHourRange(slot.start, slot.end)) { alert('Rango horario inválido.'); return; }
 
-    // ⚠️ construir payload explícito (sin `pacientes`)
+    // Preferí los valores del turno original; si faltan, caé en los actuales
+    const centroId       = t.centro_id       ?? currentCentroId;
+    const profesionalId  = t.profesional_id  ?? currentProfesional;
+    const pacienteId     = t.paciente_id;
+
+    if (!centroId || !profesionalId || !pacienteId || !modalDateISO) {
+      console.error('Reprogram payload incompleto', { t, slot, centroId, profesionalId, pacienteId, modalDateISO });
+      alert('Faltan datos para reprogramar (centro/profesional/paciente/fecha).');
+      return;
+    }
+
     const nuevoTurno = {
       agenda_id: slot.agenda_id || null,
-      centro_id: t.centro_id,
-      profesional_id: t.profesional_id,
-      paciente_id: t.paciente_id,              // ← mismo paciente del turno original
+      centro_id: centroId,
+      profesional_id: profesionalId,
+      paciente_id: pacienteId,                         // ← mismo paciente
       fecha: modalDateISO,
       hora_inicio: slot.start,
       hora_fin: slot.end,
       estado: t.estado || 'asignado',
       notas: t.notas || null,
       obra_social_id: (t.obra_social_id ?? null),
-      // si era particular, preservá copago; si tenía OS, copago null
       copago: (t.obra_social_id == null) ? (t.copago ?? null) : null,
       reprogramado_desde: `${t.fecha} ${toHM(t.hora_inicio)}-${toHM(t.hora_fin)}`
     };
@@ -840,17 +873,20 @@ async function confirmReprogram(slot){
     const { error: errorDelete } = await supabase.from('turnos').delete().eq('id', t.id);
     if (errorDelete) { alert(errorDelete.message || 'No se pudo eliminar el turno original.'); return; }
 
-    // Mostrar OK usando el paciente del turno original
     const pac = pacFromTurno(t);
-    if (pac) openOkModal({ pac, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
-
+    if (pac) {
+      openOkModal({ pac, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
+    }
     reprogramState = null;
+
   } finally {
     reprogramBusy = false;
+    setSlotsDisabled(false);
     await refreshDayModal();
     await renderCalendar();
   }
 }
+
 
 
   async function cancelarTurno(t){ if(!confirm('¿Anular este turno?')) return; const { error } = await supabase.from('turnos').delete().eq('id', t.id); if(error){ alert(error.message || 'No se pudo cancelar el turno.'); } else if(reprogramState?.turno.id===t.id){ reprogramState=null; } await refreshDayModal(); await renderCalendar(); }
