@@ -365,7 +365,14 @@ function dateToISO(d){
   function nativeFirstDow(d){ const g=d.getDay(); return g===0?6:g-1; }
   function getProfLabel(){ return UI.profesionalSelect.options[UI.profesionalSelect.selectedIndex]?.textContent||'Profesional'; }
   function pacFromTurno(t){ const p=t?.pacientes||null; if(!p && pacienteSeleccionado) return pacienteSeleccionado; return p ? {id:p.id,nombre:p.nombre,apellido:p.apellido,dni:p.dni,telefono:p.telefono} : null; }
-  function buildModalTitle(iso){ const fecha=new Date(iso).toLocaleDateString('es-AR'); const badge=pacienteSeleccionado ? `<span class="tw-ok-badge">Paciente: ${pacienteSeleccionado.apellido}, ${pacienteSeleccionado.nombre}${pacienteSeleccionado.dni?(' · DNI '+pacienteSeleccionado.dni):''}</span>` : ''; return `Turnos del ${fecha}${badge?(' '+badge):''}`; }
+function buildModalTitle(iso){
+  const fecha = fmtDateLong(iso); // usa new Date(y, m-1, d) por dentro
+  const badge = pacienteSeleccionado
+    ? `<span class="tw-ok-badge">Paciente: ${pacienteSeleccionado.apellido}, ${pacienteSeleccionado.nombre}${pacienteSeleccionado.dni?(' · DNI '+pacienteSeleccionado.dni):''}</span>`
+    : '';
+  return `Turnos del ${fecha}${badge?(' '+badge):''}`;
+}
+
   function refreshModalTitle(){ if(modalDateISO) UI.modalTitle.innerHTML=buildModalTitle(modalDateISO); }
   function setSlotsDisabled(disabled){ UI.slotsList.querySelectorAll('.tw-icon-btn').forEach(b=>{ b.disabled=disabled; }); }
 
