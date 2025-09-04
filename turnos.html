@@ -634,53 +634,99 @@ function buildModalTitle(iso){
     UI.status.textContent=agenda.length?'':'No hay agenda cargada para este mes.';
   }
 
-  function renderSlots(slots){
-    const ahora=new Date(); const hoyISO=dateToISO(ahora); const ahoraHM=`${pad(ahora.getHours())}:${pad(ahora.getMinutes())}`;
-    const filtroSlots = slots.filter(s=>{ if(!modalDateISO) return true; if(modalDateISO>hoyISO) return true; if(modalDateISO<hoyISO) return false; return s.start>ahoraHM; });
-    if(!filtroSlots.length){ UI.slotsList.innerHTML='<div style="color:#888;padding:14px;text-align:center;">No hay horarios disponibles.</div>'; return; }
-    UI.slotsList.innerHTML='';
+ function renderSlots(slots){
+  const ahora = new Date();
+  const hoyISO = dateToISO(ahora);
+  const ahoraHM = `${pad(ahora.getHours())}:${pad(ahora.getMinutes())}`;
 
-    if(reprogramState){
-      const banner=document.createElement('div');
-      banner.className='tw-banner-rep';
-      banner.innerHTML=`
-        <div>Reprogramando turno ${toHM(reprogramState.turno.hora_inicio)}–${toHM(reprogramState.turno.hora_fin)}. Seleccioná nuevo horario (${reprogramState.durMin} min).</div>
-        <button class="tw-linklike" id="tw-cancel-rep">Cancelar</button>`;
-      UI.slotsList.appendChild(banner);
-      banner.querySelector('#tw-cancel-rep').addEventListener('click',()=>{ reprogramState=null; refreshDayModal(); });
-    }
+  const filtroSlots = slots.filter(s => {
+    if (!modalDateISO) return true;
+    if (modalDateISO > hoyISO) return true;
+    if (modalDateISO < hoyISO) return false;
+    return s.start > ahoraHM;
+  });
 
-    filtroSlots.forEach(slot=>{
-      const slotElem=document.createElement('div');
-      slotElem.style='display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e8e2f2;padding:10px 18px;min-height:44px;font-size:15px;transition:background 0.2s, opacity 0.2s;';
-      if(slot.turno){ slotElem.style.background='#eae6f7'; }
+  if (!filtroSlots.length){
+    UI.slotsList.innerHTML = '<div style="color:#888;padding:14px;text-align:center;">No hay horarios disponibles.</div>';
+    return;
+  }
+  UI.slotsList.innerHTML = '';
 
-      const horario=document.createElement('span'); horario.textContent=`${toHM(slot.start)} - ${toHM(slot.end)}`; horario.style='font-weight:500;font-size:1em;min-width:110px;margin-right:16px;';
-      const nombrePaciente=document.createElement('span'); nombrePaciente.style='color:#6b6480;font-size:1em;font-style:italic;margin-right:auto;margin-left:10px;min-width:140px;white-space:nowrap;';
-      if(slot.turno){
-        const p = slot.turno.pacientes;
-        const osName = (slot.turno.obra_social_id && obrasSocialesById.get(String(slot.turno.obra_social_id))?.obra_social) || 'Particular';
-        if(p){
-          nombrePaciente.textContent = `${p.apellido}, ${p.nombre} · DNI ${p.dni} · ${osName}`;
-        } else {
-          nombrePaciente.textContent = `Ocupado · ${osName}`;
-        }
-      } else { nombrePaciente.textContent=''; }
-      const btns=document.createElement('div'); btns.style='display:flex;gap:8px;';
-
-      if(slot.turno){
-        const mkBtn=(txt,title)=>{ const b=document.createElement('button'); b.textContent=txt; b.title=title; b.style='background:#7b5da7;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:1em;transition:background 0.2s;'; b.onmouseover=()=>b.style.background='#6b4b98'; b.onmouseout=()=>b.style.background='#7b5da7'; return b; };
-        const btnBorrar=mkBtn('🗑️','Eliminar turno'); btnBorrar.onclick=()=>cancelarTurno(slot.turno); btns.appendChild(btnBorrar);
-        const durMin = reprogramState?.durMin || slot.turno_duracion || minutesDiff(toHM(slot.turno.hora_inicio), toHM(slot.turno.hora_fin));
-        const btnReprog=mkBtn('↻','Reprogramar'); btnReprog.onclick=()=>{ reprogramState={ turno:slot.turno, durMin }; refreshDayModal(); }; btns.appendChild(btnReprog);
-      } else if(!slot.turno){
-        const btnReservar=document.createElement('button'); btnReservar.textContent='+'; btnReservar.title='Reservar turno'; btnReservar.style='background:#7b5da7;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:1em;transition:background 0.2s;';
-        btnReservar.onmouseover=()=>btnReservar.style.background='#6b4b98'; btnReservar.onmouseout=()=>btnReservar.style.background='#7b5da7';
-        btnReservar.onclick=()=>tryAgendar(slot); btns.appendChild(btnReservar);
-      }
-      slotElem.appendChild(horario); slotElem.appendChild(nombrePaciente); slotElem.appendChild(btns); UI.slotsList.appendChild(slotElem);
+  if (reprogramState){
+    const banner = document.createElement('div');
+    banner.className = 'tw-banner-rep';
+    banner.innerHTML = `
+      <div>Reprogramando turno ${toHM(reprogramState.turno.hora_inicio)}–${toHM(reprogramState.turno.hora_fin)}. Seleccioná nuevo horario (${reprogramState.durMin} min).</div>
+      <button class="tw-linklike" id="tw-cancel-rep">Cancelar</button>`;
+    UI.slotsList.appendChild(banner);
+    banner.querySelector('#tw-cancel-rep').addEventListener('click', () => {
+      reprogramState = null;
+      refreshDayModal();
     });
   }
+
+  filtroSlots.forEach(slot => {
+    const slotElem = document.createElement('div');
+    slotElem.style = 'display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e8e2f2;padding:10px 18px;min-height:44px;font-size:15px;transition:background 0.2s, opacity 0.2s;';
+    if (slot.turno) slotElem.style.background = '#eae6f7';
+
+    const horario = document.createElement('span');
+    horario.textContent = `${toHM(slot.start)} - ${toHM(slot.end)}`;
+    horario.style = 'font-weight:500;font-size:1em;min-width:110px;margin-right:16px;';
+
+    const nombrePaciente = document.createElement('span');
+    nombrePaciente.style = 'color:#6b6480;font-size:1em;font-style:italic;margin-right:auto;margin-left:10px;min-width:140px;white-space:nowrap;';
+
+    const btns = document.createElement('div');
+    btns.style = 'display:flex;gap:8px;';
+
+    if (slot.turno){
+      const p = slot.turno.pacientes;
+      const osName = (slot.turno.obra_social_id && obrasSocialesById.get(String(slot.turno.obra_social_id))?.obra_social) || 'Particular';
+      nombrePaciente.textContent = p ? `${p.apellido}, ${p.nombre} · DNI ${p.dni} · ${osName}` : `Ocupado · ${osName}`;
+
+      const mkBtn = (txt, title) => {
+        const b = document.createElement('button');
+        b.className = 'tw-icon-btn'; // ← para que setSlotsDisabled funcione
+        b.textContent = txt;
+        b.title = title;
+        b.style = 'background:#7b5da7;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:1em;transition:background 0.2s;';
+        b.onmouseover = () => b.style.background = '#6b4b98';
+        b.onmouseout  = () => b.style.background = '#7b5da7';
+        return b;
+      };
+
+      const btnBorrar = mkBtn('🗑️', 'Eliminar turno');
+      btnBorrar.onclick = () => cancelarTurno(slot.turno);
+      btns.appendChild(btnBorrar);
+
+      const durMin = reprogramState?.durMin || slot.turno_duracion || minutesDiff(toHM(slot.turno.hora_inicio), toHM(slot.turno.hora_fin));
+      const btnReprog = mkBtn('↻', 'Reprogramar');
+      btnReprog.onclick = () => { reprogramState = { turno: slot.turno, durMin }; refreshDayModal(); };
+      btns.appendChild(btnReprog);
+
+    } else {
+      const btnReservar = document.createElement('button');
+      btnReservar.className = 'tw-icon-btn'; // ← para desactivar durante booking
+      btnReservar.textContent = '+';
+      btnReservar.title = 'Reservar turno';
+      btnReservar.style = 'background:#7b5da7;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:1em;transition:background 0.2s;';
+      btnReservar.onmouseover = () => btnReservar.style.background = '#6b4b98';
+      btnReservar.onmouseout  = () => btnReservar.style.background = '#7b5da7';
+
+      // si hay reprogramación activa → confirmar reprogramación; si no → reservar
+      btnReservar.onclick = () => (reprogramState ? confirmReprogram(slot) : tryAgendar(slot));
+
+      btns.appendChild(btnReservar);
+    }
+
+    slotElem.appendChild(horario);
+    slotElem.appendChild(nombrePaciente);
+    slotElem.appendChild(btns);
+    UI.slotsList.appendChild(slotElem);
+  });
+}
+
 
   /* =====================
    *  Modal día (abrir/actualizar)
@@ -764,18 +810,48 @@ function buildModalTitle(iso){
     } finally { bookingBusy=false; setSlotsDisabled(false); await refreshDayModal(); await renderCalendar(); refreshModalTitle(); }
   }
 
-  async function confirmReprogram(slot){
-    if(!reprogramState||reprogramBusy) return; reprogramBusy=true;
-    try {
-      const t=reprogramState.turno; if(!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
-      const nuevoTurno={ ...t, fecha: modalDateISO, hora_inicio: slot.start, hora_fin: slot.end, agenda_id: slot.agenda_id || null, reprogramado_desde: `${t.fecha} ${t.hora_inicio}-${t.hora_fin}` };
-      delete nuevoTurno.id;
-      const { error: errorInsert } = await supabase.from('turnos').insert([nuevoTurno]); if(errorInsert){ alert(errorInsert.message || 'No se pudo reprogramar (insert).'); return; }
-      const { error: errorDelete } = await supabase.from('turnos').delete().eq('id', t.id); if(errorDelete){ alert(errorDelete.message || 'No se pudo eliminar el turno original.'); return; }
-      const pac=pacFromTurno(t); if(pac){ openOkModal({ pac, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() }); }
-      reprogramState=null;
-    } finally { reprogramBusy=false; await refreshDayModal(); await renderCalendar(); }
+async function confirmReprogram(slot){
+  if (!reprogramState || reprogramBusy) return;
+  reprogramBusy = true;
+  try {
+    const t = reprogramState.turno;
+    if (!isValidHourRange(slot.start, slot.end)) { alert('Rango horario inválido.'); return; }
+
+    // ⚠️ construir payload explícito (sin `pacientes`)
+    const nuevoTurno = {
+      agenda_id: slot.agenda_id || null,
+      centro_id: t.centro_id,
+      profesional_id: t.profesional_id,
+      paciente_id: t.paciente_id,              // ← mismo paciente del turno original
+      fecha: modalDateISO,
+      hora_inicio: slot.start,
+      hora_fin: slot.end,
+      estado: t.estado || 'asignado',
+      notas: t.notas || null,
+      obra_social_id: (t.obra_social_id ?? null),
+      // si era particular, preservá copago; si tenía OS, copago null
+      copago: (t.obra_social_id == null) ? (t.copago ?? null) : null,
+      reprogramado_desde: `${t.fecha} ${toHM(t.hora_inicio)}-${toHM(t.hora_fin)}`
+    };
+
+    const { error: errorInsert } = await supabase.from('turnos').insert([nuevoTurno]);
+    if (errorInsert) { alert(errorInsert.message || 'No se pudo reprogramar (insert).'); return; }
+
+    const { error: errorDelete } = await supabase.from('turnos').delete().eq('id', t.id);
+    if (errorDelete) { alert(errorDelete.message || 'No se pudo eliminar el turno original.'); return; }
+
+    // Mostrar OK usando el paciente del turno original
+    const pac = pacFromTurno(t);
+    if (pac) openOkModal({ pac, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
+
+    reprogramState = null;
+  } finally {
+    reprogramBusy = false;
+    await refreshDayModal();
+    await renderCalendar();
   }
+}
+
 
   async function cancelarTurno(t){ if(!confirm('¿Anular este turno?')) return; const { error } = await supabase.from('turnos').delete().eq('id', t.id); if(error){ alert(error.message || 'No se pudo cancelar el turno.'); } else if(reprogramState?.turno.id===t.id){ reprogramState=null; } await refreshDayModal(); await renderCalendar(); }
 
