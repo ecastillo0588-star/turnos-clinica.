@@ -356,7 +356,11 @@
   function buildWA({pac,fechaISO,start,end,prof,centro,dir}){
     return `Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fmtDateLong(fechaISO)} de ${start} a ${end} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;
   }
-  function dateToISO(d){ return d.toISOString().slice(0,10); }
+  // Después (sin UTC, respeta zona local)
+function dateToISO(d){
+  const pad = n => n < 10 ? '0'+n : ''+n;
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
   const DOW=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
   function nativeFirstDow(d){ const g=d.getDay(); return g===0?6:g-1; }
   function getProfLabel(){ return UI.profesionalSelect.options[UI.profesionalSelect.selectedIndex]?.textContent||'Profesional'; }
