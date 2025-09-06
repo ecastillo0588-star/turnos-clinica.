@@ -512,16 +512,18 @@ function buildModalTitle(iso){
     showSuggest(); bindSuggestHandlers(q, result);
   }
 
-  function bindSuggestHandlers(q,result){
-    UI.pacSuggest.querySelectorAll('.tw-s-item').forEach(el=>{
-      el.addEventListener('click',async()=>{
-        const act=el.getAttribute('data-act');
-        if(act==='select'){
-          const id=el.getAttribute('data-id'); const p=result.find(r=>String(r.id)===id); if(p) selectPaciente(p);
-        } else if(act==='create'){ await openPacienteModalPrefilled(q); }
-      });
+function bindSuggestHandlers(q, result){
+  UI.pacSuggest.querySelectorAll('.tw-s-item').forEach(el=>{
+    el.addEventListener('click',async()=>{
+      const act=el.getAttribute('data-act');
+      if(act==='select'){
+        const id=el.getAttribute('data-id'); const p=result.find(r=>String(r.id)===id); if(p) selectPaciente(p);
+      } else if(act==='create'){ 
+        openPacienteModal({ dni: q });
+      }
     });
-  }
+  });
+}
 
   function selectPaciente(p){
     pacienteSeleccionado = { id: p.id, nombre: p.nombre, apellido: p.apellido, dni: p.dni, telefono: p.telefono || '', obra_social_id: p.obra_social_id || null };
