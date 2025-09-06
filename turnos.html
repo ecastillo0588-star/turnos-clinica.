@@ -239,14 +239,16 @@
   /* =====================
    *  Dependencias
    * ===================== */
-  import supabase from './supabaseClient.js';
-  import { isValidHourRange as _isValidHourRange } from './validators.js';
-  import { openPacienteModal } from './Global.js'; // <-- esta línea nueva
-  const isValidHourRange = typeof _isValidHourRange === 'function' ? _isValidHourRange : (s,e)=>{
-    // fallback simple HH:MM validation
-    const re = /^\d{2}:\d{2}$/; if(!re.test(s)||!re.test(e)) return false;
-    return s < e;
-  };
+import supabase from './supabaseClient.js';
+import { isValidHourRange as _isValidHourRange } from './validators.js';
+import { openPacienteModal } from './global.js';
+
+const isValidHourRange = typeof _isValidHourRange === 'function' ? _isValidHourRange : (s,e)=>{
+  // fallback simple HH:MM validation
+  const re = /^\d{2}:\d{2}$/;
+  if(!re.test(s) || !re.test(e)) return false;
+  return s < e;
+};
 
   /* =====================
    *  UI refs
