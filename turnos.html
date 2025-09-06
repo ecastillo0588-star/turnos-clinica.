@@ -544,16 +544,7 @@ function bindSuggestHandlers(q, result){
   /* =====================
    *  Modal Paciente (crear)
    * ===================== */
-  async function openPacienteModalPrefilled(q){
-    if(!obrasSocialesCache.length) await loadObrasSociales();
-    UI.npDni.value=/^\d{6,}$/.test(q)?q:'';
-    const parts=q.split(/\s+/).filter(Boolean);
-    UI.npApellido.value=parts[0]||''; UI.npNombre.value=parts[1]||''; UI.npFechaNac.value=''; UI.npTel.value=''; UI.npEmail.value='';
-    UI.npObra.value=''; UI.npObraInfo.textContent=''; UI.npAfiliado.value='';
-    UI.npConNom.value=UI.npConApe.value=UI.npConCel.value=UI.npVinculo.value='';
-    UI.npHistoria.value=''; UI.npCredFile.value=''; UI.npCredPreview.style.display='none'; UI.npCredPreview.innerHTML=''; UI.npMsg.textContent='';
-    UI.modalPac.style.display='flex';
-  }
+
   UI.modalPacClose?.addEventListener('click',()=>UI.modalPac.style.display='none');
   window.addEventListener('click',e=>{ if(e.target===UI.modalPac) UI.modalPac.style.display='none'; });
   UI.npHistoriaOpen?.addEventListener('click',e=>{ if(!UI.npHistoria.value){ e.preventDefault(); } });
