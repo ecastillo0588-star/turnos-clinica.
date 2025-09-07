@@ -1,0 +1,131 @@
+<!-- Vista TURNOS (partial) - se inyecta dentro de #main-content -->
+<div id="turnos-view" data-view="turnos">
+
+  <!-- Toolbar -->
+  <div class="tw-toolbar">
+    <div class="tw-field">
+      <label>Centro médico</label>
+      <select id="turnos-centro-select" class="tw-sel" style="display:none;"></select>
+      <input id="turnos-centro-nombre" class="tw-inp" type="text" readonly style="display:none;">
+    </div>
+    <div class="tw-field">
+      <label>Profesional</label>
+      <select id="turnos-profesional-select" class="tw-sel">
+        <option>Cargando...</option>
+      </select>
+    </div>
+    <div class="tw-field">
+      <label>Paciente</label>
+      <input id="turnos-paciente-input" class="tw-inp" placeholder="Apellido Nombre o DNI" autocomplete="off">
+      <div id="turnos-paciente-suggest" class="tw-suggest" style="display:none;"></div>
+      <div id="turnos-paciente-chip" class="tw-chip" style="display:none;">
+        <span id="turnos-paciente-chip-text"></span>
+        <button id="turnos-paciente-clear" title="Quitar">✕</button>
+      </div>
+    </div>
+    <div class="tw-field">
+      <label>Tipo de turno</label>
+      <select id="turnos-tipo" class="tw-sel">
+        <option value="nueva_consulta">Nueva consulta</option>
+        <option value="recurrente">Recurrente</option>
+        <option value="sobreturno">Sobreturno</option>
+      </select>
+    </div>
+    <div class="tw-field" style="align-items:flex-end">
+      <button id="turnos-btn-hoy" class="tw-btn ghost">Hoy</button>
+    </div>
+  </div>
+
+  <!-- Head -->
+  <div class="tw-head">
+    <div class="tw-head-left">
+      <button id="turnos-prev-month" class="tw-btn secondary" title="Mes anterior">◀</button>
+      <h2 id="turnos-cal-title">Calendario</h2>
+      <button id="turnos-next-month" class="tw-btn secondary" title="Mes siguiente">▶</button>
+    </div>
+    <div class="tw-legend">
+      <span class="tw-dot free"></span> con disponibilidad 
+      <span class="tw-dot busy"></span> sin hueco 
+      <span class="tw-dot none"></span> sin agenda
+    </div>
+  </div>
+
+  <!-- Calendario mensual -->
+  <div class="tw-cal">
+    <div class="tw-dow" id="turnos-cal-dow"></div>
+    <div class="tw-grid" id="turnos-cal-grid"></div>
+  </div>
+  <div class="tw-status" id="turnos-status"></div>
+</div>
+
+<!-- Modal día -->
+<div class="tw-backdrop" id="turnos-modal">
+  <div class="tw-modal">
+    <div class="tw-modal-header">
+      <h3 id="turnos-modal-title" class="tw-modal-title">Turnos del día</h3>
+      <div class="tw-day-nav">
+        <button class="tw-icon-btn" id="turnos-modal-prev-day" data-tip="Día anterior">◀</button>
+        <input type="date" id="turnos-modal-date" class="tw-inp tw-date">
+        <button class="tw-icon-btn" id="turnos-modal-next-day" data-tip="Día siguiente">▶</button>
+        <!-- Mini calendario mensual dentro del modal -->
+        <div id="turnos-mini-cal" class="tw-mini" aria-label="Disponibilidad del mes"></div>
+      </div>
+      <button class="tw-close" id="turnos-modal-close">×</button>
+    </div>
+    <section class="tw-slots">
+      <h4>Horarios</h4>
+      <div id="turnos-slots-list"></div>
+    </section>
+  </div>
+</div>
+
+<!-- Modal OK -->
+<div class="tw-backdrop" id="turnos-modal-ok" style="display:none;">
+  <div class="tw-modal-ok">
+    <div class="tw-modal-header">
+      <div class="tw-ok-head">
+        <div class="tw-ok-badge">✔ Turno asignado</div>
+        <div id="ok-title" class="tw-ok-title"></div>
+      </div>
+      <button class="tw-close" id="ok-close">×</button>
+    </div>
+    <ul class="tw-ok-list">
+      <li><b>Paciente:</b> <span id="ok-paciente"></span></li>
+      <li><b>DNI:</b> <span id="ok-dni"></span></li>
+      <li><b>Fecha y hora:</b> <span id="ok-fecha-hora"></span></li>
+      <li><b>Profesional:</b> <span id="ok-prof"></span></li>
+      <li><b>Centro:</b> <span id="ok-centro"></span></li>
+      <li><b>Dirección:</b> <span id="ok-direccion"></span></li>
+    </ul>
+    <div class="tw-ok-actions">
+      <a id="ok-wa-link" class="tw-btn ok" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+      <button id="ok-copy" class="tw-btn ghost">Copiar link</button>
+      <span id="ok-msg" class="tw-hint"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Cupo agotado -->
+<div id="modal-cupo-agotado" class="modal-cupo-agotado" style="display:none;">
+  <div class="modal-content">
+    <div class="modal-header-alert">
+      <span class="icon-alert">⚠️</span>
+      <span class="modal-title">Cupo agotado para obra social</span>
+    </div>
+    <div class="modal-body">
+      <p id="modal-cupo-msg">
+        No quedan cupos disponibles para la obra social seleccionada.<br>
+        ¿Desea reservar el turno de forma <b>particular</b>?<br>
+        El mismo tiene un costo de <b id="modal-cupo-copago">$0</b>.
+      </p>
+    </div>
+    <div class="modal-actions">
+      <button id="modal-cupo-aceptar" class="btn-accept">Aceptar</button>
+      <button id="modal-cupo-cancelar" class="btn-cancel">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Enlaces a CSS y JS -->
+<link rel="stylesheet" href="turnos.css">
+<script type="module" src="turnos.js"></script>
