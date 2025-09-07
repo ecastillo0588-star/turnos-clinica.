@@ -247,3 +247,110 @@
 .btn-cancel{background:#bbb;color:#222;border:none;border-radius:6px;padding:8px 20px;font-size:1em;cursor:pointer;}
 .btn-accept:hover{background:#389e0d;}
 .btn-cancel:hover{background:#888;}
+
+
+/* === Estilos para modal de Nuevo Paciente === */
+#turnos-modal-paciente {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 18px;
+  background: rgba(40,20,70,.32);
+  backdrop-filter: blur(2px);
+  z-index: 6000;
+}
+
+#turnos-modal-paciente .tw-modal {
+  background: #fff;
+  width: 100%;
+  max-width: 860px;
+  border-radius: 18px;
+  box-shadow: 0 5px 26px -4px rgba(50,20,100,.26);
+  animation: fadeInScale .35s cubic-bezier(.4,.1,.2,1);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+@keyframes fadeInScale {
+  0% { transform: translateY(14px) scale(.96); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+#turnos-modal-paciente .tw-modal-header {
+  padding: 20px 26px 14px 26px;
+  border-bottom: 1px solid #f0ecfa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#turnos-modal-paciente .tw-modal-header h3 {
+  margin: 0;
+  font-size: 20px;
+  color: #381e60;
+}
+
+#turnos-modal-paciente .tw-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #6b6480;
+}
+
+#turnos-modal-paciente .tw-grid3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px,1fr));
+  gap: 14px 20px;
+  padding: 20px 26px 26px 26px;
+}
+
+#turnos-modal-paciente .tw-col h4 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #5a418d;
+}
+
+#turnos-modal-paciente label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #5a418d;
+  margin-top: 8px;
+  display: block;
+}
+
+#turnos-modal-paciente .tw-inp,
+#turnos-modal-paciente .tw-sel,
+#turnos-modal-paciente textarea {
+  background: #f7f9fb;
+  border: 1.5px solid #e9e2f9;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 14px;
+  outline: none;
+  width: 100%;
+  font-family: inherit;
+  color: #381e60;
+}
+
+#turnos-modal-paciente .tw-inp:focus,
+#turnos-modal-paciente .tw-sel:focus,
+#turnos-modal-paciente textarea:focus {
+  border-color: #a490d7;
+  background: #fff;
+}
+
+#turnos-modal-paciente .tw-actions {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+#turnos-modal-paciente .tw-hint {
+  font-size: 12px;
+  color: #6b6480;
+}
