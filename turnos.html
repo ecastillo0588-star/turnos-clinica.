@@ -804,6 +804,17 @@ async function confirmReprogram(slot){
       }
     }
   }
+
+export function openPacienteModal({ dni } = {}) {
+  const modal = document.getElementById('turnos-modal-paciente');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  if (dni) {
+    const dniInput = document.getElementById('np-dni');
+    if (dniInput) dniInput.value = dni;
+  }
+}
+
   // setInterval(marcarTurnosVencidos, 15 * 60 * 1000);
 // marcarTurnosVencidos();
 
