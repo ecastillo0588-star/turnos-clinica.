@@ -127,82 +127,62 @@
   </div>
 </div>
 
-<!-- 🆕 Modal Nuevo Paciente (versión fija con estilo moderno) -->
-<div class="tw-backdrop" id="turnos-modal-paciente" style="display:none;">
-  <div class="tw-modal tw-modal-wide">
-    <div class="tw-modal-header">
-      <h3 class="tw-modal-title">Nuevo Paciente</h3>
-      <button id="turnos-modal-paciente-close" class="tw-close">×</button>
-    </div>
-    <div class="tw-grid3">
-      <!-- Columna 1 -->
-      <div class="tw-col">
-        <h4>Datos personales</h4>
-        <label>DNI<span class="tw-req">*</span></label>
-        <input id="np-dni" class="tw-inp" type="text">
-
-        <label>Nombre<span class="tw-req">*</span></label>
-        <input id="np-nombre" class="tw-inp" type="text">
-
-        <label>Apellido<span class="tw-req">*</span></label>
-        <input id="np-apellido" class="tw-inp" type="text">
-
-        <label>Fecha de nacimiento<span class="tw-req">*</span></label>
-        <input id="np-fecha-nac" class="tw-inp" type="date">
-
-        <label>Teléfono<span class="tw-req">*</span></label>
-        <input id="np-telefono" class="tw-inp" type="text">
-
-        <label>Email</label>
-        <input id="np-email" class="tw-inp" type="email">
+<!-- 🆕 Modal Nuevo Paciente (igual estilo que pacientes) -->
+<div class="modal-backdrop" id="turnos-modal-paciente" style="display:none;">
+  <div class="modal" role="dialog" aria-modal="true">
+    <button class="modal-close" id="turnos-modal-paciente-close" aria-label="Cerrar">&times;</button>
+    <div class="modal-header"><h3>Nuevo Paciente</h3></div>
+    <form id="form-nuevo-paciente">
+      <div class="modal-body">
+        <div id="turnos-form-alerts"></div>
+        <fieldset class="fieldset">
+          <legend>Datos Personales</legend>
+          <div class="form-grid">
+            <div class="form-group"><label>DNI *</label><input id="np-dni" required></div>
+            <div class="form-group"><label>Apellido *</label><input id="np-apellido" required></div>
+            <div class="form-group"><label>Nombre *</label><input id="np-nombre" required></div>
+            <div class="form-group"><label>Fecha Nacimiento</label><input id="np-fecha-nac" type="date"></div>
+            <div class="form-group"><label>Teléfono</label><input id="np-telefono"></div>
+            <div class="form-group"><label>Email</label><input id="np-email" type="email"></div>
+          </div>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend>Obra Social</legend>
+          <div class="form-grid">
+            <div class="form-group"><label>Obra Social</label><select id="np-obra"></select></div>
+            <div class="form-group"><label>N° Afiliado</label><input id="np-afiliado"></div>
+          </div>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend>Contacto Emergencia</legend>
+          <div class="form-grid">
+            <div class="form-group"><label>Nombre</label><input id="np-contacto-nombre"></div>
+            <div class="form-group"><label>Apellido</label><input id="np-contacto-apellido"></div>
+            <div class="form-group"><label>Celular</label><input id="np-contacto-cel"></div>
+            <div class="form-group"><label>Vínculo</label><input id="np-vinculo"></div>
+          </div>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend>Información Adicional</legend>
+          <div class="form-grid">
+            <div class="form-group" style="grid-column:1/-1;">
+              <label>Historia Clínica (URL)</label><input id="np-historia">
+            </div>
+            <div class="form-group" style="grid-column:1/-1;">
+              <label>Credencial</label>
+              <input id="np-cred-file" type="file">
+              <div id="np-cred-preview" class="tw-upload-preview" style="display:none;"></div>
+            </div>
+          </div>
+        </fieldset>
       </div>
-
-      <!-- Columna 2 -->
-      <div class="tw-col">
-        <h4>Obra Social</h4>
-        <label>Obra social</label>
-        <select id="np-obra" class="tw-sel"></select>
-        <div id="np-obra-info" class="tw-hint"></div>
-
-        <label>N° Afiliado</label>
-        <input id="np-afiliado" class="tw-inp" type="text">
-
-        <h4 style="margin-top:14px;">Contacto de emergencia</h4>
-        <label>Nombre</label>
-        <input id="np-contacto-nombre" class="tw-inp" type="text">
-
-        <label>Apellido</label>
-        <input id="np-contacto-apellido" class="tw-inp" type="text">
-
-        <label>Celular</label>
-        <input id="np-contacto-cel" class="tw-inp" type="text">
-
-        <label>Vínculo</label>
-        <input id="np-vinculo" class="tw-inp" type="text">
+      <div class="modal-footer">
+        <button type="button" class="btn secondary" id="btn-cancelar-paciente">Cancelar</button>
+        <button type="submit" class="btn" id="turnos-guardar-paciente">Crear Paciente</button>
       </div>
-
-      <!-- Columna 3 -->
-      <div class="tw-col tw-span3">
-        <h4>Historia clínica</h4>
-        <textarea id="np-historia" class="tw-inp" rows="5"></textarea>
-        <a id="np-historia-open" href="#" class="tw-linklike">Abrir historia clínica</a>
-
-        <h4 style="margin-top:14px;">Credencial</h4>
-        <div class="tw-upload-zone">
-          <button id="np-cred-select" class="tw-btn ghost">Subir credencial</button>
-          <input id="np-cred-file" type="file" style="display:none;">
-          <div id="np-cred-preview" class="tw-upload-preview" style="display:none;"></div>
-        </div>
-
-        <div class="tw-actions">
-          <button id="turnos-guardar-paciente" class="tw-btn">Guardar paciente</button>
-          <span id="turnos-np-msg" class="tw-hint"></span>
-        </div>
-      </div>
-    </div>
+    </form>
   </div>
 </div>
-
 
 
 <!-- Enlaces a CSS y JS -->
