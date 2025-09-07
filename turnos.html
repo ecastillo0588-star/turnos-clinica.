@@ -20,12 +20,10 @@
       --tw-warnbg:#fff4e6;
     }
     #turnos-view{font-family:'Segoe UI',Arial,sans-serif;color:var(--tw-ink);}
-    /* 👉 copiá acá TODO el CSS que ya tenías (toolbar, calendario, modal, etc.) */
+    /* 👉 copiá aquí TODO el CSS que tenías (toolbar, calendario, modal, etc.) */
   </style>
 
-  <!-- ===================== -->
-  <!-- TOOLBAR -->
-  <!-- ===================== -->
+  <!-- Toolbar -->
   <div class="tw-toolbar">
     <div class="tw-field">
       <label>Centro médico</label>
@@ -58,9 +56,7 @@
     </div>
   </div>
 
-  <!-- ===================== -->
-  <!-- CABECERA CALENDARIO -->
-  <!-- ===================== -->
+  <!-- Head -->
   <div class="tw-head">
     <div class="tw-head-left">
       <button id="turnos-prev-month" class="tw-btn secondary" title="Mes anterior">◀</button>
@@ -74,18 +70,14 @@
     </div>
   </div>
 
-  <!-- ===================== -->
-  <!-- CALENDARIO -->
-  <!-- ===================== -->
+  <!-- Calendario -->
   <div class="tw-cal">
     <div class="tw-dow" id="turnos-cal-dow"></div>
     <div class="tw-grid" id="turnos-cal-grid"></div>
   </div>
   <div class="tw-status" id="turnos-status"></div>
 
-  <!-- ===================== -->
-  <!-- MODAL DÍA -->
-  <!-- ===================== -->
+  <!-- Modal día -->
   <div class="tw-backdrop" id="turnos-modal">
     <div class="tw-modal">
       <div class="tw-modal-header">
@@ -105,9 +97,7 @@
     </div>
   </div>
 
-  <!-- ===================== -->
-  <!-- MODAL OK -->
-  <!-- ===================== -->
+  <!-- Modal OK -->
   <div class="tw-backdrop" id="turnos-modal-ok" style="display:none;">
     <div class="tw-modal-ok">
       <div class="tw-modal-header">
@@ -133,9 +123,7 @@
     </div>
   </div>
 
-  <!-- ===================== -->
-  <!-- MODAL CUPO AGOTADO -->
-  <!-- ===================== -->
+  <!-- Modal Cupo agotado -->
   <div id="modal-cupo-agotado" class="modal-cupo-agotado" style="display:none;">
     <div class="modal-content">
       <div class="modal-header-alert">
@@ -158,7 +146,5 @@
 
 </div>
 
-<!-- ===================== -->
-<!-- SCRIPT PRINCIPAL -->
-<!-- ===================== -->
+<!-- Script principal -->
 <script type="module" src="./turnos.js"></script>
