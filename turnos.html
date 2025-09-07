@@ -127,6 +127,80 @@
   </div>
 </div>
 
+<!-- 🆕 Modal Nuevo Paciente -->
+<div class="tw-backdrop" id="turnos-modal-paciente" style="display:none;">
+  <div class="tw-modal tw-modal-wide">
+    <div class="tw-modal-header">
+      <h3 class="tw-modal-title">Nuevo Paciente</h3>
+      <button id="turnos-modal-paciente-close" class="tw-close">×</button>
+    </div>
+    <div class="tw-grid3">
+      <div class="tw-col">
+        <h4>Datos personales</h4>
+        <label>DNI<span class="tw-req">*</span></label>
+        <input id="np-dni" class="tw-inp" type="text">
+
+        <label>Nombre<span class="tw-req">*</span></label>
+        <input id="np-nombre" class="tw-inp" type="text">
+
+        <label>Apellido<span class="tw-req">*</span></label>
+        <input id="np-apellido" class="tw-inp" type="text">
+
+        <label>Fecha de nacimiento<span class="tw-req">*</span></label>
+        <input id="np-fecha-nac" class="tw-inp" type="date">
+
+        <label>Teléfono<span class="tw-req">*</span></label>
+        <input id="np-telefono" class="tw-inp" type="text">
+
+        <label>Email</label>
+        <input id="np-email" class="tw-inp" type="email">
+      </div>
+
+      <div class="tw-col">
+        <h4>Obra Social</h4>
+        <label>Obra social</label>
+        <select id="np-obra" class="tw-sel"></select>
+        <div id="np-obra-info" class="tw-hint"></div>
+
+        <label>N° Afiliado</label>
+        <input id="np-afiliado" class="tw-inp" type="text">
+
+        <h4 style="margin-top:14px;">Contacto de emergencia</h4>
+        <label>Nombre</label>
+        <input id="np-contacto-nombre" class="tw-inp" type="text">
+
+        <label>Apellido</label>
+        <input id="np-contacto-apellido" class="tw-inp" type="text">
+
+        <label>Celular</label>
+        <input id="np-contacto-cel" class="tw-inp" type="text">
+
+        <label>Vínculo</label>
+        <input id="np-vinculo" class="tw-inp" type="text">
+      </div>
+
+      <div class="tw-col tw-span3">
+        <h4>Historia clínica</h4>
+        <textarea id="np-historia" class="tw-inp" rows="5"></textarea>
+        <a id="np-historia-open" href="#" class="tw-linklike">Abrir historia clínica</a>
+
+        <h4 style="margin-top:14px;">Credencial</h4>
+        <div class="tw-upload-zone">
+          <button id="np-cred-select" class="tw-btn ghost">Subir credencial</button>
+          <input id="np-cred-file" type="file" style="display:none;">
+          <div id="np-cred-preview" class="tw-upload-preview" style="display:none;"></div>
+        </div>
+
+        <div class="tw-actions">
+          <button id="turnos-guardar-paciente" class="tw-btn">Guardar paciente</button>
+          <span id="turnos-np-msg" class="tw-hint"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
 <!-- Enlaces a CSS y JS -->
 <link rel="stylesheet" href="turnos.css">
 <script type="module" src="turnos.js"></script>
