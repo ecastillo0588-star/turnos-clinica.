@@ -5,6 +5,7 @@
 import supabase from './supabaseClient.js';
 import { isValidHourRange as _isValidHourRange } from './validators.js';
 import { openPacienteModal } from './global.js';
+console.log("🔍 Supabase en turnos.js:", supabase);
 
 const isValidHourRange = typeof _isValidHourRange === 'function'
   ? _isValidHourRange
