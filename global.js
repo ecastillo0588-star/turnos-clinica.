@@ -112,6 +112,8 @@ function extractFormData(form) {
 
 async function submitPacienteForm(form, pacienteExistente) {
   const data = extractFormData(form);
+
+  // Validaciones mínimas
   if (!data.dni || !data.apellido || !data.nombre) {
     showFormMessage('error', 'DNI, Apellido y Nombre son obligatorios.');
     return;
@@ -121,29 +123,50 @@ async function submitPacienteForm(form, pacienteExistente) {
     return;
   }
 
+  // Recuperar posibles IDs de contexto (solo si no es edición)
+  if (!pacienteExistente) {
+    const centroId = localStorage.getItem('centro_medico_id');
+    const profesionalId = localStorage.getItem('profesional_id');
+    if (centroId) data.centro_id = centroId;
+    if (profesionalId) data.profesional_id = profesionalId;
+  }
+
   const btn = form.querySelector('button[type="submit"]');
   btn.disabled = true;
   btn.textContent = 'Guardando...';
 
   try {
     if (pacienteExistente) {
-      const { error } = await supabase.from('pacientes').update(data).eq('id', pacienteExistente.id);
+      // UPDATE
+      const { error } = await supabase
+        .from('pacientes')
+        .update(data)
+        .eq('id', pacienteExistente.id);
       if (error) throw error;
       showFormMessage('success', 'Paciente actualizado.');
     } else {
-      const { data: existing, error: qErr } = await supabase.from('pacientes').select('id').eq('dni', data.dni).limit(1);
+      // Crear nuevo
+      const { data: existing, error: qErr } = await supabase
+        .from('pacientes')
+        .select('id')
+        .eq('dni', data.dni)
+        .limit(1);
       if (qErr) throw qErr;
+
       if (existing && existing.length) {
         showFormMessage('error', 'Ya existe un paciente con ese DNI.');
         btn.disabled = false;
         btn.textContent = 'Crear Paciente';
         return;
       }
+
       const { error: insErr } = await supabase.from('pacientes').insert([data]);
       if (insErr) throw insErr;
       showFormMessage('success', 'Paciente creado.');
       form.reset();
     }
+
+    // Cerrar modal después de un tiempito
     setTimeout(() => closeModal(), 850);
   } catch (e) {
     showFormMessage('error', 'Error: ' + (e.message || e));
