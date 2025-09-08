@@ -293,7 +293,7 @@ async function loadProfesionales() {
   }
   const { data: profs } = await supabase
     .from('profesionales')
-    .select('id,nombre,apellido,display_name')
+    .select('id,nombre,apellido)
     .in('id', ids)
     .order('apellido', { ascending: true });
   sel.innerHTML = (profs || [])
