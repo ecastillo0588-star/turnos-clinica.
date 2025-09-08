@@ -7,6 +7,9 @@ import { isValidHourRange as _isValidHourRange } from './validators.js';
 import { openPacienteModal } from './global.js';
 console.log("🔍 Supabase en turnos.js:", supabase);
 
+// 👇 Asegura que UI exista en todo el módulo (ESM = strict mode)
+let UI = {};
+
 const isValidHourRange = typeof _isValidHourRange === 'function'
   ? _isValidHourRange
   : (s, e) => {
@@ -59,17 +62,14 @@ function bindUI() {
     okCopy: document.getElementById('ok-copy'),
     okMsg: document.getElementById('ok-msg'),
 
-    // 🆕 faltaba este ref, lo usa renderMiniCalFor()
+    // 🆕 lo usa renderMiniCalFor()
     miniCal: document.getElementById('turnos-mini-cal'),
 
-    // (opcionales si existen en otra vista/modals)
+    // (opcionales si existen en tu DOM)
     npObra: document.getElementById('np-obra'),
     npObraInfo: document.getElementById('np-obra-info'),
   };
-} // ✅ cerrar la función
-
-
-
+}
 
 /* =====================
  * Estado
@@ -216,7 +216,7 @@ async function getCentrosDeProfesional(pid) {
 }
 
 async function ensureCentro() {
-  // Mostrar como select siempre (solo cambia si sos asistente)
+  // Mostrar como select siempre
   UI.centroSelect.style.display = '';
   UI.centroNombre.style.display = 'none';
 
@@ -233,12 +233,12 @@ async function ensureCentro() {
     return;
   }
 
-  // Armar las opciones del dropdown
+  // Armar opciones
   UI.centroSelect.innerHTML = centros
     .map((c) => `<option value="${c.id}">${c.nombre}</option>`)
     .join('');
 
-  // Seleccionar el centro actual si está guardado
+  // Selección inicial
   if (currentCentroId && centros.some((c) => String(c.id) === String(currentCentroId))) {
     UI.centroSelect.value = currentCentroId;
   } else {
@@ -246,16 +246,16 @@ async function ensureCentro() {
     UI.centroSelect.value = currentCentroId;
   }
 
-  // Guardar nombre y dirección
+  // Nombre y dirección
   const c = await fetchCentroById(currentCentroId);
   currentCentroNombre = c.nombre || UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent || '';
   currentCentroDireccion = c.direccion || '';
 
-  // Guardar en localStorage para la próxima
+  // Persistir
   safeLocalStorage.setItem('centro_medico_id', currentCentroId);
   safeLocalStorage.setItem('centro_medico_nombre', currentCentroNombre);
 
-  // Escuchar cambios
+  // Cambio de centro
   UI.centroSelect.addEventListener('change', async () => {
     currentCentroId = UI.centroSelect.value;
     const c2 = await fetchCentroById(currentCentroId);
@@ -272,7 +272,6 @@ async function ensureCentro() {
     if (UI.modal.style.display === 'flex') await renderMiniCalFor(modalDateISO);
   });
 }
-
 
 async function loadProfesionales() {
   const sel = UI.profesionalSelect;
@@ -367,12 +366,13 @@ async function loadDuraciones(pid) {
   });
 }
 
-
 /* =====================
  * Obras Sociales
  * ===================== */
 async function loadObrasSociales() {
-  const { data } = await supabase.from('obras_sociales').select('id,obra_social,condicion_copago,valor_copago').order('obra_social', { ascending: true });
+  const { data } = await supabase.from('obras_sociales')
+    .select('id,obra_social,condicion_copago,valor_copago')
+    .order('obra_social', { ascending: true });
   obrasSocialesCache = data || [];
   obrasSocialesById.clear();
   (obrasSocialesCache || []).forEach((o) => {
@@ -380,20 +380,10 @@ async function loadObrasSociales() {
   });
   if (UI.npObra) {
     UI.npObra.innerHTML =
-      '<option value="">(Sin obra social)</option>' + obrasSocialesCache.map((o) => `<option value="${o.obra_social}">${o.obra_social}</option>`).join('');
+      '<option value="">(Sin obra social)</option>' +
+      obrasSocialesCache.map((o) => `<option value="${o.obra_social}">${o.obra_social}</option>`).join('');
   }
 }
-
-UI.npObra?.addEventListener('change', () => {
-  const sel = obrasSocialesCache.find((o) => o.obra_social === UI.npObra.value);
-  if (!sel) {
-    UI.npObraInfo.textContent = '';
-    return;
-  }
-  const cond = sel.condicion_copago ? `Condición: ${sel.condicion_copago}` : '';
-  const val = sel.valor_copago != null ? ` · Copago: ${sel.valor_copago}` : '';
-  UI.npObraInfo.textContent = cond || val ? cond + val : '';
-});
 
 /* =====================
  * Pacientes (typeahead)
@@ -406,28 +396,23 @@ function hideSuggest() {
 function showSuggest() {
   UI.pacSuggest.style.display = 'block';
 }
-UI.pacInput.addEventListener('input', () => {
-  clearTimeout(suggestTimer);
-  const q = UI.pacInput.value.trim();
-  if (!q) {
-    hideSuggest();
-    return;
-  }
-  suggestTimer = setTimeout(() => fetchSuggestions(q), 180);
-});
-window.addEventListener('click', (e) => {
-  if (!UI.pacSuggest.contains(e.target) && e.target !== UI.pacInput) {
-    hideSuggest();
-  }
-});
 async function fetchSuggestions(q) {
   let result = [];
   if (/^\d{6,}$/.test(q)) {
-    const { data } = await supabase.from('pacientes').select('id,dni,apellido,nombre,telefono,email,obra_social_id').eq('dni', q).limit(10);
+    const { data } = await supabase
+      .from('pacientes')
+      .select('id,dni,apellido,nombre,telefono,email,obra_social_id')
+      .eq('dni', q)
+      .limit(10);
     result = data || [];
   } else {
     const parts = q.toLowerCase().split(/\s+/).filter(Boolean);
-    let query = supabase.from('pacientes').select('id,dni,apellido,nombre,telefono,email,obra_social_id').eq('activo', true).limit(10).order('apellido', { ascending: true });
+    let query = supabase
+      .from('pacientes')
+      .select('id,dni,apellido,nombre,telefono,email,obra_social_id')
+      .eq('activo', true)
+      .limit(10)
+      .order('apellido', { ascending: true });
     if (parts[0]) query = query.ilike('apellido', `%${parts[0]}%`);
     if (parts[1]) query = query.ilike('nombre', `%${parts[1]}%`);
     const { data } = await query;
@@ -499,13 +484,6 @@ function selectPaciente(p) {
   if (UI.modal.style.display === 'flex') refreshModalTitle();
 }
 
-UI.pacClear.addEventListener('click', () => {
-  pacienteSeleccionado = null;
-  UI.pacChip.style.display = 'none';
-  enforceTipoTurnoByPaciente(null);
-  if (UI.modal.style.display === 'flex') refreshModalTitle();
-});
-
 async function enforceTipoTurnoByPaciente(pacienteId) {
   const optNueva = UI.tipoTurno.querySelector('option[value="nueva_consulta"]');
   if (!optNueva) return;
@@ -513,7 +491,10 @@ async function enforceTipoTurnoByPaciente(pacienteId) {
     optNueva.disabled = false;
     return;
   }
-  const { count } = await supabase.from('turnos').select('id', { count: 'exact', head: true }).eq('paciente_id', pacienteId);
+  const { count } = await supabase
+    .from('turnos')
+    .select('id', { count: 'exact', head: true })
+    .eq('paciente_id', pacienteId);
   if ((count ?? 0) > 0) {
     optNueva.disabled = true;
     if (UI.tipoTurno.value === 'nueva_consulta') UI.tipoTurno.value = 'recurrente';
@@ -522,21 +503,24 @@ async function enforceTipoTurnoByPaciente(pacienteId) {
   }
 }
 
-
 /* =====================
  * Agenda / Turnos
  * ===================== */
 async function fetchAgendaYTurnos(pid, y, m) {
   const last = new Date(y, m + 1, 0);
   const start = toISODate(y, m, 1),
-    end = toISODate(y, m, last.getDate());
+        end   = toISODate(y, m, last.getDate());
   const [agendaRes, turnosRes] = await Promise.all([
-    supabase.from('agenda').select('id, fecha, hora_inicio, hora_fin').eq('centro_id', currentCentroId).eq('profesional_id', pid).gte('fecha', start).lte('fecha', end).order('fecha', { ascending: true }),
+    supabase.from('agenda')
+      .select('id, fecha, hora_inicio, hora_fin')
+      .eq('centro_id', currentCentroId)
+      .eq('profesional_id', pid)
+      .gte('fecha', start)
+      .lte('fecha', end)
+      .order('fecha', { ascending: true }),
     supabase
       .from('turnos')
-      .select(
-        'id, fecha, hora_inicio, hora_fin, estado, paciente_id, obra_social_id, agenda_id, centro_id, profesional_id, copago, pacientes(id, apellido, nombre, dni, telefono)'
-      )
+      .select('id, fecha, hora_inicio, hora_fin, estado, paciente_id, obra_social_id, agenda_id, centro_id, profesional_id, copago, pacientes(id, apellido, nombre, dni, telefono)')
       .eq('centro_id', currentCentroId)
       .eq('profesional_id', pid)
       .gte('fecha', start)
@@ -553,14 +537,14 @@ function generarSlots(agendaDia, turnosDia, tipo, excludeId) {
   const vivos = (turnosDia || []).filter((t) => ((t.estado || '').toLowerCase() !== 'cancelado') && t.id !== excludeId);
   for (const bloque of agendaDia || []) {
     const bStart = toHM(bloque.hora_inicio),
-      bEnd = toHM(bloque.hora_fin);
+          bEnd   = toHM(bloque.hora_fin);
     let t = bStart;
     while (addMinutes(t, dur) <= bEnd) {
       const start = t,
-        end = addMinutes(t, dur);
+            end   = addMinutes(t, dur);
       const oc = vivos.find((tr) => {
         const s = toHM(tr.hora_inicio),
-          e = toHM(tr.hora_fin);
+              e = toHM(tr.hora_fin);
         return overlaps(start, end, s, e);
       });
       const turnoDur = oc ? minutesDiff(toHM(oc.hora_inicio), toHM(oc.hora_fin)) : null;
@@ -587,15 +571,15 @@ async function renderCalendar() {
   UI.status.textContent = 'Cargando agenda...';
   const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, view.y, view.m);
   const gA = groupByFecha(agenda),
-    gT = groupByFecha(turnos);
+        gT = groupByFecha(turnos);
   const tipo = UI.tipoTurno.value;
   UI.calGrid.innerHTML = '';
   const first = new Date(view.y, view.m, 1),
-    last = new Date(view.y, view.m + 1, 0);
+        last  = new Date(view.y, view.m + 1, 0);
   UI.calTitle.textContent = first.toLocaleString('es-AR', { month: 'long', year: 'numeric' });
   const offset = nativeFirstDow(first);
-  const total = offset + last.getDate();
-  const rows = Math.ceil(total / 7);
+  const total  = offset + last.getDate();
+  const rows   = Math.ceil(total / 7);
   let day = 1;
   for (let i = 0; i < rows * 7; i++) {
     const cell = document.createElement('div');
@@ -737,13 +721,6 @@ async function openDayModal(isoDate, agendaDia, turnosDiaRaw, { preserveReprogra
   await renderMiniCalFor(isoDate);
 }
 
-UI.modalClose.addEventListener('click', () => (UI.modal.style.display = 'none'));
-window.addEventListener('click', (e) => {
-  if (e.target === UI.modal) UI.modal.style.display = 'none';
-  if (e.target === UI.okBackdrop) UI.okBackdrop.style.display = 'none';
-  
-});
-
 async function refreshDayModal() {
   if (!modalDateISO) return;
   const { data: agendaDia } = await supabase
@@ -763,6 +740,7 @@ async function refreshDayModal() {
   const slots = generarSlots(agendaDia || [], turnosDiaRaw || [], UI.tipoTurno.value, reprogramState?.turno.id || null);
   renderSlots(slots);
 }
+
 /* =====================
  * Mini calendario del modal
  * ===================== */
@@ -771,15 +749,15 @@ async function renderMiniCalFor(iso) {
   UI.miniCal.innerHTML = '';
   const d = new Date(iso + 'T00:00:00');
   const y = d.getFullYear(),
-    m = d.getMonth();
+        m = d.getMonth();
   const { agenda, turnos } = await fetchAgendaYTurnos(currentProfesional, y, m);
   const gA = groupByFecha(agenda),
-    gT = groupByFecha(turnos);
+        gT = groupByFecha(turnos);
   const first = new Date(y, m, 1),
-    last = new Date(y, m + 1, 0);
+        last  = new Date(y, m + 1, 0);
   const offset = nativeFirstDow(first);
-  const total = offset + last.getDate();
-  const rows = Math.ceil(total / 7);
+  const total  = offset + last.getDate();
+  const rows   = Math.ceil(total / 7);
   const todayISO = dateToISO(new Date());
   let day = 1;
 
@@ -820,24 +798,6 @@ async function loadModalDate(newISO) {
   await refreshDayModal();
   await renderMiniCalFor(newISO);
 }
-
-UI.modalPrevDay.addEventListener('click', async () => {
-  if (!modalDateISO) return;
-  const d = new Date(modalDateISO + 'T00:00:00');
-  d.setDate(d.getDate() - 1);
-  await loadModalDate(dateToISO(d));
-});
-UI.modalNextDay.addEventListener('click', async () => {
-  if (!modalDateISO) return;
-  const d = new Date(modalDateISO + 'T00:00:00');
-  d.setDate(d.getDate() + 1);
-  await loadModalDate(dateToISO(d));
-});
-UI.modalDateInput.addEventListener('change', async () => {
-  if (UI.modalDateInput.value) {
-    await loadModalDate(UI.modalDateInput.value);
-  }
-});
 
 /* =====================
  * Reserva / Cupo / OK modal
@@ -915,7 +875,11 @@ async function tryAgendar(slot) {
       obra_social_id: obraSocialId,
       copago: obraSocialId === null ? copagoParticular : null,
     };
-    const { data: inserted, error } = await supabase.from('turnos').insert([payload]).select('id').single();
+    const { data: inserted, error } = await supabase
+      .from('turnos')
+      .insert([payload])
+      .select('id')
+      .single();
     if (error) {
       alert(error.message || 'No se pudo reservar el turno.');
       return;
@@ -1008,74 +972,111 @@ function openOkModal({ pac, fechaISO, start, end, profLabel }) {
   UI.okMsg.textContent = '';
   UI.okBackdrop.style.display = 'flex';
 }
-UI.okClose.addEventListener('click', () => (UI.okBackdrop.style.display = 'none'));
-UI.okCopy.addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText(UI.okWa.href);
-    UI.okMsg.textContent = 'Link copiado ✔';
-    setTimeout(() => (UI.okMsg.textContent = ''), 2000);
-  } catch {
-    UI.okMsg.textContent = 'No se pudo copiar';
-  }
-});
 
 /* =====================
- * Vencidos
+ * Listeners (todos juntos)
  * ===================== */
-async function marcarTurnosVencidos() {
-  const now = new Date();
-  const { data: turnos } = await supabase.from('turnos').select('id, fecha, hora_inicio, hora_fin, estado, paciente_id').eq('estado', 'asignado');
-  for (const turno of turnos || []) {
-    const finTurno = new Date(`${turno.fecha}T${toHM(turno.hora_fin)}:00`);
-    finTurno.setHours(finTurno.getHours() + 1);
-    if (now > finTurno) {
-      await supabase.from('turnos').update({ estado: 'vencido' }).eq('id', turno.id);
+function attachHandlers() {
+  // Pacientes (typeahead)
+  UI.pacInput?.addEventListener('input', () => {
+    clearTimeout(suggestTimer);
+    const q = UI.pacInput.value.trim();
+    if (!q) { hideSuggest(); return; }
+    suggestTimer = setTimeout(() => fetchSuggestions(q), 180);
+  });
+
+  window.addEventListener('click', (e) => {
+    if (!UI.pacSuggest.contains(e.target) && e.target !== UI.pacInput) hideSuggest();
+  });
+
+  UI.pacClear?.addEventListener('click', () => {
+    pacienteSeleccionado = null;
+    UI.pacChip.style.display = 'none';
+    enforceTipoTurnoByPaciente(null);
+    if (UI.modal.style.display === 'flex') refreshModalTitle();
+  });
+
+  // Modal día
+  UI.modalClose?.addEventListener('click', () => (UI.modal.style.display = 'none'));
+  UI.modalPrevDay?.addEventListener('click', async () => {
+    if (!modalDateISO) return;
+    const d = new Date(modalDateISO + 'T00:00:00'); d.setDate(d.getDate() - 1);
+    await loadModalDate(dateToISO(d));
+  });
+  UI.modalNextDay?.addEventListener('click', async () => {
+    if (!modalDateISO) return;
+    const d = new Date(modalDateISO + 'T00:00:00'); d.setDate(d.getDate() + 1);
+    await loadModalDate(dateToISO(d));
+  });
+  UI.modalDateInput?.addEventListener('change', async () => {
+    if (UI.modalDateInput.value) await loadModalDate(UI.modalDateInput.value);
+  });
+
+  window.addEventListener('click', (e) => {
+    if (e.target === UI.modal) UI.modal.style.display = 'none';
+    if (e.target === UI.okBackdrop) UI.okBackdrop.style.display = 'none';
+  });
+
+  // Calendario / filtros
+  UI.tipoTurno?.addEventListener('change', async () => {
+    await renderCalendar();
+    if (UI.modal.style.display === 'flex') {
+      await refreshDayModal();
+      await renderMiniCalFor(modalDateISO);
     }
-  }
+  });
+  UI.profesionalSelect?.addEventListener('change', async () => {
+    currentProfesional = UI.profesionalSelect.value || null;
+    await loadDuraciones(currentProfesional);
+    await renderCalendar();
+    if (UI.modal.style.display === 'flex') {
+      await refreshDayModal();
+      await renderMiniCalFor(modalDateISO);
+    }
+  });
+  UI.btnHoy?.addEventListener('click', async () => {
+    view = todayInfo();
+    await renderCalendar();
+  });
+  UI.prevMonth?.addEventListener('click', async () => {
+    if (--view.m < 0) { view.m = 11; view.y--; }
+    await renderCalendar();
+  });
+  UI.nextMonth?.addEventListener('click', async () => {
+    if (++view.m > 11) { view.m = 0; view.y++; }
+    await renderCalendar();
+  });
+
+  // OK modal
+  UI.okClose?.addEventListener('click', () => (UI.okBackdrop.style.display = 'none'));
+  UI.okCopy?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(UI.okWa.href);
+      UI.okMsg.textContent = 'Link copiado ✔';
+      setTimeout(() => (UI.okMsg.textContent = ''), 2000);
+    } catch {
+      UI.okMsg.textContent = 'No se pudo copiar';
+    }
+  });
+
+  // Obra social (si existen esos nodos)
+  UI.npObra?.addEventListener('change', () => {
+    const infoEl = UI.npObraInfo;
+    if (!infoEl) return;
+    const sel = obrasSocialesCache.find((o) => o.obra_social === UI.npObra.value);
+    if (!sel) { infoEl.textContent = ''; return; }
+    const cond = sel.condicion_copago ? `Condición: ${sel.condicion_copago}` : '';
+    const val  = sel.valor_copago != null ? ` · Copago: ${sel.valor_copago}` : '';
+    infoEl.textContent = cond || val ? cond + val : '';
+  });
 }
-// setInterval(marcarTurnosVencidos, 15 * 60 * 1000);
 
 /* =====================
- * Eventos globales e Init
+ * Export init (lo llama el dashboard)
  * ===================== */
-UI.tipoTurno.addEventListener('change', async () => {
-  await renderCalendar();
-  if (UI.modal.style.display === 'flex') {
-    await refreshDayModal();
-    await renderMiniCalFor(modalDateISO);
-  }
-});
-UI.profesionalSelect.addEventListener('change', async () => {
-  currentProfesional = UI.profesionalSelect.value || null;
-  await loadDuraciones(currentProfesional);
-  await renderCalendar();
-  if (UI.modal.style.display === 'flex') {
-    await refreshDayModal();
-    await renderMiniCalFor(modalDateISO);
-  }
-});
-UI.btnHoy.addEventListener('click', async () => {
-  view = todayInfo();
-  await renderCalendar();
-});
-UI.prevMonth.addEventListener('click', async () => {
-  if (--view.m < 0) {
-    view.m = 11;
-    view.y--;
-  }
-  await renderCalendar();
-});
-UI.nextMonth.addEventListener('click', async () => {
-  if (++view.m > 11) {
-    view.m = 0;
-    view.y++;
-  }
-  await renderCalendar();
-});
-
-// ✅ Esto lo dejás exportado para que lo llame el dashboard
 export async function initTurnos() {
-  bindUI();   // refresca referencias al DOM actual
+  bindUI();        // refs al DOM ya inyectado
+  attachHandlers(); // registrar listeners
   renderDow();
 
   if (!currentCentroId) {
@@ -1089,5 +1090,3 @@ export async function initTurnos() {
   await loadDuraciones(currentProfesional);
   await renderCalendar();
 }
-
-
