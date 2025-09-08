@@ -1,16 +1,34 @@
 // global.js
 
-export function openPacienteModal(defaults = {}) {
-  const modal = document.getElementById('turnos-modal-paciente');
-  if (!modal) {
-    console.warn('Modal de paciente no encontrado');
-    return;
-  }
-  modal.style.display = 'flex';
-  if (defaults.dni) {
-    const dniField = document.getElementById('np-dni');
-    if (dniField) dniField.value = defaults.dni;
-  }
+export function openPacienteModal(paciente = null) {
+  const modalRoot = document.getElementById('modal-root');
+  modalRoot.innerHTML = '';
+  const modal = document.createElement('div');
+  modal.className = 'modal-backdrop';
+  modal.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <button class="modal-close" aria-label="Cerrar">&times;</button>
+      <div class="modal-header">
+        <h3>${paciente ? 'Editar Paciente' : 'Nuevo Paciente'}</h3>
+      </div>
+      <form id="form-paciente">
+        <div class="modal-body">
+          <!-- ... los mismos fieldset que ya tenés en pacientes.html ... -->
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn secondary" id="btn-cancelar">Cancelar</button>
+          <button type="submit" class="btn">${paciente ? 'Guardar Cambios' : 'Crear Paciente'}</button>
+        </div>
+      </form>
+    </div>
+  `;
+  modalRoot.appendChild(modal);
+
+  modal.querySelector('.modal-close').addEventListener('click', closeModal);
+  modal.querySelector('#btn-cancelar').addEventListener('click', closeModal);
+  modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+
+  function closeModal() { modalRoot.innerHTML = ''; }
 }
 
 export function normalizePhoneForWA(raw) {
