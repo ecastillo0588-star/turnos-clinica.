@@ -45,8 +45,15 @@
 
     /* 2×2 para 4 tableros */
     .boards{display:grid;gap:12px;grid-template-columns:1fr 1fr;min-height:0}
-    .board{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px;display:flex;flex-direction:column;min-height:380px}
-    .board h3{margin:2px 2px 6px;font-size:14px}
+    .board{
+      background:var(--card);border:1px solid var(--line);border-radius:10px;
+      padding:10px;display:flex;flex-direction:column;min-height:380px
+    }
+    .board h3{
+      margin:2px 2px 8px;
+      font-size:18px; line-height:1.2;
+      display:flex; align-items:center; gap:8px;
+    }
     .board-body{position:relative;overflow:auto;flex:1;padding:0 2px 6px}
 
     .table{width:100%;border-collapse:separate;border-spacing:0 5px;min-width:720px;font-size:12.5px}
@@ -102,7 +109,6 @@
     .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
     .card h4{margin:0 0 10px 0;font-size:14px;color:#4b3a78}
 
-    /* Enlace Historia Clínica con alto contraste */
     .hc-link{
       display:inline-flex; align-items:center; gap:6px;
       font-weight:600; text-decoration:none;
@@ -121,6 +127,22 @@
     }
     #fichaDrawer .drawer-foot #fd-finalizar:hover{ background:#b71c1c !important; }
     #fichaDrawer .drawer-foot #fd-finalizar:focus-visible{ outline:2px solid #7f1d1d; outline-offset:2px; }
+
+    /* === Modal Mini-Cal (preparado para reprogramar) === */
+    .backdrop{
+      position:fixed; inset:0; background:rgba(0,0,0,.28);
+      display:none; align-items:center; justify-content:center; z-index:9998;
+    }
+    .backdrop.show{ display:flex; }
+    .mini-modal{
+      width:min(720px,96vw); max-height:90vh; overflow:auto;
+      background:#fff; border:1px solid var(--line); border-radius:12px;
+      box-shadow:0 20px 60px rgba(0,0,0,.25);
+    }
+    .mini-head{display:flex; align-items:center; gap:10px; padding:10px 12px; border-bottom:1px solid var(--line); background:#f4f1ff}
+    .mini-head h4{margin:0; font-size:16px}
+    .mini-body{padding:12px}
+    .mini-foot{display:flex; gap:8px; justify-content:flex-end; padding:10px 12px; border-top:1px solid var(--line); background:#faf7ff}
   </style>
 </head>
 <body>
@@ -148,7 +170,7 @@
 
     <!-- KPIs chips -->
     <div class="stats">
-      <div class="chip"><span>Pendientes</span> <span class="v" id="kpi-pend">0</span></div>
+      <div class="chip"><span>Por llegar</span> <span class="v" id="kpi-pend">0</span></div>
       <div class="chip"><span>Presentes</span> <span class="v" id="kpi-esp">0</span></div>
       <div class="chip"><span>En atención</span> <span class="v" id="kpi-atencion">0</span></div>
       <div class="chip"><span>Horas libres</span> <span class="v" id="kpi-free">0.0 h</span></div>
@@ -158,19 +180,19 @@
     <!-- Boards -->
     <div class="boards">
       <div class="board">
-        <h3>Pendientes de arribo</h3>
+        <h3 id="h-pend">Por llegar</h3>
         <div class="board-body"><table class="table" id="tbl-pend"></table></div>
       </div>
       <div class="board">
-        <h3>Presentes</h3>
+        <h3 id="h-esp">En sala de espera</h3>
         <div class="board-body"><table class="table" id="tbl-esp"></table></div>
       </div>
       <div class="board">
-        <h3>En atención</h3>
+        <h3 id="h-atencion">En atención</h3>
         <div class="board-body"><table class="table" id="tbl-atencion"></table></div>
       </div>
       <div class="board">
-        <h3>Atendidos</h3>
+        <h3 id="h-done">Atendidos</h3>
         <div class="board-body"><table class="table" id="tbl-done"></table></div>
       </div>
     </div>
@@ -276,6 +298,27 @@
       </footer>
     </aside>
 
+    <!-- Modal preparado para mini-cal de reprogramación -->
+    <div id="miniCalBackdrop" class="backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+      <div class="mini-modal">
+        <div class="mini-head">
+          <h4 id="miniCalTitle">Reprogramar turno</h4>
+          <span style="flex:1"></span>
+          <button id="miniCalClose" class="icon" title="Cerrar">✖️</button>
+        </div>
+        <div class="mini-body" id="miniCalBody">
+          <!-- Placeholder: acá podemos inyectar un mini-cal con disponibilidad -->
+          <div style="padding:8px; color:#6b6480">
+            Próximamente: mini calendario con disponibilidad del profesional.<br/>
+            Por ahora podés usar el plan B: abrir la pantalla de Turnos y reprogramar allí.
+          </div>
+        </div>
+        <div class="mini-foot">
+          <button id="miniCalPlanB" class="btn secondary">Abrir Turnos</button>
+        </div>
+      </div>
+    </div>
+
   </section>
 </div>
 
@@ -306,6 +349,14 @@ const UI = {
   kpiAtencion: document.getElementById('kpi-atencion'),
   kpiFree: document.getElementById('kpi-free'),
   kpiSub: document.getElementById('kpi-sub'),
+};
+
+// Títulos de cada tablero (para mostrar contadores)
+const H = {
+  pend: document.getElementById('h-pend'),
+  esp: document.getElementById('h-esp'),
+  atenc: document.getElementById('h-atencion'),
+  done: document.getElementById('h-done'),
 };
 
 // Drawer refs
@@ -351,6 +402,15 @@ const Drawer = {
   btnCerrar: document.getElementById('fd-cerrar'),
   btnGuardar: document.getElementById('fd-guardar'),
   btnFinalizar: document.getElementById('fd-finalizar'),
+};
+
+// Mini-cal modal refs
+const Mini = {
+  backdrop: document.getElementById('miniCalBackdrop'),
+  close: document.getElementById('miniCalClose'),
+  planB: document.getElementById('miniCalPlanB'),
+  body: document.getElementById('miniCalBody'),
+  title: document.getElementById('miniCalTitle'),
 };
 
 let currentCentroId = localStorage.getItem('centro_medico_id');
@@ -406,6 +466,7 @@ async function syncCentroFromStorage(force=false){
   }
 }
 function startCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=setInterval(()=>syncCentroFromStorage(false), 1000); }
+window.addEventListener('beforeunload', ()=>{ if (centroWatchTimer) clearInterval(centroWatchTimer); });
 
 /* ====== profesionales ====== */
 async function loadProfesionales(){
@@ -473,7 +534,7 @@ async function fetchDiaData(){
       .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
       .eq('estado', EST.EN_ATENCION).order('hora_inicio', {ascending:true}),
     supabase.from('turnos')
-      .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social)')
+      .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)')
       .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
       .eq('estado', EST.ATENDIDO).order('hora_inicio', {ascending:true}),
     supabase.from('agenda').select('id, fecha, hora_inicio, hora_fin')
@@ -492,9 +553,9 @@ async function fetchDiaData(){
   };
 }
 
-/* ===== Render: Pendientes ===== */
+/* ===== Render: Por llegar ===== */
 function renderPendientes(list){
-  const grid='100px 120px 1fr 1fr 1fr 150px';
+  const grid='100px 120px 1fr 1fr 1fr 180px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
@@ -511,7 +572,8 @@ function renderPendientes(list){
       <td class="cell right">
         <div class="actions">
           <button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>
-          <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
+          <button class="icon" data-id="${t.id}" data-act="reprog-mini" title="Reprogramar (mini cal)">🗓️</button>
+          <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar en Turnos">↪️</button>
           <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
         </div>
       </td>
@@ -523,6 +585,7 @@ function renderPendientes(list){
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='arribo') btn.onclick=()=> marcarLlegadaYCopago(id);
     if(act==='reprog') btn.onclick=()=> abrirTurnosParaReprogramar(id);
+    if(act==='reprog-mini') btn.onclick=()=> openMiniCalForReprog(id);
     if(act==='cancel') btn.onclick=()=> anularTurno(id);
   });
 }
@@ -543,7 +606,7 @@ function updateWaitBadges(){
 }
 
 function renderPresentes(list){
-  const grid='90px 100px 1fr 1fr 1fr 110px 180px';
+  const grid='90px 100px 1fr 1fr 1fr 110px 210px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
       <th class="cell">Apellido</th><th class="cell">Obra social</th><th class="cell">Copago</th>
@@ -557,8 +620,9 @@ function renderPresentes(list){
     const arriboISO=`${currentFechaISO}T${toHM(t.hora_arribo)||'00:00'}:00`;
     const copBadge=(t.copago && Number(t.copago)>0)?`<span class="copago">${fmtMoney(t.copago)}</span>`:`<span class="copago none">Sin copago</span>`;
     const acciones = `
-      <button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>
-      <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
+      <button class="icon" data-id="${t.id}" data-act="volver" title="Volver a Por llegar">↩️</button>
+      <button class="icon" data-id="${t.id}" data-act="reprog-mini" title="Reprogramar (mini cal)">🗓️</button>
+      <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar en Turnos">↪️</button>
       <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
       ${puedeAtender ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}
     `;
@@ -578,8 +642,9 @@ function renderPresentes(list){
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='volver') btn.onclick=async()=>{ await supabase.from('turnos').update({estado:EST.ASIGNADO, hora_arribo:null}).eq('id',id); await refreshAll(); };
     if(act==='reprog') btn.onclick=()=> abrirTurnosParaReprogramar(id);
+    if(act==='reprog-mini') btn.onclick=()=> openMiniCalForReprog(id);
     if(act==='cancel') btn.onclick=()=> anularTurno(id);
-    if(act==='atender') btn.onclick=()=> pasarAEnAtencion(id);
+    if(act==='atender') btn.onclick=(ev)=> pasarAEnAtencion(id, ev);
   });
 
   updateWaitBadges(); startWaitTicker();
@@ -587,7 +652,7 @@ function renderPresentes(list){
 
 /* ===== Render: En atención ===== */
 function renderAtencion(list){
-  const grid='100px 120px 1fr 1fr 1fr 180px';
+  const grid='100px 120px 1fr 1fr 1fr 210px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
@@ -598,6 +663,8 @@ function renderAtencion(list){
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const acciones = `
       <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente">📄</button>
+      <button class="icon" data-id="${t.id}" data-act="reprog-mini" title="Reprogramar (mini cal)">🗓️</button>
+      <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar en Turnos">↪️</button>
       <button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">⏪</button>
       ${puedeFinalizar ? `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>` : ''}
     `;
@@ -615,6 +682,8 @@ function renderAtencion(list){
   UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
+    if(act==='reprog') btn.onclick=()=> abrirTurnosParaReprogramar(id);
+    if(act==='reprog-mini') btn.onclick=()=> openMiniCalForReprog(id);
     if(act==='volver-espera') btn.onclick=()=> volverASalaEspera(id);
     if(act==='finalizar') btn.onclick=()=> finalizarAtencion(id);
   });
@@ -622,15 +691,20 @@ function renderAtencion(list){
 
 /* ===== Render: Atendidos ===== */
 function renderAtendidos(list){
-  const grid='100px 120px 1fr 1fr 1fr 120px';
+  const grid='100px 120px 1fr 1fr 1fr 120px 120px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      <th class="cell">Copago</th></tr></thead>`;
+      <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const cop = (t.copago && Number(t.copago)>0)? fmtMoney(t.copago) : '—';
+    const hcBtn = p.historia_clinica ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>` : '';
+    const acciones = `
+      <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente">📄</button>
+      ${hcBtn}
+    `;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
@@ -638,9 +712,16 @@ function renderAtendidos(list){
       <td class="cell">${titleCase(p.apellido)||'—'}</td>
       <td class="cell">${p.obra_social||'—'}</td>
       <td class="cell">${cop}</td>
+      <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
   }).join('');
   UI.tblDone.innerHTML = head + '<tbody>' + rows + '</tbody>';
+
+  UI.tblDone.querySelectorAll('.icon').forEach(btn=>{
+    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
+    if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
+    // el botón 🔗 es <a>, ya navega solo
+  });
 }
 
 /* ===== Ficha en Drawer ===== */
@@ -744,7 +825,7 @@ function validatePaciente(){
   if (!Drawer.dni.value.trim()) faltan.push('DNI');
   if (!Drawer.ape.value.trim()) faltan.push('Apellido');
   if (!Drawer.nom.value.trim()) faltan.push('Nombre');
-  if (faltan.length){ setDrawerMsg('Faltan: '+faltan.join(', '), 'warn'); return false; }
+  if (falten = faltan.length){ setDrawerMsg('Faltan: '+faltan.join(', '), 'warn'); return false; }
   return true;
 }
 
@@ -799,21 +880,8 @@ async function guardarFicha(){
   setTimeout(()=> setDrawerMsg(''), 1500);
 }
 
-async function marcarAtendido(turnoId){
-  const { error } = await supabase
-    .from('turnos')
-    .update({ estado: EST.ATENDIDO, hora_fin: nowHHMMSS() })
-    .eq('id', turnoId);
-  if (error){
-    console.error('No se pudo marcar atendido:', error);
-    alert('No se pudo finalizar.');
-    return false;
-  }
-  return true;
-}
-
-
 /* bindings */
+if (Drawer.btnGuardar) Drawer.btnGuardar.onclick = guardarFicha;
 if (Drawer.btnFinalizar){
   if (userRole !== 'medico') {
     Drawer.btnFinalizar.style.display = 'none';
@@ -821,7 +889,6 @@ if (Drawer.btnFinalizar){
     Drawer.btnFinalizar.onclick = () => finalizarAtencion(drawerTurnoId, { closeDrawer: true });
   }
 }
-
 if (Drawer.cred) Drawer.cred.addEventListener('input', ()=>{ Drawer.credLink.href = Drawer.cred.value || '#'; });
 if (Drawer.nac) Drawer.nac.addEventListener('change', ()=>{
   const dniTxt = (Drawer.sub.textContent||'').split('·')[0] || '';
@@ -848,10 +915,10 @@ async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
 
   const { data, error } = await supabase
     .from('turnos')
-    .update({ estado: EST.ATENDIDO })     // no tocamos hora_fin si es programada
+    .update({ estado: EST.ATENDIDO })
     .eq('id', id)
-    .eq('estado', EST.EN_ATENCION)        // evita carreras y clics dobles
-    .select('id');                         // para detectar 0 filas
+    .eq('estado', EST.EN_ATENCION)
+    .select('id');
 
   if (error){
     console.error('No se pudo marcar atendido:', error);
@@ -866,8 +933,6 @@ async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
   if (closeDrawer) hideDrawer();
   await refreshAll();
 }
-
-
 
 async function marcarLlegadaYCopago(turnoId){
   const { data: t } = await supabase
@@ -888,16 +953,34 @@ async function marcarLlegadaYCopago(turnoId){
   await supabase.from('turnos').update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS(), copago }).eq('id', turnoId);
   await refreshAll();
 }
+
 function abrirTurnosParaReprogramar(turnoId){
   localStorage.setItem('reprogram_turno_intent', JSON.stringify({
     turno_id: turnoId, fecha: currentFechaISO, profesional_id: currentProfesional, centro_id: currentCentroId
-  })); window.location.href='turnos.html';
+  }));
+  window.location.href='turnos.html';
 }
-async function anularTurno(turnoId){
-  if(!confirm('¿Anular este turno?')) return;
-  await supabase.from('turnos').update({estado:EST.CANCELADO}).eq('id', turnoId);
-  await refreshAll();
+
+/* ===== Mini-cal preparado ===== */
+function openMiniCalForReprog(turnoId){
+  // Guardamos contexto (por si el usuario elige "Abrir Turnos")
+  localStorage.setItem('reprogram_turno_intent', JSON.stringify({
+    turno_id: turnoId, fecha: currentFechaISO, profesional_id: currentProfesional, centro_id: currentCentroId
+  }));
+
+  // Abrimos modal placeholder (listo para que otro módulo inyecte calendario real)
+  Mini.title.textContent = 'Reprogramar turno';
+  Mini.backdrop.classList.add('show');
+  Mini.backdrop.setAttribute('aria-hidden','false');
 }
+function closeMiniCal(){ 
+  Mini.backdrop.classList.remove('show'); 
+  Mini.backdrop.setAttribute('aria-hidden','true'); 
+}
+if (Mini.close) Mini.close.onclick = closeMiniCal;
+if (Mini.planB) Mini.planB.onclick = ()=>{ window.location.href='turnos.html'; };
+Mini.backdrop?.addEventListener('click', (e)=>{ if (e.target === Mini.backdrop) closeMiniCal(); });
+
 async function pasarAEnAtencion(turnoId, ev) {
   if (ev) ev.preventDefault();
   const role = localStorage.getItem('user_role');
@@ -910,15 +993,11 @@ async function pasarAEnAtencion(turnoId, ev) {
 
   if (error) { alert('No se pudo pasar a "En atención".'); return; }
 
-  // Refresca columnas para que el turno pase a "En atención"
   await refreshAll();
-
-  // ✅ Abrir el drawer del mismo HTML (no navegar)
-  await openFicha(turnoId);  // openFicha ya hace showDrawer() y carga todo
+  await openFicha(turnoId);
 }
 
-
-/* ===== KPIs ===== */
+/* ===== KPIs y títulos ===== */
 function computeHorasDisponibles(agenda, turnos){
   const totalAgendaMin=(agenda||[]).reduce((acc,b)=>acc+minutesDiff(toHM(b.hora_inicio), toHM(b.hora_fin)),0);
   const ocupadosMin=(turnos||[]).filter(t=>t.estado!==EST.CANCELADO)
@@ -934,12 +1013,20 @@ function renderKPIs({pendientes, presentes, atencion, agenda, turnos}){
   UI.kpiFree.textContent=`${free.horas} h`;
   UI.kpiSub.textContent = `${currentCentroNombre || ''} · ${UI.profSelect.options[UI.profSelect.selectedIndex]?.textContent || ''} · ${currentFechaISO}`;
 }
+function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
+  if (H.pend)  H.pend.textContent  = `Por llegar (${(pendientes||[]).length})`;
+  if (H.esp)   H.esp.textContent   = `En sala de espera (${(presentes||[]).length})`;
+  if (H.atenc) H.atenc.textContent = `En atención (${(atencion||[]).length})`;
+  if (H.done)  H.done.textContent  = `Atendidos (${(atendidos||[]).length})`;
+}
 
 /* ===== Refresh & Init ===== */
 async function refreshAll(){
   if(!currentProfesional){
     UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML=''; UI.tblDone.innerHTML='';
-    UI.kpiSub.textContent=`${currentCentroNombre||''} · ${currentFechaISO}`; return;
+    UI.kpiSub.textContent=`${currentCentroNombre||''} · ${currentFechaISO}`;
+    renderBoardTitles({pendientes:[],presentes:[],atencion:[],atendidos:[]});
+    return;
   }
   const data = await fetchDiaData();
   renderPendientes(data.pendientes);
@@ -947,6 +1034,7 @@ async function refreshAll(){
   renderAtencion(data.atencion);
   renderAtendidos(data.atendidos);
   renderKPIs(data);
+  renderBoardTitles(data);
 }
 async function initInicio(){
   currentCentroId = localStorage.getItem('centro_medico_id');
