@@ -123,21 +123,13 @@ async function submitPacienteForm(form, pacienteExistente) {
     return;
   }
 
-  // Recuperar posibles IDs de contexto (solo si no es edición)
-  if (!pacienteExistente) {
-    const centroId = localStorage.getItem('centro_medico_id');
-    const profesionalId = localStorage.getItem('profesional_id');
-    if (centroId) data.centro_id = centroId;
-    if (profesionalId) data.profesional_id = profesionalId;
-  }
-
   const btn = form.querySelector('button[type="submit"]');
   btn.disabled = true;
   btn.textContent = 'Guardando...';
 
   try {
     if (pacienteExistente) {
-      // UPDATE
+      // UPDATE normal
       const { error } = await supabase
         .from('pacientes')
         .update(data)
@@ -145,14 +137,13 @@ async function submitPacienteForm(form, pacienteExistente) {
       if (error) throw error;
       showFormMessage('success', 'Paciente actualizado.');
     } else {
-      // Crear nuevo
+      // Verificar duplicado por DNI
       const { data: existing, error: qErr } = await supabase
         .from('pacientes')
         .select('id')
         .eq('dni', data.dni)
         .limit(1);
       if (qErr) throw qErr;
-
       if (existing && existing.length) {
         showFormMessage('error', 'Ya existe un paciente con ese DNI.');
         btn.disabled = false;
@@ -160,13 +151,29 @@ async function submitPacienteForm(form, pacienteExistente) {
         return;
       }
 
-      const { error: insErr } = await supabase.from('pacientes').insert([data]);
+      // Insertar paciente
+      const { data: inserted, error: insErr } = await supabase
+        .from('pacientes')
+        .insert([data])
+        .select('id')
+        .single();
       if (insErr) throw insErr;
-      showFormMessage('success', 'Paciente creado.');
+
+      // Insertar relación paciente-profesional
+      const pacienteId = inserted.id;
+      const profesionalId = localStorage.getItem('profesional_id') || window.currentProfesional;
+
+      if (pacienteId && profesionalId) {
+        const { error: relErr } = await supabase
+          .from('paciente_profesional')
+          .insert([{ paciente_id: pacienteId, profesional_id: profesionalId }]);
+        if (relErr) throw relErr;
+      }
+
+      showFormMessage('success', 'Paciente creado y vinculado al profesional.');
       form.reset();
     }
 
-    // Cerrar modal después de un tiempito
     setTimeout(() => closeModal(), 850);
   } catch (e) {
     showFormMessage('error', 'Error: ' + (e.message || e));
