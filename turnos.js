@@ -272,7 +272,7 @@ async function loadProfesionales() {
   if (userRole === 'medico' && loggedProfesionalId) {
     let label = null;
     try {
-      const { data } = await supabase.from('profesionales').select('id,nombre,apellido,display_name').eq('id', loggedProfesionalId).single();
+      const { data } = await supabase.from('profesionales').select('id,nombre,apellido').eq('id', loggedProfesionalId).single();
       if (data) {
         label = data.display_name || [data.apellido, data.nombre].filter(Boolean).join(', ') || data.nombre || data.apellido;
       }
