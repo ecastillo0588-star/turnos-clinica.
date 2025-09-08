@@ -285,53 +285,7 @@ async function ensureCentro() {
 }
 
 
-async function loadProfesionales() {
-  const sel = UI.profesionalSelect;
-  if (userRole === 'medico' && loggedProfesionalId) {
-    let label = null;
-    try {
-      const { data } = await supabase.from('profesionales').select('id,nombre,apellido').eq('id', loggedProfesionalId).single();
-      if (data) {
-        label = data.display_name || [data.apellido, data.nombre].filter(Boolean).join(', ') || data.nombre || data.apellido;
-      }
-    } catch (_) {}
-    if (!label) label = safeLocalStorage.getItem('user_name') || safeLocalStorage.getItem('email') || 'Mi agenda';
-    sel.innerHTML = `<option value="${loggedProfesionalId}">${label}</option>`;
-    sel.disabled = true;
-    currentProfesional = loggedProfesionalId;
-    return;
-  }
-  sel.disabled = false;
-  const { data: map } = await supabase.from('profesional_centro').select('profesional_id').eq('centro_id', currentCentroId).eq('activo', true);
-  const ids = [...new Set((map || []).map((r) => r.profesional_id).filter(Boolean))];
-  if (!ids.length) {
-    sel.innerHTML = '<option value="">Sin profesionales</option>';
-    currentProfesional = null;
-    return;
-  }
-  const { data: profs } = await supabase
-    .from('profesionales')
-    .select('id,nombre,apellido)
-    .in('id', ids)
-    .order('apellido', { ascending: true });
-  sel.innerHTML = (profs || [])
-    .map((p) => {
-      const nombre = p.display_name || [p.apellido, p.nombre].filter(Boolean).join(', ') || p.nombre || p.apellido || p.id;
-      return `<option value="${p.id}">${nombre}</option>`;
-    })
-    .join('');
-  currentProfesional = profs?.[0]?.id || null;
-  if (currentProfesional) sel.value = currentProfesional;
-}
-
-async function loadDuraciones(pid) {
-  duracionCfg = { nueva_consulta: 15, recurrente: 15, sobreturno: 15 };
-  if (!pid) return;
-  const { data } = await supabase.from('config_duracion_turnos').select('tipo_turno,minutos').eq('profesional_id', pid).eq('centro_id', currentCentroId);
-  (data || []).forEach((r) => {
-    if (r.tipo_turno && r.minutos) duracionCfg[r.tipo_turno] = r.minutos;
-  });
-}
+loadProfesionales
 
 /* =====================
  * Obras Sociales
