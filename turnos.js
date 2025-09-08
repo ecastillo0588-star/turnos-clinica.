@@ -467,7 +467,7 @@ function bindSuggestHandlers(q, result) {
         const p = result.find((r) => String(r.id) === id);
         if (p) selectPaciente(p);
       } else if (act === 'create') {
-        openPacienteModal({ dni: q });
+        openPacienteModal();  // para crear
       }
     });
   });
