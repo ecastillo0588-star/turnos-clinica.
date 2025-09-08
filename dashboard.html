@@ -212,19 +212,35 @@
     await cargarCentroDashboard();
 
     // Carga dinámica en main-content
-    async function cargarPanelHtml(url) {
-      const resp = await fetch(url);
-      const html = await resp.text();
-      document.getElementById('main-content').innerHTML = html;
-      Array.from(document.getElementById('main-content').querySelectorAll('script[type="module"]'))
-        .forEach(oldScript => {
-          const newScript = document.createElement('script');
-          newScript.type = 'module';
-          if (oldScript.src) newScript.src = oldScript.src;
-          else newScript.textContent = oldScript.textContent;
-          document.body.appendChild(newScript);
-        });
+// Carga dinámica en main-content
+async function cargarPanelHtml(url) {
+  const resp = await fetch(url);
+  const html = await resp.text();
+  document.getElementById('main-content').innerHTML = html;
+
+  // correr scripts <script type="module">
+  const scripts = document.getElementById('main-content').querySelectorAll('script[type="module"]');
+  for (const oldScript of scripts) {
+    if (oldScript.src) {
+      const newScript = document.createElement('script');
+      newScript.type = 'module';
+      newScript.src = oldScript.src;
+      document.body.appendChild(newScript);
+    } else {
+      const newScript = document.createElement('script');
+      newScript.type = 'module';
+      newScript.textContent = oldScript.textContent;
+      document.body.appendChild(newScript);
     }
+  }
+
+  // 🆕 Si es turnos.html, inicializarlo
+  if (url.includes('turnos.html')) {
+    const { initTurnos } = await import('./turnos.js');
+    await initTurnos();
+  }
+}
+
 
     // Inicio por defecto
     await cargarPanelHtml('inicio.html');
