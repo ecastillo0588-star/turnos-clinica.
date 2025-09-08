@@ -19,7 +19,8 @@ const isValidHourRange = typeof _isValidHourRange === 'function'
 /* =====================
  * UI refs
  * ===================== */
-const UI = {
+function bindUI() {
+ UI = {
   centroSelect: document.getElementById('turnos-centro-select'),
   centroNombre: document.getElementById('turnos-centro-nombre'),
   profesionalSelect: document.getElementById('turnos-profesional-select'),
@@ -1065,15 +1066,19 @@ UI.nextMonth.addEventListener('click', async () => {
 
 // ✅ Esto lo dejás exportado para que lo llame el dashboard
 export async function initTurnos() {
+  bindUI();   // refresca referencias al DOM actual
   renderDow();
+
   if (!currentCentroId) {
     UI.status.textContent = 'Seleccioná un centro para ver turnos.';
     return;
   }
+
   await ensureCentro();
   await loadObrasSociales();
   await loadProfesionales();
   await loadDuraciones(currentProfesional);
   await renderCalendar();
 }
+
 
