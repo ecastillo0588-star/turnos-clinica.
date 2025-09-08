@@ -20,45 +20,54 @@ const isValidHourRange = typeof _isValidHourRange === 'function'
  * UI refs
  * ===================== */
 function bindUI() {
- UI = {
-  centroSelect: document.getElementById('turnos-centro-select'),
-  centroNombre: document.getElementById('turnos-centro-nombre'),
-  profesionalSelect: document.getElementById('turnos-profesional-select'),
-  tipoTurno: document.getElementById('turnos-tipo'),
-  btnHoy: document.getElementById('turnos-btn-hoy'),
-  pacInput: document.getElementById('turnos-paciente-input'),
-  pacSuggest: document.getElementById('turnos-paciente-suggest'),
-  pacChip: document.getElementById('turnos-paciente-chip'),
-  pacChipText: document.getElementById('turnos-paciente-chip-text'),
-  pacClear: document.getElementById('turnos-paciente-clear'),
-  calDow: document.getElementById('turnos-cal-dow'),
-  calGrid: document.getElementById('turnos-cal-grid'),
-  calTitle: document.getElementById('turnos-cal-title'),
-  status: document.getElementById('turnos-status'),
-  prevMonth: document.getElementById('turnos-prev-month'),
-  nextMonth: document.getElementById('turnos-next-month'),
+  UI = {
+    centroSelect: document.getElementById('turnos-centro-select'),
+    centroNombre: document.getElementById('turnos-centro-nombre'),
+    profesionalSelect: document.getElementById('turnos-profesional-select'),
+    tipoTurno: document.getElementById('turnos-tipo'),
+    btnHoy: document.getElementById('turnos-btn-hoy'),
+    pacInput: document.getElementById('turnos-paciente-input'),
+    pacSuggest: document.getElementById('turnos-paciente-suggest'),
+    pacChip: document.getElementById('turnos-paciente-chip'),
+    pacChipText: document.getElementById('turnos-paciente-chip-text'),
+    pacClear: document.getElementById('turnos-paciente-clear'),
+    calDow: document.getElementById('turnos-cal-dow'),
+    calGrid: document.getElementById('turnos-cal-grid'),
+    calTitle: document.getElementById('turnos-cal-title'),
+    status: document.getElementById('turnos-status'),
+    prevMonth: document.getElementById('turnos-prev-month'),
+    nextMonth: document.getElementById('turnos-next-month'),
 
-  modal: document.getElementById('turnos-modal'),
-  modalTitle: document.getElementById('turnos-modal-title'),
-  modalClose: document.getElementById('turnos-modal-close'),
-  modalDateInput: document.getElementById('turnos-modal-date'),
-  modalPrevDay: document.getElementById('turnos-modal-prev-day'),
-  modalNextDay: document.getElementById('turnos-modal-next-day'),
-  slotsList: document.getElementById('turnos-slots-list'),
+    modal: document.getElementById('turnos-modal'),
+    modalTitle: document.getElementById('turnos-modal-title'),
+    modalClose: document.getElementById('turnos-modal-close'),
+    modalDateInput: document.getElementById('turnos-modal-date'),
+    modalPrevDay: document.getElementById('turnos-modal-prev-day'),
+    modalNextDay: document.getElementById('turnos-modal-next-day'),
+    slotsList: document.getElementById('turnos-slots-list'),
 
-  okBackdrop: document.getElementById('turnos-modal-ok'),
-  okClose: document.getElementById('ok-close'),
-  okTitle: document.getElementById('ok-title'),
-  okPaciente: document.getElementById('ok-paciente'),
-  okDni: document.getElementById('ok-dni'),
-  okFechaHora: document.getElementById('ok-fecha-hora'),
-  okProf: document.getElementById('ok-prof'),
-  okCentro: document.getElementById('ok-centro'),
-  okDir: document.getElementById('ok-direccion'),
-  okWa: document.getElementById('ok-wa-link'),
-  okCopy: document.getElementById('ok-copy'),
-  okMsg: document.getElementById('ok-msg'),
-}; // ← esto faltaba
+    okBackdrop: document.getElementById('turnos-modal-ok'),
+    okClose: document.getElementById('ok-close'),
+    okTitle: document.getElementById('ok-title'),
+    okPaciente: document.getElementById('ok-paciente'),
+    okDni: document.getElementById('ok-dni'),
+    okFechaHora: document.getElementById('ok-fecha-hora'),
+    okProf: document.getElementById('ok-prof'),
+    okCentro: document.getElementById('ok-centro'),
+    okDir: document.getElementById('ok-direccion'),
+    okWa: document.getElementById('ok-wa-link'),
+    okCopy: document.getElementById('ok-copy'),
+    okMsg: document.getElementById('ok-msg'),
+
+    // 🆕 faltaba este ref, lo usa renderMiniCalFor()
+    miniCal: document.getElementById('turnos-mini-cal'),
+
+    // (opcionales si existen en otra vista/modals)
+    npObra: document.getElementById('np-obra'),
+    npObraInfo: document.getElementById('np-obra-info'),
+  };
+} // ✅ cerrar la función
+
 
 
 
