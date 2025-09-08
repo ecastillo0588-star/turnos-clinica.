@@ -307,10 +307,9 @@
           <button id="miniCalClose" class="icon" title="Cerrar">✖️</button>
         </div>
         <div class="mini-body" id="miniCalBody">
-          <!-- Placeholder: acá podemos inyectar un mini-cal con disponibilidad -->
           <div style="padding:8px; color:#6b6480">
             Próximamente: mini calendario con disponibilidad del profesional.<br/>
-            Por ahora podés usar el plan B: abrir la pantalla de Turnos y reprogramar allí.
+            Por ahora: el botón “Reprogramar” te lleva a Turnos con el paciente pre-cargado.
           </div>
         </div>
         <div class="mini-foot">
@@ -555,28 +554,29 @@ async function fetchDiaData(){
 
 /* ===== Render: Por llegar ===== */
 function renderPendientes(list){
-  const grid='100px 120px 1fr 1fr 1fr 180px';
+  const grid='180px 100px 120px 1fr 1fr 1fr'; /* movemos acciones (con botón verde) primera columna ancha */
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Hora</th><th class="cell">DNI</th>
+      <th class="cell right">Acciones</th><th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      <th class="cell right">Acciones</th></tr></thead>`;
+      </tr></thead>`;
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
+    /* ordenamos: 🟢 primero, luego ↪️ reprogramar, luego 🗑️ */
+    const acciones = `
+      <div class="actions" style="justify-content:flex-start">
+        <button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>
+        <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
+        <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
+      </div>
+    `;
     return `<tr class="row" style="grid-template-columns:${grid}">
+      <td class="cell">${acciones}</td>
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
       <td class="cell">${titleCase(p.nombre)||'—'}</td>
       <td class="cell">${titleCase(p.apellido)||'—'}</td>
       <td class="cell">${p.obra_social||'—'}</td>
-      <td class="cell right">
-        <div class="actions">
-          <button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>
-          <button class="icon" data-id="${t.id}" data-act="reprog-mini" title="Reprogramar (mini cal)">🗓️</button>
-          <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar en Turnos">↪️</button>
-          <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
-        </div>
-      </td>
     </tr>`;
   }).join('');
   UI.tblPend.innerHTML=head+'<tbody>'+rows+'</tbody>';
@@ -584,8 +584,7 @@ function renderPendientes(list){
   UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='arribo') btn.onclick=()=> marcarLlegadaYCopago(id);
-    if(act==='reprog') btn.onclick=()=> abrirTurnosParaReprogramar(id);
-    if(act==='reprog-mini') btn.onclick=()=> openMiniCalForReprog(id);
+    if(act==='reprog') btn.onclick=()=> redirigirAReprogramar(id);
     if(act==='cancel') btn.onclick=()=> anularTurno(id);
   });
 }
@@ -621,8 +620,7 @@ function renderPresentes(list){
     const copBadge=(t.copago && Number(t.copago)>0)?`<span class="copago">${fmtMoney(t.copago)}</span>`:`<span class="copago none">Sin copago</span>`;
     const acciones = `
       <button class="icon" data-id="${t.id}" data-act="volver" title="Volver a Por llegar">↩️</button>
-      <button class="icon" data-id="${t.id}" data-act="reprog-mini" title="Reprogramar (mini cal)">🗓️</button>
-      <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar en Turnos">↪️</button>
+      <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
       <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
       ${puedeAtender ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}
     `;
@@ -641,8 +639,7 @@ function renderPresentes(list){
   UI.tblEsp.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='volver') btn.onclick=async()=>{ await supabase.from('turnos').update({estado:EST.ASIGNADO, hora_arribo:null}).eq('id',id); await refreshAll(); };
-    if(act==='reprog') btn.onclick=()=> abrirTurnosParaReprogramar(id);
-    if(act==='reprog-mini') btn.onclick=()=> openMiniCalForReprog(id);
+    if(act==='reprog') btn.onclick=()=> redirigirAReprogramar(id);
     if(act==='cancel') btn.onclick=()=> anularTurno(id);
     if(act==='atender') btn.onclick=(ev)=> pasarAEnAtencion(id, ev);
   });
@@ -663,8 +660,7 @@ function renderAtencion(list){
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const acciones = `
       <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente">📄</button>
-      <button class="icon" data-id="${t.id}" data-act="reprog-mini" title="Reprogramar (mini cal)">🗓️</button>
-      <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar en Turnos">↪️</button>
+      <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
       <button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">⏪</button>
       ${puedeFinalizar ? `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>` : ''}
     `;
@@ -682,8 +678,7 @@ function renderAtencion(list){
   UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
-    if(act==='reprog') btn.onclick=()=> abrirTurnosParaReprogramar(id);
-    if(act==='reprog-mini') btn.onclick=()=> openMiniCalForReprog(id);
+    if(act==='reprog') btn.onclick=()=> redirigirAReprogramar(id);
     if(act==='volver-espera') btn.onclick=()=> volverASalaEspera(id);
     if(act==='finalizar') btn.onclick=()=> finalizarAtencion(id);
   });
@@ -720,7 +715,6 @@ function renderAtendidos(list){
   UI.tblDone.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
-    // el botón 🔗 es <a>, ya navega solo
   });
 }
 
@@ -825,7 +819,7 @@ function validatePaciente(){
   if (!Drawer.dni.value.trim()) faltan.push('DNI');
   if (!Drawer.ape.value.trim()) faltan.push('Apellido');
   if (!Drawer.nom.value.trim()) faltan.push('Nombre');
-  if (falten = faltan.length){ setDrawerMsg('Faltan: '+faltan.join(', '), 'warn'); return false; }
+  if (faltan.length){ setDrawerMsg('Faltan: '+faltan.join(', '), 'warn'); return false; }
   return true;
 }
 
@@ -879,8 +873,6 @@ async function guardarFicha(){
   setDrawerMsg('Cambios guardados.','ok');
   setTimeout(()=> setDrawerMsg(''), 1500);
 }
-
-/* bindings */
 if (Drawer.btnGuardar) Drawer.btnGuardar.onclick = guardarFicha;
 if (Drawer.btnFinalizar){
   if (userRole !== 'medico') {
@@ -902,7 +894,6 @@ async function volverASalaEspera(turnoId){
   await refreshAll();
 }
 
-// Usada desde grilla y (opcional) desde el drawer
 async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
   if (userRole !== 'medico') { 
     alert('Solo los médicos pueden finalizar.'); 
@@ -954,32 +945,45 @@ async function marcarLlegadaYCopago(turnoId){
   await refreshAll();
 }
 
-function abrirTurnosParaReprogramar(turnoId){
-  localStorage.setItem('reprogram_turno_intent', JSON.stringify({
-    turno_id: turnoId, fecha: currentFechaISO, profesional_id: currentProfesional, centro_id: currentCentroId
-  }));
-  window.location.href='turnos.html';
-}
+/* === NUEVO: Reprogramar → redirige a turnos.html con paciente pre-cargado === */
+async function redirigirAReprogramar(turnoId){
+  try{
+    // Traemos datos mínimos del turno + paciente
+    const { data:t } = await supabase
+      .from('turnos')
+      .select('id, fecha, profesional_id, centro_id, paciente_id, pacientes(id,dni,apellido,nombre)')
+      .eq('id', turnoId)
+      .maybeSingle();
 
-/* ===== Mini-cal preparado ===== */
-function openMiniCalForReprog(turnoId){
-  // Guardamos contexto (por si el usuario elige "Abrir Turnos")
-  localStorage.setItem('reprogram_turno_intent', JSON.stringify({
-    turno_id: turnoId, fecha: currentFechaISO, profesional_id: currentProfesional, centro_id: currentCentroId
-  }));
+    if (!t){ window.location.href='turnos.html'; return; }
 
-  // Abrimos modal placeholder (listo para que otro módulo inyecte calendario real)
-  Mini.title.textContent = 'Reprogramar turno';
-  Mini.backdrop.classList.add('show');
-  Mini.backdrop.setAttribute('aria-hidden','false');
+    // Guardamos intención de reprogramar y prefill de paciente
+    const intent = {
+      turno_id: t.id,
+      fecha: t.fecha || null,
+      profesional_id: t.profesional_id || currentProfesional,
+      centro_id: t.centro_id || currentCentroId
+    };
+    const pac = t.pacientes ? {
+      id: t.pacientes.id,
+      dni: t.pacientes.dni || '',
+      apellido: t.pacientes.apellido || '',
+      nombre: t.pacientes.nombre || ''
+    } : null;
+
+    localStorage.setItem('reprogram_turno_intent', JSON.stringify(intent));
+    if (pac){
+      localStorage.setItem('turnos_prefill_paciente', JSON.stringify(pac));
+      if (pac.dni) localStorage.setItem('turnos_prefill_query', String(pac.dni));
+    }
+
+    // Redirigimos
+    window.location.href='turnos.html';
+  }catch(e){
+    console.error(e);
+    window.location.href='turnos.html';
+  }
 }
-function closeMiniCal(){ 
-  Mini.backdrop.classList.remove('show'); 
-  Mini.backdrop.setAttribute('aria-hidden','true'); 
-}
-if (Mini.close) Mini.close.onclick = closeMiniCal;
-if (Mini.planB) Mini.planB.onclick = ()=>{ window.location.href='turnos.html'; };
-Mini.backdrop?.addEventListener('click', (e)=>{ if (e.target === Mini.backdrop) closeMiniCal(); });
 
 async function pasarAEnAtencion(turnoId, ev) {
   if (ev) ev.preventDefault();
