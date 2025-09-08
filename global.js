@@ -12,7 +12,8 @@ export function openPacienteModal(paciente = null) {
   }
 
   modalRoot.innerHTML = '';
-  const isEdit = !!paciente;
+ const isEdit = !!(paciente && paciente.id);
+
 
   const modal = document.createElement('div');
   modal.className = 'modal-backdrop';
