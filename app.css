@@ -123,3 +123,73 @@ tr:nth-child(even) td{background:#fff} tr:nth-child(odd) td{background:#fcfbfe}
   border-color:var(--danger-700);
 }
 .btn.danger:hover{ background:var(--danger-700); }
+
+/* ---- Estilos globales para modales ---- */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(40,20,70,.32);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: auto;
+  z-index: 6000;
+  padding: 40px 18px;
+}
+
+.modal {
+  background: #fff;
+  width: 100%;
+  max-width: 860px;
+  border-radius: 18px;
+  box-shadow: 0 5px 26px -4px rgba(50,20,100,.26);
+  animation: fadeInScale .35s cubic-bezier(.4,.1,.2,1);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+@keyframes fadeInScale {
+  0% { transform: translateY(14px) scale(.96); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+.modal-header { padding: 20px 26px 14px 26px; border-bottom: 1px solid #f0ecfa; }
+.modal-header h3 { margin: 0; font-size: 20px; color: #381e60; }
+
+.modal-close {
+  position: absolute; top: 12px; right: 12px;
+  background: none; border: none; font-size: 20px; line-height: 1;
+  cursor: pointer; color: #6b6480; padding: 6px 10px; border-radius: 50%;
+  transition: background .15s;
+}
+.modal-close:hover { background: #f0ecfa; }
+
+.modal-body { padding: 20px 26px 10px 26px; max-height: 68vh; overflow: auto; }
+
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 20px; }
+.form-group { display: flex; flex-direction: column; gap: 4px; }
+.form-group label { font-size: 12.5px; letter-spacing: .4px; font-weight: 600; color: #5a418d; }
+.form-group input, .form-group select, .form-group textarea {
+  background: #f7f9fb; border: 1.5px solid #e9e2f9; border-radius: 8px;
+  padding: 8px 10px; font-size: 14px; outline: none; resize: vertical;
+  font-family: inherit; min-height: 41px; color: #381e60;
+}
+.form-group textarea { min-height: 80px; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+  border-color: #a490d7; background: #fff;
+}
+
+.fieldset { border: 1px solid #eee5fb; padding: 14px 16px 10px 16px; border-radius: 14px; margin-bottom: 18px; background: #fcfbfe; }
+.fieldset legend { font-size: 12.5px; font-weight: 600; padding: 0 8px; color: #6b6480; letter-spacing: .5px; }
+
+.modal-footer { padding: 16px 26px 24px 26px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid #f0ecfa; }
+
+.error-box, .success-box {
+  border-radius: 10px; padding: 10px 14px; font-size: 13.5px; line-height: 1.4;
+  margin: 0 0 14px 0; display: flex; gap: 10px; align-items: flex-start;
+}
+.error-box { background: #ffebee; color: #8e0c2f; border: 1px solid #ffcdd2; }
+.success-box { background: #e8f5e9; color: #256029; border: 1px solid #c8e6c9; }
+
