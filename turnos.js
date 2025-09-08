@@ -227,45 +227,63 @@ async function getCentrosDeProfesional(pid) {
 }
 
 async function ensureCentro() {
-  if (userRole === 'asistente') {
-    UI.centroNombre.style.display = '';
-    UI.centroSelect.style.display = 'none';
-    const c = await fetchCentroById(currentCentroId);
-    currentCentroNombre = c.nombre || currentCentroNombre;
-    currentCentroDireccion = c.direccion || '';
-    UI.centroNombre.value = currentCentroNombre;
-  } else {
-    UI.centroSelect.style.display = '';
-    UI.centroNombre.style.display = 'none';
-    const centros = await getCentrosDeProfesional(loggedProfesionalId);
-    if (!centros.length) {
-      UI.centroSelect.innerHTML = '<option value="">Sin centros</option>';
-      return;
-    }
-    UI.centroSelect.innerHTML = centros.map((c) => `<option value="${c.id}">${c.nombre}</option>`).join('');
-    if (currentCentroId && centros.some((c) => String(c.id) === String(currentCentroId))) {
-      UI.centroSelect.value = currentCentroId;
-    } else {
-      currentCentroId = centros[0].id;
-      UI.centroSelect.value = currentCentroId;
-    }
-    const c = await fetchCentroById(currentCentroId);
-    currentCentroNombre = c.nombre || UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent || '';
-    currentCentroDireccion = c.direccion || '';
-    UI.centroSelect.addEventListener('change', async () => {
-      currentCentroId = UI.centroSelect.value;
-      const c2 = await fetchCentroById(currentCentroId);
-      currentCentroNombre = c2.nombre || UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent || '';
-      currentCentroDireccion = c2.direccion || '';
-      safeLocalStorage.setItem('centro_medico_id', currentCentroId);
-      safeLocalStorage.setItem('centro_medico_nombre', currentCentroNombre);
-      await loadProfesionales();
-      await loadDuraciones(currentProfesional);
-      await renderCalendar();
-      if (UI.modal.style.display === 'flex') await renderMiniCalFor(modalDateISO);
-    });
+  // Mostrar como select siempre (solo cambia si sos asistente)
+  UI.centroSelect.style.display = '';
+  UI.centroNombre.style.display = 'none';
+
+  // Buscar centros asociados al profesional logueado
+  if (!loggedProfesionalId) {
+    UI.centroSelect.innerHTML = '<option value="">Sin profesional asignado</option>';
+    return;
   }
+
+  const centros = await getCentrosDeProfesional(loggedProfesionalId);
+
+  if (!centros.length) {
+    UI.centroSelect.innerHTML = '<option value="">Sin centros vinculados</option>';
+    return;
+  }
+
+  // Armar las opciones del dropdown
+  UI.centroSelect.innerHTML = centros
+    .map((c) => `<option value="${c.id}">${c.nombre}</option>`)
+    .join('');
+
+  // Seleccionar el centro actual si está guardado
+  if (currentCentroId && centros.some((c) => String(c.id) === String(currentCentroId))) {
+    UI.centroSelect.value = currentCentroId;
+  } else {
+    currentCentroId = centros[0].id;
+    UI.centroSelect.value = currentCentroId;
+  }
+
+  // Guardar nombre y dirección
+  const c = await fetchCentroById(currentCentroId);
+  currentCentroNombre = c.nombre || UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent || '';
+  currentCentroDireccion = c.direccion || '';
+
+  // Guardar en localStorage para la próxima
+  safeLocalStorage.setItem('centro_medico_id', currentCentroId);
+  safeLocalStorage.setItem('centro_medico_nombre', currentCentroNombre);
+
+  // Escuchar cambios
+  UI.centroSelect.addEventListener('change', async () => {
+    currentCentroId = UI.centroSelect.value;
+    const c2 = await fetchCentroById(currentCentroId);
+    currentCentroNombre = c2.nombre || UI.centroSelect.options[UI.centroSelect.selectedIndex]?.textContent || '';
+    currentCentroDireccion = c2.direccion || '';
+
+    safeLocalStorage.setItem('centro_medico_id', currentCentroId);
+    safeLocalStorage.setItem('centro_medico_nombre', currentCentroNombre);
+
+    await loadProfesionales();
+    await loadDuraciones(currentProfesional);
+    await renderCalendar();
+
+    if (UI.modal.style.display === 'flex') await renderMiniCalFor(modalDateISO);
+  });
 }
+
 
 async function loadProfesionales() {
   const sel = UI.profesionalSelect;
