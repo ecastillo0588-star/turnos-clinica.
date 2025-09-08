@@ -285,7 +285,71 @@ async function ensureCentro() {
 }
 
 
-loadProfesionales
+async function loadProfesionales() {
+  const sel = UI.profesionalSelect;
+
+  // Caso: médico logueado (solo su agenda)
+  if (userRole === 'medico' && loggedProfesionalId) {
+    let label = null;
+    try {
+      const { data } = await supabase
+        .from('profesionales')
+        .select('id,nombre,apellido')
+        .eq('id', loggedProfesionalId)
+        .single();
+
+      if (data) {
+        label = [data.apellido, data.nombre].filter(Boolean).join(', ') || data.nombre || data.apellido;
+      }
+    } catch (_) {}
+
+    if (!label) {
+      label =
+        safeLocalStorage.getItem('user_name') ||
+        safeLocalStorage.getItem('email') ||
+        'Mi agenda';
+    }
+
+    sel.innerHTML = `<option value="${loggedProfesionalId}">${label}</option>`;
+    sel.disabled = true;
+    currentProfesional = loggedProfesionalId;
+    return;
+  }
+
+  // Caso: asistente/admin -> lista de profesionales del centro
+  sel.disabled = false;
+
+  const { data: map } = await supabase
+    .from('profesional_centro')
+    .select('profesional_id')
+    .eq('centro_id', currentCentroId)
+    .eq('activo', true);
+
+  const ids = [...new Set((map || []).map((r) => r.profesional_id).filter(Boolean))];
+
+  if (!ids.length) {
+    sel.innerHTML = '<option value="">Sin profesionales</option>';
+    currentProfesional = null;
+    return;
+  }
+
+  const { data: profs } = await supabase
+    .from('profesionales')
+    .select('id,nombre,apellido')
+    .in('id', ids)
+    .order('apellido', { ascending: true });
+
+  sel.innerHTML = (profs || [])
+    .map((p) => {
+      const nombre = [p.apellido, p.nombre].filter(Boolean).join(', ') || p.nombre || p.apellido || p.id;
+      return `<option value="${p.id}">${nombre}</option>`;
+    })
+    .join('');
+
+  currentProfesional = profs?.[0]?.id || null;
+  if (currentProfesional) sel.value = currentProfesional;
+}
+
 
 /* =====================
  * Obras Sociales
