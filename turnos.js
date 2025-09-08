@@ -350,6 +350,34 @@ async function loadProfesionales() {
   if (currentProfesional) sel.value = currentProfesional;
 }
 
+async function loadDuraciones(pid) {
+  // valores por defecto
+  duracionCfg = {
+    nueva_consulta: 15,
+    recurrente: 15,
+    sobreturno: 15,
+  };
+
+  if (!pid) return;
+
+  const { data, error } = await supabase
+    .from('config_duracion_turnos')
+    .select('tipo_turno,minutos')
+    .eq('profesional_id', pid)
+    .eq('centro_id', currentCentroId);
+
+  if (error) {
+    console.warn('Error cargando duraciones:', error.message);
+    return;
+  }
+
+  (data || []).forEach((r) => {
+    if (r.tipo_turno && r.minutos) {
+      duracionCfg[r.tipo_turno] = r.minutos;
+    }
+  });
+}
+
 
 /* =====================
  * Obras Sociales
