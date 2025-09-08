@@ -56,6 +56,8 @@ const UI = {
   okWa: document.getElementById('ok-wa-link'),
   okCopy: document.getElementById('ok-copy'),
   okMsg: document.getElementById('ok-msg'),
+}; // ← esto faltaba
+
 
 
 /* =====================
