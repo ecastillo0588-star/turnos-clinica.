@@ -1063,7 +1063,8 @@ UI.nextMonth.addEventListener('click', async () => {
   await renderCalendar();
 });
 
-(async function init() {
+// ✅ Esto lo dejás exportado para que lo llame el dashboard
+export async function initTurnos() {
   renderDow();
   if (!currentCentroId) {
     UI.status.textContent = 'Seleccioná un centro para ver turnos.';
@@ -1074,5 +1075,5 @@ UI.nextMonth.addEventListener('click', async () => {
   await loadProfesionales();
   await loadDuraciones(currentProfesional);
   await renderCalendar();
-})();
+}
 
