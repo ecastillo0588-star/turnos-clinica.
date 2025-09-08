@@ -127,62 +127,6 @@
   </div>
 </div>
 
-<!-- 🆕 Modal Nuevo Paciente (igual estilo que pacientes) -->
-<div class="modal-backdrop" id="turnos-modal-paciente" style="display:none;">
-  <div class="modal" role="dialog" aria-modal="true">
-    <button class="modal-close" id="turnos-modal-paciente-close" aria-label="Cerrar">&times;</button>
-    <div class="modal-header"><h3>Nuevo Paciente</h3></div>
-    <form id="form-nuevo-paciente">
-      <div class="modal-body">
-        <div id="turnos-form-alerts"></div>
-        <fieldset class="fieldset">
-          <legend>Datos Personales</legend>
-          <div class="form-grid">
-            <div class="form-group"><label>DNI *</label><input id="np-dni" required></div>
-            <div class="form-group"><label>Apellido *</label><input id="np-apellido" required></div>
-            <div class="form-group"><label>Nombre *</label><input id="np-nombre" required></div>
-            <div class="form-group"><label>Fecha Nacimiento</label><input id="np-fecha-nac" type="date"></div>
-            <div class="form-group"><label>Teléfono</label><input id="np-telefono"></div>
-            <div class="form-group"><label>Email</label><input id="np-email" type="email"></div>
-          </div>
-        </fieldset>
-        <fieldset class="fieldset">
-          <legend>Obra Social</legend>
-          <div class="form-grid">
-            <div class="form-group"><label>Obra Social</label><select id="np-obra"></select></div>
-            <div class="form-group"><label>N° Afiliado</label><input id="np-afiliado"></div>
-          </div>
-        </fieldset>
-        <fieldset class="fieldset">
-          <legend>Contacto Emergencia</legend>
-          <div class="form-grid">
-            <div class="form-group"><label>Nombre</label><input id="np-contacto-nombre"></div>
-            <div class="form-group"><label>Apellido</label><input id="np-contacto-apellido"></div>
-            <div class="form-group"><label>Celular</label><input id="np-contacto-cel"></div>
-            <div class="form-group"><label>Vínculo</label><input id="np-vinculo"></div>
-          </div>
-        </fieldset>
-        <fieldset class="fieldset">
-          <legend>Información Adicional</legend>
-          <div class="form-grid">
-            <div class="form-group" style="grid-column:1/-1;">
-              <label>Historia Clínica (URL)</label><input id="np-historia">
-            </div>
-            <div class="form-group" style="grid-column:1/-1;">
-              <label>Credencial</label>
-              <input id="np-cred-file" type="file">
-              <div id="np-cred-preview" class="tw-upload-preview" style="display:none;"></div>
-            </div>
-          </div>
-        </fieldset>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn secondary" id="btn-cancelar-paciente">Cancelar</button>
-        <button type="submit" class="btn" id="turnos-guardar-paciente">Crear Paciente</button>
-      </div>
-    </form>
-  </div>
-</div>
 
 
 <!-- Enlaces a CSS y JS -->
