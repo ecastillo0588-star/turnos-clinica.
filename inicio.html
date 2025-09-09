@@ -38,11 +38,22 @@
     .btn.secondary{background:#e7e2fa;color:#5a3e9a}
     .pill{display:inline-flex;align-items:center;gap:6px;background:#f2effc;border:1px solid var(--line);color:#4b3a78;padding:6px 10px;border-radius:999px;font-size:13px;max-width:100%;white-space:nowrap;}
 
-    .stats{display:flex;flex-wrap:wrap;gap:8px}
+    /* —— Buscador masivo + KPIs —— */
+    .bar{
+      display:grid;
+      grid-template-columns: 1fr auto auto;
+      gap:10px; align-items:center;
+    }
+    .search-wrap{display:flex; align-items:center; gap:8px}
+    .search-wrap .inp{height:36px}
+    .search-clear{border:none;background:#efeafb;border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer}
+
+    .stats{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
     .chip{display:flex;align-items:baseline;gap:6px;background:#f3f1fb;border:1px solid var(--line);
       padding:6px 9px;border-radius:999px;font-size:12px;white-space:nowrap}
     .chip .v{font-size:16px;font-weight:800;line-height:1}
 
+    /* 2×2 */
     .boards{display:grid;gap:12px;grid-template-columns:1fr 1fr;min-height:0}
     .board{
       background:var(--card);border:1px solid var(--line);border-radius:10px;
@@ -114,8 +125,6 @@
       color:#3b2b66; background:#ffffff; border:1px solid #cbbbe8;
       padding:6px 10px; border-radius:8px; box-shadow:0 1px 0 rgba(0,0,0,.05);
     }
-    .hc-link:hover{ background:#fff; border-color:#b6a3ea; box-shadow:0 2px 6px rgba(0,0,0,.08); }
-    .hc-link:focus-visible{ outline:2px solid #5a3e9a; outline-offset:2px; }
 
     /* Botón rojo */
     #fichaDrawer .drawer-foot #fd-finalizar{
@@ -123,8 +132,6 @@
       border-color:#b71c1c !important;
       color:#fff !important;
     }
-    #fichaDrawer .drawer-foot #fd-finalizar:hover{ background:#b71c1c !important; }
-    #fichaDrawer .drawer-foot #fd-finalizar:focus-visible{ outline:2px solid #7f1d1d; outline-offset:2px; }
 
     /* Modal Mini-Cal */
     .backdrop{
@@ -166,13 +173,16 @@
       </div>
     </div>
 
-    <!-- KPIs chips -->
-    <div class="stats">
-      <div class="chip"><span>Por llegar</span> <span class="v" id="kpi-pend">0</span></div>
-      <div class="chip"><span>Presentes</span> <span class="v" id="kpi-esp">0</span></div>
-      <div class="chip"><span>En atención</span> <span class="v" id="kpi-atencion">0</span></div>
-      <div class="chip"><span>Horas libres</span> <span class="v" id="kpi-free">0.0 h</span></div>
-      <div class="chip" id="kpi-sub" style="opacity:.8"></div>
+    <!-- Buscador masivo + un solo KPI -->
+    <div class="bar">
+      <div class="search-wrap">
+        <input id="mass-search" class="inp" placeholder="Buscar por DNI o Apellido (en toda la vista)"/>
+        <button id="mass-clear" class="search-clear" title="Limpiar">✖️</button>
+      </div>
+      <div class="stats">
+        <div class="chip"><span>Horas libres</span> <span class="v" id="kpi-free">0.0 h</span></div>
+        <div class="chip" id="kpi-sub" style="opacity:.8"></div>
+      </div>
     </div>
 
     <!-- Boards -->
@@ -202,11 +212,10 @@
           <div id="fd-title" class="drawer-title">Paciente —</div>
           <div id="fd-sub" class="drawer-sub">DNI — · Edad —</div>
         </div>
-        <span id="fd-spacer" style="flex:1"></span>
+        <span style="flex:1"></span>
         <a id="fd-hc" class="hc-link" href="#" target="_blank" rel="noopener" style="display:none">
           <svg class="hc-ico" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6" fill="currentColor"/>
-          </svg>
+            <path d="M14 2V8h6" fill="currentColor"/></svg>
           <span>Historia clínica</span>
         </a>
         <button id="fd-close" class="icon" title="Cerrar">✖️</button>
@@ -215,7 +224,6 @@
       <div class="drawer-body">
         <div id="fd-status" class="msg" style="margin-bottom:8px"></div>
 
-        <!-- Resumen turno -->
         <div class="stats" id="fd-summary" style="margin-bottom:10px">
           <div class="chip" id="fd-prof">Prof: —</div>
           <div class="chip" id="fd-centro">Centro: —</div>
@@ -225,7 +233,6 @@
           <div class="chip" id="fd-copago">Copago: —</div>
         </div>
 
-        <!-- Formulario paciente -->
         <div class="card">
           <h4>Datos del paciente</h4>
           <div class="row3">
@@ -306,8 +313,8 @@
         </div>
         <div class="mini-body" id="miniCalBody">
           <div style="padding:8px; color:#6b6480">
-            Próximamente: mini calendario con disponibilidad del profesional.<br/>
-            Por ahora: el botón “Reprogramar” te lleva a Turnos con el paciente pre-cargado vía Dashboard.
+            Tu panel no respondió a la navegación interna.<br/>
+            Hacé clic en “Abrir Turnos”. El DNI ya quedó pre-cargado.
           </div>
         </div>
         <div class="mini-foot">
@@ -341,11 +348,10 @@ const UI = {
   tblEsp: document.getElementById('tbl-esp'),
   tblAtencion: document.getElementById('tbl-atencion'),
   tblDone: document.getElementById('tbl-done'),
-  kpiPend: document.getElementById('kpi-pend'),
-  kpiEsp: document.getElementById('kpi-esp'),
-  kpiAtencion: document.getElementById('kpi-atencion'),
   kpiFree: document.getElementById('kpi-free'),
   kpiSub: document.getElementById('kpi-sub'),
+  massSearch: document.getElementById('mass-search'),
+  massClear: document.getElementById('mass-clear'),
 };
 const H = {
   pend: document.getElementById('h-pend'),
@@ -417,24 +423,10 @@ let currentProfesional = null;
 let currentFechaISO = null;
 let centroWatchTimer = null;
 
-/* Navegación dashboard → sección Turnos */
-const DASHBOARD_HASH_TURNOS = '#turnos'; // si tu dashboard usa otra ruta/hash, actualizalo.
-function goDashboardTurnos(dni){
-  // 1) Si el dashboard expone una función global
-  if (typeof window.navigateToSection === 'function'){
-    try { window.navigateToSection('turnos', { dni }); return; } catch {}
-  }
-  // 2) Disparar evento que el dashboard pueda escuchar
-  try { window.dispatchEvent(new CustomEvent('dashboard:navigate', { detail:{ section:'turnos', dni } })); } catch {}
-  // 3) Intentar notificar al parent (por si esto está embebido)
-  try { if (window.parent && window.parent !== window) window.parent.postMessage({ type:'dashboard:navigate', section:'turnos', dni }, '*'); } catch {}
-  // 4) Fallback: navegar al hash #turnos del dashboard
-  const dashUrl = localStorage.getItem('dashboard_url') || './';
-  const base = dashUrl.endsWith('/') ? dashUrl : (dashUrl + '/');
-  location.assign(base + DASHBOARD_HASH_TURNOS);
-}
+/* Filtro global (buscador masivo) */
+let filterText = '';
 
-/* ===== helpers ===== */
+/* —— Helpers —— */
 function pad(n){return n<10?'0'+n:''+n}
 function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function toHM(t){return (t??'').toString().slice(0,5)}
@@ -447,6 +439,12 @@ function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',curr
 function titleCase(s){ return (s||'').split(' ').filter(Boolean).map(w=>w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ') }
 function calcEdad(f){ if(!f) return null; const d=new Date(f); if(isNaN(d)) return null; const t=new Date();
   let a=t.getFullYear()-d.getFullYear(); const m=t.getMonth()-d.getMonth(); if (m<0 || (m===0 && t.getDate()<d.getDate())) a--; return Math.max(a,0);
+}
+function norm(s){ return (s??'').toString().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,''); }
+function matchTurno(t){
+  if (!filterText) return true;
+  const p=t.pacientes||{};
+  return norm(p.apellido).includes(filterText) || String(p.dni||'').includes(filterText);
 }
 function setDrawerMsg(msg,tone=''){ if(Drawer.msg){ Drawer.msg.textContent=msg||''; Drawer.msg.className='msg '+(tone||''); } }
 function setDrawerStatus(msg,tone=''){ if(Drawer.status){ Drawer.status.textContent=msg||''; Drawer.status.className='msg '+(tone||''); } }
@@ -566,9 +564,22 @@ async function fetchDiaData(){
   };
 }
 
-/* Render: Por llegar */
+/* —— Render helpers de filtro —— */
+function applyFilter(data){
+  if (!filterText) return {
+    pendientes:data.pendientes, presentes:data.presentes, atencion:data.atencion, atendidos:data.atendidos
+  };
+  return {
+    pendientes: (data.pendientes||[]).filter(matchTurno),
+    presentes:  (data.presentes||[]).filter(matchTurno),
+    atencion:   (data.atencion||[]).filter(matchTurno),
+    atendidos:  (data.atendidos||[]).filter(matchTurno),
+  };
+}
+
+/* Por llegar */
 function renderPendientes(list){
-  const grid='100px 120px 1fr 1fr 1fr 210px'; /* Acciones última columna */
+  const grid='100px 120px 1fr 1fr 1fr 210px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
@@ -576,14 +587,12 @@ function renderPendientes(list){
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    /* Orden: ↪️ Reprogramar, 🗑️ Anular, 🟢 En espera (tercero, verde a la derecha) */
     const acciones = `
       <div class="actions">
         <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
         <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
         <button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>
-      </div>
-    `;
+      </div>`;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
@@ -936,7 +945,16 @@ async function marcarLlegadaYCopago(turnoId){
   await refreshAll();
 }
 
-/* Reprogramar → via Dashboard a sección Turnos (con DNI) */
+/* —— Reprogramar: sin desloguear —— */
+function showMiniCal(){ Mini.backdrop.classList.add('show'); Mini.backdrop.setAttribute('aria-hidden','false'); }
+function hideMiniCal(){ Mini.backdrop.classList.remove('show'); Mini.backdrop.setAttribute('aria-hidden','true'); }
+Mini.close?.addEventListener('click', hideMiniCal);
+Mini.planB?.addEventListener('click', ()=>{
+  // navegar SOLO cambiando hash (misma página/origen)
+  try { location.hash = '#turnos'; } catch {}
+  hideMiniCal();
+});
+
 async function redirigirAReprogramar(turnoId){
   try{
     const { data:t } = await supabase
@@ -945,9 +963,7 @@ async function redirigirAReprogramar(turnoId){
       .eq('id', turnoId)
       .maybeSingle();
 
-    if (!t){ goDashboardTurnos(null); return; }
-
-    const pac = t.pacientes ? {
+    const pac = t?.pacientes ? {
       id: t.pacientes.id,
       dni: t.pacientes.dni || '',
       apellido: t.pacientes.apellido || '',
@@ -955,23 +971,34 @@ async function redirigirAReprogramar(turnoId){
     } : null;
 
     const intent = {
-      turno_id: t.id,
-      fecha: t.fecha || null,
-      profesional_id: t.profesional_id || currentProfesional,
-      centro_id: t.centro_id || currentCentroId
+      turno_id: t?.id ?? turnoId,
+      fecha: t?.fecha || null,
+      profesional_id: t?.profesional_id || currentProfesional,
+      centro_id: t?.centro_id || currentCentroId
     };
 
-    // Prefill para Turnos
     if (pac){
       localStorage.setItem('turnos_prefill_paciente', JSON.stringify(pac));
       if (pac.dni) localStorage.setItem('turnos_prefill_query', String(pac.dni));
     }
     localStorage.setItem('reprogram_turno_intent', JSON.stringify(intent));
 
-    goDashboardTurnos(pac?.dni || null);
+    // 1) Evento para SPA/dashboard (no recarga, no pierdes sesión)
+    try { window.dispatchEvent(new CustomEvent('dashboard:navigate', { detail:{ section:'turnos', dni: pac?.dni||null } })); } catch {}
+
+    // 2) Si tu app expone una función:
+    if (typeof window.navigateToSection === 'function') {
+      try { window.navigateToSection('turnos', { dni: pac?.dni||null }); return; } catch {}
+    }
+
+    // 3) Si está embebido en un parent SPA:
+    try { if (window.parent && window.parent !== window) window.parent.postMessage({ type:'dashboard:navigate', section:'turnos', dni: pac?.dni||null }, '*'); } catch {}
+
+    // 4) Plan B: mostrar modal (usuario abre Turnos con el hash, misma página)
+    showMiniCal();
   }catch(e){
     console.error(e);
-    goDashboardTurnos(null);
+    showMiniCal();
   }
 }
 
@@ -999,10 +1026,7 @@ function computeHorasDisponibles(agenda, turnos){
   const libresMin=Math.max(0,totalAgendaMin-ocupadosMin);
   return { horas:(libresMin/60).toFixed(1), libresMin, totalAgendaMin };
 }
-function renderKPIs({pendientes, presentes, atencion, agenda, turnos}){
-  UI.kpiPend.textContent=pendientes.length;
-  UI.kpiEsp.textContent=presentes.length;
-  UI.kpiAtencion.textContent=atencion.length;
+function renderKPIs({agenda, turnos}){
   const free=computeHorasDisponibles(agenda, turnos);
   UI.kpiFree.textContent=`${free.horas} h`;
   UI.kpiSub.textContent = `${currentCentroNombre || ''} · ${UI.profSelect.options[UI.profSelect.selectedIndex]?.textContent || ''} · ${currentFechaISO}`;
@@ -1014,21 +1038,38 @@ function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
   if (H.done)  H.done.textContent  = `Atendidos (${(atendidos||[]).length})`;
 }
 
+/* —— Buscador masivo bindings —— */
+let searchTimer=null;
+function applySearch(value){
+  filterText = norm((value||'').trim());
+  refreshAll();
+}
+UI.massSearch.addEventListener('input', ()=>{
+  clearTimeout(searchTimer);
+  searchTimer=setTimeout(()=>applySearch(UI.massSearch.value), 160);
+});
+UI.massClear.addEventListener('click', ()=>{
+  UI.massSearch.value=''; applySearch('');
+});
+
 /* Refresh & Init */
 async function refreshAll(){
   if(!currentProfesional){
     UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML=''; UI.tblDone.innerHTML='';
     UI.kpiSub.textContent=`${currentCentroNombre||''} · ${currentFechaISO}`;
-    renderBoardTitles({pendientes:[],presentes:[],atencion:[],atendidos:[]});
+    renderBoardTitles({pendientes:[],presentes:[],atendidos:[],atencion:[]});
     return;
   }
-  const data = await fetchDiaData();
-  renderPendientes(data.pendientes);
-  renderPresentes(data.presentes);
-  renderAtencion(data.atencion);
-  renderAtendidos(data.atendidos);
-  renderKPIs(data);
-  renderBoardTitles(data);
+  const raw = await fetchDiaData();
+  const filtered = applyFilter(raw);
+
+  renderPendientes(filtered.pendientes);
+  renderPresentes(filtered.presentes);
+  renderAtencion(filtered.atencion);
+  renderAtendidos(filtered.atendidos);
+
+  renderKPIs(raw);           // Horas libres: sobre total del día (no filtrado)
+  renderBoardTitles(filtered); // Títulos: cantidades filtradas
 }
 async function initInicio(){
   currentCentroId = localStorage.getItem('centro_medico_id');
