@@ -1014,15 +1014,7 @@ async function marcarLlegadaYCopago(turnoId){
   await refreshAll();
 }
 
-/* —— Reprogramar: sin desloguear —— */
-function showMiniCal(){ Mini.backdrop.classList.add('show'); Mini.backdrop.setAttribute('aria-hidden','false'); }
-function hideMiniCal(){ Mini.backdrop.classList.remove('show'); Mini.backdrop.setAttribute('aria-hidden','true'); }
-Mini.close?.addEventListener('click', hideMiniCal);
-Mini.planB?.addEventListener('click', ()=>{
-  // navegar SOLO cambiando hash (misma página/origen)
-  try { location.hash = '#turnos'; } catch {}
-  hideMiniCal();
-});
+
 
 async function redirigirAReprogramar(turnoId){
   try{
