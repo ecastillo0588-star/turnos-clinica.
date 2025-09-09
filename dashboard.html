@@ -44,9 +44,10 @@
       font-weight: 400;
       margin-bottom: 1px;
       letter-spacing: 0.03em;
-      text-transform: lowercase;
+      /* antes estaba en lowercase; lo quitamos para respetar mayúsculas */
+      text-transform: none;
       white-space: nowrap;
-      max-width: 95px;
+      max-width: 160px;   /* un poco más ancho para evitar cortes */
       overflow: hidden;
       text-overflow: ellipsis;
     }
@@ -96,6 +97,7 @@
     .settings-slot { margin-top: auto; margin-bottom: 16px; }
     .settings-btn { background: #7656b0; color: #fff; border: none; border-radius: 7px; padding: 11px 0; font-size: 16px; cursor:pointer; font-weight: 500; width: 92%; margin-left: 2px;}
     .settings-btn:hover { background: #7f62b6; }
+    .settings-btn[disabled] { opacity: .4; cursor: not-allowed; }
     .logout-slot { margin-bottom: 18px; margin-top: 8px; display: flex; justify-content: center; }
     .power-btn {
       background: none; border: none; cursor: pointer; padding: 0; margin: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
@@ -132,9 +134,11 @@
         <button id="btn-turnos">Turnos</button>
         <button id="btn-pacientes">Pacientes</button>
       </nav>
+
       <div class="settings-slot">
         <button class="settings-btn btn" id="btn-config">Configuración</button>
       </div>
+
       <div class="logout-slot">
         <button class="power-btn" id="btn-logout" tabindex="0">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -145,6 +149,7 @@
         </button>
       </div>
     </aside>
+
     <main class="main">
       <div id="main-content" class="card"></div>
       <div id="configuracion-panel" class="hidden"></div>
@@ -153,24 +158,43 @@
   </div>
 
   <script type="module">
-    import supabase from "./supabaseClient.js";  // ✅ cliente centralizado
+    import supabase from "./supabaseClient.js";
+
+    const roleLabels = {
+      propietario: "Propietario",
+      medico: "Médico",
+      amp: "Asistente Médico Personal",
+      amc: "Asistente de Centro Médico"
+    };
 
     const userName = localStorage.getItem('user_name') || 'Sin usuario';
-    const userRol = localStorage.getItem('user_role') || '';
+    const userRolRaw = localStorage.getItem('user_role') || ''; // medico | propietario | amp | amc
+    const userRolLabel = roleLabels[userRolRaw] || userRolRaw;
+
     const centroId = localStorage.getItem('centro_medico_id');
     const profesionalId = localStorage.getItem('profesional_id');
 
     document.getElementById('user-name').textContent = userName;
-    document.getElementById('user-rol').textContent = userRol;
+    document.getElementById('user-rol').textContent = userRolLabel;
 
-    if (userRol === "asistente") {
-      document.getElementById('btn-config').style.display = 'none';
+    // === Permisos de Configuración ===
+    const btnConfig = document.getElementById('btn-config');
+    const puedeConfig = ['medico','propietario'].includes(userRolRaw);
+
+    if (!puedeConfig) {
+      // Opción A: ocultar
+      btnConfig.style.display = 'none';
+
+      // Opción B (si preferís opaco/disabled):
+      // btnConfig.disabled = true;
+      // btnConfig.title = "No tienes acceso a Configuración";
     }
 
     async function cargarCentroDashboard() {
       const centroSelect = document.getElementById('centro-select');
       centroSelect.innerHTML = '<option disabled selected>Cargando...</option>';
       let centros = [];
+
       if (profesionalId) {
         const { data, error } = await supabase
           .from('profesional_centro')
@@ -211,36 +235,34 @@
 
     await cargarCentroDashboard();
 
-    // Carga dinámica en main-content
-// Carga dinámica en main-content
-async function cargarPanelHtml(url) {
-  const resp = await fetch(url);
-  const html = await resp.text();
-  document.getElementById('main-content').innerHTML = html;
+    // ===== Carga dinámica del contenido principal =====
+    async function cargarPanelHtml(url) {
+      const resp = await fetch(url);
+      const html = await resp.text();
+      document.getElementById('main-content').innerHTML = html;
 
-  // correr scripts <script type="module">
-  const scripts = document.getElementById('main-content').querySelectorAll('script[type="module"]');
-  for (const oldScript of scripts) {
-    if (oldScript.src) {
-      const newScript = document.createElement('script');
-      newScript.type = 'module';
-      newScript.src = oldScript.src;
-      document.body.appendChild(newScript);
-    } else {
-      const newScript = document.createElement('script');
-      newScript.type = 'module';
-      newScript.textContent = oldScript.textContent;
-      document.body.appendChild(newScript);
+      // Ejecutar <script type="module"> embebidos si los hubiera
+      const scripts = document.getElementById('main-content').querySelectorAll('script[type="module"]');
+      for (const oldScript of scripts) {
+        if (oldScript.src) {
+          const newScript = document.createElement('script');
+          newScript.type = 'module';
+          newScript.src = oldScript.src;
+          document.body.appendChild(newScript);
+        } else {
+          const newScript = document.createElement('script');
+          newScript.type = 'module';
+          newScript.textContent = oldScript.textContent;
+          document.body.appendChild(newScript);
+        }
+      }
+
+      // Hook especial para turnos
+      if (url.includes('turnos.html')) {
+        const { initTurnos } = await import('./turnos.js');
+        await initTurnos();
+      }
     }
-  }
-
-  // 🆕 Si es turnos.html, inicializarlo
-  if (url.includes('turnos.html')) {
-    const { initTurnos } = await import('./turnos.js');
-    await initTurnos();
-  }
-}
-
 
     // Inicio por defecto
     await cargarPanelHtml('inicio.html');
@@ -251,24 +273,30 @@ async function cargarPanelHtml(url) {
       document.getElementById('configuracion-panel').classList.add('hidden');
       await cargarPanelHtml('inicio.html');
     });
+
     document.getElementById('btn-turnos').addEventListener('click', async function() {
       setActiveMenu(this);
       document.getElementById('main-content').classList.remove('hidden');
       document.getElementById('configuracion-panel').classList.add('hidden');
       await cargarPanelHtml('turnos.html');
     });
+
     document.getElementById('btn-pacientes').addEventListener('click', async function() {
       setActiveMenu(this);
       document.getElementById('main-content').classList.remove('hidden');
       document.getElementById('configuracion-panel').classList.add('hidden');
       await cargarPanelHtml('pacientes.html');
     });
-    document.getElementById('btn-config').addEventListener('click', async function() {
+
+    // Solo tendrá efecto si el botón está visible (médico/propietario)
+    btnConfig.addEventListener('click', async function() {
+      if (!puedeConfig) return; // por seguridad
       setActiveMenu(this);
       document.getElementById('main-content').classList.add('hidden');
       document.getElementById('configuracion-panel').classList.remove('hidden');
       await cargarPanelConfiguracion();
     });
+
     document.getElementById('btn-logout').addEventListener('click', () => {
       localStorage.clear();
       window.location.href = "index.html";
