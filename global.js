@@ -203,15 +203,14 @@ Te confirmamos tu turno el ${new Date(fechaISO).toLocaleDateString(
 Si no podés asistir, por favor avisá. ¡Gracias!`;
 }
 
-// ===== Profesionales (combo) + helpers de rol =====
-
-// --- helpers ya existentes ---
+// helper ya definido arriba
 function profLabel(p) {
   const ape = (p?.apellido || '').trim();
   const nom = (p?.nombre || '').trim();
   return [ape, nom].filter(Boolean).join(', ') || nom || ape || p?.id;
 }
 
+// normaliza roles (apm→amp), etc.
 export function normalizeRole(role) {
   const r = String(role || '').trim().toLowerCase();
   if (['apm','amp','asistente_personal','asistente_personal_medico'].includes(r)) return 'amp';
@@ -221,13 +220,13 @@ export function normalizeRole(role) {
   return r;
 }
 
-// 👉 helper para filtrar UUIDs válidos (evitamos 400 en .in)
+// valida UUID para evitar 400 en .in()
 function isUUID(v) {
   return typeof v === 'string' &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 }
 
-// ✅ VERSIÓN ROBUSTA
+// ✅ SOLO médicos visibles según rol/centro
 export async function getProfesionalesForContext({ role, centroId, loggedProfesionalId }) {
   const R = normalizeRole(role);
   if (!centroId) return [];
@@ -240,12 +239,12 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
       .eq('id', loggedProfesionalId)
       .maybeSingle();
 
-    if (error) console.warn('[getProfesionalesForContext][medico] error:', error);
+    if (error) console.warn('[GFC][medico] error:', error);
     if (p?.rol !== 'medico') return [];
     return [{ id: p.id, label: profLabel(p) }];
   }
 
-  // 2) APM: médicos vinculados a este APM en este centro (medico_registrador_id)
+  // 2) AMP: médicos vinculados a este AMP en este centro (via medico_registrador_id)
   if (R === 'amp' && loggedProfesionalId) {
     const { data: links, error: linksErr } = await supabase
       .from('profesional_centro')
@@ -255,20 +254,18 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
       .eq('activo', true);
 
     if (linksErr) {
-      console.warn('[getProfesionalesForContext][AMP] error links:', linksErr);
+      console.warn('[GFC][AMP] error links:', linksErr);
       return [];
     }
-    console.debug('[getProfesionalesForContext][AMP] links:', links);
+    console.debug('[GFC][AMP] links:', links);
 
-    // Tomamos solo UUIDs válidos, sin nulos
-    const ids = [...new Set(
-      (links || [])
-        .map(r => r?.medico_registrador_id)
-        .filter(isUUID)
-    )];
+    // Solo UUIDs válidos
+    const ids = [...new Set((links || [])
+      .map(r => r?.medico_registrador_id)
+      .filter(isUUID))];
 
     if (ids.length === 0) {
-      console.debug('[getProfesionalesForContext][AMP] sin medico_registrador_id válidos para este APM/centro');
+      console.debug('[GFC][AMP] sin medico_registrador_id válidos para este AMP/centro');
       return [];
     }
 
@@ -280,7 +277,7 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
       .order('apellido', { ascending: true });
 
     if (prosErr) {
-      console.warn('[getProfesionalesForContext][AMP] error pros:', prosErr);
+      console.warn('[GFC][AMP] error pros:', prosErr);
       return [];
     }
     return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
@@ -295,16 +292,15 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
       .eq('activo', true);
 
     if (mapErr) {
-      console.warn('[getProfesionalesForContext][AMC/prop] error map:', mapErr);
+      console.warn('[GFC][AMC/prop] error map:', mapErr);
       return [];
     }
 
-    const ids = [...new Set(
-      (map || [])
-        .map(r => r?.profesional_id)
-        .filter(isUUID)
-    )];
-    if (ids.length === 0) return [];
+    const ids = [...new Set((map || [])
+      .map(r => r?.profesional_id)
+      .filter(isUUID))];
+
+    if (!ids.length) return [];
 
     const { data: pros, error: prosErr } = await supabase
       .from('profesionales')
@@ -314,7 +310,7 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
       .order('apellido', { ascending: true });
 
     if (prosErr) {
-      console.warn('[getProfesionalesForContext][AMC/prop] error pros:', prosErr);
+      console.warn('[GFC][AMC/prop] error pros:', prosErr);
       return [];
     }
     return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
@@ -322,6 +318,7 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
 
   return [];
 }
+
 
 /** Pinta opciones en un <select> */
 export function fillProfesionalSelect(selectEl, items, {
