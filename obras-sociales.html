@@ -32,7 +32,6 @@
   <h4 id="modal-os-title">Nueva Obra Social</h4>
   <form id="form-os">
     <label>Nombre Obra Social<span class="req">*</span>
-      <!-- Usamos datalist para evitar typos, pero sigue aceptando nuevas -->
       <input type="text" name="obra_social" list="lista-os" required />
       <datalist id="lista-os"></datalist>
     </label>
@@ -61,55 +60,21 @@
 </div>
 
 <style>
-.os-header-actions {
-  display: flex;
-  gap: 18px;
-  justify-content: flex-end;
-  align-items: center;
-  margin-bottom: 18px;
-}
-.os-buscar-input {
-  padding: 7px 14px;
-  border-radius: 6px;
-  border: 1px solid #d4cbe6;
-  font-size: 15px;
-  width: 260px;
-  background: #f7f3fc;
-  color: #504180;
-}
-
-/* Estilos mínimos para modal (ajusta a tu sistema) */
-.modal-overlay {
-  display:none;
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,.22);
-  z-index: 999;
-}
-.modal-os {
-  display:none;
-  position: fixed; top: 10%; left: 50%; transform: translateX(-50%);
-  width: min(560px, 90vw);
-  background: #fff;
-  border-radius: 12px;
-  padding: 18px 20px;
-  box-shadow: 0 12px 40px rgba(0,0,0,.2);
-  z-index: 1000;
-}
-.modal-os h4 { margin: 0 0 12px; }
-.modal-os form label { display:block; margin: 10px 0; }
-.modal-os form input, .modal-os form select {
-  width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 8px;
-}
-.modal-os-actions { display:flex; gap: 10px; justify-content: flex-end; margin-top: 12px; }
-
-.btn { border:0; border-radius: 8px; padding: 8px 12px; cursor:pointer; }
-.os-btn-primary { background:#7b5da7; color:#fff; }
-.os-btn-secondary { background:#eee; color:#333; }
-
-.os-actions-btns { display:flex; gap:8px; }
-.os-action-btn { background:#fff; border:1px solid #e2d9f5; padding:6px 8px; border-radius:8px; cursor:pointer; }
-.os-action-btn:hover { background:#f5f0ff; }
-.req { color:#c44; margin-left: 6px; }
+.os-header-actions{display:flex;gap:18px;justify-content:flex-end;align-items:center;margin-bottom:18px}
+.os-buscar-input{padding:7px 14px;border-radius:6px;border:1px solid #d4cbe6;font-size:15px;width:260px;background:#f7f3fc;color:#504180}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.22);z-index:999}
+.modal-os{display:none;position:fixed;top:10%;left:50%;transform:translateX(-50%);width:min(560px,90vw);background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 12px 40px rgba(0,0,0,.2);z-index:1000}
+.modal-os h4{margin:0 0 12px}
+.modal-os form label{display:block;margin:10px 0}
+.modal-os form input,.modal-os form select{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px}
+.modal-os-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
+.btn{border:0;border-radius:8px;padding:8px 12px;cursor:pointer}
+.os-btn-primary{background:#7b5da7;color:#fff}
+.os-btn-secondary{background:#eee;color:#333}
+.os-actions-btns{display:flex;gap:8px}
+.os-action-btn{background:#fff;border:1px solid #e2d9f5;padding:6px 8px;border-radius:8px;cursor:pointer}
+.os-action-btn:hover{background:#f5f0ff}
+.req{color:#c44;margin-left:6px}
 </style>
 
 <script type="module">
@@ -119,7 +84,6 @@ import supabase from './supabaseClient.js';
  * Helpers
  * ===================== */
 function getIdProfesionalLogueado() {
-  // Unificamos claves posibles
   return localStorage.getItem('profesional_id')
       || localStorage.getItem('id_profesional')
       || '092fa577-d353-47d1-b30c-d819fac0df64';
@@ -129,9 +93,9 @@ const toNullOrNumber = (v) => (v === '' || v == null ? null : Number(v));
 /* =====================
  * Estado
  * ===================== */
-let obrasSociales = [];        // combinación de nombres + vínculo del médico
-let todasObrasSociales = [];   // catálogo de OS (solo id, nombre)
-let editIdx = null;            // índice a editar (si es edición)
+let obrasSociales = [];        // mezcla de catálogo + vínculo del médico
+let todasObrasSociales = [];   // catálogo (id, obra_social)
+let editIdx = null;            // índice en obrasSociales cuando editamos
 let filtroNombre = '';
 
 const tbody        = document.querySelector('#tabla-obras-sociales tbody');
@@ -150,47 +114,41 @@ const datalistOS   = document.getElementById('lista-os');
 async function cargarObrasSociales() {
   const id_profesional = getIdProfesionalLogueado();
 
-  // 1) Traemos catálogo de OS (solo nombres)
+  // Catálogo
   const { data: todasOS, error: errorOS } = await supabase
     .from('obras_sociales')
     .select('id, obra_social')
     .order('obra_social', { ascending: true });
 
-  if (errorOS) {
-    alert('Error al cargar obras sociales: ' + errorOS.message);
-    return;
-  }
+  if (errorOS) { alert('Error al cargar obras sociales: ' + errorOS.message); return; }
   todasObrasSociales = todasOS ?? [];
 
-  // Poblar datalist (evita typos al crear/seleccionar)
+  // datalist
   if (datalistOS) {
     datalistOS.innerHTML = (todasObrasSociales || [])
       .map(o => `<option value="${o.obra_social}"></option>`)
       .join('');
   }
 
-  // 2) Traemos vínculos del médico
+  // Vínculos médico
   const { data: vinculos, error: errorV } = await supabase
     .from('medico_obras_sociales')
     .select('id, obra_social_id, condicion_copago, valor_copago, cantidad_turnos')
     .eq('medico_id', id_profesional);
 
-  if (errorV) {
-    alert('Error al cargar vínculos del médico: ' + errorV.message);
-    return;
-  }
+  if (errorV) { alert('Error al cargar vínculos del médico: ' + errorV.message); return; }
 
-  // 3) Combinamos catálogo + vínculo (si existe)
+  // Combinar catálogo + vínculo (si existe)
   obrasSociales = (todasObrasSociales || []).map(os => {
-    const vinculo = (vinculos || []).find(v => v.obra_social_id === os.id);
+    const vinc = (vinculos || []).find(v => v.obra_social_id === os.id);
     return {
-      id: vinculo?.id || null,
+      id: vinc?.id || null,
       obra_social_id: os.id,
       obra_social: os.obra_social,
-      condicion_copago: vinculo?.condicion_copago ?? false,
-      valor_copago: vinculo?.valor_copago ?? null,
-      cantidad_turnos: vinculo?.cantidad_turnos ?? null, // null = Infinito
-      configurado: !!vinculo
+      condicion_copago: vinc?.condicion_copago ?? false,
+      valor_copago: vinc?.valor_copago ?? null,
+      cantidad_turnos: vinc?.cantidad_turnos ?? null, // null = Infinito
+      configurado: !!vinc
     };
   });
 
@@ -203,15 +161,13 @@ async function cargarObrasSociales() {
 function renderTabla() {
   tbody.innerHTML = '';
 
-  let datosParaMostrar = obrasSociales;
+  let datos = obrasSociales;
   if (filtroNombre) {
-    const texto = filtroNombre.trim().toLowerCase();
-    datosParaMostrar = obrasSociales.filter(fila =>
-      (fila.obra_social || '').toLowerCase().includes(texto)
-    );
+    const q = filtroNombre.trim().toLowerCase();
+    datos = obrasSociales.filter(f => (f.obra_social || '').toLowerCase().includes(q));
   }
 
-  datosParaMostrar.forEach((fila, idx) => {
+  datos.forEach((fila) => {
     const cantTxt   = (fila.cantidad_turnos == null ? 'Infinito' : String(fila.cantidad_turnos));
     const copagoTxt = (fila.valor_copago == null ? '' : String(fila.valor_copago));
 
@@ -224,15 +180,15 @@ function renderTabla() {
         <td>
           <div class="os-actions-btns">
             ${fila.configurado ? `
-              <button type="button" class="os-action-btn" data-accion="editar" data-idx="${idx}" title="Editar">
+              <button type="button" class="os-action-btn" data-accion="editar" data-osid="${fila.obra_social_id}" title="Editar">
                 <svg width="20" height="20" fill="none"><path d="M4 16l1.5-5.5L14 2.5a2 2 0 112.8 2.8L8.3 14.5L4 16z" stroke="#7f6acf" stroke-width="2"/></svg>
               </button>
-              <button type="button" class="os-action-btn" data-accion="borrar" data-idx="${idx}" title="Borrar">
+              <button type="button" class="os-action-btn" data-accion="borrar" data-osid="${fila.obra_social_id}" title="Borrar">
                 <svg width="20" height="20" fill="none"><circle cx="10" cy="10" r="9" stroke="#c44" stroke-width="2"/><path d="M7 7l6 6M13 7l-6 6" stroke="#c44" stroke-width="2"/></svg>
               </button>
             ` : `
-              <button type="button" class="os-action-btn" data-accion="agregar" data-idx="${idx}" title="Agregar">
-                <svg width="20" height="20" fill="none"><path d="M10 4v12M4 10h12" stroke="#7f6acf" stroke-width="2" stroke-linecap="round"/></svg>
+              <button type="button" class="os-action-btn" data-accion="agregar" data-osid="${fila.obra_social_id}" title="Agregar">
+                <svg width="20" height="20" fill="none"><path d="M10 4v12M4 10h12" stroke="#7b5da7" stroke-width="2" stroke-linecap="round"/></svg>
               </button>
             `}
           </div>
@@ -241,31 +197,26 @@ function renderTabla() {
     `;
   });
 
-  // Delegación (robusto en re-renders)
   agregarEventListeners();
 }
 
 /* =====================
- * Eventos tabla (delegación)
+ * Eventos (delegación)
  * ===================== */
 function agregarEventListeners() {
-  // Evitar duplicar handler: reset
   tbody.onclick = null;
-
   tbody.onclick = (e) => {
     const btn = e.target.closest('button.os-action-btn');
     if (!btn) return;
 
-    const idx = Number(btn.dataset.idx);
     const accion = btn.dataset.accion;
+    const osid = btn.dataset.osid;
+    const idxReal = obrasSociales.findIndex(f => String(f.obra_social_id) === String(osid));
+    if (idxReal < 0) return;
 
-    if (accion === 'editar') {
-      abrirModal(idx, true);
-    } else if (accion === 'borrar') {
-      borrarObraSocial(idx);
-    } else if (accion === 'agregar') {
-      abrirModal(idx, false); // pre-llenar con ese nombre
-    }
+    if (accion === 'editar') abrirModal(idxReal, true);
+    if (accion === 'borrar') borrarObraSocial(idxReal);
+    if (accion === 'agregar') abrirModal(idxReal, false);
   };
 }
 
@@ -282,13 +233,13 @@ function abrirModal(idx, esEdicion) {
 
   if (esEdicion) {
     const fila = obrasSociales[idx];
-    formModal.obra_social.value = fila.obra_social;
+    formModal.obra_social.value = fila.obra_social; // editable
     formModal.condicion_copago.value = fila.condicion_copago ? 'true' : 'false';
     formModal.valor_copago.value = (fila.valor_copago == null ? '' : String(fila.valor_copago));
     formModal.cantidad_turnos.value = (fila.cantidad_turnos == null ? '' : String(fila.cantidad_turnos));
-    formModal.obra_social.disabled = true; // no editar el nombre al modificar vínculo
+    formModal.obra_social.disabled = false;
   } else {
-    // Si viene desde "Agregar" de una fila, pre-llenar nombre; si viene desde botón global, vacío
+    // “Agregar” desde fila pre-llena el nombre; desde botón global queda vacío
     const nombre = (idx != null && obrasSociales[idx]) ? obrasSociales[idx].obra_social : '';
     formModal.obra_social.value = nombre;
     formModal.condicion_copago.value = 'false';
@@ -303,14 +254,10 @@ function cerrarModal() {
   overlay.style.display = 'none';
   editIdx = null;
 }
-
 overlay.onclick = cerrarModal;
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') cerrarModal();
-});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarModal(); });
 btnCancelar.onclick = cerrarModal;
 
-// Botón "Nueva Obra Social": abrir vacío
 btnAgregar.onclick = () => {
   editIdx = null;
   modalTitle.textContent = 'Nueva Obra Social';
@@ -326,124 +273,123 @@ btnAgregar.onclick = () => {
 /* =====================
  * CRUD
  * ===================== */
-// Borrar vínculo (NO borra la OS del catálogo)
 async function borrarObraSocial(idx) {
   const fila = obrasSociales[idx];
   if (!fila?.id) return;
-  if (!confirm(`¿Seguro que deseas borrar la configuración de "${fila.obra_social}" para este profesional?`)) return;
+  if (!confirm(`¿Borrar la configuración de "${fila.obra_social}" para este profesional?`)) return;
 
   const { error } = await supabase
     .from('medico_obras_sociales')
     .delete()
     .eq('id', fila.id);
 
-  if (error) {
-    alert('Error al borrar: ' + error.message);
-    return;
-  }
+  if (error) { alert('Error al borrar: ' + error.message); return; }
+
   await cargarObrasSociales();
-  // invalidar caches en otras pantallas (si las hay)
   const medico_id = getIdProfesionalLogueado();
   window.dispatchEvent(new CustomEvent('os-config-changed', { detail: { medico_id } }));
 }
 
-// Guardar / Agregar
 formModal.onsubmit = async (e) => {
   e.preventDefault();
 
   const fd = new FormData(formModal);
-  const obra_social      = (fd.get('obra_social') || '').trim();
-  const condicion_copago = fd.get('condicion_copago') === 'true';
-  const valor_copago     = toNullOrNumber(fd.get('valor_copago'));
-  const cantidad_turnos  = toNullOrNumber(fd.get('cantidad_turnos')); // null = Infinito
-  const id_profesional   = getIdProfesionalLogueado();
+  const nombreOS       = (fd.get('obra_social') || '').trim();
+  const condicion      = fd.get('condicion_copago') === 'true';
+  const valorCopago    = toNullOrNumber(fd.get('valor_copago'));
+  const cantidadTurnos = toNullOrNumber(fd.get('cantidad_turnos')); // null = Infinito
+  const medicoId       = getIdProfesionalLogueado();
 
-  if (!obra_social) {
-    alert('El nombre de la obra social es obligatorio.');
-    return;
-  }
-  if (valor_copago != null && (isNaN(valor_copago) || valor_copago < 0)) {
-    alert('Valor de copago inválido.');
-    return;
-  }
-  if (cantidad_turnos != null && (isNaN(cantidad_turnos) || cantidad_turnos < 0)) {
-    alert('Cantidad de turnos inválida.');
-    return;
+  if (!nombreOS) { alert('El nombre de la obra social es obligatorio.'); return; }
+  if (valorCopago != null && (isNaN(valorCopago) || valorCopago < 0)) { alert('Valor de copago inválido.'); return; }
+  if (cantidadTurnos != null && (isNaN(cantidadTurnos) || cantidadTurnos < 0)) { alert('Cantidad de turnos inválida.'); return; }
+
+  // helper: buscar por nombre (case-insensitive)
+  function findOSByName(name) {
+    return (todasObrasSociales || []).find(o => (o.obra_social || '').trim().toLowerCase() === name.toLowerCase());
   }
 
   if (editIdx !== null && obrasSociales[editIdx]?.configurado) {
-    // Editar vínculo existente
+    // ===== Editar =====
     const fila = obrasSociales[editIdx];
-    const { error } = await supabase
-      .from('medico_obras_sociales')
-      .update({
-        condicion_copago,
-        valor_copago,
-        cantidad_turnos
-      })
-      .eq('id', fila.id);
+    const oldOSId   = fila.obra_social_id;
+    const oldName   = fila.obra_social;
+    const vincId    = fila.id;
 
-    if (error) {
-      alert('Error al guardar: ' + error.message);
-      return;
-    }
-    cerrarModal();
-    await cargarObrasSociales();
-    window.dispatchEvent(new CustomEvent('os-config-changed', { detail: { medico_id: id_profesional } }));
-
-  } else {
-    // Alta de vínculo (y alta de OS si no existe por nombre)
-    // 1) Buscar OS por nombre (case-insensitive)
-    let os = todasObrasSociales.find(o => (o.obra_social || '').trim().toLowerCase() === obra_social.toLowerCase());
-    let obra_social_id = os?.id;
-
-    if (!obra_social_id) {
-      // Crear en catálogo
-      const { data: nuevaOS, error: errorOS } = await supabase
-        .from('obras_sociales')
-        .insert([{ obra_social }])
-        .select()
-        .single();
-
-      if (errorOS) {
-        alert('Error al crear obra social: ' + errorOS.message);
+    // 1) Si cambió el nombre, intentamos actualizar la tabla obras_sociales (mismo id)
+    if (nombreOS.toLowerCase() !== (oldName || '').toLowerCase()) {
+      // Evitar choque con unique(obra_social)
+      const dup = findOSByName(nombreOS);
+      if (dup && String(dup.id) !== String(oldOSId)) {
+        alert(`Ya existe una obra social con el nombre "${nombreOS}". Elegí otro nombre o usá esa existente.`);
         return;
       }
-      obra_social_id = nuevaOS.id;
-      // Actualizamos catálogo local y datalist
-      todasObrasSociales.push({ id: obra_social_id, obra_social });
+      const { error: updNameErr } = await supabase
+        .from('obras_sociales')
+        .update({ obra_social: nombreOS })
+        .eq('id', oldOSId);
+      if (updNameErr) { alert('No se pudo renombrar la obra social: ' + updNameErr.message); return; }
+
+      // sincronizar catálogo local
+      const catIdx = todasObrasSociales.findIndex(o => String(o.id) === String(oldOSId));
+      if (catIdx >= 0) todasObrasSociales[catIdx].obra_social = nombreOS;
+    }
+
+    // 2) Actualizar la configuración del vínculo del médico
+    const { error: updLinkErr } = await supabase
+      .from('medico_obras_sociales')
+      .update({ condicion_copago: condicion, valor_copago: valorCopago, cantidad_turnos: cantidadTurnos })
+      .eq('id', vincId);
+    if (updLinkErr) { alert('Error al guardar configuración: ' + updLinkErr.message); return; }
+
+    cerrarModal();
+    await cargarObrasSociales();
+    window.dispatchEvent(new CustomEvent('os-config-changed', { detail: { medico_id: medicoId } }));
+
+  } else {
+    // ===== Agregar =====
+    // Si existe por nombre, usamos ese id; si no, lo creamos
+    let os = findOSByName(nombreOS);
+    let osId = os?.id;
+
+    if (!osId) {
+      const { data: nuevaOS, error: errOS } = await supabase
+        .from('obras_sociales')
+        .insert([{ obra_social: nombreOS }])
+        .select()
+        .single();
+      if (errOS) { alert('Error al crear obra social: ' + errOS.message); return; }
+      osId = nuevaOS.id;
+      todasObrasSociales.push({ id: osId, obra_social: nombreOS });
+
       if (datalistOS) {
         const opt = document.createElement('option');
-        opt.value = obra_social;
+        opt.value = nombreOS;
         datalistOS.appendChild(opt);
       }
     }
 
-    // 2) Vincular (upsert) — requiere índice único en (medico_id, obra_social_id)
-    //    CREATE UNIQUE INDEX IF NOT EXISTS medico_os_unique ON medico_obras_sociales (medico_id, obra_social_id);
-    const { error: errorV } = await supabase
+    // Vincular/crear config para el médico
+    const { error: linkErr } = await supabase
       .from('medico_obras_sociales')
       .upsert([{
-        medico_id: id_profesional,
-        obra_social_id,
-        condicion_copago,
-        valor_copago,
-        cantidad_turnos
+        medico_id: medicoId,
+        obra_social_id: osId,
+        condicion_copago: condicion,
+        valor_copago: valorCopago,
+        cantidad_turnos: cantidadTurnos
       }], { onConflict: 'medico_id,obra_social_id' });
 
-    if (errorV) {
-      alert('Error al vincular: ' + errorV.message);
-      return;
-    }
+    if (linkErr) { alert('Error al vincular: ' + linkErr.message); return; }
 
     cerrarModal();
     await cargarObrasSociales();
-    window.dispatchEvent(new CustomEvent('os-config-changed', { detail: { medico_id: id_profesional } }));
+    window.dispatchEvent(new CustomEvent('os-config-changed', { detail: { medico_id: medicoId } }));
   }
 };
 
 /* =====================
- * Filtro de búsqueda
+ * Búsqueda
  * ===================== */
 buscarInput.addEventListener('input', () => {
   filtroNombre = buscarInput.value;
@@ -451,7 +397,7 @@ buscarInput.addEventListener('input', () => {
 });
 
 /* =====================
- * Inicializa
+ * Init
  * ===================== */
 cargarObrasSociales();
 </script>
