@@ -44,48 +44,24 @@
       font-weight: 400;
       margin-bottom: 1px;
       letter-spacing: 0.03em;
-      /* antes estaba en lowercase; lo quitamos para respetar mayúsculas */
-      text-transform: none;
+      text-transform: none;           /* respetar mayúsculas */
       white-space: nowrap;
-      max-width: 160px;   /* un poco más ancho para evitar cortes */
+      max-width: 160px;               /* más ancho para evitar cortes */
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .brand-title { font-weight: bold; font-size: 21px; color: #381e60; margin-bottom: 8px;}
-    .brand-sub { font-size: 15px; color: #6b6480; margin-bottom: 12px;}
     .centro-row { display: flex; align-items: center; gap: 6px; margin-bottom: 14px;}
     .centro-label { font-size: 15px; color: #6b6480; }
-    .custom-select {
-      position: relative;
-      width: 130px;
-      font-size: 14px;
-      margin-left: 4px;
-      margin-right: 2px;
-    }
+    .custom-select { position: relative; width: 130px; font-size: 14px; margin-left: 4px; margin-right: 2px; }
     .custom-select select {
-      appearance: none;
-      background: #f7f9fb;
-      border: 1.5px solid #ece5fc;
-      border-radius: 7px;
-      padding: 5px 28px 5px 10px;
-      font-size: 14px;
-      color: #4f3b7a;
-      width: 100%;
-      font-weight: 500;
-      cursor: pointer;
-      transition: border 0.14s;
-      outline: none;
-      box-shadow: none;
+      appearance: none; background: #f7f9fb; border: 1.5px solid #ece5fc; border-radius: 7px;
+      padding: 5px 28px 5px 10px; font-size: 14px; color: #4f3b7a; width: 100%; font-weight: 500;
+      cursor: pointer; transition: border 0.14s; outline: none; box-shadow: none;
     }
     .custom-select select:focus { border-color: #a490d7; }
     .custom-select::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      right: 11px;
-      width: 11px;
-      height: 11px;
-      pointer-events: none;
+      content: ''; position: absolute; top: 50%; right: 11px; width: 11px; height: 11px; pointer-events: none;
       transform: translateY(-50%);
       background: url('data:image/svg+xml;utf8,<svg fill="none" stroke="rgb(164,144,215)" stroke-width="2" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><path d="M3 6l4 4 4-4"/></svg>') no-repeat center/contain;
     }
@@ -93,16 +69,13 @@
     .menu button { background: #f7f9fb; border: none; padding: 10px 16px; border-radius: 6px; font-size: 15px; color: #381e60; cursor: pointer; transition: background 0.12s; text-align: left;}
     .menu button.active, .menu-subitem.active { background: #e7e2fa; color: #7656b0; }
     .menu button:hover, .menu-subitem:hover { background: #ece5fc; }
-    .separator { border-bottom: 1px solid #ece5fc; margin: 14px 0 10px 0; }
     .settings-slot { margin-top: auto; margin-bottom: 16px; }
     .settings-btn { background: #7656b0; color: #fff; border: none; border-radius: 7px; padding: 11px 0; font-size: 16px; cursor:pointer; font-weight: 500; width: 92%; margin-left: 2px;}
     .settings-btn:hover { background: #7f62b6; }
     .settings-btn[disabled] { opacity: .4; cursor: not-allowed; }
     .logout-slot { margin-bottom: 18px; margin-top: 8px; display: flex; justify-content: center; }
-    .power-btn {
-      background: none; border: none; cursor: pointer; padding: 0; margin: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
-      border-radius: 50%; transition: background 0.18s; position: relative;
-    }
+    .power-btn { background: none; border: none; cursor: pointer; padding: 0; margin: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; transition: background 0.18s; position: relative; }
     .power-btn:hover { background: rgba(220,0,40,0.08);}
     .power-btn svg { width: 30px; height: 30px; stroke: #b00020; transition: stroke 0.18s;}
     .power-btn:hover svg { stroke: #8e0c2f;}
@@ -160,36 +133,54 @@
   <script type="module">
     import supabase from "./supabaseClient.js";
 
+    // === Mapeo legible de roles ===
     const roleLabels = {
       propietario: "Propietario",
       medico: "Médico",
       amp: "Asistente Médico Personal",
-      amc: "Asistente de Centro Médico"
+      amc: "Asistente de Centro Médico",
     };
 
-    const userName = localStorage.getItem('user_name') || 'Sin usuario';
-    const userRolRaw = localStorage.getItem('user_role') || ''; // medico | propietario | amp | amc
-    const userRolLabel = roleLabels[userRolRaw] || userRolRaw;
+    // Evita que se muestre un rol en el lugar del nombre si se guardó mal
+    function normalizeName(name, email) {
+      const roleTokens = new Set([
+        "propietario","medico","amp","amc",
+        "Propietario","Médico",
+        "Asistente Médico Personal","Asistente de Centro Médico"
+      ]);
+      if (!name || roleTokens.has((name || "").trim())) return email || "Usuario";
+      return name;
+    }
 
-    const centroId = localStorage.getItem('centro_medico_id');
+    // === Datos guardados en login ===
+    const userRolRaw = (localStorage.getItem('user_role') || '').toLowerCase(); // medico | propietario | amp | amc
+    const userRolLabel = roleLabels[userRolRaw] || userRolRaw || "—";
+
+    const emailStored   = localStorage.getItem('email') || '';
+    const nameStored    = localStorage.getItem('user_name') || '';
+    const userName      = normalizeName(nameStored, emailStored);
+
+    const centroId      = localStorage.getItem('centro_medico_id');
     const profesionalId = localStorage.getItem('profesional_id');
 
+    // Pintar header usuario
     document.getElementById('user-name').textContent = userName;
-    document.getElementById('user-rol').textContent = userRolLabel;
+    document.getElementById('user-rol').textContent  = userRolLabel;
+    // Persistir nombre corregido para siguientes cargas
+    localStorage.setItem('user_name', userName);
 
     // === Permisos de Configuración ===
-    const btnConfig = document.getElementById('btn-config');
-    const puedeConfig = ['medico','propietario'].includes(userRolRaw);
-
+    // Médico, Propietario y AMP pueden entrar a Configuración. AMC no.
+    const btnConfig   = document.getElementById('btn-config');
+    const puedeConfig = ['medico','propietario','amp'].includes(userRolRaw);
     if (!puedeConfig) {
       // Opción A: ocultar
       btnConfig.style.display = 'none';
-
-      // Opción B (si preferís opaco/disabled):
+      // Opción B (si preferís “grisado”):
       // btnConfig.disabled = true;
-      // btnConfig.title = "No tienes acceso a Configuración";
     }
 
+    // === Centros del profesional ===
     async function cargarCentroDashboard() {
       const centroSelect = document.getElementById('centro-select');
       centroSelect.innerHTML = '<option disabled selected>Cargando...</option>';
@@ -204,8 +195,8 @@
 
         if (!error && data?.length) {
           centros = data
-            .filter(row => row.centros_medicos)
-            .map(row => ({ id: row.centros_medicos.id, nombre: row.centros_medicos.nombre }));
+            .filter(r => r.centros_medicos)
+            .map(r => ({ id: r.centros_medicos.id, nombre: r.centros_medicos.nombre }));
         }
       }
 
@@ -245,15 +236,15 @@
       const scripts = document.getElementById('main-content').querySelectorAll('script[type="module"]');
       for (const oldScript of scripts) {
         if (oldScript.src) {
-          const newScript = document.createElement('script');
-          newScript.type = 'module';
-          newScript.src = oldScript.src;
-          document.body.appendChild(newScript);
+          const s = document.createElement('script');
+          s.type = 'module';
+          s.src = oldScript.src;
+          document.body.appendChild(s);
         } else {
-          const newScript = document.createElement('script');
-          newScript.type = 'module';
-          newScript.textContent = oldScript.textContent;
-          document.body.appendChild(newScript);
+          const s = document.createElement('script');
+          s.type = 'module';
+          s.textContent = oldScript.textContent;
+          document.body.appendChild(s);
         }
       }
 
@@ -267,36 +258,38 @@
     // Inicio por defecto
     await cargarPanelHtml('inicio.html');
 
-    document.getElementById('btn-inicio').addEventListener('click', async function() {
+    // Navegación
+    document.getElementById('btn-inicio').addEventListener('click', async function () {
       setActiveMenu(this);
       document.getElementById('main-content').classList.remove('hidden');
       document.getElementById('configuracion-panel').classList.add('hidden');
       await cargarPanelHtml('inicio.html');
     });
 
-    document.getElementById('btn-turnos').addEventListener('click', async function() {
+    document.getElementById('btn-turnos').addEventListener('click', async function () {
       setActiveMenu(this);
       document.getElementById('main-content').classList.remove('hidden');
       document.getElementById('configuracion-panel').classList.add('hidden');
       await cargarPanelHtml('turnos.html');
     });
 
-    document.getElementById('btn-pacientes').addEventListener('click', async function() {
+    document.getElementById('btn-pacientes').addEventListener('click', async function () {
       setActiveMenu(this);
       document.getElementById('main-content').classList.remove('hidden');
       document.getElementById('configuracion-panel').classList.add('hidden');
       await cargarPanelHtml('pacientes.html');
     });
 
-    // Solo tendrá efecto si el botón está visible (médico/propietario)
-    btnConfig.addEventListener('click', async function() {
-      if (!puedeConfig) return; // por seguridad
+    // Configuración (solo si está habilitado/visible)
+    btnConfig.addEventListener('click', async function () {
+      if (!puedeConfig) return;
       setActiveMenu(this);
       document.getElementById('main-content').classList.add('hidden');
       document.getElementById('configuracion-panel').classList.remove('hidden');
       await cargarPanelConfiguracion();
     });
 
+    // Logout
     document.getElementById('btn-logout').addEventListener('click', () => {
       localStorage.clear();
       window.location.href = "index.html";
@@ -313,11 +306,11 @@
       const panel = document.getElementById('configuracion-panel');
       panel.innerHTML = html;
       Array.from(panel.querySelectorAll('script[type="module"]')).forEach(oldScript => {
-        const newScript = document.createElement('script');
-        newScript.type = 'module';
-        if (oldScript.src) newScript.src = oldScript.src;
-        else newScript.textContent = oldScript.textContent;
-        document.body.appendChild(newScript);
+        const s = document.createElement('script');
+        s.type = 'module';
+        if (oldScript.src) s.src = oldScript.src;
+        else s.textContent = oldScript.textContent;
+        document.body.appendChild(s);
       });
     }
   </script>
