@@ -490,17 +490,53 @@ let filterText = '';
 
 /* —— Helpers —— */
 function pad(n){return n<10?'0'+n:''+n}
-function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+function pad2(n){return n<10?'0'+n:''+n}
+
+function todayISO(){
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`
+}
+
 function toHM(t){return (t??'').toString().slice(0,5)}
-function minutesDiff(start, end){const [h1,m1]=start.split(':').map(Number);const [h2,m2]=end.split(':').map(Number);return (h2*60+m2)-(h1*60+m1);}
-function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
-function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
-function titleCase(s){return (s||'').split(' ').filter(Boolean).map(w=>w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ')}
-function calcEdad(f){if(!f)return null;const d=new Date(f);if(isNaN(d))return null;const t=new Date();let a=t.getFullYear()-d.getFullYear();const m=t.getMonth()-d.getMonth();if(m<0||(m===0&&t.getDate()<d.getDate()))a--;return Math.max(a,0);}
-function norm(s){return (s??'').toString().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'');}
-function matchTurno(t){if(!filterText)return true;const p=t.pacientes||{};return norm(p.apellido).includes(filterText)||String(p.dni||'').includes(filterText);}
-function setDrawerMsg(msg,tone=''){if(Drawer.msg){Drawer.msg.textContent=msg||'';Drawer.msg.className='msg '+(tone||'');}}
-function setDrawerStatus(msg,tone=''){if(Drawer.status){Drawer.status.textContent=msg||'';Drawer.status.className='msg '+(tone||'');}}
+function minutesDiff(start, end){
+  const [h1,m1]=start.split(':').map(Number);
+  const [h2,m2]=end.split(':').map(Number);
+  return (h2*60+m2)-(h1*60+m1);
+}
+function nowHHMMSS(){
+  const d=new Date();
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+}
+function fmtMoney(n){
+  return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))
+}
+function titleCase(s){
+  return (s||'').split(' ').filter(Boolean).map(w=>w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ')
+}
+function calcEdad(f){
+  if(!f) return null;
+  const d=new Date(f); if(isNaN(d)) return null;
+  const t=new Date();
+  let a=t.getFullYear()-d.getFullYear();
+  const m=t.getMonth()-d.getMonth();
+  if(m<0||(m===0&&t.getDate()<d.getDate())) a--;
+  return Math.max(a,0);
+}
+function norm(s){
+  return (s??'').toString().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'');
+}
+function matchTurno(t){
+  if(!filterText) return true;
+  const p=t.pacientes||{};
+  return norm(p.apellido).includes(filterText) || String(p.dni||'').includes(filterText);
+}
+function setDrawerMsg(msg,tone=''){
+  if(Drawer.msg){ Drawer.msg.textContent=msg||''; Drawer.msg.className='msg '+(tone||''); }
+}
+function setDrawerStatus(msg,tone=''){
+  if(Drawer.status){ Drawer.status.textContent=msg||''; Drawer.status.className='msg '+(tone||''); }
+}
+
 
 /* Aplica clases de rol al <body> */
 applyRoleClasses(userRole);
