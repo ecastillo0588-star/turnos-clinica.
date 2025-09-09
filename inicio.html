@@ -84,11 +84,6 @@
     margin:2px 2px 8px; font-size:18px; line-height:1.2;
     display:flex; align-items:center; gap:8px; color:#3b2b66;
   }
-  .hcount{
-    font-size:12px; font-weight:700; color:#5a3e9a;
-    background:#f0ebff; border:1px solid var(--line);
-    padding:2px 8px; border-radius:999px;
-  }
 
   /* Cuerpo con scroll interno y encabezado pegajoso */
   .board-body{
@@ -117,11 +112,12 @@
   .board-body::-webkit-scrollbar{height:8px;width:8px}
   .board-body::-webkit-scrollbar-thumb{background:#d8cfff;border-radius:8px}
 
-  /* Ocultar acciones según rol (asistente) */
-  .role-asistente [data-act="atender"]{ display:none !important; }
-  .role-asistente [data-act="abrir-ficha"]{ display:none !important; }
-  .role-asistente [data-act="finalizar"]{ display:none !important; }
-  .role-asistente [data-act="volver-espera"]{ display:none !important; }
+  /* ===== Ocultaciones rápidas por rol (solo AMC restringe por CSS) ===== */
+  body.role-amc [data-act="cancel"]{ display:none !important; }
+  body.role-amc [data-act="atender"]{ display:none !important; }
+  body.role-amc [data-act="abrir-ficha"]{ display:none !important; }
+  body.role-amc [data-act="finalizar"]{ display:none !important; }
+  /* Nota: NO ocultamos [data-act="volver"] para AMC */
 
   /* ===== Drawer (ficha paciente) ===== */
   .drawer{
@@ -144,7 +140,6 @@
   .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
   .card h4{margin:0 0 10px 0;font-size:14px;color:#4b3a78}
 
-  /* Enlace Historia Clínica con alto contraste */
   .hc-link{
     display:inline-flex; align-items:center; gap:6px;
     font-weight:600; text-decoration:none;
@@ -153,33 +148,12 @@
   }
   .hc-link:hover{ background:#fff; border-color:#b6a3ea; box-shadow:0 2px 6px rgba(0,0,0,.08); }
   .hc-link:focus-visible{ outline:2px solid #5a3e9a; outline-offset:2px; }
-  .hc-ico{ display:block; flex:0 0 auto; opacity:.95; }
 
   #fichaDrawer .drawer-foot #fd-finalizar{
     background:#d32f2f !important; border-color:#b71c1c !important; color:#fff !important;
   }
   #fichaDrawer .drawer-foot #fd-finalizar:hover{ background:#b71c1c !important; }
   #fichaDrawer .drawer-foot #fd-finalizar:focus-visible{ outline:2px solid #7f1d1d; outline-offset:2px; }
-
-  /* (Opcional) Mini-cal CSS si algún día lo usás para resaltar días con turnos */
-  .mini-cal{
-    display:grid; grid-template-columns:repeat(7,1fr); gap:6px;
-    background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px;
-    max-width:320px; box-shadow:0 8px 24px rgba(0,0,0,.12);
-  }
-  .mc-dow{ font-size:11px; color:#8a85a1; text-align:center; }
-  .mc-day{
-    display:flex; align-items:center; justify-content:center; height:36px;
-    border-radius:8px; position:relative; cursor:pointer; user-select:none;
-    border:1px solid transparent;
-  }
-  .mc-day .dot{ width:8px; height:8px; border-radius:50%; position:absolute; bottom:6px; left:50%; transform:translateX(-50%); background:#cfc8ef; }
-  .mc-day.none .dot{ background:#e5e5ea; }
-  .mc-day.free .dot{ background:#0a7d38; }
-  .mc-day.busy .dot{ background:var(--danger); }
-  .mc-day.selected{ outline:2px solid var(--brand); }
-  .mc-day.today{ border-color:#b9a8ea; }
-  .mc-day:hover{ background:#f5f1ff; }
 
   @media (max-width:1100px){
     .boards{grid-template-columns:1fr}
@@ -349,6 +323,7 @@
 
 <script type="module">
 import supabase from './supabaseClient.js';
+import { applyRoleClasses, loadProfesionalesIntoSelect, roleAllows } from './global.js';
 
 /* === ESTADOS === */
 const EST = {
@@ -429,7 +404,7 @@ const Drawer = {
 /* Preferencias / contexto */
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
-const userRole = localStorage.getItem('user_role');
+const userRole = localStorage.getItem('user_role');             // 'medico' | 'amp' | 'amc' | 'propietario'
 const loggedProfesionalId = localStorage.getItem('profesional_id');
 let currentProfesional = null;
 let currentFechaISO = null;
@@ -442,7 +417,8 @@ let filterText = '';
 function pad(n){return n<10?'0'+n:''+n}
 function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function toHM(t){return (t??'').toString().slice(0,5)}
-function minutesDiff(start,end){ const [h1,m1]=start.split(':').map(Number),[h2,m2]=end.split(':').map(Number); return (h2*60+m2)-(h1*60+m1); }
+function minutesDiff(start,end){ const [h1,m1]=start.split(':').map(Number),[h2,m2]=end.split(':').map(Number); return (h2*60+m2)-(h1*60+m2); }
+function minutesDiff(start,end){ const [H1,M1]=start.split(':').map(Number); const [H2,M2]=end.split(':').map(Number); return (H2*60+M2)-(H1*60+M1); }
 function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
 function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
 function titleCase(s){ return (s||'').split(' ').filter(Boolean).map(w=>w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ') }
@@ -458,10 +434,10 @@ function matchTurno(t){
 function setDrawerMsg(msg,tone=''){ if(Drawer.msg){ Drawer.msg.textContent=msg||''; Drawer.msg.className='msg '+(tone||''); } }
 function setDrawerStatus(msg,tone=''){ if(Drawer.status){ Drawer.status.textContent=msg||''; Drawer.status.className='msg '+(tone||''); } }
 
-/* Rol en body */
-if (userRole !== 'medico') document.body.classList.add('role-asistente'); else document.body.classList.remove('role-asistente');
+/* Aplica clases de rol al <body> */
+applyRoleClasses(userRole);
 
-/* Drawer helpers */
+/* Drawer helpers (defensa por rol) */
 function showDrawer(){ Drawer.el.classList.add('open'); Drawer.el.setAttribute('aria-hidden','false'); }
 function hideDrawer(){ Drawer.el.classList.remove('open'); Drawer.el.setAttribute('aria-hidden','true'); }
 if (Drawer.close) Drawer.close.onclick = hideDrawer;
@@ -488,45 +464,15 @@ async function syncCentroFromStorage(force=false){
 function startCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=setInterval(()=>syncCentroFromStorage(false), 1000); }
 window.addEventListener('beforeunload', ()=>{ if (centroWatchTimer) clearInterval(centroWatchTimer); });
 
-/* profesionales */
+/* profesionales: usar global.js */
 async function loadProfesionales(){
   const sel=UI.profSelect;
-
-  if (userRole==='medico' && loggedProfesionalId){
-    let label=null;
-    try{
-      const { data }=await supabase.from('profesionales').select('id,nombre,apellido,display_name').eq('id',loggedProfesionalId).single();
-      if (data) label = data.display_name || [data.apellido,data.nombre].filter(Boolean).join(', ') || data.nombre || data.apellido;
-    }catch(_){}
-    if (!label) label = localStorage.getItem('user_name') || localStorage.getItem('email') || 'Mi agenda';
-    sel.innerHTML = `<option value="${loggedProfesionalId}">${label}</option>`;
-    sel.value = loggedProfesionalId; sel.disabled = true; currentProfesional = loggedProfesionalId; return;
-  }
-
-  sel.disabled = false;
-
-  const { data: map } = await supabase
-    .from('profesional_centro')
-    .select('profesional_id')
-    .eq('centro_id', currentCentroId)
-    .eq('activo', true);
-
-  const ids = [...new Set((map||[]).map(r=>r.profesional_id).filter(Boolean))];
-  if (!ids.length){ sel.innerHTML='<option value="">Sin profesionales</option>'; currentProfesional=null; return; }
-
-  const { data: profs } = await supabase
-    .from('profesionales')
-    .select('id,nombre,apellido,display_name')
-    .in('id', ids)
-    .order('apellido', {ascending:true});
-
-  sel.innerHTML = (profs||[]).map(p=>{
-    const n=p.display_name||[p.apellido,p.nombre].filter(Boolean).join(', ')||p.nombre||p.apellido||p.id;
-    return `<option value="${p.id}">${n}</option>`;
-  }).join('');
-
-  currentProfesional = (profs && profs[0]) ? profs[0].id : null;
-  if (currentProfesional) sel.value = currentProfesional;
+  const selected = await loadProfesionalesIntoSelect(sel, {
+    role: userRole,
+    centroId: currentCentroId,
+    loggedProfesionalId: loggedProfesionalId
+  });
+  currentProfesional = selected || null;
 }
 UI.profSelect.addEventListener('change', async ()=>{ currentProfesional = UI.profSelect.value || null; await refreshAll(); });
 
@@ -594,13 +540,16 @@ function renderPendientes(list){
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
       <th class="cell right">Acciones</th></tr></thead>`;
 
+  const puedeCancelar = roleAllows('cancelar', userRole);
+  const puedeArribo   = roleAllows('arribo', userRole);
+
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const acciones = `
       <div class="actions">
-        <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
-        <button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>
+        ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular" data-role-guard>🗑️</button>` : ''}
+        ${puedeArribo   ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera" data-role-guard>🟢</button>` : ''}
       </div>`;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
@@ -642,7 +591,9 @@ function renderPresentes(list){
       <th class="cell">Apellido</th><th class="cell">Obra social</th><th class="cell">Copago</th>
       <th class="cell right">Acciones</th></tr></thead>`;
 
-  const puedeAtender = (userRole === 'medico');
+  const puedeVolver   = roleAllows('volver', userRole);     // ✅ AMC sí
+  const puedeCancelar = roleAllows('cancelar', userRole);   // ❌ AMC no
+  const puedeAtender  = roleAllows('atender', userRole);    // ❌ AMC no
 
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
@@ -650,9 +601,9 @@ function renderPresentes(list){
     const arriboISO=`${currentFechaISO}T${toHM(t.hora_arribo)||'00:00'}:00`;
     const copBadge=(t.copago && Number(t.copago)>0)?`<span class="copago">${fmtMoney(t.copago)}</span>`:`<span class="copago none">Sin copago</span>`;
     const acciones = `
-      <button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>
-      <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
-      ${puedeAtender ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}`;
+      ${puedeVolver   ? `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes" data-role-guard>↩️</button>` : ''}
+      ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular" data-role-guard>🗑️</button>` : ''}
+      ${puedeAtender  ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención" data-role-guard>✅</button>` : ''}`;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell"><span class="wait" data-arribo-ts="${arriboISO}">—</span></td>
       <td class="cell nowrap">${hora}</td>
@@ -668,9 +619,9 @@ function renderPresentes(list){
 
   UI.tblEsp.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='volver') btn.onclick=async()=>{ await supabase.from('turnos').update({estado:EST.ASIGNADO, hora_arribo:null}).eq('id',id); await refreshAll(); };
+    if(act==='volver') btn.onclick=async()=>{ if(!roleAllows('volver', userRole)) return; await supabase.from('turnos').update({estado:EST.ASIGNADO, hora_arribo:null}).eq('id',id); await refreshAll(); };
     if(act==='cancel') btn.onclick=()=> anularTurno(id);
-    if(act==='atender') btn.onclick=()=> pasarAEnAtencion(id);
+    if(act==='atender') btn.onclick=(ev)=> pasarAEnAtencion(id, ev);
   });
 
   updateWaitBadges(); startWaitTicker();
@@ -683,14 +634,18 @@ function renderAtencion(list){
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
       <th class="cell right">Acciones</th></tr></thead>`;
-  const puedeFinalizar = (userRole === 'medico');
+
+  const puedeAbrir   = roleAllows('abrir_ficha', userRole);  // ❌ AMC
+  const puedeVolverE = roleAllows('atender', userRole);      // ❌ AMC (solo médico/amp)
+  const puedeFin     = roleAllows('finalizar', userRole);    // ❌ AMC
+
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const acciones = `
-      <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente">📄</button>
-      <button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">⏪</button>
-      ${puedeFinalizar ? `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>` : ''}`;
+      ${puedeAbrir   ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente" data-role-guard>📄</button>` : ''}
+      ${puedeVolverE ? `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera" data-role-guard>⏪</button>` : ''}
+      ${puedeFin     ? `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO" data-role-guard>✅</button>` : ''}`;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
@@ -717,12 +672,15 @@ function renderAtendidos(list){
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
       <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
+
+  const puedeAbrir = roleAllows('abrir_ficha', userRole); // ❌ AMC
+
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const cop = (t.copago && Number(t.copago)>0)? fmtMoney(t.copago) : '—';
     const hcBtn = p.historia_clinica ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>` : '';
-    const acciones = `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente">📄</button>${hcBtn}`;
+    const acciones = `${puedeAbrir ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente" data-role-guard>📄</button>` : ''}${hcBtn}`;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
@@ -741,7 +699,7 @@ function renderAtendidos(list){
   });
 }
 
-/* Drawer: carga */
+/* Drawer: carga (defensa por rol) */
 let drawerTurnoId = null;
 
 async function loadObrasSociales(currentLabel){
@@ -775,6 +733,8 @@ function renderHeaderPaciente(p){
 }
 
 async function openFicha(turnoId){
+  if (!roleAllows('abrir_ficha', userRole)) { alert('No tenés permisos para abrir la ficha.'); return; }
+
   drawerTurnoId = turnoId;
   try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
   setDrawerStatus('Cargando...');
@@ -830,6 +790,10 @@ async function openFicha(turnoId){
   Drawer.activo.checked = !!p.activo;
 
   setDrawerStatus('');
+
+  // Botones segun rol
+  Drawer.btnFinalizar.style.display = roleAllows('finalizar', userRole) ? '' : 'none';
+  Drawer.btnGuardar.style.display   = roleAllows('abrir_ficha', userRole) ? '' : 'none';
 }
 
 /* Guardar / Finalizar */
@@ -843,6 +807,7 @@ function validatePaciente(){
 }
 async function guardarFicha(){
   if (!drawerTurnoId) return;
+  if (!roleAllows('abrir_ficha', userRole)) { alert('No tenés permisos para guardar.'); return; }
   if (!validatePaciente()) return;
   setDrawerMsg('Guardando...');
 
@@ -890,11 +855,8 @@ async function guardarFicha(){
 }
 if (Drawer.btnGuardar) Drawer.btnGuardar.onclick = guardarFicha;
 if (Drawer.btnFinalizar){
-  if (userRole !== 'medico') {
-    Drawer.btnFinalizar.style.display = 'none';
-  } else {
-    Drawer.btnFinalizar.onclick = () => finalizarAtencion(drawerTurnoId, { closeDrawer: true });
-  }
+  Drawer.btnFinalizar.style.display = roleAllows('finalizar', userRole) ? '' : 'none';
+  Drawer.btnFinalizar.onclick = () => finalizarAtencion(drawerTurnoId, { closeDrawer: true });
 }
 if (Drawer.cred) Drawer.cred.addEventListener('input', ()=>{ Drawer.credLink.href = Drawer.cred.value || '#'; });
 if (Drawer.nac) Drawer.nac.addEventListener('change', ()=>{
@@ -903,13 +865,14 @@ if (Drawer.nac) Drawer.nac.addEventListener('change', ()=>{
   Drawer.sub.textContent = `${dniTxt.trim()} · ${edad!=null? `${edad} años`:'Edad —'}`;
 });
 
-/* Acciones */
+/* Acciones con defensas por rol */
 async function volverASalaEspera(turnoId){
+  if (!roleAllows('atender', userRole)) { alert('No tenés permisos.'); return; }
   await supabase.from('turnos').update({estado:EST.EN_ESPERA}).eq('id', turnoId);
   await refreshAll();
 }
 async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
-  if (userRole !== 'medico') { alert('Solo los médicos pueden finalizar.'); return; }
+  if (!roleAllows('finalizar', userRole)) { alert('No tenés permisos.'); return; }
   const id = turnoId ?? drawerTurnoId; if (!id) return;
   if (!confirm('¿Marcar este turno como ATENDIDO?')) return;
 
@@ -927,6 +890,8 @@ async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
   await refreshAll();
 }
 async function marcarLlegadaYCopago(turnoId){
+  if (!roleAllows('arribo', userRole)) { alert('No tenés permisos.'); return; }
+
   const { data: t } = await supabase
     .from('turnos')
     .select('id, pacientes(obra_social)')
@@ -949,8 +914,7 @@ async function marcarLlegadaYCopago(turnoId){
 /* Pasar a En atención */
 async function pasarAEnAtencion(turnoId, ev) {
   if (ev) ev.preventDefault();
-  const role = localStorage.getItem('user_role');
-  if (role !== 'medico') { alert('Solo los médicos pueden atender pacientes.'); return; }
+  if (!roleAllows('atender', userRole)) { alert('Solo AMP/Médico pueden atender pacientes.'); return; }
 
   const { error } = await supabase
     .from('turnos')
@@ -960,6 +924,15 @@ async function pasarAEnAtencion(turnoId, ev) {
   if (error) { alert('No se pudo pasar a "En atención".'); return; }
   await refreshAll();
   await openFicha(turnoId);
+}
+
+/* Cancelar turno */
+async function anularTurno(turnoId){
+  if (!roleAllows('cancelar', userRole)) { alert('No tenés permisos para anular.'); return; }
+  if (!confirm('¿Anular este turno?')) return;
+  const { error } = await supabase.from('turnos').update({ estado: EST.CANCELADO }).eq('id', turnoId);
+  if (error) { alert('No se pudo anular.'); return; }
+  await refreshAll();
 }
 
 /* KPIs y títulos */
@@ -975,8 +948,7 @@ function formatFreeTime(mins) {
   if (mins < 60) return `${mins} min`;
   const h = Math.floor(mins / 60);
   const m = mins % 60;
-  const hm = `${h}.${String(m).padStart(2,'0')}`; // “H.MM”
-  return `${h} h ${m} min (${hm} hs)`;
+  return `${h} h ${m} min`;
 }
 function renderKPIs({agenda, turnos}){
   const free=computeHorasDisponibles(agenda, turnos);
