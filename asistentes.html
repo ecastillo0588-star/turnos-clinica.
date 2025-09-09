@@ -9,7 +9,7 @@
     * { box-sizing: border-box; }
     body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); margin: 0; }
     .container { max-width: 1080px; margin: 40px auto; background: var(--panel); padding: 28px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
-    h3 { color: var(--ink); margin: 0 0 8px; }
+    h3 { color: var(--ink); margin: 0 0 6px; }
     p.muted { color: var(--muted); margin: 4px 0 18px; }
     label { color: var(--ink); font-weight: 500; }
     select { border: 1px solid #e3d8f6; border-radius: 6px; padding: 6px 10px; font-size: 15px; background: var(--bg); }
@@ -39,7 +39,6 @@
     .modal-content label { display:block; margin: 8px 0 6px; }
     .modal-content select { width: 100%; }
     .modal-actions { margin-top: 12px; display:flex; gap:8px; }
-    .sr { position:absolute; left:-9999px; top:auto; width:1px; height:1px; overflow:hidden; }
   </style>
 </head>
 <body>
@@ -132,12 +131,10 @@
   // 🌐 UI refs
   const centroSelect = document.getElementById('centro_select');
   const userInfo = document.getElementById('user-info');
-
   const tbodyAMC = document.getElementById('tbody-amc');
   const tbodyAMP = document.getElementById('tbody-amp');
   const errAMC = document.getElementById('err-amc');
   const errAMP = document.getElementById('err-amp');
-
   const btnAddAMC = document.getElementById('btn-add-amc');
   const btnAddAMP = document.getElementById('btn-add-amp');
 
@@ -147,7 +144,6 @@
   const modalCancel = document.getElementById('modal-cancel');
   const modalTitle = document.getElementById('modal-title');
   const modalHelp = document.getElementById('modal-help');
-
   const formAdd = document.getElementById('form-add');
   const asistenteSelect = document.getElementById('asistente_select');
   const hiddenRol = document.getElementById('hidden-rol');
@@ -168,9 +164,8 @@
 
   function formatAsistente(a) {
     const nombre = [a?.nombre, a?.apellido].filter(Boolean).join(' ');
-    const email = a?.email ? ` — ${a.email}` : '';
-    const rol = a?.rol ? ` (${a.rol.toUpperCase()})` : '';
-    return `${nombre}${email}${rol}`;
+    const email = a?.email ? ` (${a.email})` : '';
+    return `${nombre}${email}`;
   }
 
   // ========= Carga inicial =========
@@ -179,61 +174,52 @@
     const user = uResp?.user;
     if (uErr || !user) {
       userInfo.textContent = 'No autenticado';
-      btnAddAMC.disabled = true;
-      btnAddAMP.disabled = true;
+      btnAddAMC.disabled = true; btnAddAMP.disabled = true;
       return;
     }
 
-    // 1) profiles.profesional_id
-    let profId = null;
-    let profRol = null;
+    // Buscar el profesional (médico) del usuario
+    let profId = null, profRol = null, p;
 
-    const { data: profile, error: pErr } = await supabase
+    const { data: profile } = await supabase
       .from('profiles')
       .select('profesional_id')
       .eq('id', user.id)
       .maybeSingle();
 
-    if (!pErr && profile?.profesional_id) {
-      const { data: prof } = await supabase
+    if (profile?.profesional_id) {
+      const { data } = await supabase
         .from('profesionales')
         .select('id, nombre, apellido, rol')
         .eq('id', profile.profesional_id)
         .maybeSingle();
-      if (prof?.id) {
-        profId = prof.id;
-        profRol = prof.rol;
-        medicoNombre = [prof?.nombre, prof?.apellido].filter(Boolean).join(' ');
-      }
+      p = data;
     }
 
-    // 2) Fallback: profesionales.profile_id
-    if (!profId) {
-      const { data: prof2 } = await supabase
+    if (!p) {
+      const { data } = await supabase
         .from('profesionales')
         .select('id, nombre, apellido, rol')
         .eq('profile_id', user.id)
         .maybeSingle();
-      if (prof2?.id) {
-        profId = prof2.id;
-        profRol = prof2.rol;
-        medicoNombre = [prof2?.nombre, prof2?.apellido].filter(Boolean).join(' ');
-      }
+      p = data;
+    }
+
+    if (p?.id) {
+      profId = p.id; profRol = p.rol;
+      medicoNombre = [p.nombre, p.apellido].filter(Boolean).join(' ');
     }
 
     medicoProfesionalId = profId;
 
     if (!medicoProfesionalId) {
       userInfo.textContent = 'No se encontró profesional del usuario';
-      btnAddAMC.disabled = true;
-      btnAddAMP.disabled = true;
+      btnAddAMC.disabled = true; btnAddAMP.disabled = true;
       return;
     }
-
     if (profRol !== 'medico') {
       userInfo.textContent = 'El usuario no es médico';
-      btnAddAMC.disabled = true;
-      btnAddAMP.disabled = true;
+      btnAddAMC.disabled = true; btnAddAMP.disabled = true;
       return;
     }
 
@@ -262,155 +248,120 @@
     }
   }
 
-  // ========= Listados =========
-  async function cargarAMC(centroId) {
-    if (!centroId) {
-      showRowEmpty(tbodyAMC, 'Elegí un centro para ver sus AMC vinculados.');
-      errAMC.textContent = '';
-      return;
-    }
-    showRowEmpty(tbodyAMC, 'Cargando AMC…');
-    errAMC.textContent = '';
-
+  // ========= DAO simples para evitar ambigüedades de JOIN =========
+  async function getPCActivosPorCentro(centroId) {
     const { data, error } = await supabase
       .from('profesional_centro')
-      .select(`
-        profesional_id,
-        centro_id,
-        medico_registrador_id,
-        activo,
-        profesionales!inner(id, nombre, apellido, email, rol)
-      `)
+      .select('profesional_id, centro_id, medico_registrador_id, activo')
       .eq('centro_id', centroId)
-      .eq('activo', true)
-      .eq('profesionales.rol', 'amc');
+      .eq('activo', true);
+    return { data: data || [], error };
+  }
 
-    if (error) {
-      showRowEmpty(tbodyAMC, 'Error al cargar AMC.');
-      errAMC.textContent = error.message || JSON.stringify(error);
-      return;
-    }
+  async function getProfesionalesPorIds(ids) {
+    if (!ids || ids.length === 0) return { data: [], error: null };
+    const { data, error } = await supabase
+      .from('profesionales')
+      .select('id, nombre, apellido, email, rol, activo')
+      .in('id', ids);
+    return { data: data || [], error };
+  }
 
-    if (!data || data.length === 0) {
-      showRowEmpty(tbodyAMC, 'No hay AMC vinculados a este centro.');
-      return;
-    }
+  // ========= Listados =========
+  async function cargarAMC(centroId) {
+    if (!centroId) { showRowEmpty(tbodyAMC, 'Elegí un centro para ver sus AMC vinculados.'); errAMC.textContent=''; return; }
+    showRowEmpty(tbodyAMC, 'Cargando AMC…'); errAMC.textContent = '';
 
-    tbodyAMC.innerHTML = data.map(v => {
-      const asis = v.profesionales || {};
-      const label = formatAsistente(asis);
+    const { data: pcRows, error: pcErr } = await getPCActivosPorCentro(centroId);
+    if (pcErr) { showRowEmpty(tbodyAMC, 'Error al cargar AMC.'); errAMC.textContent = pcErr.message || JSON.stringify(pcErr); return; }
+
+    const ids = [...new Set(pcRows.map(r => r.profesional_id))];
+    const { data: pros, error: prosErr } = await getProfesionalesPorIds(ids);
+    if (prosErr) { showRowEmpty(tbodyAMC, 'Error al cargar AMC.'); errAMC.textContent = prosErr.message || JSON.stringify(prosErr); return; }
+
+    // Filtrar solo amc
+    const prosById = new Map(pros.filter(p => p.rol === 'amc' && p.activo).map(p => [p.id, p]));
+    const filas = pcRows.filter(r => prosById.has(r.profesional_id));
+
+    if (filas.length === 0) { showRowEmpty(tbodyAMC, 'No hay AMC vinculados a este centro.'); return; }
+
+    tbodyAMC.innerHTML = filas.map(v => {
+      const a = prosById.get(v.profesional_id);
       return `
         <tr>
-          <td>${label}</td>
+          <td>${formatAsistente(a)}</td>
           <td class="action-cell">
-            <button class="btn btn-sm desasociar"
-              data-prof="${v.profesional_id}"
-              data-centro="${v.centro_id}"
-              data-med="${v.medico_registrador_id || ''}"
-              data-rol="amc">
-              Desasociar
-            </button>
+            <button class="btn desasociar" data-prof="${v.profesional_id}" data-centro="${v.centro_id}" data-med="${v.medico_registrador_id || ''}" data-tipo="amc">Desasociar</button>
           </td>
         </tr>
       `;
     }).join('');
 
-    // Eventos desasociar
     tbodyAMC.querySelectorAll('.desasociar').forEach(btn => {
       btn.addEventListener('click', async () => {
         const profesional_id = btn.getAttribute('data-prof');
         const centro_id = btn.getAttribute('data-centro');
         const medico_id = btn.getAttribute('data-med') || null;
         if (!confirm('¿Desasociar este asistente (AMC) del centro?')) return;
-        const { error: updErr } = await supabase
-          .from('profesional_centro')
-          .update({ activo: false })
-          .eq('profesional_id', profesional_id)
-          .eq('centro_id', centro_id)
-          .is('medico_registrador_id', medico_id === null ? null : undefined)
-          .eq('medico_registrador_id', medico_id || medico_id) ; // truco para null/uuid
 
-        if (updErr) {
-          errAMC.textContent = updErr.message || JSON.stringify(updErr);
-        } else {
-          await cargarAMC(centro_id);
-        }
+        let q = supabase.from('profesional_centro').update({ activo: false })
+          .eq('profesional_id', profesional_id)
+          .eq('centro_id', centro_id);
+        if (!medico_id) q = q.is('medico_registrador_id', null);
+        else q = q.eq('medico_registrador_id', medico_id);
+
+        const { error: updErr } = await q;
+        if (updErr) { errAMC.textContent = updErr.message || JSON.stringify(updErr); }
+        else { await cargarAMC(centro_id); }
       });
     });
   }
 
   async function cargarAMP(centroId) {
-    if (!centroId) {
-      showRowEmpty(tbodyAMP, 'Elegí un centro para ver sus AMP vinculados.');
-      errAMP.textContent = '';
-      return;
-    }
-    showRowEmpty(tbodyAMP, 'Cargando AMP…');
-    errAMP.textContent = '';
+    if (!centroId) { showRowEmpty(tbodyAMP, 'Elegí un centro para ver sus AMP vinculados.'); errAMP.textContent=''; return; }
+    showRowEmpty(tbodyAMP, 'Cargando AMP…'); errAMP.textContent = '';
 
-    const { data, error } = await supabase
-      .from('profesional_centro')
-      .select(`
-        profesional_id,
-        centro_id,
-        medico_registrador_id,
-        activo,
-        profesionales!inner(id, nombre, apellido, email, rol)
-      `)
-      .eq('centro_id', centroId)
-      .eq('activo', true)
-      .eq('profesionales.rol', 'amp');
+    const { data: pcRows, error: pcErr } = await getPCActivosPorCentro(centroId);
+    if (pcErr) { showRowEmpty(tbodyAMP, 'Error al cargar AMP.'); errAMP.textContent = pcErr.message || JSON.stringify(pcErr); return; }
 
-    if (error) {
-      showRowEmpty(tbodyAMP, 'Error al cargar AMP.');
-      errAMP.textContent = error.message || JSON.stringify(error);
-      return;
-    }
+    const ids = [...new Set(pcRows.map(r => r.profesional_id))];
+    const { data: pros, error: prosErr } = await getProfesionalesPorIds(ids);
+    if (prosErr) { showRowEmpty(tbodyAMP, 'Error al cargar AMP.'); errAMP.textContent = prosErr.message || JSON.stringify(prosErr); return; }
 
-    if (!data || data.length === 0) {
-      showRowEmpty(tbodyAMP, 'No hay AMP vinculados a este centro.');
-      return;
-    }
+    // Filtrar solo amp
+    const prosById = new Map(pros.filter(p => p.rol === 'amp' && p.activo).map(p => [p.id, p]));
+    const filas = pcRows.filter(r => prosById.has(r.profesional_id));
 
-    tbodyAMP.innerHTML = data.map(v => {
-      const asis = v.profesionales || {};
-      const label = formatAsistente(asis);
+    if (filas.length === 0) { showRowEmpty(tbodyAMP, 'No hay AMP vinculados a este centro.'); return; }
+
+    tbodyAMP.innerHTML = filas.map(v => {
+      const a = prosById.get(v.profesional_id);
       return `
         <tr>
-          <td>${label}</td>
+          <td>${formatAsistente(a)}</td>
           <td class="action-cell">
-            <button class="btn btn-sm desasociar"
-              data-prof="${v.profesional_id}"
-              data-centro="${v.centro_id}"
-              data-med="${v.medico_registrador_id || ''}"
-              data-rol="amp">
-              Desasociar
-            </button>
+            <button class="btn desasociar" data-prof="${v.profesional_id}" data-centro="${v.centro_id}" data-med="${v.medico_registrador_id || ''}" data-tipo="amp">Desasociar</button>
           </td>
         </tr>
       `;
     }).join('');
 
-    // Eventos desasociar
     tbodyAMP.querySelectorAll('.desasociar').forEach(btn => {
       btn.addEventListener('click', async () => {
         const profesional_id = btn.getAttribute('data-prof');
         const centro_id = btn.getAttribute('data-centro');
         const medico_id = btn.getAttribute('data-med') || null;
         if (!confirm('¿Desasociar este asistente (AMP) del centro?')) return;
-        const { error: updErr } = await supabase
-          .from('profesional_centro')
-          .update({ activo: false })
-          .eq('profesional_id', profesional_id)
-          .eq('centro_id', centro_id)
-          .is('medico_registrador_id', medico_id === null ? null : undefined)
-          .eq('medico_registrador_id', medico_id || medico_id);
 
-        if (updErr) {
-          errAMP.textContent = updErr.message || JSON.stringify(updErr);
-        } else {
-          await cargarAMP(centro_id);
-        }
+        let q = supabase.from('profesional_centro').update({ activo: false })
+          .eq('profesional_id', profesional_id)
+          .eq('centro_id', centro_id);
+        if (!medico_id) q = q.is('medico_registrador_id', null);
+        else q = q.eq('medico_registrador_id', medico_id);
+
+        const { error: updErr } = await q;
+        if (updErr) { errAMP.textContent = updErr.message || JSON.stringify(updErr); }
+        else { await cargarAMP(centro_id); }
       });
     });
   }
@@ -424,8 +375,8 @@
   async function abrirModalPara(rol) {
     formStatus.textContent = '';
     formError.textContent = '';
-    asistenteSelect.innerHTML = `<option value="" disabled selected>Cargando asistentes…</option>`;
     hiddenRol.value = rol;
+    asistenteSelect.innerHTML = `<option value="" disabled selected>Cargando asistentes…</option>`;
 
     modalTitle.textContent = rol === 'amc' ? 'Añadir asistente (AMC)' : 'Añadir asistente (AMP)';
     modalHelp.textContent = rol === 'amc'
@@ -459,7 +410,7 @@
       }
     }
 
-    openModal();
+    modal.classList.add('open');
   }
 
   btnAddAMC.addEventListener('click', async () => {
@@ -474,17 +425,17 @@
     await abrirModalPara('amp');
   });
 
-  modalClose.addEventListener('click', closeModal);
-  modalCancel.addEventListener('click', closeModal);
-  window.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+  document.getElementById('modal-close').addEventListener('click', () => modal.classList.remove('open'));
+  document.getElementById('modal-cancel').addEventListener('click', () => modal.classList.remove('open'));
+  window.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('open'); });
 
-  // Submit inserción
+  // Submit inserción (misma tabla, registra médico)
   formAdd.addEventListener('submit', async (e) => {
     e.preventDefault();
     formStatus.textContent = '';
     formError.textContent = '';
 
-    const rol = hiddenRol.value;               // 'amc' o 'amp'
+    const rol = hiddenRol.value;               // 'amc' o 'amp' (solo para filtrar la lista del modal)
     const asistenteId = asistenteSelect.value; // profesional_id (asistente)
     const centroId = centroSelect.value;       // centro
     const medicoId = medicoProfesionalId;      // médico registrador
@@ -497,25 +448,19 @@
     // Evitar duplicado activo del mismo triple
     const { data: exist, error: existErr } = await supabase
       .from('profesional_centro')
-      .select('profesional_id, centro_id, medico_registrador_id, activo')
+      .select('profesional_id')
       .eq('profesional_id', asistenteId)
       .eq('centro_id', centroId)
       .eq('medico_registrador_id', medicoId)
       .eq('activo', true);
 
-    if (existErr) {
-      formError.textContent = existErr.message || JSON.stringify(existErr);
-      return;
-    }
-    if (exist && exist.length > 0) {
-      formError.textContent = 'Ya existe esta vinculación activa.';
-      return;
-    }
+    if (existErr) { formError.textContent = existErr.message || JSON.stringify(existErr); return; }
+    if (exist && exist.length > 0) { formError.textContent = 'Ya existe esta vinculación activa.'; return; }
 
     // Si existe inactiva, reactivar; si no, insertar
     const { data: inactiva } = await supabase
       .from('profesional_centro')
-      .select('profesional_id, centro_id, medico_registrador_id, activo')
+      .select('profesional_id')
       .eq('profesional_id', asistenteId)
       .eq('centro_id', centroId)
       .eq('medico_registrador_id', medicoId)
@@ -529,11 +474,7 @@
         .eq('centro_id', centroId)
         .eq('medico_registrador_id', medicoId)
         .eq('activo', false);
-
-      if (updErr) {
-        formError.textContent = updErr.message || JSON.stringify(updErr);
-        return;
-      }
+      if (updErr) { formError.textContent = updErr.message || JSON.stringify(updErr); return; }
     } else {
       const { error: insErr } = await supabase
         .from('profesional_centro')
@@ -544,21 +485,17 @@
           activo: true,
           prioridad: 1
         });
-      if (insErr) {
-        formError.textContent = insErr.message || JSON.stringify(insErr);
-        return;
-      }
+      if (insErr) { formError.textContent = insErr.message || JSON.stringify(insErr); return; }
     }
 
     formStatus.textContent = '¡Asistente vinculado correctamente!';
-    closeModal();
+    modal.classList.remove('open');
     await recargarTablas();
   });
 
   // ========= Eventos y boot =========
   centroSelect.addEventListener('change', recargarTablas);
 
-  // init
   await initUserAndMedico();
   await cargarCentros();
 </script>
