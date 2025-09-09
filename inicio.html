@@ -457,9 +457,9 @@ const Drawer = {
 /* Preferencias / contexto */
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
-const userRole = localStorage.getItem('user_role');             // 'medico' | 'amp' | 'amc' | 'propietario'
+const userRole = String(localStorage.getItem('user_role') || '').toLowerCase(); // 'medico' | 'amp' | 'amc' | 'propietario'
 const loggedProfesionalId = localStorage.getItem('profesional_id');
-let selectedProfesionales = [];  // NUEVO: selección múltiple
+let selectedProfesionales = [];            // ✅ multi-selección
 let currentFechaISO = null;
 let centroWatchTimer = null;
 
@@ -493,11 +493,16 @@ function setDrawerStatus(msg,tone=''){ if(Drawer.status){ Drawer.status.textCont
 /* Aplica clases de rol al <body> */
 applyRoleClasses(userRole);
 
-/* NUEVO: multiselección para AMC */
-if (userRole === 'amc') {
-  UI.profSelect.multiple = true;
-  UI.profSelect.size = 6;
-  UI.profSelect.classList.remove('compact');
+/* === Mapa de nombres de profesional (id -> texto de <option>) === */
+let PROF_NAME = new Map();
+function rebuildProfMap(){
+  PROF_NAME.clear();
+  Array.from(UI.profSelect.options).forEach(o=>{
+    if (o.value) PROF_NAME.set(String(o.value), (o.textContent || '').trim());
+  });
+}
+function profNameById(id){
+  return PROF_NAME.get(String(id)) || '—';
 }
 
 /* Drawer helpers */
@@ -527,18 +532,34 @@ async function syncCentroFromStorage(force=false){
 function startCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=setInterval(()=>syncCentroFromStorage(false), 1000); }
 window.addEventListener('beforeunload', ()=>{ if (centroWatchTimer) clearInterval(centroWatchTimer); });
 
-/* profesionales: usar global.js */
+/* profesionales */
 async function loadProfesionales(){
   const sel=UI.profSelect;
+
+  // Forzar multiselección para AMC
+  if (userRole === 'amc') {
+    sel.multiple = true;
+    sel.classList.remove('compact');
+  }
+
   await loadProfesionalesIntoSelect(sel, {
     role: userRole,
     centroId: currentCentroId,
     loggedProfesionalId: loggedProfesionalId
   });
 
+  // Reconstruir mapa id->nombre
+  rebuildProfMap();
+
+  // Selección por defecto
   if (sel.multiple) {
-    Array.from(sel.options).forEach(o => { if (o.value) o.selected = true; });
-    selectedProfesionales = Array.from(sel.selectedOptions).map(o => o.value);
+    // AMC: seleccionar TODOS por defecto
+    selectedProfesionales = Array.from(sel.options)
+      .filter(o => o.value)
+      .map(o => { o.selected = true; return o.value; });
+    // Altura visible del selector
+    const count = selectedProfesionales.length;
+    sel.size = Math.min(10, Math.max(4, count || 6));
   } else {
     selectedProfesionales = sel.value ? [sel.value] : [];
   }
@@ -546,7 +567,7 @@ async function loadProfesionales(){
 UI.profSelect.addEventListener('change', async ()=>{
   const sel=UI.profSelect;
   selectedProfesionales = sel.multiple
-    ? Array.from(sel.selectedOptions).map(o => o.value)
+    ? Array.from(sel.selectedOptions).map(o => o.value).filter(Boolean)
     : (sel.value ? [sel.value] : []);
   await refreshAll();
 });
@@ -556,40 +577,38 @@ UI.fecha.value=todayISO(); currentFechaISO=UI.fecha.value;
 UI.fecha.addEventListener('change', ()=>{ currentFechaISO=UI.fecha.value||todayISO(); refreshAll(); });
 UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
 
-/* data día (multi-profesional) */
+/* data día (multi-profesional, sin join a profesionales) */
 async function fetchDiaData(){
   if(!selectedProfesionales.length) return { pendientes:[], presentes:[], atencion:[], atendidos:[], agenda:[], turnos:[] };
-  const profIds = selectedProfesionales.map(id => isNaN(Number(id)) ? id : Number(id));
-  const common={centro_id:currentCentroId, fecha:currentFechaISO};
+  const profIds = selectedProfesionales.map(String); // no castear a número (uuid/int)
 
   const selectCols = `
     id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, profesional_id,
-    pacientes(id, dni, nombre, apellido, obra_social, historia_clinica),
-    profesionales(display_name, apellido, nombre)
+    pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)
   `;
 
   const [pend, pres, atenc, done, agenda, turnos] = await Promise.all([
     supabase.from('turnos').select(selectCols)
-      .eq('centro_id', common.centro_id).eq('fecha', common.fecha)
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
       .in('profesional_id', profIds).eq('estado', EST.ASIGNADO)
       .order('hora_inicio', {ascending:true}),
     supabase.from('turnos').select(selectCols)
-      .eq('centro_id', common.centro_id).eq('fecha', common.fecha)
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
       .in('profesional_id', profIds).eq('estado', EST.EN_ESPERA)
       .order('hora_inicio', {ascending:true}),
     supabase.from('turnos').select(selectCols)
-      .eq('centro_id', common.centro_id).eq('fecha', common.fecha)
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
       .in('profesional_id', profIds).eq('estado', EST.EN_ATENCION)
       .order('hora_inicio', {ascending:true}),
     supabase.from('turnos').select(selectCols)
-      .eq('centro_id', common.centro_id).eq('fecha', common.fecha)
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
       .in('profesional_id', profIds).eq('estado', EST.ATENDIDO)
       .order('hora_inicio', {ascending:true}),
     supabase.from('agenda').select('id, fecha, hora_inicio, hora_fin, profesional_id')
-      .eq('centro_id', common.centro_id).eq('fecha', common.fecha)
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
       .in('profesional_id', profIds).order('hora_inicio',{ascending:true}),
     supabase.from('turnos').select('id, hora_inicio, hora_fin, estado, profesional_id')
-      .eq('centro_id', common.centro_id).eq('fecha', common.fecha)
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
       .in('profesional_id', profIds)
   ]);
 
@@ -603,7 +622,7 @@ async function fetchDiaData(){
   };
 }
 
-/* —— Render helpers —— */
+/* —— Render helpers de filtro —— */
 function applyFilter(data){
   if (!filterText) return {
     pendientes:data.pendientes, presentes:data.presentes, atencion:data.atencion, atendidos:data.atendidos
@@ -615,26 +634,21 @@ function applyFilter(data){
     atendidos:  (data.atendidos||[]).filter(matchTurno),
   };
 }
-function profName(t){
-  const pr = t.profesionales || {};
-  return pr.display_name || [pr.apellido, pr.nombre].filter(Boolean).join(', ') || '—';
-}
+
+/* Mostrar columna “Profesional” si hay multiselección o más de 1 */
 const showProfColumn = ()=> (UI.profSelect.multiple || selectedProfesionales.length > 1);
 
-/* POR LLEGAR */
+/* Por llegar */
 function renderPendientes(list){
   const withProf = showProfColumn();
   const grid = withProf
-    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
-    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
-
-  const headCells = `
+    ? '100px 120px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 150px'
+    : '100px 120px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 150px';
+  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf ? '<th class="cell">Profesional</th>' : ''}
-      <th class="cell right">Acciones</th>`;
-
-  const head = `<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">${headCells}</tr></thead>`;
+      ${withProf?'<th class="cell">Profesional</th>':''}
+      <th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeCancelar = roleAllows('cancelar', userRole);
   const puedeArribo   = roleAllows('arribo', userRole);
@@ -653,7 +667,7 @@ function renderPendientes(list){
       <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
       <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
       <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf ? `<td class="cell truncate">${profName(t)}</td>` : ''}
+      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell right">${acciones}</td>
     </tr>`;
   }).join('');
@@ -667,7 +681,7 @@ function renderPendientes(list){
   });
 }
 
-/* EN SALA DE ESPERA */
+/* En sala de espera */
 let waitTimer=null;
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
@@ -684,17 +698,14 @@ function updateWaitBadges(){
 function renderPresentes(list){
   const withProf = showProfColumn();
   const grid = withProf
-    ? `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-copago) var(--w-acc)`
-    : `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-copago) var(--w-acc)`;
-
-  const headCells = `
+    ? '90px 100px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 110px 180px'
+    : '90px 100px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 110px 180px';
+  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
       <th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf ? '<th class="cell">Profesional</th>' : ''}
+      ${withProf?'<th class="cell">Profesional</th>':''}
       <th class="cell">Copago</th>
-      <th class="cell right">Acciones</th>`;
-
-  const head = `<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">${headCells}</tr></thead>`;
+      <th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeVolver   = roleAllows('volver', userRole);
   const puedeCancelar = roleAllows('cancelar', userRole);
@@ -715,7 +726,7 @@ function renderPresentes(list){
       <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
       <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
       <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf ? `<td class="cell truncate">${profName(t)}</td>` : ''}
+      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell">${copBadge}</td>
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
@@ -733,20 +744,17 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
-/* EN ATENCIÓN */
+/* En atención */
 function renderAtencion(list){
   const withProf = showProfColumn();
   const grid = withProf
-    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
-    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
-
-  const headCells = `
+    ? '100px 120px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 210px'
+    : '100px 120px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 210px';
+  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf ? '<th class="cell">Profesional</th>' : ''}
-      <th class="cell right">Acciones</th>`;
-
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">${headCells}</tr></thead>`;
+      ${withProf?'<th class="cell">Profesional</th>':''}
+      <th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeAbrir   = roleAllows('abrir_ficha', userRole);
   const puedeVolverE = roleAllows('atender', userRole);
@@ -765,7 +773,7 @@ function renderAtencion(list){
       <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
       <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
       <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf ? `<td class="cell truncate">${profName(t)}</td>` : ''}
+      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
   }).join('');
@@ -779,20 +787,17 @@ function renderAtencion(list){
   });
 }
 
-/* ATENDIDOS */
+/* Atendidos */
 function renderAtendidos(list){
   const withProf = showProfColumn();
   const grid = withProf
-    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-copago) var(--w-acc)`
-    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-copago) var(--w-acc)`;
-
-  const headCells = `
+    ? '100px 120px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 120px 120px'
+    : '100px 120px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 120px 120px';
+  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf ? '<th class="cell">Profesional</th>' : ''}
-      <th class="cell">Copago</th><th class="cell right">Acciones</th>`;
-
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">${headCells}</tr></thead>`;
+      ${withProf?'<th class="cell">Profesional</th>':''}
+      <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeAbrir = roleAllows('abrir_ficha', userRole);
 
@@ -808,7 +813,7 @@ function renderAtendidos(list){
       <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
       <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
       <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf ? `<td class="cell truncate">${profName(t)}</td>` : ''}
+      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell">${cop}</td>
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
@@ -821,7 +826,7 @@ function renderAtendidos(list){
   });
 }
 
-/* Drawer: carga (con defensas por rol) */
+/* Drawer: carga (igual que antes) */
 let drawerTurnoId = null;
 
 async function loadObrasSociales(currentLabel){
@@ -1119,8 +1124,8 @@ async function refreshAll(){
   renderAtencion(filtered.atencion);
   renderAtendidos(filtered.atendidos);
 
-  renderKPIs(raw);
-  renderBoardTitles(filtered);
+  renderKPIs(raw);            // Horas libres sobre el total
+  renderBoardTitles(filtered); // Títulos con cantidades filtradas
 }
 async function initInicio(){
   try {
@@ -1139,5 +1144,6 @@ async function initInicio(){
 }
 await initInicio();
 </script>
+
 </body>
 </html>
