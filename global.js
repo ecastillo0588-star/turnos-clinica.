@@ -206,15 +206,74 @@ Si no podés asistir, por favor avisá. ¡Gracias!`;
 // ===== Profesionales (combo) + helpers de rol =====
 
 /** Etiqueta legible "Apellido, Nombre" con fallbacks */
+// ✅ Etiqueta legible sin depender de display_name
 function profLabel(p) {
-  return (
-    p?.display_name ||
-    [p?.apellido, p?.nombre].filter(Boolean).join(', ') ||
-    p?.nombre ||
-    p?.apellido ||
-    p?.id
-  );
+  const ape = (p?.apellido || '').trim();
+  const nom = (p?.nombre || '').trim();
+  return [ape, nom].filter(Boolean).join(', ') || nom || ape || p?.id;
 }
+
+// ✅ Trae SOLO médicos visibles según rol/centro (sin display_name en el SELECT)
+export async function getProfesionalesForContext({ role, centroId, loggedProfesionalId }) {
+  if (!centroId) return [];
+
+  // Médico logueado: solo él
+  if (role === 'medico' && loggedProfesionalId) {
+    const { data: p } = await supabase
+      .from('profesionales')
+      .select('id, nombre, apellido, rol')
+      .eq('id', loggedProfesionalId)
+      .maybeSingle();
+    if (p?.rol !== 'medico') return [];
+    return [{ id: p.id, label: profLabel(p) }];
+  }
+
+  // AMP: solo los médicos vinculados a ese AMP en ese centro (via medico_registrador_id)
+  if (role === 'amp' && loggedProfesionalId) {
+    const { data: links } = await supabase
+      .from('profesional_centro')
+      .select('medico_registrador_id')
+      .eq('profesional_id', loggedProfesionalId)
+      .eq('centro_id', centroId)
+      .eq('activo', true);
+
+    const ids = [...new Set((links || []).map(r => r.medico_registrador_id).filter(Boolean))];
+    if (!ids.length) return [];
+
+    const { data: pros } = await supabase
+      .from('profesionales')
+      .select('id, nombre, apellido, rol')
+      .in('id', ids)
+      .eq('rol', 'medico')
+      .order('apellido', { ascending: true });
+
+    return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
+  }
+
+  // AMC / propietario: todos los médicos del centro
+  if (role === 'amc' || role === 'propietario') {
+    const { data: map } = await supabase
+      .from('profesional_centro')
+      .select('profesional_id')
+      .eq('centro_id', centroId)
+      .eq('activo', true);
+
+    const ids = [...new Set((map || []).map(r => r.profesional_id).filter(Boolean))];
+    if (!ids.length) return [];
+
+    const { data: pros } = await supabase
+      .from('profesionales')
+      .select('id, nombre, apellido, rol')
+      .in('id', ids)
+      .eq('rol', 'medico')
+      .order('apellido', { ascending: true });
+
+    return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
+  }
+
+  return [];
+}
+
 
 /**
  * Devuelve los MÉDICOS visibles según rol y centro:
@@ -228,7 +287,7 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
   if (role === 'medico' && loggedProfesionalId) {
     const { data: p } = await supabase
       .from('profesionales')
-      .select('id, nombre, apellido, display_name, rol')
+      .select('id, nombre, apellido, rol')   // <- sin display_name
       .eq('id', loggedProfesionalId)
       .maybeSingle();
     if (p?.rol !== 'medico') return [];
@@ -243,14 +302,12 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
       .eq('centro_id', centroId)
       .eq('activo', true);
 
-    const ids = [...new Set((links || [])
-      .map(r => r.medico_registrador_id)
-      .filter(Boolean))];
+    const ids = [...new Set((links || []).map(r => r.medico_registrador_id).filter(Boolean))];
     if (!ids.length) return [];
 
     const { data: pros } = await supabase
       .from('profesionales')
-      .select('id, nombre, apellido, display_name, rol')
+      .select('id, nombre, apellido, rol')   // <- sin display_name
       .in('id', ids)
       .in('rol', ['medico'])
       .order('apellido', { ascending: true });
@@ -265,14 +322,12 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
       .eq('centro_id', centroId)
       .eq('activo', true);
 
-    const ids = [...new Set((map || [])
-      .map(r => r.profesional_id)
-      .filter(Boolean))];
+    const ids = [...new Set((map || []).map(r => r.profesional_id).filter(Boolean))];
     if (!ids.length) return [];
 
     const { data: pros } = await supabase
       .from('profesionales')
-      .select('id, nombre, apellido, display_name, rol')
+      .select('id, nombre, apellido, rol')   // <- sin display_name
       .in('id', ids)
       .in('rol', ['medico'])
       .order('apellido', { ascending: true });
@@ -282,6 +337,7 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
 
   return [];
 }
+
 
 /** Pinta opciones en un <select> */
 export function fillProfesionalSelect(selectEl, items, {
