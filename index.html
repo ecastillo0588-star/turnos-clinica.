@@ -53,7 +53,7 @@
       <div class="error-message" id="center-error-message"></div>
     </form>
 
-    <!-- Asociar a centro existente -->
+    <!-- Asociar a centro existente (solo propietario/medico sin centros) -->
     <form id="associate-form" class="hidden">
       <div id="associate-select-div"></div>
       <button type="submit" class="login-btn">Asociar centro médico</button>
@@ -66,49 +66,38 @@
     import supabase from "./supabaseClient.js";
 
     let userEmail = null;
-    let userRole = null;
-    let profesionalId = null;
+    let userRole = null;            // 'propietario' | 'medico' | 'amp' | 'amc'
+    let profesionalId = null;       // profesionales.id del usuario
     let centros = [];
     let userName = null;
 
+    /** Asegura profesional_id del perfil:
+     *  1) Usa profiles.profesional_id si existe.
+     *  2) Si no, busca en profesionales por profile_id = authUser.id y lo guarda en el perfil.
+     *  3) Fallback por email (si lo usás en profesionales).
+     */
     async function ensureProfesionalId(profileData) {
-      // 1. Si ya viene en el perfil, úsalo
-      if (profileData.profesional_id) {
-        console.log("[DEBUG] profesional_id ya en profile:", profileData.profesional_id);
-        return profileData.profesional_id;
-      }
+      if (profileData.profesional_id) return profileData.profesional_id;
 
-      console.log("[DEBUG] profileData sin profesional_id. Intentando localizar profesional…");
-
-      // 2. Obtener user auth
       const { data: userResp } = await supabase.auth.getUser();
       const authUser = userResp?.user;
-      if (!authUser) {
-        console.warn("[DEBUG] No hay usuario auth en sesión.");
-        return null;
-      }
+      if (!authUser) return null;
 
-      // 3. Intentar buscar en profesionales por user_id (ajusta si tu esquema es distinto)
-      const { data: profesionalRow, error: profesionalSearchError } = await supabase
+      // Buscar por profile_id (tu FK)
+      const { data: profesionalRow } = await supabase
         .from('profesionales')
-        .select('id, user_id, email')
-        .eq('user_id', authUser.id)
+        .select('id, profile_id, email')
+        .eq('profile_id', authUser.id)
         .maybeSingle();
 
-      if (profesionalSearchError) {
-        console.warn("[DEBUG] Error buscando profesional por user_id:", profesionalSearchError);
-      }
-
       if (profesionalRow?.id) {
-        console.log("[DEBUG] Encontrado profesional por user_id:", profesionalRow.id);
-        // (Opcional) Actualizamos el perfil para guardarlo y no repetir búsquedas
         await supabase.from('profiles')
           .update({ profesional_id: profesionalRow.id })
           .eq('id', profileData.id);
         return profesionalRow.id;
       }
 
-      // 4. Último intento: buscar por email (solo si lo guardas en profesionales)
+      // Fallback por email
       if (profileData.email) {
         const { data: profesionalByEmail } = await supabase
           .from('profesionales')
@@ -116,92 +105,63 @@
           .eq('email', profileData.email)
           .maybeSingle();
         if (profesionalByEmail?.id) {
-          console.log("[DEBUG] Encontrado profesional por email:", profesionalByEmail.id);
           await supabase.from('profiles')
             .update({ profesional_id: profesionalByEmail.id })
             .eq('id', profileData.id);
           return profesionalByEmail.id;
         }
       }
-
-      console.warn("[DEBUG] No se encontró profesional asociado.");
       return null;
     }
 
+    /** Devuelve centros asociados al profesional (activos), con fallback robusto. */
     async function cargarCentrosAsociados(profId) {
-  if (!profId) {
-    console.warn("[cargarCentrosAsociados] profId requerido");
-    return { centros: [], error: new Error("profId requerido") };
-  }
+      if (!profId) return { centros: [], error: new Error("profId requerido") };
 
-  // Helper para normalizar, filtrar activos, deduplicar y ordenar
-  const normalize = (rows) => {
-    const list = (rows || [])
-      .map(r => r?.centros_medicos ?? r)                 // embed o filas planas
-      .filter(c => c && c.id && c.activo !== false)      // solo activos
-      .map(c => ({ id: c.id, nombre: c.nombre, activo: c.activo }));
-    // dedup + orden por nombre
-    const map = new Map(list.map(c => [c.id, c]));
-    return Array.from(map.values()).sort((a, b) =>
-      (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" })
-    );
-  };
+      const normalize = (rows) => {
+        const list = (rows || [])
+          .map(r => r?.centros_medicos ?? r)
+          .filter(c => c && c.id && c.activo !== false)
+          .map(c => ({ id: c.id, nombre: c.nombre, activo: c.activo }));
+        const map = new Map(list.map(c => [c.id, c]));
+        return Array.from(map.values()).sort((a, b) =>
+          (a.nombre || "").localeCompare(b.nombre || "", "es", { sensitivity: "base" })
+        );
+      };
 
-  // 1) Embed estándar (funciona si tenés 1 sola FK a centros_medicos)
-  let { data, error } = await supabase
-    .from('profesional_centro')
-    .select('centros_medicos ( id, nombre, activo )')
-    .eq('profesional_id', profId)
-    .eq('activo', true);
+      // 1) Embed directo
+      let { data, error } = await supabase
+        .from('profesional_centro')
+        .select('centros_medicos ( id, nombre, activo )')
+        .eq('profesional_id', profId)
+        .eq('activo', true);
 
-  if (!error) {
-    return { centros: normalize(data), error: null };
-  }
-  console.warn("[cargarCentrosAsociados] embed estándar falló:", JSON.stringify(error, null, 2));
+      if (!error) return { centros: normalize(data), error: null };
 
-  // 2) Embed con alias de FK (por si aún hay varias y debés desambiguar)
-  ({ data, error } = await supabase
-    .from('profesional_centro')
-    .select('centros_medicos:centros_medicos!profesional_centro_centro_fkey ( id, nombre, activo )')
-    .eq('profesional_id', profId)
-    .eq('activo', true));
+      // 2) Fallback: dos consultas (IDs -> IN)
+      const { data: links, error: e1 } = await supabase
+        .from('profesional_centro')
+        .select('centro_id')
+        .eq('profesional_id', profId)
+        .eq('activo', true);
 
-  if (!error) {
-    return { centros: normalize(data), error: null };
-  }
-  console.warn("[cargarCentrosAsociados] embed con alias falló:", JSON.stringify(error, null, 2));
+      if (e1) return { centros: [], error: e1 };
 
-  // 3) Fallback robusto: 2 queries (IDs -> IN)
-  const { data: links, error: e1 } = await supabase
-    .from('profesional_centro')
-    .select('centro_id')
-    .eq('profesional_id', profId)
-    .eq('activo', true);
+      const ids = (links || []).map(r => r.centro_id).filter(Boolean);
+      if (!ids.length) return { centros: [], error: null };
 
-  if (e1) {
-    console.warn("[cargarCentrosAsociados] error trayendo vínculos:", JSON.stringify(e1, null, 2));
-    return { centros: [], error: e1 };
-  }
+      const { data: centrosRows, error: e2 } = await supabase
+        .from('centros_medicos')
+        .select('id, nombre, activo')
+        .in('id', ids)
+        .eq('activo', true);
 
-  const ids = (links || []).map(r => r.centro_id).filter(Boolean);
-  if (!ids.length) return { centros: [], error: null };
+      if (e2) return { centros: [], error: e2 };
 
-  const { data: centros, error: e2 } = await supabase
-    .from('centros_medicos')
-    .select('id, nombre, activo')
-    .in('id', ids)
-    .eq('activo', true);
+      return { centros: normalize(centrosRows), error: null };
+    }
 
-  if (e2) {
-    console.warn("[cargarCentrosAsociados] error trayendo centros:", JSON.stringify(e2, null, 2));
-    return { centros: [], error: e2 };
-  }
-
-  return { centros: normalize(centros), error: null };
-}
-
-
-    async function mostrarSelectorCentros(listaCentros) {
+    function mostrarSelectorCentros(listaCentros) {
       document.getElementById('login-form').classList.add('hidden');
       document.getElementById('center-select-div').innerHTML = `
         <label for="select-centro">Elige tu centro médico:</label>
@@ -211,122 +171,104 @@
       document.getElementById('center-form').classList.remove('hidden');
     }
 
-async function mostrarFormularioAsociar() {
-  // Sólo propietario (o incluye 'medico' si lo habilitaste en la RPC)
-  if (!['propietario'].includes(userRole)) {
-    document.getElementById('error-message').textContent =
-      'No tenés permisos para asociar centros. Contactá al administrador.';
-    return;
-  }
+    async function mostrarFormularioAsociar() {
+      // Solo propietarios/médicos pueden asociarse a un centro si no tienen
+      if (!['propietario'].includes(userRole) && !['medico'].includes(userRole)) {
+        document.getElementById('error-message').textContent =
+          'No tenés permisos para asociar centros. Contactá al administrador.';
+        return;
+      }
 
-  // Traer centros disponibles para asociar al profesional actual
-  const { data: allCentros, error: allCentrosError } = await supabase
-    .rpc('centros_listar_para_asociar', { prof_id: profesionalId });
+      // Traer centros disponibles para asociar al profesional actual (RPC tuya)
+      const { data: allCentros, error: allCentrosError } = await supabase
+        .rpc('centros_listar_para_asociar', { prof_id: profesionalId });
 
-  if (allCentrosError || !allCentros?.length) {
-    document.getElementById('error-message').textContent =
-      'No hay centros médicos disponibles para asociar.';
-    return;
-  }
+      if (allCentrosError || !allCentros?.length) {
+        document.getElementById('error-message').textContent =
+          'No hay centros médicos disponibles para asociar.';
+        return;
+      }
 
-  centros = allCentros;
-  document.getElementById('login-form').classList.add('hidden');
-  document.getElementById('associate-select-div').innerHTML = `
-    <label for="associate-centro">Asociar un centro médico:</label>
-    <select id="associate-centro" required>
-      ${allCentros.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')}
-    </select>`;
-  document.getElementById('associate-form').classList.remove('hidden');
-}
-
+      centros = allCentros;
+      document.getElementById('login-form').classList.add('hidden');
+      document.getElementById('associate-select-div').innerHTML = `
+        <label for="associate-centro">Asociar un centro médico:</label>
+        <select id="associate-centro" required>
+          ${allCentros.map(c => `<option value="${c.id}">${c.nombre}</option>`).join('')}
+        </select>`;
+      document.getElementById('associate-form').classList.remove('hidden');
+    }
 
     // --- LOGIN ---
-// --- LOGIN ---
-document.getElementById('login-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
-  const errorMessage = document.getElementById('error-message');
-  errorMessage.textContent = '';
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const errorMessage = document.getElementById('error-message');
+      errorMessage.textContent = '';
 
-  const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
-  if (authError) {
-    errorMessage.textContent = 'Correo o contraseña incorrectos.';
-    console.warn("[DEBUG] Auth error:", authError);
-    return;
-  }
+      const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+      if (authError) {
+        errorMessage.textContent = 'Correo o contraseña incorrectos.';
+        return;
+      }
+      userEmail = email;
 
-  userEmail = email;
+      // Traer perfil por ID del usuario autenticado
+      const { data: userResp } = await supabase.auth.getUser();
+      const authUser = userResp?.user;
 
-  const { data: profileData, error: profileError } = await supabase
-    .from('profiles')
-    .select('id, role, profesional_id, email, display_name')
-    .eq('email', email)
-    .single();
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('id, role, profesional_id, email, display_name')
+        .eq('id', authUser.id)
+        .single();
 
-  if (profileError || !profileData) {
-    errorMessage.textContent = 'Perfil no encontrado.';
-    console.warn("[DEBUG] Perfil no encontrado:", profileError);
-    return;
-  }
+      if (profileError || !profileData) {
+        errorMessage.textContent = 'Perfil no encontrado.';
+        return;
+      }
 
-  userRole = profileData.role;
-  userName = profileData.display_name || email;
+      userRole = profileData.role;              // propietario | medico | amp | amc
+      userName = profileData.display_name || email;
 
-  // Aseguramos profesional_id
-  profesionalId = await ensureProfesionalId(profileData);
+      // Aseguramos profesional_id
+      profesionalId = await ensureProfesionalId(profileData);
+      if (!profesionalId) {
+        errorMessage.textContent = 'No se pudo determinar tu ID de profesional.';
+        return;
+      }
 
-  localStorage.setItem('usuario_id', profileData.id);
-  localStorage.setItem('profesional_id', profesionalId || '');
-  localStorage.setItem('email', userEmail);
-  localStorage.setItem('user_role', userRole);
-  localStorage.setItem('user_name', userName);
+      // Persistimos datos básicos
+      localStorage.setItem('usuario_id', profileData.id);
+      localStorage.setItem('profesional_id', profesionalId || '');
+      localStorage.setItem('email', userEmail);
+      localStorage.setItem('user_role', userRole);
+      localStorage.setItem('user_name', userName);
 
-  if (['propietario', 'medico'].includes(userRole)) {
-    if (!profesionalId) {
-      errorMessage.textContent = 'No se pudo determinar tu ID de profesional.';
-      return;
-    }
+      // Cargamos centros asociados (igual para todos los roles).
+      const { centros: asociados, error: centrosError } = await cargarCentrosAsociados(profesionalId);
+      if (centrosError) {
+        errorMessage.textContent = 'Error buscando centros asociados.';
+        return;
+      }
 
-    const { centros: asociados, error: centrosError } = await cargarCentrosAsociados(profesionalId);
-    if (centrosError) {
-      errorMessage.textContent = 'Error buscando centros asociados.';
-      return;
-    }
+      if (asociados.length > 0) {
+        // Para AMC será 1 (se mostrará ese único item).
+        centros = asociados;
+        mostrarSelectorCentros(centros);
+        return;
+      }
 
-    if (!asociados.length) {
-      console.log("[DEBUG] Sin centros asociados -> mostrar formulario de asociación.");
-      await mostrarFormularioAsociar();
-      return;
-    }
+      // Si no tiene centros y es propietario/medico → permitir asociar.
+      if (['propietario', 'medico'].includes(userRole)) {
+        await mostrarFormularioAsociar();
+        return;
+      }
 
-    centros = asociados;
-    await mostrarSelectorCentros(centros);
-
-  } else if (userRole === 'asistente') {
-    if (!profesionalId) {
-      errorMessage.textContent = 'No se pudo determinar tu ID de profesional.';
-      return;
-    }
-
-    const { centros: asociados, error: centrosError } = await cargarCentrosAsociados(profesionalId);
-    if (centrosError) {
-      errorMessage.textContent = 'Error buscando centros asociados.';
-      return;
-    }
-
-    if (!asociados.length) {
-      errorMessage.textContent = 'No tienes centros médicos asignados.';
-      return;
-    }
-
-    centros = asociados;
-    await mostrarSelectorCentros(centros);
-
-  } else {
-    errorMessage.textContent = 'Rol no reconocido.';
-  }
-});
+      // Resto (AMP/AMC) sin centros → mensaje.
+      errorMessage.textContent = 'No tenés centros médicos asignados.';
+    });
 
     // --- Seleccionar centro ---
     document.getElementById('center-form').addEventListener('submit', (e) => {
@@ -343,7 +285,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
       window.location.href = "dashboard.html";
     });
 
-    // --- Asociar centro si no tiene ninguno ---
+    // --- Asociar centro si no tiene ninguno (propietario/medico) ---
     document.getElementById('associate-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const centroId = document.getElementById('associate-centro').value;
@@ -362,7 +304,6 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
         .insert([{ profesional_id: profesionalId, centro_id: centroId, activo: true }]);
 
       if (insertError) {
-        console.warn("[DEBUG] Error insert profesional_centro:", insertError);
         errorMessage.textContent = 'Error asociando centro médico.';
         return;
       }
@@ -371,7 +312,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
       const nombre = centros.find(c => c.id === centroId)?.nombre || '';
       localStorage.setItem('centro_medico_id', centroId);
       localStorage.setItem('centro_medico_nombre', nombre);
-      setTimeout(() => window.location.href = "dashboard.html", 1500);
+      setTimeout(() => window.location.href = "dashboard.html", 1200);
     });
 
     // --- Recuperar contraseña ---
@@ -410,7 +351,6 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
       });
       if (error) {
         errorDiv.textContent = 'No se pudo enviar el correo de recuperación.';
-        console.warn("[DEBUG] Reset password error:", error);
         return;
       }
       success.textContent = 'Correo de recuperación enviado. Revise su bandeja de entrada.';
