@@ -205,14 +205,13 @@ Si no podés asistir, por favor avisá. ¡Gracias!`;
 
 // ===== Profesionales (combo) + helpers de rol =====
 
-/** Etiqueta legible "Apellido, Nombre" sin depender de display_name */
+// --- helpers ya existentes ---
 function profLabel(p) {
   const ape = (p?.apellido || '').trim();
   const nom = (p?.nombre || '').trim();
   return [ape, nom].filter(Boolean).join(', ') || nom || ape || p?.id;
 }
 
-/** Normaliza roles y sinónimos/typos a: medico | amp | amc | propietario */
 export function normalizeRole(role) {
   const r = String(role || '').trim().toLowerCase();
   if (['apm','amp','asistente_personal','asistente_personal_medico'].includes(r)) return 'amp';
@@ -222,64 +221,102 @@ export function normalizeRole(role) {
   return r;
 }
 
-/**
- * Devuelve SOLO MÉDICOS visibles según rol y centro:
- * - medico: solo él
- * - amp (apm): médicos asociados al APM en ese centro (via medico_registrador_id en profesional_centro)
- * - amc / propietario: todos los médicos del centro
- */
+// 👉 helper para filtrar UUIDs válidos (evitamos 400 en .in)
+function isUUID(v) {
+  return typeof v === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
+
+// ✅ VERSIÓN ROBUSTA
 export async function getProfesionalesForContext({ role, centroId, loggedProfesionalId }) {
   const R = normalizeRole(role);
   if (!centroId) return [];
 
+  // 1) Médico logueado: solo él
   if (R === 'medico' && loggedProfesionalId) {
-    const { data: p } = await supabase
+    const { data: p, error } = await supabase
       .from('profesionales')
       .select('id, nombre, apellido, rol')
       .eq('id', loggedProfesionalId)
       .maybeSingle();
+
+    if (error) console.warn('[getProfesionalesForContext][medico] error:', error);
     if (p?.rol !== 'medico') return [];
     return [{ id: p.id, label: profLabel(p) }];
   }
 
+  // 2) APM: médicos vinculados a este APM en este centro (medico_registrador_id)
   if (R === 'amp' && loggedProfesionalId) {
-    const { data: links } = await supabase
+    const { data: links, error: linksErr } = await supabase
       .from('profesional_centro')
       .select('medico_registrador_id')
       .eq('profesional_id', loggedProfesionalId)
       .eq('centro_id', centroId)
       .eq('activo', true);
 
-    const ids = [...new Set((links || []).map(r => r.medico_registrador_id).filter(Boolean))];
-    if (!ids.length) return [];
+    if (linksErr) {
+      console.warn('[getProfesionalesForContext][AMP] error links:', linksErr);
+      return [];
+    }
+    console.debug('[getProfesionalesForContext][AMP] links:', links);
 
-    const { data: pros } = await supabase
+    // Tomamos solo UUIDs válidos, sin nulos
+    const ids = [...new Set(
+      (links || [])
+        .map(r => r?.medico_registrador_id)
+        .filter(isUUID)
+    )];
+
+    if (ids.length === 0) {
+      console.debug('[getProfesionalesForContext][AMP] sin medico_registrador_id válidos para este APM/centro');
+      return [];
+    }
+
+    const { data: pros, error: prosErr } = await supabase
       .from('profesionales')
       .select('id, nombre, apellido, rol')
       .in('id', ids)
       .eq('rol', 'medico')
       .order('apellido', { ascending: true });
 
+    if (prosErr) {
+      console.warn('[getProfesionalesForContext][AMP] error pros:', prosErr);
+      return [];
+    }
     return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
   }
 
+  // 3) AMC / propietario: todos los médicos del centro
   if (R === 'amc' || R === 'propietario') {
-    const { data: map } = await supabase
+    const { data: map, error: mapErr } = await supabase
       .from('profesional_centro')
       .select('profesional_id')
       .eq('centro_id', centroId)
       .eq('activo', true);
 
-    const ids = [...new Set((map || []).map(r => r.profesional_id).filter(Boolean))];
-    if (!ids.length) return [];
+    if (mapErr) {
+      console.warn('[getProfesionalesForContext][AMC/prop] error map:', mapErr);
+      return [];
+    }
 
-    const { data: pros } = await supabase
+    const ids = [...new Set(
+      (map || [])
+        .map(r => r?.profesional_id)
+        .filter(isUUID)
+    )];
+    if (ids.length === 0) return [];
+
+    const { data: pros, error: prosErr } = await supabase
       .from('profesionales')
       .select('id, nombre, apellido, rol')
       .in('id', ids)
       .eq('rol', 'medico')
       .order('apellido', { ascending: true });
 
+    if (prosErr) {
+      console.warn('[getProfesionalesForContext][AMC/prop] error pros:', prosErr);
+      return [];
+    }
     return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
   }
 
