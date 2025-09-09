@@ -367,6 +367,144 @@ async function loadDuraciones(pid) {
 }
 
 /* =====================
+ * Cupos por OS (mensual, cross-centro)
+ * NUEVAS funciones: usar config en medico_obras_sociales
+ * y acelerar con la vista v_turnos_os_prof_mes para el mes actual
+ * ===================== */
+
+// Cache en memoria: Map<medico_id, Map<obra_social_id, {cantidad_turnos, condicion_copago, valor_copago}>>
+const cupoConfigCache = new Map();
+
+/** Devuelve config de cupo del médico para una obra social (o null si no hay fila).
+ *  Usa cache simple en memoria.
+ */
+async function getMedicoOsConfig(medicoId, obraSocialId) {
+  if (!medicoId || !obraSocialId) return null; // Particular (null) no tiene fila en la config
+  let byOs = cupoConfigCache.get(medicoId);
+  if (!byOs) { byOs = new Map(); cupoConfigCache.set(medicoId, byOs); }
+  if (byOs.has(obraSocialId)) return byOs.get(obraSocialId);
+
+  const { data, error } = await supabase
+    .from('medico_obras_sociales')
+    .select('cantidad_turnos, condicion_copago, valor_copago')
+    .eq('medico_id', medicoId)
+    .eq('obra_social_id', obraSocialId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('medico_obras_sociales error:', error.message);
+    byOs.set(obraSocialId, null);
+    return null;
+  }
+  byOs.set(obraSocialId, data || null);
+  return data || null;
+}
+
+/** Helpers de mes */
+function monthRangeISO(anyISO /* "YYYY-MM-DD" */) {
+  const d = new Date(anyISO + 'T00:00:00');
+  const y = d.getFullYear(), m = d.getMonth();
+  const first = toISODate(y, m, 1);
+  const last  = toISODate(y, m, new Date(y, m + 1, 0).getDate());
+  return { first, last };
+}
+function isSameMonth(isoA, isoB) {
+  if (!isoA || !isoB) return false;
+  const a = new Date(isoA + 'T00:00:00');
+  const b = new Date(isoB + 'T00:00:00');
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+/** Cuenta turnos del mes para (médico, obra social) sin filtrar por centro.
+ *  Si el mes consultado es el actual, usa la vista v_turnos_os_prof_mes (más rápida).
+ *  Para otros meses, cae a contar en turnos entre el rango del mes.
+ *  estadosValidos: por defecto excluye cancelados (igual que la vista)
+ */
+async function getUsedTurnosMes({ medicoId, obraSocialId, fechaISO, estadosValidos = null }) {
+  // Particular (null) no consume cupo
+  if (!obraSocialId) return 0;
+
+  const hoyISO = dateToISO(new Date());
+  if (isSameMonth(fechaISO, hoyISO)) {
+    // Mes actual: usar vista
+    const { data, error } = await supabase
+      .from('v_turnos_os_prof_mes')
+      .select('turnos_mes')
+      .eq('medico_id', medicoId)
+      .eq('obra_social_id', obraSocialId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('v_turnos_os_prof_mes error, fallback a conteo directo:', error.message);
+      // fallback
+    } else {
+      return Number(data?.turnos_mes || 0);
+    }
+  }
+
+  // Mes NO actual o fallback: contamos en turnos
+  const { first, last } = monthRangeISO(fechaISO);
+  let q = supabase
+    .from('turnos')
+    .select('id', { count: 'exact', head: true })
+    .eq('profesional_id', medicoId)
+    .eq('obra_social_id', obraSocialId)
+    .gte('fecha', first)
+    .lte('fecha', last);
+
+  if (Array.isArray(estadosValidos) && estadosValidos.length) {
+    q = q.in('estado', estadosValidos);
+  } else {
+    q = q.neq('estado', 'cancelado'); // imita la vista
+  }
+
+  const { count, error } = await q;
+  if (error) {
+    console.warn('Error contando turnos del mes (fallback):', error.message);
+    return 0; // en error preferimos no bloquear
+  }
+  return Number(count || 0);
+}
+
+/** Reglas de cupo mensual:
+ *  - Si NO hay fila en medico_obras_sociales o cantidad_turnos es NULL => cupo infinito
+ *  - Suma TODOS los centros (no filtra centro_id)
+ *  - Excluye cancelados (igual que la vista)
+ *  Devuelve: { disponible, usados, limite (o null si infinito), condicion_copago, valor_copago }
+ */
+async function getCupoObraSocialMensual(obraSocialId, medicoId, fechaISO, estadosValidos = null) {
+  // Particular (obraSocialId null) => infinito
+  if (!obraSocialId) return { disponible: true, usados: 0, limite: null, condicion_copago: null, valor_copago: null };
+
+  const conf = await getMedicoOsConfig(medicoId, obraSocialId);
+
+  // Si no hay fila de config o cantidad_turnos es NULL => infinito
+  if (!conf || conf.cantidad_turnos == null) {
+    const usados = await getUsedTurnosMes({ medicoId, obraSocialId, fechaISO, estadosValidos });
+    return {
+      disponible: true,
+      usados,
+      limite: null,
+      condicion_copago: conf?.condicion_copago ?? null,
+      valor_copago: conf?.valor_copago ?? null,
+    };
+  }
+
+  const usados = await getUsedTurnosMes({ medicoId, obraSocialId, fechaISO, estadosValidos });
+  const limite = Number(conf.cantidad_turnos);
+  const disponible = usados < limite;
+
+  return {
+    disponible,
+    usados,
+    limite,
+    condicion_copago: conf.condicion_copago ?? null,
+    valor_copago: conf.valor_copago ?? null,
+  };
+}
+
+
+/* =====================
  * Obras Sociales
  * ===================== */
 async function loadObrasSociales() {
@@ -838,26 +976,30 @@ async function tryAgendar(slot) {
       return;
     }
 
-    let cupoDisponible = true;
-    let copagoParticular = 0;
+    // Obra Social del paciente (null => Particular)
     let obraSocialId = pacienteSeleccionado.obra_social_id || null;
 
     if (obraSocialId) {
-      cupoDisponible = await getCupoObraSocial(obraSocialId, currentCentroId, currentProfesional, modalDateISO);
-      if (!cupoDisponible) {
-        copagoParticular = await getCopagoParticular(currentCentroId, currentProfesional, modalDateISO);
+      // Estados vigentes (opcional): si querés contar solo asignado/confirmado/atendido,
+      // pasá un arreglo. Si no, dejamos null y se excluyen cancelados (igual que la vista).
+      // const ESTADOS_VIGENTES = ['asignado', 'confirmado', 'atendido'];
+      // const cupo = await getCupoObraSocialMensual(obraSocialId, currentProfesional, modalDateISO, ESTADOS_VIGENTES);
+      const cupo = await getCupoObraSocialMensual(obraSocialId, currentProfesional, modalDateISO, null);
+
+      if (!cupo.disponible) {
+        // Si la config tiene copago condicionado y valor, lo usamos; si no, fallback
+        const copagoParticular = (cupo.condicion_copago && cupo.valor_copago != null)
+          ? Number(cupo.valor_copago)
+          : await getCopagoParticular(currentCentroId, currentProfesional, modalDateISO);
+
         abrirModalCupoAgotado(copagoParticular);
         const res = await new Promise((resolve) => {
-          document.getElementById('modal-cupo-aceptar').onclick = () => {
-            cerrarModalCupoAgotado();
-            resolve('aceptar');
-          };
-          document.getElementById('modal-cupo-cancelar').onclick = () => {
-            cerrarModalCupoAgotado();
-            resolve('cancelar');
-          };
+          document.getElementById('modal-cupo-aceptar').onclick = () => { cerrarModalCupoAgotado(); resolve('aceptar'); };
+          document.getElementById('modal-cupo-cancelar').onclick = () => { cerrarModalCupoAgotado(); resolve('cancelar'); };
         });
         if (res !== 'aceptar') return;
+
+        // Se reserva como PARTICULAR (obra_social_id = null) con copago informado
         obraSocialId = null;
       }
     }
@@ -873,18 +1015,28 @@ async function tryAgendar(slot) {
       estado: 'asignado',
       notas: UI.tipoTurno.value === 'sobreturno' ? 'Sobreturno' : null,
       obra_social_id: obraSocialId,
-      copago: obraSocialId === null ? copagoParticular : null,
+      // Si quedó como particular, podés calcular un copago (de config o fallback).
+      copago: obraSocialId == null ? await getCopagoParticular(currentCentroId, currentProfesional, modalDateISO) : null,
     };
+
     const { data: inserted, error } = await supabase
       .from('turnos')
       .insert([payload])
       .select('id')
       .single();
+
     if (error) {
       alert(error.message || 'No se pudo reservar el turno.');
       return;
     }
-    openOkModal({ pac: pacienteSeleccionado, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: getProfLabel() });
+
+    openOkModal({
+      pac: pacienteSeleccionado,
+      fechaISO: modalDateISO,
+      start: slot.start,
+      end: slot.end,
+      profLabel: getProfLabel(),
+    });
   } finally {
     bookingBusy = false;
     setSlotsDisabled(false);
@@ -893,6 +1045,7 @@ async function tryAgendar(slot) {
     refreshModalTitle();
   }
 }
+
 
 /* =====================
  * Reprogramar / Cancelar
