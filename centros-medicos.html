@@ -1,18 +1,76 @@
-<!-- Botón crear centro -->
-<button type="button" id="crear-centro-btn" class="btn primary">Crear centro médico</button>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mis Centros Médicos</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f9fb; margin: 0; }
+    .container { max-width: 900px; margin: 36px auto; background: #fff; padding: 28px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
+    h3 { color:#381e60; margin-bottom:22px;}
+    .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 3px;}
+    .btn:hover { background: #7f62b6; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    th, td { text-align:left; padding: 10px 8px; }
+    th { background: #e7e2fa; color: #381e60; font-size: 16px; }
+    td { font-size: 15px; border-bottom: 1px solid #ece5fc; }
+    tr:last-child td { border-bottom: none; }
+    .action-cell { text-align: right; }
+    .muted { color:#6b6480; font-size: 13px; }
+
+    /* MODAL */
+    .modal { position:fixed; inset:0; background:rgba(0,0,0,0.35); display:none; align-items:center; justify-content:center; z-index:999; }
+    .modal-content { background:#fff; padding:22px; border-radius:14px; min-width:360px; max-width:480px; box-shadow:0 2px 18px rgba(80,60,160,.18); }
+    .close { position:absolute; right:12px; top:10px; font-size:20px; color:#7656b0; cursor:pointer;}
+    .modal-content h4 { margin-bottom:12px; color:#381e60; }
+    .modal-content input, .modal-content textarea { width:100%; margin-bottom:10px; padding:6px; border:1px solid #e3d8f6; border-radius:6px; background:#f7f9fb; }
+    .tel-group { display:flex; gap:6px; align-items:center; margin-bottom:10px; }
+    .tel-group input { flex:1; }
+    .tel-fixed { padding:6px 10px; background:#eee; border-radius:6px; font-weight:bold; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h3>Mis Centros Médicos</h3>
+  <table id="centros-table">
+    <thead>
+      <tr>
+        <th>Nombre</th>
+        <th>Dirección</th>
+        <th>Teléfono</th>
+        <th>Email</th>
+        <th>Notas</th>
+        <th class="action-cell">Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="centros-tbody"></tbody>
+  </table>
+  <div style="margin-top:20px;">
+    <button id="crear-centro-btn" class="btn">Crear centro médico</button>
+    <button id="asociar-centro-btn" class="btn">Asociarme a centro existente</button>
+  </div>
+  <div id="status-msg" class="muted" style="margin-top:10px;"></div>
+</div>
 
 <!-- Modal crear centro -->
 <div id="modal-centro" class="modal">
   <div class="modal-content">
     <span class="close" id="cerrar-modal-centro">&times;</span>
-    <h4 id="modal-title">Crear centro médico</h4>
+    <h4>Crear centro médico</h4>
     <form id="form-centro">
       <input type="text" id="centro_nombre" placeholder="Nombre del centro" required>
       <input type="text" id="centro_direccion" placeholder="Dirección">
-      <input type="text" id="centro_telefono" placeholder="Teléfono (ej: 5493511234567)" required>
+      <!-- Teléfono dividido -->
+      <label>Teléfono</label>
+      <div class="tel-group">
+        <span class="tel-fixed">54</span>
+        <input type="text" id="tel_prov" placeholder="Cod provincia" required>
+        <input type="text" id="tel_area" placeholder="Cod área" required>
+        <input type="text" id="tel_num" placeholder="Número" required>
+      </div>
       <input type="email" id="centro_email" placeholder="Email">
       <textarea id="centro_notas" placeholder="Notas"></textarea>
-      <button type="submit" class="btn primary" style="margin-top:10px;">Guardar</button>
+      <button type="submit" class="btn" style="width:100%;">Guardar</button>
       <div id="modal-centro-status" class="muted" style="margin-top:10px;"></div>
     </form>
   </div>
@@ -22,108 +80,128 @@
 import supabase from './supabaseClient.js';
 
 const profesionalId = localStorage.getItem('profesional_id');
+const centrosTbody = document.getElementById('centros-tbody');
+const crearCentroBtn = document.getElementById('crear-centro-btn');
 const modalCentro = document.getElementById('modal-centro');
 const cerrarModalCentro = document.getElementById('cerrar-modal-centro');
 const formCentro = document.getElementById('form-centro');
 const modalCentroStatus = document.getElementById('modal-centro-status');
 
-function openModalCentro() {
-  formCentro.reset();
-  modalCentroStatus.textContent = '';
-  modalCentro.style.display = 'flex';
-}
-function closeModalCentro() {
-  modalCentro.style.display = 'none';
-}
+function openModalCentro(){ formCentro.reset(); modalCentroStatus.textContent=''; modalCentro.style.display='flex'; }
+function closeModalCentro(){ modalCentro.style.display='none'; }
 
-document.getElementById('crear-centro-btn').addEventListener('click', openModalCentro);
+crearCentroBtn.addEventListener('click', openModalCentro);
 cerrarModalCentro.addEventListener('click', closeModalCentro);
-window.addEventListener('click', e => { if (e.target === modalCentro) closeModalCentro(); });
+window.addEventListener('click', e=>{ if(e.target===modalCentro) closeModalCentro(); });
 
-// --- VALIDAR TELÉFONO ---
-function validarTelefono(telefono) {
-  const regex = /^54\d{8,12}$/; // empieza con 54 y 10-14 dígitos
-  return regex.test(telefono);
+// --- Cargar centros asociados (incluye inactivos) ---
+async function cargarCentros(){
+  centrosTbody.innerHTML = `<tr><td colspan="6" class="muted">Cargando...</td></tr>`;
+  const { data, error } = await supabase
+    .from('profesional_centro')
+    .select('activo, centros_medicos(id, nombre, direccion, telefono, email, notas)')
+    .eq('profesional_id', profesionalId);
+  if(error || !data){ centrosTbody.innerHTML=`<tr><td colspan="6">Error al cargar</td></tr>`; return; }
+
+  centrosTbody.innerHTML='';
+  data.forEach(row=>{
+    const c = row.centros_medicos;
+    if(!c) return;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${c.nombre}</td>
+      <td>${c.direccion||'-'}</td>
+      <td>${c.telefono||'-'}</td>
+      <td>${c.email||'-'}</td>
+      <td>${c.notas||'-'}</td>
+      <td class="action-cell">
+        ${row.activo
+          ? `<button class="btn desasociar-btn" data-id="${c.id}">Desasociar</button>`
+          : `<button class="btn" data-rea="${c.id}">Reasociar</button>`}
+      </td>`;
+    centrosTbody.appendChild(tr);
+  });
+
+  document.querySelectorAll('.desasociar-btn').forEach(btn=>{
+    btn.onclick=()=>desasociarCentro(btn.dataset.id);
+  });
+  document.querySelectorAll('[data-rea]').forEach(btn=>{
+    btn.onclick=()=>reasociarCentro(btn.dataset.rea);
+  });
 }
 
-// --- CREAR / ASOCIAR CENTRO ---
-formCentro.addEventListener('submit', async e => {
+// --- Validar teléfono ---
+function buildTelefono(){
+  const prov=document.getElementById('tel_prov').value.trim();
+  const area=document.getElementById('tel_area').value.trim();
+  const num=document.getElementById('tel_num').value.trim();
+  if(!prov||!area||!num) return null;
+  return '54'+prov+area+num;
+}
+
+// --- Crear centro ---
+formCentro.addEventListener('submit',async e=>{
   e.preventDefault();
+  const nombre=document.getElementById('centro_nombre').value.trim();
+  const direccion=document.getElementById('centro_direccion').value.trim();
+  const telefono=buildTelefono();
+  const email=document.getElementById('centro_email').value.trim();
+  const notas=document.getElementById('centro_notas').value.trim();
 
-  const nombre = document.getElementById('centro_nombre').value.trim();
-  const direccion = document.getElementById('centro_direccion').value.trim();
-  const telefono = document.getElementById('centro_telefono').value.trim();
-  const email = document.getElementById('centro_email').value.trim();
-  const notas = document.getElementById('centro_notas').value.trim();
+  if(!telefono){ modalCentroStatus.textContent='Completa todos los campos de teléfono.'; return; }
 
-  if (!validarTelefono(telefono)) {
-    modalCentroStatus.textContent = 'El teléfono debe empezar con 54 y tener entre 10 y 14 dígitos.';
-    return;
-  }
-
-  modalCentroStatus.textContent = 'Verificando centro...';
-
-  // Chequear si ya existe ese teléfono
-  const { data: existe, error: errExiste } = await supabase
-    .from('centros_medicos')
-    .select('*')
-    .eq('telefono', telefono)
-    .maybeSingle();
-
-  if (errExiste) {
-    modalCentroStatus.textContent = 'Error al verificar teléfono.';
-    return;
-  }
-
-  if (existe) {
-    // Ya existe: preguntar si lo quiere asociar
-    const confirmar = confirm(`Ya existe un centro con este teléfono (${telefono}): ${existe.nombre}. ¿Querés asociarlo a tu perfil?`);
-    if (confirmar) {
-      const { error: errorPC } = await supabase
-        .from('profesional_centro')
-        .upsert({
-          profesional_id: profesionalId,
-          centro_id: existe.id,
-          medico_registrador_id: profesionalId,
-          activo: true
-        });
-      if (errorPC) {
-        modalCentroStatus.textContent = 'Error al asociar el centro existente.';
-        return;
-      }
-      modalCentroStatus.textContent = 'Centro existente asociado exitosamente!';
-      await cargarCentros();
-      setTimeout(closeModalCentro, 1000);
-    } else {
-      modalCentroStatus.textContent = 'Operación cancelada.';
-    }
-  } else {
-    // No existe: crear nuevo centro
-    const { data: nuevo, error: errorCentro } = await supabase
-      .from('centros_medicos')
-      .insert([{ nombre, direccion, telefono, email, notas, activo: true }])
-      .select();
-    if (errorCentro || !nuevo || !nuevo[0]) {
-      modalCentroStatus.textContent = 'Error al crear centro médico.';
-      return;
-    }
-
-    const { error: errorPC } = await supabase
-      .from('profesional_centro')
-      .insert({
-        profesional_id: profesionalId,
-        centro_id: nuevo[0].id,
-        medico_registrador_id: profesionalId,
-        activo: true
+  // Chequear si existe
+  const { data: existe } = await supabase.from('centros_medicos').select('*').eq('telefono',telefono).maybeSingle();
+  if(existe){
+    if(confirm(`Ya existe el centro "${existe.nombre}" con este teléfono. ¿Querés asociarlo?`)){
+      await supabase.from('profesional_centro').upsert({
+        profesional_id:profesionalId,
+        centro_id:existe.id,
+        medico_registrador_id:profesionalId,
+        activo:true
       });
-    if (errorPC) {
-      modalCentroStatus.textContent = 'Error al asociar nuevo centro.';
-      return;
+      modalCentroStatus.textContent='Centro existente asociado!';
+      await cargarCentros(); setTimeout(closeModalCentro,1000);
     }
-
-    modalCentroStatus.textContent = 'Centro creado y asociado!';
-    await cargarCentros();
-    setTimeout(closeModalCentro, 1000);
+    return;
   }
+
+  // Crear nuevo
+  const { data: nuevo, error } = await supabase
+    .from('centros_medicos')
+    .insert([{ nombre,direccion,telefono,email,notas,activo:true }])
+    .select();
+  if(error||!nuevo){ modalCentroStatus.textContent='Error al crear centro'; return; }
+
+  await supabase.from('profesional_centro').insert({
+    profesional_id:profesionalId,
+    centro_id:nuevo[0].id,
+    medico_registrador_id:profesionalId,
+    activo:true
+  });
+  modalCentroStatus.textContent='Centro creado y asociado!';
+  await cargarCentros(); setTimeout(closeModalCentro,1000);
 });
+
+// --- Desasociar ---
+async function desasociarCentro(id){
+  if(!confirm('¿Desasociar este centro?')) return;
+  await supabase.from('profesional_centro')
+    .update({activo:false})
+    .eq('profesional_id',profesionalId).eq('centro_id',id);
+  await cargarCentros();
+}
+// --- Reasociar ---
+async function reasociarCentro(id){
+  await supabase.from('profesional_centro')
+    .update({activo:true})
+    .eq('profesional_id',profesionalId).eq('centro_id',id);
+  await cargarCentros();
+}
+
+// Init
+if(profesionalId) cargarCentros();
+else document.getElementById('status-msg').textContent='No hay profesional en sesión';
 </script>
+</body>
+</html>
