@@ -87,15 +87,32 @@
 
   /* Cuerpo con scroll interno y encabezado pegajoso */
   .board-body{
-    position:relative; flex:1 1 auto; min-height:0; overflow:auto; padding:0 2px 6px;
+    position:relative; flex:1 1 auto; min-height:0; 
+    /* overflow:auto; */               /* — Anterior — */
+    overflow-y:auto;                   /* NUEVO: solo scroll vertical */
+    overflow-x:hidden;                 /* NUEVO: bloquear scroll horizontal por defecto */
+    padding:0 2px 6px;
   }
-  .table{width:100%;border-collapse:separate;border-spacing:0 5px;min-width:720px;font-size:12.5px}
+
+  .table{
+    width:100%;
+    border-collapse:separate;border-spacing:0 5px;
+    /* min-width:720px; */             /* — Anterior — */
+    min-width:0;                       /* NUEVO: permitir que se ajuste sin forzar overflow */
+    font-size:12.5px;
+  }
+
   .thead{position:sticky; top:0; z-index:2; background:#fff}
   .hrow,.row{display:grid;gap:0;align-items:center;border:1px solid var(--line);padding:5px 8px;border-radius:8px}
   .hrow{background:#f4f1ff;color:#5a3e9a;font-weight:700}
   .row{background:#faf9ff}
   .cell{padding:0 4px;min-width:0}
   .right{text-align:right} .nowrap{white-space:nowrap}
+
+  /* NUEVO: truncar textos largos para evitar que “empujen” la tabla */
+  .truncate{
+    overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+  }
 
   .actions{display:flex;gap:6px;justify-content:flex-end}
   .icon{
@@ -155,14 +172,37 @@
   #fichaDrawer .drawer-foot #fd-finalizar:hover{ background:#b71c1c !important; }
   #fichaDrawer .drawer-foot #fd-finalizar:focus-visible{ outline:2px solid #7f1d1d; outline-offset:2px; }
 
+  /* ===== NUEVO: Columna Acciones sticky a la derecha ===== */
+  .hrow .cell:last-child,
+  .row  .cell:last-child{
+    position: sticky;
+    right: 0;
+    z-index: 3;
+    border-left: 1px solid var(--line);
+  }
+  /* Fondo para filas de datos: mantiene el color y agrega degradé hacia la izquierda */
+  .row .cell:last-child{
+    background:
+      linear-gradient(to left, #faf9ff 65%, rgba(250,249,255,0)),
+      #faf9ff;
+  }
+  /* Encabezado sticky de Acciones sobre las filas */
+  .thead .hrow .cell:last-child{
+    z-index: 4;
+    background:
+      linear-gradient(to left, #f4f1ff 65%, rgba(244,241,255,0)),
+      #f4f1ff;
+  }
+
   @media (max-width:1100px){
     .boards{grid-template-columns:1fr}
-    .table{min-width:660px}
+    .table{min-width:0} /* NUEVO: blindaje responsive */
   }
   @media (max-width:700px){
     .bar{ grid-template-columns: 1fr; }
     .search-wrap{ width:100%; }
     .search-wrap .inp{ width:100%; max-width:100%; }
+    .table{min-width:0} /* NUEVO: blindaje responsive */
   }
 </style>
 </head>
@@ -537,7 +577,8 @@ function applyFilter(data){
 
 /* Por llegar */
 function renderPendientes(list){
-  const grid='100px 120px 1fr 1fr 1fr 150px';
+  /* NUEVO: usar minmax(0,1fr) para que las columnas flexibles colapsen sin forzar overflow */
+  const grid='100px 120px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 150px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
@@ -557,9 +598,9 @@ function renderPendientes(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell">${p.obra_social||'—'}</td>
+      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${p.obra_social||'—'}</td>
       <td class="cell right">${acciones}</td>
     </tr>`;
   }).join('');
@@ -588,7 +629,8 @@ function updateWaitBadges(){
   });
 }
 function renderPresentes(list){
-  const grid='90px 100px 1fr 1fr 1fr 110px 180px';
+  /* NUEVO: columnas flexibles colapsables */
+  const grid='90px 100px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 110px 180px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
       <th class="cell">Apellido</th><th class="cell">Obra social</th><th class="cell">Copago</th>
@@ -610,9 +652,9 @@ function renderPresentes(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell"><span class="wait" data-arribo-ts="${arriboISO}">—</span></td>
       <td class="cell nowrap">${hora}</td>
-      <td class="cell">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell">${p.obra_social||'—'}</td>
+      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${p.obra_social||'—'}</td>
       <td class="cell">${copBadge}</td>
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
@@ -632,7 +674,8 @@ function renderPresentes(list){
 
 /* En atención */
 function renderAtencion(list){
-  const grid='100px 120px 1fr 1fr 1fr 210px';
+  /* NUEVO: columnas flexibles colapsables */
+  const grid='100px 120px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 210px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
@@ -652,9 +695,9 @@ function renderAtencion(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell">${p.obra_social||'—'}</td>
+      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${p.obra_social||'—'}</td>
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
   }).join('');
@@ -670,7 +713,8 @@ function renderAtencion(list){
 
 /* Atendidos (con HC y abrir ficha) */
 function renderAtendidos(list){
-  const grid='100px 120px 1fr 1fr 1fr 120px 120px';
+  /* NUEVO: columnas flexibles colapsables */
+  const grid='100px 120px minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) 120px 120px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
@@ -687,9 +731,9 @@ function renderAtendidos(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell">${p.obra_social||'—'}</td>
+      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${p.obra_social||'—'}</td>
       <td class="cell">${cop}</td>
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
