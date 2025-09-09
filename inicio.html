@@ -417,8 +417,11 @@ let filterText = '';
 function pad(n){return n<10?'0'+n:''+n}
 function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function toHM(t){return (t??'').toString().slice(0,5)}
-function minutesDiff(start,end){ const [h1,m1]=start.split(':').map(Number),[h2,m2]=end.split(':').map(Number); return (h2*60+m2)-(h1*60+m2); }
-function minutesDiff(start,end){ const [H1,M1]=start.split(':').map(Number); const [H2,M2]=end.split(':').map(Number); return (H2*60+M2)-(H1*60+M1); }
+function minutesDiff(start, end) {
+  const [h1, m1] = start.split(':').map(Number);
+  const [h2, m2] = end.split(':').map(Number);
+  return (h2 * 60 + m2) - (h1 * 60 + m1);
+}
 function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
 function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
 function titleCase(s){ return (s||'').split(' ').filter(Boolean).map(w=>w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ') }
