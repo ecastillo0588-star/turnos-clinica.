@@ -10,12 +10,9 @@
     --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
     --bg:#f7f9fb; --card:#fff; --line:#ece5fc;
     --ok:#0a7d38; --warn:#8a5800; --danger:#d32f2f;
-
-    /* Altura fija de cada tablero (ajustable) */
-    --board-h: 420px;
+    --board-h: 420px; /* Altura fija de cada tablero */
   }
 
-  /* Quita tarjeta del #main-content (para que el panel ocupe todo) */
   :where(#main-content.card){
     max-width:none!important;width:100%!important;padding:0!important;
     background:transparent!important;box-shadow:none!important;border-radius:0!important;
@@ -48,18 +45,18 @@
   .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer}
   .btn.secondary{background:#e7e2fa;color:#5a3e9a}
 
+  /* Chip pill del centro */
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;background:#f2effc;border:1px solid var(--line);
+    color:#4b3a78;padding:6px 10px;border-radius:999px;font-size:13px;max-width:100%;white-space:nowrap;
+  }
+
   /* ====== Barra superior: buscador + único KPI (horas libres) ====== */
   .bar{
-    display:grid;
-    grid-template-columns:auto 1fr; /* buscador ancho auto, chips a la derecha */
-    gap:10px; align-items:center;
+    display:grid; grid-template-columns:auto 1fr; gap:10px; align-items:center;
   }
   .search-wrap{display:flex; align-items:center; gap:8px; width:fit-content;}
-  .search-wrap .inp{
-    height:36px;
-    width:22ch;       /* ≈ 20–22 caracteres */
-    max-width:22ch;
-  }
+  .search-wrap .inp{ height:36px; width:22ch; max-width:22ch; } /* ≈20–22 caracteres */
   .search-clear{
     border:none;background:#efeafb;border:1px solid var(--line);
     border-radius:8px;padding:6px 10px;cursor:pointer
@@ -75,21 +72,17 @@
   /* ====== Grilla de tableros (2x2) ====== */
   .boards{
     display:grid; gap:12px; grid-template-columns:1fr 1fr;
-    grid-auto-rows: var(--board-h);   /* cada tablero la misma altura */
+    grid-auto-rows: var(--board-h);
     min-height:0;
   }
   .board{
     background:var(--card); border:1px solid var(--line); border-radius:10px;
     padding:10px; display:flex; flex-direction:column;
-    height: var(--board-h);
-    min-height:0;
-    overflow:hidden;                 /* evita crecer por contenido */
+    height: var(--board-h); min-height:0; overflow:hidden;
   }
   .board h3{
-    margin:2px 2px 8px;
-    font-size:18px; line-height:1.2;
-    display:flex; align-items:center; gap:8px;
-    color:#3b2b66;
+    margin:2px 2px 8px; font-size:18px; line-height:1.2;
+    display:flex; align-items:center; gap:8px; color:#3b2b66;
   }
   .hcount{
     font-size:12px; font-weight:700; color:#5a3e9a;
@@ -99,11 +92,7 @@
 
   /* Cuerpo con scroll interno y encabezado pegajoso */
   .board-body{
-    position:relative;
-    flex:1 1 auto;
-    min-height:0;                     /* clave para overflow en flex */
-    overflow:auto;                    /* scroll propio por tablero */
-    padding:0 2px 6px;
+    position:relative; flex:1 1 auto; min-height:0; overflow:auto; padding:0 2px 6px;
   }
   .table{width:100%;border-collapse:separate;border-spacing:0 5px;min-width:720px;font-size:12.5px}
   .thead{position:sticky; top:0; z-index:2; background:#fff}
@@ -166,23 +155,17 @@
   .hc-link:focus-visible{ outline:2px solid #5a3e9a; outline-offset:2px; }
   .hc-ico{ display:block; flex:0 0 auto; opacity:.95; }
 
-  /* Botón rojo (gana a app.css) */
   #fichaDrawer .drawer-foot #fd-finalizar{
-    background:#d32f2f !important;
-    border-color:#b71c1c !important;
-    color:#fff !important;
+    background:#d32f2f !important; border-color:#b71c1c !important; color:#fff !important;
   }
   #fichaDrawer .drawer-foot #fd-finalizar:hover{ background:#b71c1c !important; }
   #fichaDrawer .drawer-foot #fd-finalizar:focus-visible{ outline:2px solid #7f1d1d; outline-offset:2px; }
 
-  /* ====== Mini-calendario (para resaltar días con turnos) ======
-     Úsalo como popover al lado del input de fecha.
-     Marcá cada día con clases: .none / .busy / .free, y .selected / .today. */
+  /* (Opcional) Mini-cal CSS si algún día lo usás para resaltar días con turnos */
   .mini-cal{
     display:grid; grid-template-columns:repeat(7,1fr); gap:6px;
     background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px;
-    max-width:320px;
-    box-shadow:0 8px 24px rgba(0,0,0,.12);
+    max-width:320px; box-shadow:0 8px 24px rgba(0,0,0,.12);
   }
   .mc-dow{ font-size:11px; color:#8a85a1; text-align:center; }
   .mc-day{
@@ -190,19 +173,14 @@
     border-radius:8px; position:relative; cursor:pointer; user-select:none;
     border:1px solid transparent;
   }
-  .mc-day .dot{
-    width:8px; height:8px; border-radius:50%;
-    position:absolute; bottom:6px; left:50%; transform:translateX(-50%);
-    background:#cfc8ef;
-  }
+  .mc-day .dot{ width:8px; height:8px; border-radius:50%; position:absolute; bottom:6px; left:50%; transform:translateX(-50%); background:#cfc8ef; }
   .mc-day.none .dot{ background:#e5e5ea; }
-  .mc-day.free .dot{ background:#0a7d38; }      /* libre */
-  .mc-day.busy .dot{ background:var(--danger);} /* sin hueco */
+  .mc-day.free .dot{ background:#0a7d38; }
+  .mc-day.busy .dot{ background:var(--danger); }
   .mc-day.selected{ outline:2px solid var(--brand); }
   .mc-day.today{ border-color:#b9a8ea; }
   .mc-day:hover{ background:#f5f1ff; }
 
-  /* ====== Responsive ====== */
   @media (max-width:1100px){
     .boards{grid-template-columns:1fr}
     .table{min-width:660px}
@@ -213,9 +191,6 @@
     .search-wrap .inp{ width:100%; max-width:100%; }
   }
 </style>
-  
-
-
 </head>
 <body>
 <div class="shell">
@@ -240,14 +215,14 @@
       </div>
     </div>
 
-    <!-- Buscador masivo + un solo KPI -->
+    <!-- Buscador masivo + único KPI -->
     <div class="bar">
       <div class="search-wrap">
         <input id="mass-search" class="inp" placeholder="Buscar por DNI o Apellido (en toda la vista)"/>
         <button id="mass-clear" class="search-clear" title="Limpiar">✖️</button>
       </div>
       <div class="stats">
-        <div class="chip"><span>Horas libres</span> <span class="v" id="kpi-free">0.0 h</span></div>
+        <div class="chip"><span>Horas libres</span> <span class="v" id="kpi-free">0 min</span></div>
         <div class="chip" id="kpi-sub" style="opacity:.8"></div>
       </div>
     </div>
@@ -281,8 +256,7 @@
         </div>
         <span style="flex:1"></span>
         <a id="fd-hc" class="hc-link" href="#" target="_blank" rel="noopener" style="display:none">
-          <svg class="hc-ico" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M14 2V8h6" fill="currentColor"/></svg>
+          <svg class="hc-ico" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2V8h6" fill="currentColor"/></svg>
           <span>Historia clínica</span>
         </a>
         <button id="fd-close" class="icon" title="Cerrar">✖️</button>
@@ -370,26 +344,6 @@
       </footer>
     </aside>
 
-    <!-- Modal preparado para mini-cal de reprogramación -->
-    <div id="miniCalBackdrop" class="backdrop" role="dialog" aria-modal="true" aria-hidden="true">
-      <div class="mini-modal">
-        <div class="mini-head">
-          <h4 id="miniCalTitle">Reprogramar turno</h4>
-          <span style="flex:1"></span>
-          <button id="miniCalClose" class="icon" title="Cerrar">✖️</button>
-        </div>
-        <div class="mini-body" id="miniCalBody">
-          <div style="padding:8px; color:#6b6480">
-            Tu panel no respondió a la navegación interna.<br/>
-            Hacé clic en “Abrir Turnos”. El DNI ya quedó pre-cargado.
-          </div>
-        </div>
-        <div class="mini-foot">
-          <button id="miniCalPlanB" class="btn secondary">Abrir Turnos</button>
-        </div>
-      </div>
-    </div>
-
   </section>
 </div>
 
@@ -472,15 +426,6 @@ const Drawer = {
   btnFinalizar: document.getElementById('fd-finalizar'),
 };
 
-/* Mini-cal (reservado) */
-const Mini = {
-  backdrop: document.getElementById('miniCalBackdrop'),
-  close: document.getElementById('miniCalClose'),
-  planB: document.getElementById('miniCalPlanB'),
-  body: document.getElementById('miniCalBody'),
-  title: document.getElementById('miniCalTitle'),
-};
-
 /* Preferencias / contexto */
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
@@ -497,10 +442,7 @@ let filterText = '';
 function pad(n){return n<10?'0'+n:''+n}
 function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function toHM(t){return (t??'').toString().slice(0,5)}
-function minutesDiff(start,end){
-  const [h1,m1]=start.split(':').map(Number),[h2,m2]=end.split(':').map(Number);
-  return (h2*60+m2)-(h1*60+m1);
-}
+function minutesDiff(start,end){ const [h1,m1]=start.split(':').map(Number),[h2,m2]=end.split(':').map(Number); return (h2*60+m2)-(h1*60+m1); }
 function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
 function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
 function titleCase(s){ return (s||'').split(' ').filter(Boolean).map(w=>w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ') }
@@ -655,7 +597,6 @@ function renderPendientes(list){
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    // ⚠️ sin botón reprogramar
     const acciones = `
       <div class="actions">
         <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
@@ -680,8 +621,7 @@ function renderPendientes(list){
   });
 }
 
-
-/* Espera */
+/* En sala de espera */
 let waitTimer=null;
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
@@ -709,7 +649,6 @@ function renderPresentes(list){
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const arriboISO=`${currentFechaISO}T${toHM(t.hora_arribo)||'00:00'}:00`;
     const copBadge=(t.copago && Number(t.copago)>0)?`<span class="copago">${fmtMoney(t.copago)}</span>`:`<span class="copago none">Sin copago</span>`;
-    // ⚠️ sin botón reprogramar
     const acciones = `
       <button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>
       <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
@@ -737,7 +676,6 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
-
 /* En atención */
 function renderAtencion(list){
   const grid='100px 120px 1fr 1fr 1fr 210px';
@@ -751,10 +689,8 @@ function renderAtencion(list){
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const acciones = `
       <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente">📄</button>
-      <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
       <button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">⏪</button>
-      ${puedeFinalizar ? `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>` : ''}
-    `;
+      ${puedeFinalizar ? `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>` : ''}`;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
@@ -769,7 +705,6 @@ function renderAtencion(list){
   UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
-    if(act==='reprog') btn.onclick=()=> redirigirAReprogramar(id);
     if(act==='volver-espera') btn.onclick=()=> volverASalaEspera(id);
     if(act==='finalizar') btn.onclick=()=> finalizarAtencion(id);
   });
@@ -787,10 +722,7 @@ function renderAtendidos(list){
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const cop = (t.copago && Number(t.copago)>0)? fmtMoney(t.copago) : '—';
     const hcBtn = p.historia_clinica ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>` : '';
-    const acciones = `
-      <button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente">📄</button>
-      ${hcBtn}
-    `;
+    const acciones = `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha paciente">📄</button>${hcBtn}`;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
@@ -1014,55 +946,6 @@ async function marcarLlegadaYCopago(turnoId){
   await refreshAll();
 }
 
-
-
-async function redirigirAReprogramar(turnoId){
-  try{
-    const { data:t } = await supabase
-      .from('turnos')
-      .select('id, fecha, profesional_id, centro_id, paciente_id, pacientes(id,dni,apellido,nombre)')
-      .eq('id', turnoId)
-      .maybeSingle();
-
-    const pac = t?.pacientes ? {
-      id: t.pacientes.id,
-      dni: t.pacientes.dni || '',
-      apellido: t.pacientes.apellido || '',
-      nombre: t.pacientes.nombre || ''
-    } : null;
-
-    const intent = {
-      turno_id: t?.id ?? turnoId,
-      fecha: t?.fecha || null,
-      profesional_id: t?.profesional_id || currentProfesional,
-      centro_id: t?.centro_id || currentCentroId
-    };
-
-    if (pac){
-      localStorage.setItem('turnos_prefill_paciente', JSON.stringify(pac));
-      if (pac.dni) localStorage.setItem('turnos_prefill_query', String(pac.dni));
-    }
-    localStorage.setItem('reprogram_turno_intent', JSON.stringify(intent));
-
-    // 1) Evento para SPA/dashboard (no recarga, no pierdes sesión)
-    try { window.dispatchEvent(new CustomEvent('dashboard:navigate', { detail:{ section:'turnos', dni: pac?.dni||null } })); } catch {}
-
-    // 2) Si tu app expone una función:
-    if (typeof window.navigateToSection === 'function') {
-      try { window.navigateToSection('turnos', { dni: pac?.dni||null }); return; } catch {}
-    }
-
-    // 3) Si está embebido en un parent SPA:
-    try { if (window.parent && window.parent !== window) window.parent.postMessage({ type:'dashboard:navigate', section:'turnos', dni: pac?.dni||null }, '*'); } catch {}
-
-    // 4) Plan B: mostrar modal (usuario abre Turnos con el hash, misma página)
-    showMiniCal();
-  }catch(e){
-    console.error(e);
-    showMiniCal();
-  }
-}
-
 /* Pasar a En atención */
 async function pasarAEnAtencion(turnoId, ev) {
   if (ev) ev.preventDefault();
@@ -1087,7 +970,6 @@ function computeHorasDisponibles(agenda, turnos){
   const libresMin=Math.max(0,totalAgendaMin-ocupadosMin);
   return { horas:(libresMin/60).toFixed(1), libresMin, totalAgendaMin };
 }
-
 function formatFreeTime(mins) {
   mins = Math.max(0, Math.round(Number(mins||0)));
   if (mins < 60) return `${mins} min`;
@@ -1096,16 +978,11 @@ function formatFreeTime(mins) {
   const hm = `${h}.${String(m).padStart(2,'0')}`; // “H.MM”
   return `${h} h ${m} min (${hm} hs)`;
 }
-
-function renderKPIs({pendientes, presentes, atencion, agenda, turnos}){
-  UI.kpiPend.textContent=pendientes.length;
-  UI.kpiEsp.textContent=presentes.length;
-  UI.kpiAtencion.textContent=atencion.length;
+function renderKPIs({agenda, turnos}){
   const free=computeHorasDisponibles(agenda, turnos);
   UI.kpiFree.textContent = `${formatFreeTime(free.libresMin)} disponibles`;
   UI.kpiSub.textContent = `${currentCentroNombre || ''} · ${UI.profSelect.options[UI.profSelect.selectedIndex]?.textContent || ''} · ${currentFechaISO}`;
 }
-
 function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
   if (H.pend)  H.pend.textContent  = `Por llegar (${(pendientes||[]).length})`;
   if (H.esp)   H.esp.textContent   = `En sala de espera (${(presentes||[]).length})`;
@@ -1115,17 +992,12 @@ function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
 
 /* —— Buscador masivo bindings —— */
 let searchTimer=null;
-function applySearch(value){
-  filterText = norm((value||'').trim());
-  refreshAll();
-}
+function applySearch(value){ filterText = norm((value||'').trim()); refreshAll(); }
 UI.massSearch.addEventListener('input', ()=>{
   clearTimeout(searchTimer);
   searchTimer=setTimeout(()=>applySearch(UI.massSearch.value), 160);
 });
-UI.massClear.addEventListener('click', ()=>{
-  UI.massSearch.value=''; applySearch('');
-});
+UI.massClear.addEventListener('click', ()=>{ UI.massSearch.value=''; applySearch(''); });
 
 /* Refresh & Init */
 async function refreshAll(){
@@ -1143,11 +1015,11 @@ async function refreshAll(){
   renderAtencion(filtered.atencion);
   renderAtendidos(filtered.atendidos);
 
-  renderKPIs(raw);           // Horas libres: sobre total del día (no filtrado)
+  renderKPIs(raw);            // Horas libres: sobre total del día (no filtrado)
   renderBoardTitles(filtered); // Títulos: cantidades filtradas
 }
 async function initInicio(){
-  // 🔥 limpiezas por si quedó algo viejo de reprogramar
+  // Limpiezas por si quedó algo viejo
   try {
     localStorage.removeItem('reprogram_turno_intent');
     localStorage.removeItem('turnos_prefill');
@@ -1162,7 +1034,7 @@ async function initInicio(){
   await refreshAll();
   startCentroWatcher();
 }
-
+await initInicio();
 </script>
 </body>
 </html>
