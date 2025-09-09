@@ -1,108 +1,7 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8">
-  <title>Mis Centros Médicos</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; background: #f7f9fb; margin: 0; }
-    .container { max-width: 900px; margin: 36px auto; background: #fff; padding: 28px 22px 20px 22px; border-radius: 18px; box-shadow: 0 2px 8px rgba(80,60,160,.13); }
-    h3 { color:#381e60; margin-bottom:22px;}
-    .btn { background: #7656b0; color: #fff; border: none; border-radius: 6px; padding: 6px 16px; cursor:pointer; margin: 3px;}
-    .btn.primary { background: #7656b0; }
-    .btn:hover { background: #7f62b6; }
-    input, textarea { border: 1px solid #e3d8f6; border-radius: 6px; padding: 5px 8px; font-size:15px; background:#f7f9fb; }
-    label { color:#381e60;}
-    .muted { color: #6b6480; font-size: 13px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-    th, td { text-align:left; padding: 10px 8px; }
-    th { background: #e7e2fa; color: #381e60; font-size: 16px; }
-    td { font-size: 15px; border-bottom: 1px solid #ece5fc; }
-    tr:last-child td { border-bottom: none; }
-    .icon-btn { background: none; border: none; cursor: pointer; padding: 0; margin-left: 6px;}
-    .icon-btn svg { vertical-align: middle; width: 22px; height: 22px;}
-    .icon-btn.edit-btn svg { stroke: #7656b0; }
-    .icon-btn.desasociar-btn svg { stroke: #B00020; }
-    .icon-btn.edit-btn:hover svg { stroke: #381e60; }
-    .icon-btn.desasociar-btn:hover svg { stroke: #8e0c2f; }
-    .action-cell { text-align: right; }
+<!-- Botón crear centro -->
+<button type="button" id="crear-centro-btn" class="btn primary">Crear centro médico</button>
 
-    /* ===== MODALES ===== */
-    .modal {
-      position:fixed;
-      z-index:999;
-      inset:0;
-      width:100vw;
-      height:100vh;
-      background:rgba(0,0,0,0.35);
-      display:none;
-      align-items:center;
-      justify-content:center;
-    }
-    .modal-content {
-      background:#fff;
-      padding:28px 22px 20px 22px;
-      border-radius:14px;
-      min-width:340px;
-      max-width:480px;
-      width:100%;
-      position:relative;
-      box-shadow:0 2px 18px rgba(80,60,160,.18);
-      animation: fadeInScale .25s ease;
-    }
-    .close { position:absolute; right:12px; top:10px; font-size:20px; color:#7656b0; cursor:pointer;}
-    .modal-content h4 { color:#381e60; margin-bottom:16px;}
-    .modal-content input, .modal-content textarea { width:100%; margin-bottom:10px; }
-    .modal-content .btn { width:100%; }
-    @keyframes fadeInScale {
-      from { opacity: 0; transform: scale(.9);}
-      to { opacity: 1; transform: scale(1);}
-    }
-
-    /* Buscador centros */
-    .resultados {
-      list-style:none;
-      padding:0;
-      margin:6px 0 0 0;
-      max-height:200px;
-      overflow-y:auto;
-      border:1px solid #e3d8f6;
-      border-radius:6px;
-      background:#fff;
-    }
-    .resultados li {
-      padding:6px 10px;
-      cursor:pointer;
-    }
-    .resultados li:hover {
-      background:#f0ecfc;
-    }
-  </style>
-</head>
-<body>
-<div class="container">
-  <h3>Mis Centros Médicos</h3>
-  <table id="centros-table">
-    <thead>
-      <tr>
-        <th>Nombre</th>
-        <th>Dirección</th>
-        <th>Teléfono</th>
-        <th>Email</th>
-        <th>Notas</th>
-        <th class="action-cell">Acciones</th>
-      </tr>
-    </thead>
-    <tbody id="centros-tbody"></tbody>
-  </table>
-  <div style="margin-top:20px;">
-    <button type="button" id="crear-centro-btn" class="btn primary">Crear centro médico</button>
-    <button type="button" id="asociar-centro-btn" class="btn">Asociarme a un centro existente</button>
-  </div>
-  <div id="status-msg" class="muted" style="margin-top:10px;"></div>
-</div>
-
-<!-- Modal crear/editar -->
+<!-- Modal crear centro -->
 <div id="modal-centro" class="modal">
   <div class="modal-content">
     <span class="close" id="cerrar-modal-centro">&times;</span>
@@ -110,7 +9,7 @@
     <form id="form-centro">
       <input type="text" id="centro_nombre" placeholder="Nombre del centro" required>
       <input type="text" id="centro_direccion" placeholder="Dirección">
-      <input type="text" id="centro_telefono" placeholder="Teléfono">
+      <input type="text" id="centro_telefono" placeholder="Teléfono (ej: 5493511234567)" required>
       <input type="email" id="centro_email" placeholder="Email">
       <textarea id="centro_notas" placeholder="Notas"></textarea>
       <button type="submit" class="btn primary" style="margin-top:10px;">Guardar</button>
@@ -119,230 +18,112 @@
   </div>
 </div>
 
-<!-- Modal asociar -->
-<div id="modal-asociar" class="modal">
-  <div class="modal-content">
-    <span class="close" id="cerrar-modal-asociar">&times;</span>
-    <h4>Asociarme a un centro médico</h4>
-    <form id="form-asociar-centro">
-      <label for="buscar-centro">Buscar centro:</label>
-      <input type="text" id="buscar-centro" placeholder="Escriba el nombre del centro" autocomplete="off">
-      <ul id="resultados-centros" class="resultados"></ul>
-      <button type="submit" class="btn primary" style="margin-top:10px;">Asociar</button>
-      <div id="modal-asociar-status" class="muted" style="margin-top:10px;"></div>
-    </form>
-  </div>
-</div>
-
 <script type="module">
 import supabase from './supabaseClient.js';
 
 const profesionalId = localStorage.getItem('profesional_id');
-
-const centrosTbody = document.getElementById('centros-tbody');
-const crearCentroBtn = document.getElementById('crear-centro-btn');
-const asociarCentroBtn = document.getElementById('asociar-centro-btn');
 const modalCentro = document.getElementById('modal-centro');
 const cerrarModalCentro = document.getElementById('cerrar-modal-centro');
 const formCentro = document.getElementById('form-centro');
 const modalCentroStatus = document.getElementById('modal-centro-status');
-const modalTitle = document.getElementById('modal-title');
-const statusMsg = document.getElementById('status-msg');
 
-const modalAsociar = document.getElementById('modal-asociar');
-const cerrarModalAsociar = document.getElementById('cerrar-modal-asociar');
-const formAsociarCentro = document.getElementById('form-asociar-centro');
-const buscarCentroInput = document.getElementById('buscar-centro');
-const resultadosCentros = document.getElementById('resultados-centros');
-const modalAsociarStatus = document.getElementById('modal-asociar-status');
-
-let centrosMedicos = [];
-let centrosDisponibles = [];
-let centroEditId = null;
-
-// Cargar centros
-async function cargarCentros() {
-  centrosTbody.innerHTML = `<tr><td colspan="6" class="muted">Cargando centros...</td></tr>`;
-  let { data, error } = await supabase
-    .from('profesional_centro')
-    .select('centro_id, centros_medicos(id, nombre, direccion, telefono, email, notas)')
-    .eq('profesional_id', profesionalId)
-    .eq('activo', true);
-
-  if (error || !data) {
-    centrosTbody.innerHTML = `<tr><td colspan="6" class="muted">Error al cargar centros médicos</td></tr>`;
-    return;
-  }
-  centrosMedicos = data
-    .filter(row => row.centros_medicos)
-    .map(row => row.centros_medicos);
-
-  if (centrosMedicos.length === 0) {
-    centrosTbody.innerHTML = `<tr><td colspan="6" class="muted">No tienes centros médicos asociados aún.</td></tr>`;
-    return;
-  }
-
-  centrosTbody.innerHTML = '';
-  centrosMedicos.forEach(c => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${c.nombre}</td>
-      <td>${c.direccion || '-'}</td>
-      <td>${c.telefono || '-'}</td>
-      <td>${c.email || '-'}</td>
-      <td>${c.notas || '-'}</td>
-      <td class="action-cell">
-        <button class="icon-btn edit-btn" title="Editar" data-id="${c.id}">✏️</button>
-        <button class="icon-btn desasociar-btn" title="Desasociar" data-id="${c.id}">🔓</button>
-      </td>
-    `;
-    centrosTbody.appendChild(tr);
-  });
-
-  document.querySelectorAll('.edit-btn').forEach(el => {
-    el.addEventListener('click', () => openEditCentro(el.dataset.id));
-  });
-  document.querySelectorAll('.desasociar-btn').forEach(el => {
-    el.addEventListener('click', () => desasociarCentro(el.dataset.id));
-  });
-}
-
-// Crear nuevo centro
-crearCentroBtn.addEventListener('click', () => {
-  centroEditId = null;
-  modalTitle.textContent = 'Crear centro médico';
+function openModalCentro() {
   formCentro.reset();
   modalCentroStatus.textContent = '';
   modalCentro.style.display = 'flex';
-});
-
-function openEditCentro(id) {
-  const centro = centrosMedicos.find(c => c.id == id);
-  if (!centro) return;
-  centroEditId = id;
-  modalTitle.textContent = 'Editar centro médico';
-  document.getElementById('centro_nombre').value = centro.nombre;
-  document.getElementById('centro_direccion').value = centro.direccion;
-  document.getElementById('centro_telefono').value = centro.telefono;
-  document.getElementById('centro_email').value = centro.email;
-  document.getElementById('centro_notas').value = centro.notas;
-  modalCentroStatus.textContent = '';
-  modalCentro.style.display = 'flex';
+}
+function closeModalCentro() {
+  modalCentro.style.display = 'none';
 }
 
-cerrarModalCentro.addEventListener('click', () => modalCentro.style.display = 'none');
-cerrarModalAsociar.addEventListener('click', () => modalAsociar.style.display = 'none');
-window.addEventListener('click', e => {
-  if (e.target === modalCentro) modalCentro.style.display = 'none';
-  if (e.target === modalAsociar) modalAsociar.style.display = 'none';
-});
+document.getElementById('crear-centro-btn').addEventListener('click', openModalCentro);
+cerrarModalCentro.addEventListener('click', closeModalCentro);
+window.addEventListener('click', e => { if (e.target === modalCentro) closeModalCentro(); });
 
-// Guardar centro (crear o editar)
+// --- VALIDAR TELÉFONO ---
+function validarTelefono(telefono) {
+  const regex = /^54\d{8,12}$/; // empieza con 54 y 10-14 dígitos
+  return regex.test(telefono);
+}
+
+// --- CREAR / ASOCIAR CENTRO ---
 formCentro.addEventListener('submit', async e => {
   e.preventDefault();
+
   const nombre = document.getElementById('centro_nombre').value.trim();
   const direccion = document.getElementById('centro_direccion').value.trim();
   const telefono = document.getElementById('centro_telefono').value.trim();
   const email = document.getElementById('centro_email').value.trim();
   const notas = document.getElementById('centro_notas').value.trim();
 
-  if (!nombre) {
-    modalCentroStatus.textContent = 'El nombre es obligatorio.';
+  if (!validarTelefono(telefono)) {
+    modalCentroStatus.textContent = 'El teléfono debe empezar con 54 y tener entre 10 y 14 dígitos.';
     return;
   }
-  modalCentroStatus.textContent = 'Guardando...';
 
-  if (!centroEditId) {
-    const { data: centro, error: errorCentro } = await supabase
+  modalCentroStatus.textContent = 'Verificando centro...';
+
+  // Chequear si ya existe ese teléfono
+  const { data: existe, error: errExiste } = await supabase
+    .from('centros_medicos')
+    .select('*')
+    .eq('telefono', telefono)
+    .maybeSingle();
+
+  if (errExiste) {
+    modalCentroStatus.textContent = 'Error al verificar teléfono.';
+    return;
+  }
+
+  if (existe) {
+    // Ya existe: preguntar si lo quiere asociar
+    const confirmar = confirm(`Ya existe un centro con este teléfono (${telefono}): ${existe.nombre}. ¿Querés asociarlo a tu perfil?`);
+    if (confirmar) {
+      const { error: errorPC } = await supabase
+        .from('profesional_centro')
+        .upsert({
+          profesional_id: profesionalId,
+          centro_id: existe.id,
+          medico_registrador_id: profesionalId,
+          activo: true
+        });
+      if (errorPC) {
+        modalCentroStatus.textContent = 'Error al asociar el centro existente.';
+        return;
+      }
+      modalCentroStatus.textContent = 'Centro existente asociado exitosamente!';
+      await cargarCentros();
+      setTimeout(closeModalCentro, 1000);
+    } else {
+      modalCentroStatus.textContent = 'Operación cancelada.';
+    }
+  } else {
+    // No existe: crear nuevo centro
+    const { data: nuevo, error: errorCentro } = await supabase
       .from('centros_medicos')
-      .insert([{ nombre, direccion, telefono, email, notas }])
+      .insert([{ nombre, direccion, telefono, email, notas, activo: true }])
       .select();
-    if (errorCentro || !centro || !centro[0]) {
-      modalCentroStatus.textContent = 'Error al crear centro médico';
+    if (errorCentro || !nuevo || !nuevo[0]) {
+      modalCentroStatus.textContent = 'Error al crear centro médico.';
       return;
     }
-    await supabase
+
+    const { error: errorPC } = await supabase
       .from('profesional_centro')
-      .insert({ profesional_id: profesionalId, centro_id: centro[0].id, medico_registrador_id: profesionalId, activo: true });
+      .insert({
+        profesional_id: profesionalId,
+        centro_id: nuevo[0].id,
+        medico_registrador_id: profesionalId,
+        activo: true
+      });
+    if (errorPC) {
+      modalCentroStatus.textContent = 'Error al asociar nuevo centro.';
+      return;
+    }
+
     modalCentroStatus.textContent = 'Centro creado y asociado!';
     await cargarCentros();
-    setTimeout(() => modalCentro.style.display = 'none', 1200);
-  } else {
-    await supabase
-      .from('centros_medicos')
-      .update({ nombre, direccion, telefono, email, notas })
-      .eq('id', centroEditId);
-    modalCentroStatus.textContent = 'Centro actualizado!';
-    await cargarCentros();
-    setTimeout(() => modalCentro.style.display = 'none', 900);
+    setTimeout(closeModalCentro, 1000);
   }
 });
-
-// Abrir modal asociar
-asociarCentroBtn.addEventListener('click', async () => {
-  modalAsociarStatus.textContent = '';
-  buscarCentroInput.value = '';
-  resultadosCentros.innerHTML = '';
-  modalAsociar.style.display = 'flex';
-  const { data, error } = await supabase.from('centros_medicos').select('id, nombre').eq('activo', true);
-  if (error || !data) {
-    modalAsociarStatus.textContent = 'Error al cargar centros';
-    return;
-  }
-  const asociadosIds = centrosMedicos.map(c => c.id);
-  centrosDisponibles = data.filter(c => !asociadosIds.includes(c.id));
-});
-
-buscarCentroInput.addEventListener('input', () => {
-  const term = buscarCentroInput.value.toLowerCase();
-  resultadosCentros.innerHTML = '';
-  if (!term) return;
-  centrosDisponibles.filter(c => c.nombre.toLowerCase().includes(term)).forEach(c => {
-    const li = document.createElement('li');
-    li.textContent = c.nombre;
-    li.dataset.id = c.id;
-    li.addEventListener('click', () => {
-      buscarCentroInput.value = c.nombre;
-      buscarCentroInput.dataset.id = c.id;
-      resultadosCentros.innerHTML = '';
-    });
-    resultadosCentros.appendChild(li);
-  });
-});
-
-// Asociar centro existente
-formAsociarCentro.addEventListener('submit', async e => {
-  e.preventDefault();
-  const centroId = buscarCentroInput.dataset.id;
-  if (!centroId) {
-    modalAsociarStatus.textContent = 'Seleccione un centro válido';
-    return;
-  }
-  const { error } = await supabase
-    .from('profesional_centro')
-    .insert({ profesional_id: profesionalId, centro_id: centroId, medico_registrador_id: profesionalId, activo: true });
-  if (error) {
-    modalAsociarStatus.textContent = 'Error al asociar centro';
-    return;
-  }
-  modalAsociarStatus.textContent = 'Centro asociado correctamente';
-  await cargarCentros();
-  setTimeout(() => modalAsociar.style.display = 'none', 1000);
-});
-
-// Desasociar
-async function desasociarCentro(centroId) {
-  if (!confirm('¿Seguro que quieres desasociar este centro médico?')) return;
-  await supabase
-    .from('profesional_centro')
-    .update({ activo: false })
-    .eq('profesional_id', profesionalId)
-    .eq('centro_id', centroId);
-  await cargarCentros();
-}
-
-if (profesionalId) await cargarCentros();
-else statusMsg.textContent = 'No se detectó profesional en sesión.';
 </script>
-</body>
-</html>
