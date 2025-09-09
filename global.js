@@ -202,3 +202,133 @@ Te confirmamos tu turno el ${new Date(fechaISO).toLocaleDateString(
   )} de ${start} a ${end} con ${prof} en ${centro} (${dir}). 
 Si no podés asistir, por favor avisá. ¡Gracias!`;
 }
+
+// ===== Profesionales (combo) + helpers de rol =====
+
+/** Etiqueta legible "Apellido, Nombre" con fallbacks */
+function profLabel(p) {
+  return (
+    p?.display_name ||
+    [p?.apellido, p?.nombre].filter(Boolean).join(', ') ||
+    p?.nombre ||
+    p?.apellido ||
+    p?.id
+  );
+}
+
+/**
+ * Devuelve los MÉDICOS visibles según rol y centro:
+ * - medico: solo él
+ * - amp: médicos asociados al AMP en ese centro (via medico_registrador_id en profesional_centro)
+ * - amc / propietario: todos los médicos del centro
+ */
+export async function getProfesionalesForContext({ role, centroId, loggedProfesionalId }) {
+  if (!centroId) return [];
+
+  if (role === 'medico' && loggedProfesionalId) {
+    const { data: p } = await supabase
+      .from('profesionales')
+      .select('id, nombre, apellido, display_name, rol')
+      .eq('id', loggedProfesionalId)
+      .maybeSingle();
+    if (p?.rol !== 'medico') return [];
+    return [{ id: p.id, label: profLabel(p) }];
+  }
+
+  if (role === 'amp' && loggedProfesionalId) {
+    const { data: links } = await supabase
+      .from('profesional_centro')
+      .select('medico_registrador_id')
+      .eq('profesional_id', loggedProfesionalId)
+      .eq('centro_id', centroId)
+      .eq('activo', true);
+
+    const ids = [...new Set((links || [])
+      .map(r => r.medico_registrador_id)
+      .filter(Boolean))];
+    if (!ids.length) return [];
+
+    const { data: pros } = await supabase
+      .from('profesionales')
+      .select('id, nombre, apellido, display_name, rol')
+      .in('id', ids)
+      .eq('rol', 'medico')
+      .order('apellido', { ascending: true });
+
+    return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
+  }
+
+  if (role === 'amc' || role === 'propietario') {
+    const { data: map } = await supabase
+      .from('profesional_centro')
+      .select('profesional_id')
+      .eq('centro_id', centroId)
+      .eq('activo', true);
+
+    const ids = [...new Set((map || [])
+      .map(r => r.profesional_id)
+      .filter(Boolean))];
+    if (!ids.length) return [];
+
+    const { data: pros } = await supabase
+      .from('profesionales')
+      .select('id, nombre, apellido, display_name, rol')
+      .in('id', ids)
+      .eq('rol', 'medico')
+      .order('apellido', { ascending: true });
+
+    return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
+  }
+
+  return [];
+}
+
+/** Pinta opciones en un <select> */
+export function fillProfesionalSelect(selectEl, items, {
+  disabled = false,
+  value = null,
+  placeholder = 'Sin médicos'
+} = {}) {
+  if (!selectEl) return;
+  if (!items.length) {
+    selectEl.innerHTML = `<option value="">${placeholder}</option>`;
+    selectEl.disabled = true;
+    return;
+  }
+  selectEl.innerHTML = items.map(it => `<option value="${it.id}">${it.label}</option>`).join('');
+  selectEl.disabled = !!disabled;
+  const val = value ?? items[0]?.id ?? '';
+  if (val) selectEl.value = val;
+}
+
+/** Aplica clases de rol al <body> (útil para CSS condicional) */
+export function applyRoleClasses(role) {
+  document.body.classList.toggle('role-amc', role === 'amc');
+  document.body.classList.toggle('role-amp', role === 'amp');
+  document.body.classList.toggle('role-medico', role === 'medico');
+}
+
+/** Permisos por acción (AMC puede ARRIBO y VOLVER; AMP/Médico todo) */
+export function roleAllows(action, role) {
+  const full = (role === 'medico' || role === 'amp');
+  const recep = (role === 'amc' || role === 'propietario');
+  const map = {
+    arribo:  full || recep,
+    volver:  full || recep,
+    cancelar: full,
+    atender:  full,
+    abrir_ficha: full,
+    finalizar: full,
+  };
+  return !!map[action];
+}
+
+/** Helper: trae médicos + llena el select y devuelve el id seleccionado */
+export async function loadProfesionalesIntoSelect(selectEl, { role, centroId, loggedProfesionalId }) {
+  const items = await getProfesionalesForContext({ role, centroId, loggedProfesionalId });
+  const disabled = (role === 'medico');
+  const value = disabled ? loggedProfesionalId : (items[0]?.id ?? null);
+  fillProfesionalSelect(selectEl, items, { disabled, value, placeholder: 'Sin médicos' });
+  return selectEl?.value || null;
+}
+
