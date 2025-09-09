@@ -252,7 +252,7 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
       .from('profesionales')
       .select('id, nombre, apellido, display_name, rol')
       .in('id', ids)
-      .eq('rol', 'medico')
+      .in('rol', ['medico'])
       .order('apellido', { ascending: true });
 
     return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
@@ -274,7 +274,7 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
       .from('profesionales')
       .select('id, nombre, apellido, display_name, rol')
       .in('id', ids)
-      .eq('rol', 'medico')
+      .in('rol', ['medico'])
       .order('apellido', { ascending: true });
 
     return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
