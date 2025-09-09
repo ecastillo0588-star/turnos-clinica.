@@ -646,17 +646,18 @@ function applyFilter(data){
 
 /* Por llegar */
 function renderPendientes(list){
-  const grid='100px 120px 1fr 1fr 1fr 210px';
+  const grid='100px 120px 1fr 1fr 1fr 150px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
       <th class="cell right">Acciones</th></tr></thead>`;
+
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
+    // ⚠️ sin botón reprogramar
     const acciones = `
       <div class="actions">
-        <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
         <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
         <button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>
       </div>`;
@@ -669,15 +670,16 @@ function renderPendientes(list){
       <td class="cell right">${acciones}</td>
     </tr>`;
   }).join('');
+
   UI.tblPend.innerHTML=head+'<tbody>'+rows+'</tbody>';
 
   UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='arribo') btn.onclick=()=> marcarLlegadaYCopago(id);
-    if(act==='reprog') btn.onclick=()=> redirigirAReprogramar(id);
     if(act==='cancel') btn.onclick=()=> anularTurno(id);
   });
 }
+
 
 /* Espera */
 let waitTimer=null;
@@ -694,7 +696,7 @@ function updateWaitBadges(){
   });
 }
 function renderPresentes(list){
-  const grid='90px 100px 1fr 1fr 1fr 110px 210px';
+  const grid='90px 100px 1fr 1fr 1fr 110px 180px';
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
       <th class="cell">Apellido</th><th class="cell">Obra social</th><th class="cell">Copago</th>
@@ -707,12 +709,11 @@ function renderPresentes(list){
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const arriboISO=`${currentFechaISO}T${toHM(t.hora_arribo)||'00:00'}:00`;
     const copBadge=(t.copago && Number(t.copago)>0)?`<span class="copago">${fmtMoney(t.copago)}</span>`:`<span class="copago none">Sin copago</span>`;
+    // ⚠️ sin botón reprogramar
     const acciones = `
-      <button class="icon" data-id="${t.id}" data-act="volver" title="Volver a Por llegar">↩️</button>
-      <button class="icon" data-id="${t.id}" data-act="reprog" title="Reprogramar">↪️</button>
+      <button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>
       <button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>
-      ${puedeAtender ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}
-    `;
+      ${puedeAtender ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}`;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell"><span class="wait" data-arribo-ts="${arriboISO}">—</span></td>
       <td class="cell nowrap">${hora}</td>
@@ -723,18 +724,19 @@ function renderPresentes(list){
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
   }).join('');
+
   UI.tblEsp.innerHTML=head+'<tbody>'+rows+'</tbody>';
 
   UI.tblEsp.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='volver') btn.onclick=async()=>{ await supabase.from('turnos').update({estado:EST.ASIGNADO, hora_arribo:null}).eq('id',id); await refreshAll(); };
-    if(act==='reprog') btn.onclick=()=> redirigirAReprogramar(id);
     if(act==='cancel') btn.onclick=()=> anularTurno(id);
-    if(act==='atender') btn.onclick=(ev)=> pasarAEnAtencion(id, ev);
+    if(act==='atender') btn.onclick=()=> pasarAEnAtencion(id);
   });
 
   updateWaitBadges(); startWaitTicker();
 }
+
 
 /* En atención */
 function renderAtencion(list){
@@ -1093,11 +1095,25 @@ function computeHorasDisponibles(agenda, turnos){
   const libresMin=Math.max(0,totalAgendaMin-ocupadosMin);
   return { horas:(libresMin/60).toFixed(1), libresMin, totalAgendaMin };
 }
-function renderKPIs({agenda, turnos}){
+
+function formatFreeTime(mins) {
+  mins = Math.max(0, Math.round(Number(mins||0)));
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const hm = `${h}.${String(m).padStart(2,'0')}`; // “H.MM”
+  return `${h} h ${m} min (${hm} hs)`;
+}
+
+function renderKPIs({pendientes, presentes, atencion, agenda, turnos}){
+  UI.kpiPend.textContent=pendientes.length;
+  UI.kpiEsp.textContent=presentes.length;
+  UI.kpiAtencion.textContent=atencion.length;
   const free=computeHorasDisponibles(agenda, turnos);
-  UI.kpiFree.textContent=`${free.horas} h`;
+  UI.kpiFree.textContent = `${formatFreeTime(free.libresMin)} disponibles`;
   UI.kpiSub.textContent = `${currentCentroNombre || ''} · ${UI.profSelect.options[UI.profSelect.selectedIndex]?.textContent || ''} · ${currentFechaISO}`;
 }
+
 function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
   if (H.pend)  H.pend.textContent  = `Por llegar (${(pendientes||[]).length})`;
   if (H.esp)   H.esp.textContent   = `En sala de espera (${(presentes||[]).length})`;
@@ -1139,6 +1155,12 @@ async function refreshAll(){
   renderBoardTitles(filtered); // Títulos: cantidades filtradas
 }
 async function initInicio(){
+  // 🔥 limpiezas por si quedó algo viejo de reprogramar
+  try {
+    localStorage.removeItem('reprogram_turno_intent');
+    localStorage.removeItem('turnos_prefill');
+  } catch {}
+
   currentCentroId = localStorage.getItem('centro_medico_id');
   currentCentroNombre = localStorage.getItem('centro_medico_nombre') || (await fetchCentroById(currentCentroId));
   renderCentroChip();
@@ -1148,7 +1170,7 @@ async function initInicio(){
   await refreshAll();
   startCentroWatcher();
 }
-await initInicio();
+
 </script>
 </body>
 </html>
