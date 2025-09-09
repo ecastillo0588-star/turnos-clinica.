@@ -205,38 +205,44 @@ Si no podés asistir, por favor avisá. ¡Gracias!`;
 
 // ===== Profesionales (combo) + helpers de rol =====
 
-/** Etiqueta legible "Apellido, Nombre" con fallbacks */
-// ✅ Etiqueta legible sin depender de display_name
+/** Etiqueta legible "Apellido, Nombre" sin depender de display_name */
 function profLabel(p) {
   const ape = (p?.apellido || '').trim();
   const nom = (p?.nombre || '').trim();
   return [ape, nom].filter(Boolean).join(', ') || nom || ape || p?.id;
 }
 
-// ✅ Trae SOLO médicos visibles según rol/centro (sin display_name en el SELECT)
-
-
+/** Normaliza roles y sinónimos/typos a: medico | amp | amc | propietario */
+export function normalizeRole(role) {
+  const r = String(role || '').trim().toLowerCase();
+  if (['apm','amp','asistente_personal','asistente_personal_medico'].includes(r)) return 'amp';
+  if (['amc','acm','asistente','recepcion'].includes(r)) return 'amc';
+  if (['owner','propietario'].includes(r)) return 'propietario';
+  if (['doctor','medico'].includes(r)) return 'medico';
+  return r;
+}
 
 /**
- * Devuelve los MÉDICOS visibles según rol y centro:
+ * Devuelve SOLO MÉDICOS visibles según rol y centro:
  * - medico: solo él
- * - amp: médicos asociados al AMP en ese centro (via medico_registrador_id en profesional_centro)
+ * - amp (apm): médicos asociados al APM en ese centro (via medico_registrador_id en profesional_centro)
  * - amc / propietario: todos los médicos del centro
  */
 export async function getProfesionalesForContext({ role, centroId, loggedProfesionalId }) {
+  const R = normalizeRole(role);
   if (!centroId) return [];
 
-  if (role === 'medico' && loggedProfesionalId) {
+  if (R === 'medico' && loggedProfesionalId) {
     const { data: p } = await supabase
       .from('profesionales')
-      .select('id, nombre, apellido, rol')   // <- sin display_name
+      .select('id, nombre, apellido, rol')
       .eq('id', loggedProfesionalId)
       .maybeSingle();
     if (p?.rol !== 'medico') return [];
     return [{ id: p.id, label: profLabel(p) }];
   }
 
-  if (role === 'amp' && loggedProfesionalId) {
+  if (R === 'amp' && loggedProfesionalId) {
     const { data: links } = await supabase
       .from('profesional_centro')
       .select('medico_registrador_id')
@@ -249,15 +255,15 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
 
     const { data: pros } = await supabase
       .from('profesionales')
-      .select('id, nombre, apellido, rol')   // <- sin display_name
+      .select('id, nombre, apellido, rol')
       .in('id', ids)
-      .in('rol', ['medico'])
+      .eq('rol', 'medico')
       .order('apellido', { ascending: true });
 
     return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
   }
 
-  if (role === 'amc' || role === 'propietario') {
+  if (R === 'amc' || R === 'propietario') {
     const { data: map } = await supabase
       .from('profesional_centro')
       .select('profesional_id')
@@ -269,9 +275,9 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
 
     const { data: pros } = await supabase
       .from('profesionales')
-      .select('id, nombre, apellido, rol')   // <- sin display_name
+      .select('id, nombre, apellido, rol')
       .in('id', ids)
-      .in('rol', ['medico'])
+      .eq('rol', 'medico')
       .order('apellido', { ascending: true });
 
     return (pros || []).map(p => ({ id: p.id, label: profLabel(p) }));
@@ -279,7 +285,6 @@ export async function getProfesionalesForContext({ role, centroId, loggedProfesi
 
   return [];
 }
-
 
 /** Pinta opciones en un <select> */
 export function fillProfesionalSelect(selectEl, items, {
@@ -301,30 +306,33 @@ export function fillProfesionalSelect(selectEl, items, {
 
 /** Aplica clases de rol al <body> (útil para CSS condicional) */
 export function applyRoleClasses(role) {
-  document.body.classList.toggle('role-amc', role === 'amc');
-  document.body.classList.toggle('role-amp', role === 'amp');
-  document.body.classList.toggle('role-medico', role === 'medico');
+  const R = normalizeRole(role);
+  document.body.classList.toggle('role-amc', R === 'amc');
+  document.body.classList.toggle('role-amp', R === 'amp');
+  document.body.classList.toggle('role-medico', R === 'medico');
 }
 
 /** Permisos por acción (AMC puede ARRIBO y VOLVER; AMP/Médico todo) */
 export function roleAllows(action, role) {
-  const full = (role === 'medico' || role === 'amp');
-  const recep = (role === 'amc' || role === 'propietario');
+  const R = normalizeRole(role);
+  const full  = (R === 'medico' || R === 'amp');
+  const recep = (R === 'amc' || R === 'propietario');
   const map = {
-    arribo:  full || recep,
-    volver:  full || recep,
-    cancelar: full,
-    atender:  full,
+    arribo:      full || recep,
+    volver:      full || recep,
+    cancelar:    full,
+    atender:     full,
     abrir_ficha: full,
-    finalizar: full,
+    finalizar:   full,
   };
   return !!map[action];
 }
 
-/** Helper: trae médicos + llena el select y devuelve el id seleccionado */
+/** Helper: carga médicos, llena el select y devuelve el id elegido */
 export async function loadProfesionalesIntoSelect(selectEl, { role, centroId, loggedProfesionalId }) {
-  const items = await getProfesionalesForContext({ role, centroId, loggedProfesionalId });
-  const disabled = (role === 'medico');
+  const R = normalizeRole(role);
+  const items = await getProfesionalesForContext({ role: R, centroId, loggedProfesionalId });
+  const disabled = (R === 'medico');
   const value = disabled ? loggedProfesionalId : (items[0]?.id ?? null);
   fillProfesionalSelect(selectEl, items, { disabled, value, placeholder: 'Sin médicos' });
   return selectEl?.value || null;
