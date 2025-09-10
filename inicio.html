@@ -199,16 +199,20 @@
   #fichaDrawer .drawer-foot #fd-finalizar:focus-visible{ outline:2px solid #7f1d1d; outline-offset:2px; }
 
   /* ===== Acciones sticky ===== */
-  .hrow .cell:last-child,
-  .row  .cell:last-child{
-    position: sticky;
-    right: 0;
-    z-index: 3;
-    min-width: var(--w-acc);
-    max-width: var(--w-acc);
-    width: var(--w-acc);
-    border-left: 1px solid var(--line);
-  }
+ .hrow .cell:last-child,
+.row  .cell:last-child{
+  position: sticky;
+  left: calc(100% - var(--w-acc)); /* pin al borde derecho del scrollport */
+  right: auto;                      /* por si quedó de antes */
+  z-index: 3;
+  min-width: var(--w-acc);
+  max-width: var(--w-acc);
+  width: var(--w-acc);
+  border-left: 1px solid var(--line);
+  /* mejora de render en algunos casos */
+  will-change: left;
+  contain: layout paint;
+}
   .row .cell:last-child{
     background:
       linear-gradient(to left, #faf9ff 32px, rgba(250,249,255,0)),
