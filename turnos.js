@@ -976,30 +976,33 @@ async function tryAgendar(slot) {
       return;
     }
 
-    // Obra Social del paciente (null => Particular)
     let obraSocialId = pacienteSeleccionado.obra_social_id || null;
+    let copagoElegido = null; // ← guardamos el copago mostrado/aceptado
 
     if (obraSocialId) {
-      // Estados vigentes (opcional): si querés contar solo asignado/confirmado/atendido,
-      // pasá un arreglo. Si no, dejamos null y se excluyen cancelados (igual que la vista).
-      // const ESTADOS_VIGENTES = ['asignado', 'confirmado', 'atendido'];
-      // const cupo = await getCupoObraSocialMensual(obraSocialId, currentProfesional, modalDateISO, ESTADOS_VIGENTES);
-      const cupo = await getCupoObraSocialMensual(obraSocialId, currentProfesional, modalDateISO, null);
+      // Contar solo estados vigentes (coherente con la vista que excluye cancelados)
+      const ESTADOS_VIGENTES = ['asignado', 'confirmado', 'atendido'];
+      const cupo = await getCupoObraSocialMensual(
+        obraSocialId,
+        currentProfesional,
+        modalDateISO,
+        ESTADOS_VIGENTES
+      );
 
       if (!cupo.disponible) {
-        // Si la config tiene copago condicionado y valor, lo usamos; si no, fallback
-        const copagoParticular = (cupo.condicion_copago && cupo.valor_copago != null)
+        // Si hay copago configurado úsalo; si no, fallback
+        copagoElegido = (cupo.valor_copago != null
           ? Number(cupo.valor_copago)
-          : await getCopagoParticular(currentCentroId, currentProfesional, modalDateISO);
+          : await getCopagoParticular(currentCentroId, currentProfesional, modalDateISO));
 
-        abrirModalCupoAgotado(copagoParticular);
+        abrirModalCupoAgotado(copagoElegido);
         const res = await new Promise((resolve) => {
           document.getElementById('modal-cupo-aceptar').onclick = () => { cerrarModalCupoAgotado(); resolve('aceptar'); };
           document.getElementById('modal-cupo-cancelar').onclick = () => { cerrarModalCupoAgotado(); resolve('cancelar'); };
         });
         if (res !== 'aceptar') return;
 
-        // Se reserva como PARTICULAR (obra_social_id = null) con copago informado
+        // Se reserva como PARTICULAR
         obraSocialId = null;
       }
     }
@@ -1015,8 +1018,10 @@ async function tryAgendar(slot) {
       estado: 'asignado',
       notas: UI.tipoTurno.value === 'sobreturno' ? 'Sobreturno' : null,
       obra_social_id: obraSocialId,
-      // Si quedó como particular, podés calcular un copago (de config o fallback).
-      copago: obraSocialId == null ? await getCopagoParticular(currentCentroId, currentProfesional, modalDateISO) : null,
+      // Si quedó como PARTICULAR, usa el copago aceptado; si no hubo modal, fallback
+      copago: obraSocialId == null
+        ? (copagoElegido ?? await getCopagoParticular(currentCentroId, currentProfesional, modalDateISO))
+        : null,
     };
 
     const { data: inserted, error } = await supabase
@@ -1045,6 +1050,7 @@ async function tryAgendar(slot) {
     refreshModalTitle();
   }
 }
+
 
 
 /* =====================
