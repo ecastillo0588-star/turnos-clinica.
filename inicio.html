@@ -616,8 +616,6 @@ UI.profSelect.addEventListener('change', async ()=>{
 });
 
 /* fecha */
-function pad2(n){return n<10?'0'+n:''+n}
-function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`}
 UI.fecha.value=todayISO(); currentFechaISO=UI.fecha.value;
 UI.fecha.addEventListener('change', ()=>{ currentFechaISO=UI.fecha.value||todayISO(); refreshAll(); });
 UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
