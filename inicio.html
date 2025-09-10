@@ -5,12 +5,30 @@
   <title>Inicio — EG Health Solutions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-  /* ====== Variables y base ====== */
+  /* ====== Variables ====== */
   :root{
     --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
     --bg:#f7f9fb; --card:#fff; --line:#ece5fc;
     --ok:#0a7d38; --warn:#8a5800; --danger:#d32f2f;
-    --board-h: 420px; /* Altura fija de cada tablero */
+
+    --board-h: 420px;
+
+    /* Tipografía global escalable */
+    --fs: 14px; /* cambiable con A−/A/A+ */
+
+    /* Anchos y mínimos de columnas */
+    --w-acc: 100px;   /* Acciones */
+    --w-hora: 110px;
+    --w-dni: 120px;
+    --w-espera: 90px;
+    --w-copago: 110px;
+    --w-prof: 220px;
+
+    --minch-nombre: 12ch;
+    --minch-apellido: 12ch;
+    --minch-obra: 10ch;
+
+    --gap-acc: 2px;  /* separación visual antes de Acciones sticky */
   }
 
   :where(#main-content.card){
@@ -19,7 +37,7 @@
   }
 
   *{box-sizing:border-box}
-  body{background:var(--bg);margin:0;font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
+  body{background:var(--bg);margin:0;font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);font-size:var(--fs)}
 
   /* ====== Panel contenedor ====== */
   .shell{padding:10px}
@@ -35,10 +53,11 @@
     gap:10px 12px; align-items:end;
   }
   .field{display:flex;flex-direction:column;gap:3px;min-width:0}
-  .field label{font-size:11px;color:var(--muted)}
+  .field label{font-size:.85em;color:var(--muted)}
+  .inp,.sel,.btn,.pill,.chip,.msg,.drawer-title,.drawer-sub,.table{ font-size:1em }
   .inp,.sel{
     background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:7px 9px;
-    font-size:13px;color:var(--ink);outline:none;width:100%;
+    color:var(--ink);outline:none;width:100%;
   }
   .inp:focus,.sel:focus,textarea:focus{border-color:var(--brand-2)}
   .sel.compact{max-width:240px}
@@ -48,15 +67,15 @@
   /* Chip pill del centro */
   .pill{
     display:inline-flex;align-items:center;gap:6px;background:#f2effc;border:1px solid var(--line);
-    color:#4b3a78;padding:6px 10px;border-radius:999px;font-size:13px;max-width:100%;white-space:nowrap;
+    color:#4b3a78;padding:6px 10px;border-radius:999px;white-space:nowrap;
   }
 
-  /* ====== Barra superior: buscador + único KPI (horas libres) ====== */
+  /* ====== Barra superior ====== */
   .bar{
     display:grid; grid-template-columns:auto 1fr; gap:10px; align-items:center;
   }
   .search-wrap{display:flex; align-items:center; gap:8px; width:fit-content;}
-  .search-wrap .inp{ height:36px; width:22ch; max-width:22ch; } /* ≈20–22 caracteres */
+  .search-wrap .inp{ height:36px; width:22ch; max-width:22ch; }
   .search-clear{
     border:none;background:#efeafb;border:1px solid var(--line);
     border-radius:8px;padding:6px 10px;cursor:pointer
@@ -65,9 +84,18 @@
   .stats{display:flex;flex-wrap:wrap;gap:8px}
   .chip{
     display:flex;align-items:baseline;gap:6px;background:#f3f1fb;border:1px solid var(--line);
-    padding:6px 9px;border-radius:999px;font-size:12px;white-space:nowrap
+    padding:6px 9px;border-radius:999px;white-space:nowrap
   }
-  .chip .v{font-size:16px;font-weight:800;line-height:1}
+  .chip .v{font-size:1.15em;font-weight:800;line-height:1}
+
+  /* Control A−/A/A+ */
+  .zoom-chip{ gap:6px }
+  .zoom-btn{
+    appearance:none;border:1px solid var(--line);background:#fff;
+    padding:.25em .55em;border-radius:6px;cursor:pointer;font-weight:700;line-height:1;min-width:2.2em;
+  }
+  .zoom-btn:hover{ background:#f4f1ff; }
+  .zoom-btn:focus-visible{ outline:2px solid var(--brand-2); outline-offset:2px; }
 
   /* ====== Grilla de tableros (2x2) ====== */
   .boards{
@@ -81,21 +109,37 @@
     height: var(--board-h); min-height:0; overflow:hidden;
   }
   .board h3{
-    margin:2px 2px 8px; font-size:18px; line-height:1.2;
+    margin:2px 2px 8px; font-size:1.15em; line-height:1.2;
     display:flex; align-items:center; gap:8px; color:#3b2b66;
   }
 
-  /* Cuerpo con scroll interno y encabezado pegajoso */
+  /* ====== Cuerpo con scroll y canal para Acciones sticky ====== */
   .board-body{
-    position:relative; flex:1 1 auto; min-height:0; overflow:auto; padding:0 2px 6px;
+    position:relative; flex:1 1 auto; min-height:0;
+    overflow-y:auto;
+    overflow-x:auto; /* aparece solo si hace falta con tipografía grande */
+    padding:0 calc(var(--w-acc) + var(--gap-acc)) 6px 2px; /* reserva canal derecho UNA sola vez */
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    scrollbar-gutter: stable both-edges;
   }
-  .table{width:100%;border-collapse:separate;border-spacing:0 5px;min-width:720px;font-size:12.5px}
+
+  .table{
+    width:100%;
+    border-collapse:separate;border-spacing:0 5px;
+    min-width:0;
+  }
   .thead{position:sticky; top:0; z-index:2; background:#fff}
-  .hrow,.row{display:grid;gap:0;align-items:center;border:1px solid var(--line);padding:5px 8px;border-radius:8px}
+  .hrow,.row{
+    display:grid;gap:0;align-items:center;border:1px solid var(--line);padding:5px 8px;border-radius:8px;
+    margin-right:0; /* no reservar de nuevo el canal */
+  }
   .hrow{background:#f4f1ff;color:#5a3e9a;font-weight:700}
   .row{background:#faf9ff}
   .cell{padding:0 4px;min-width:0}
   .right{text-align:right} .nowrap{white-space:nowrap}
+  .truncate{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .thead .hrow .cell{white-space:nowrap} /* evitar cortes en encabezados */
 
   .actions{display:flex;gap:6px;justify-content:flex-end}
   .icon{
@@ -104,22 +148,21 @@
   }
 
   /* Badges */
-  .wait{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;background:#fff4e6;border:1px solid #ffe0b3;color:#8a5800}
-  .copago{display:inline-block;font-size:11px;padding:2px 7px;border-radius:999px;background:#e8fff0;border:1px solid #b9f0cb;color:#0a7d38}
+  .wait{display:inline-block;font-size:.85em;padding:2px 7px;border-radius:999px;background:#fff4e6;border:1px solid #ffe0b3;color:#8a5800}
+  .copago{display:inline-block;font-size:.85em;padding:2px 7px;border-radius:999px;background:#e8fff0;border:1px solid #b9f0cb;color:#0a7d38}
   .copago.none{background:#f1f1f1;border-color:#e0e0e0;color:#666}
 
-  /* Scrollbars bonitos en los cuerpos */
+  /* Scrollbar */
   .board-body::-webkit-scrollbar{height:8px;width:8px}
   .board-body::-webkit-scrollbar-thumb{background:#d8cfff;border-radius:8px}
 
-  /* ===== Ocultaciones rápidas por rol (solo AMC restringe por CSS) ===== */
+  /* ===== Ocultaciones por rol (AMC) ===== */
   body.role-amc [data-act="cancel"]{ display:none !important; }
   body.role-amc [data-act="atender"]{ display:none !important; }
   body.role-amc [data-act="abrir-ficha"]{ display:none !important; }
   body.role-amc [data-act="finalizar"]{ display:none !important; }
-  /* Nota: NO ocultamos [data-act="volver"] para AMC */
 
-  /* ===== Drawer (ficha paciente) ===== */
+  /* ===== Drawer ===== */
   .drawer{
     position:fixed; top:0; right:0; height:100vh; width:min(980px,96vw);
     background:#fff; border-left:1px solid var(--line);
@@ -129,16 +172,16 @@
   }
   .drawer.open{ transform:translateX(0); }
   .drawer-head{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#e8def8;border-bottom:1px solid var(--line)}
-  .drawer-title{margin:0;font-size:17px;color:#4b3a78;font-weight:700}
-  .drawer-sub{font-size:12px;color:#6b6480}
+  .drawer-title{margin:0;font-weight:700}
+  .drawer-sub{color:#6b6480}
   .drawer-body{flex:1;overflow:auto;padding:12px}
   .drawer-foot{padding:10px 12px;border-top:1px solid var(--line);background:#faf7ff;display:flex;gap:10px;justify-content:flex-end}
-  .msg{font-size:13px}
+  .msg{font-size:1em}
   .ok{color:var(--ok)} .warn{color:var(--warn)}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
   .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
-  .card h4{margin:0 0 10px 0;font-size:14px;color:#4b3a78}
+  .card h4{margin:0 0 10px 0;font-size:1em;color:#4b3a78}
 
   .hc-link{
     display:inline-flex; align-items:center; gap:6px;
@@ -147,7 +190,7 @@
     padding:6px 10px; border-radius:8px; box-shadow:0 1px 0 rgba(0,0,0,.05);
   }
   .hc-link:hover{ background:#fff; border-color:#b6a3ea; box-shadow:0 2px 6px rgba(0,0,0,.08); }
-  .hc-link:focus-visible{ outline:2px solid #5a3e9a; outline-offset:2px; }
+  .hc-link:focus-visible{ outline:2px solid var(--brand-2); outline-offset:2px; }
 
   #fichaDrawer .drawer-foot #fd-finalizar{
     background:#d32f2f !important; border-color:#b71c1c !important; color:#fff !important;
@@ -155,9 +198,35 @@
   #fichaDrawer .drawer-foot #fd-finalizar:hover{ background:#b71c1c !important; }
   #fichaDrawer .drawer-foot #fd-finalizar:focus-visible{ outline:2px solid #7f1d1d; outline-offset:2px; }
 
+  /* ===== Acciones sticky ===== */
+ .hrow .cell:last-child,
+.row  .cell:last-child{
+  position: sticky;
+  left: calc(100% - var(--w-acc)); /* pin al borde derecho del scrollport */
+  right: auto;                      /* por si quedó de antes */
+  z-index: 3;
+  min-width: var(--w-acc);
+  max-width: var(--w-acc);
+  width: var(--w-acc);
+  border-left: 1px solid var(--line);
+  /* mejora de render en algunos casos */
+  will-change: left;
+  contain: layout paint;
+}
+  .row .cell:last-child{
+    background:
+      linear-gradient(to left, #faf9ff 32px, rgba(250,249,255,0)),
+      #faf9ff;
+  }
+  .thead .hrow .cell:last-child{
+    z-index: 4;
+    background:
+      linear-gradient(to left, #f4f1ff 32px, rgba(244,241,255,0)),
+      #f4f1ff;
+  }
+
   @media (max-width:1100px){
     .boards{grid-template-columns:1fr}
-    .table{min-width:660px}
   }
   @media (max-width:700px){
     .bar{ grid-template-columns: 1fr; }
@@ -189,7 +258,7 @@
       </div>
     </div>
 
-    <!-- Buscador masivo + único KPI -->
+    <!-- Buscador + KPI + Zoom -->
     <div class="bar">
       <div class="search-wrap">
         <input id="mass-search" class="inp" placeholder="Buscar por DNI o Apellido (en toda la vista)"/>
@@ -198,6 +267,13 @@
       <div class="stats">
         <div class="chip"><span>Horas libres</span> <span class="v" id="kpi-free">0 min</span></div>
         <div class="chip" id="kpi-sub" style="opacity:.8"></div>
+
+        <!-- Control de tipografía -->
+        <div class="chip zoom-chip" id="zoom-chip" aria-label="Tamaño de fuente">
+          <button class="zoom-btn" id="zoom-dec" title="Reducir tamaño (A–)" type="button">A−</button>
+          <button class="zoom-btn" id="zoom-reset" title="Restablecer tamaño (A)" type="button">A</button>
+          <button class="zoom-btn" id="zoom-inc" title="Aumentar tamaño (A+)" type="button">A+</button>
+        </div>
       </div>
     </div>
 
@@ -356,6 +432,16 @@ const H = {
   done: document.getElementById('h-done'),
 };
 
+/* === Tipografía global (A− / A / A+) === */
+const FONT = { key:'ui_fs_px', def:14, min:12, max:18, step:1 };
+function applyFs(px){ document.documentElement.style.setProperty('--fs', `${px}px`); }
+function loadFs(){
+  const v = parseInt(localStorage.getItem(FONT.key), 10);
+  const px = Number.isFinite(v) ? Math.min(FONT.max, Math.max(FONT.min, v)) : FONT.def;
+  applyFs(px); return px;
+}
+let fsPx = loadFs();
+
 /* Drawer refs */
 const Drawer = {
   el: document.getElementById('fichaDrawer'),
@@ -365,37 +451,30 @@ const Drawer = {
   title: document.getElementById('fd-title'),
   sub: document.getElementById('fd-sub'),
   hc: document.getElementById('fd-hc'),
-
   prof: document.getElementById('fd-prof'),
   centro: document.getElementById('fd-centro'),
   fecha: document.getElementById('fd-fecha'),
   hora: document.getElementById('fd-hora'),
   estado: document.getElementById('fd-estado'),
   copago: document.getElementById('fd-copago'),
-
   dni: document.getElementById('fd-dni'),
   ape: document.getElementById('fd-apellido'),
   nom: document.getElementById('fd-nombre'),
   nac: document.getElementById('fd-nac'),
   tel: document.getElementById('fd-tel'),
   mail: document.getElementById('fd-mail'),
-
   obra: document.getElementById('fd-obra'),
   afiliado: document.getElementById('fd-afiliado'),
   cred: document.getElementById('fd-cred'),
   credLink: document.getElementById('fd-cred-link'),
-
   ecNom: document.getElementById('fd-ec-nom'),
   ecApe: document.getElementById('fd-ec-ape'),
   ecCel: document.getElementById('fd-ec-cel'),
   ecVin: document.getElementById('fd-ec-vin'),
-
   prox: document.getElementById('fd-prox'),
   renov: document.getElementById('fd-renov'),
   activo: document.getElementById('fd-activo'),
-
   notas: document.getElementById('fd-notas'),
-
   btnCerrar: document.getElementById('fd-cerrar'),
   btnGuardar: document.getElementById('fd-guardar'),
   btnFinalizar: document.getElementById('fd-finalizar'),
@@ -404,43 +483,79 @@ const Drawer = {
 /* Preferencias / contexto */
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
-const userRole = localStorage.getItem('user_role');             // 'medico' | 'amp' | 'amc' | 'propietario'
+const userRole = String(localStorage.getItem('user_role') || '').toLowerCase(); // 'medico' | 'amp' | 'amc' | 'propietario'
 const loggedProfesionalId = localStorage.getItem('profesional_id');
-let currentProfesional = null;
+let selectedProfesionales = []; // multi-selección
 let currentFechaISO = null;
 let centroWatchTimer = null;
 
-/* Filtro global (buscador masivo) */
+/* Filtro global */
 let filterText = '';
 
 /* —— Helpers —— */
 function pad(n){return n<10?'0'+n:''+n}
-function todayISO(){const d=new Date();return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
+function pad2(n){return n<10?'0'+n:''+n}
+
+function todayISO(){
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`
+}
+
 function toHM(t){return (t??'').toString().slice(0,5)}
-function minutesDiff(start, end) {
-  const [h1, m1] = start.split(':').map(Number);
-  const [h2, m2] = end.split(':').map(Number);
-  return (h2 * 60 + m2) - (h1 * 60 + m1);
+function minutesDiff(start, end){
+  const [h1,m1]=start.split(':').map(Number);
+  const [h2,m2]=end.split(':').map(Number);
+  return (h2*60+m2)-(h1*60+m1);
 }
-function nowHHMMSS(){const d=new Date();return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`}
-function fmtMoney(n){return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))}
-function titleCase(s){ return (s||'').split(' ').filter(Boolean).map(w=>w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ') }
-function calcEdad(f){ if(!f) return null; const d=new Date(f); if(isNaN(d)) return null; const t=new Date();
-  let a=t.getFullYear()-d.getFullYear(); const m=t.getMonth()-d.getMonth(); if (m<0 || (m===0 && t.getDate()<d.getDate())) a--; return Math.max(a,0);
+function nowHHMMSS(){
+  const d=new Date();
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
 }
-function norm(s){ return (s??'').toString().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,''); }
+function fmtMoney(n){
+  return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0))
+}
+function titleCase(s){
+  return (s||'').split(' ').filter(Boolean).map(w=>w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ')
+}
+function calcEdad(f){
+  if(!f) return null;
+  const d=new Date(f); if(isNaN(d)) return null;
+  const t=new Date();
+  let a=t.getFullYear()-d.getFullYear();
+  const m=t.getMonth()-d.getMonth();
+  if(m<0||(m===0&&t.getDate()<d.getDate())) a--;
+  return Math.max(a,0);
+}
+function norm(s){
+  return (s??'').toString().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu,'');
+}
 function matchTurno(t){
-  if (!filterText) return true;
+  if(!filterText) return true;
   const p=t.pacientes||{};
   return norm(p.apellido).includes(filterText) || String(p.dni||'').includes(filterText);
 }
-function setDrawerMsg(msg,tone=''){ if(Drawer.msg){ Drawer.msg.textContent=msg||''; Drawer.msg.className='msg '+(tone||''); } }
-function setDrawerStatus(msg,tone=''){ if(Drawer.status){ Drawer.status.textContent=msg||''; Drawer.status.className='msg '+(tone||''); } }
+function setDrawerMsg(msg,tone=''){
+  if(Drawer.msg){ Drawer.msg.textContent=msg||''; Drawer.msg.className='msg '+(tone||''); }
+}
+function setDrawerStatus(msg,tone=''){
+  if(Drawer.status){ Drawer.status.textContent=msg||''; Drawer.status.className='msg '+(tone||''); }
+}
+
 
 /* Aplica clases de rol al <body> */
 applyRoleClasses(userRole);
 
-/* Drawer helpers (defensa por rol) */
+/* === Mapa id -> nombre profesional (desde <select>) === */
+let PROF_NAME = new Map();
+function rebuildProfMap(){
+  PROF_NAME.clear();
+  Array.from(UI.profSelect.options).forEach(o=>{
+    if(o.value) PROF_NAME.set(String(o.value), (o.textContent||'').trim());
+  });
+}
+function profNameById(id){ return PROF_NAME.get(String(id)) || '—'; }
+
+/* Drawer helpers */
 function showDrawer(){ Drawer.el.classList.add('open'); Drawer.el.setAttribute('aria-hidden','false'); }
 function hideDrawer(){ Drawer.el.classList.remove('open'); Drawer.el.setAttribute('aria-hidden','true'); }
 if (Drawer.close) Drawer.close.onclick = hideDrawer;
@@ -467,80 +582,117 @@ async function syncCentroFromStorage(force=false){
 function startCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=setInterval(()=>syncCentroFromStorage(false), 1000); }
 window.addEventListener('beforeunload', ()=>{ if (centroWatchTimer) clearInterval(centroWatchTimer); });
 
-/* profesionales: usar global.js */
+/* profesionales */
 async function loadProfesionales(){
   const sel=UI.profSelect;
-  const selected = await loadProfesionalesIntoSelect(sel, {
+
+  // AMC: multiselección
+  if (userRole === 'amc') {
+    sel.multiple = true;
+    sel.classList.remove('compact');
+  }
+
+  await loadProfesionalesIntoSelect(sel, {
     role: userRole,
     centroId: currentCentroId,
     loggedProfesionalId: loggedProfesionalId
   });
-  currentProfesional = selected || null;
+
+  // Mapa id->nombre
+  rebuildProfMap();
+
+  // Selección por defecto
+  if (sel.multiple) {
+    selectedProfesionales = Array.from(sel.options)
+      .filter(o => o.value)
+      .map(o => { o.selected = true; return o.value; });
+    sel.size = Math.min(10, Math.max(4, selectedProfesionales.length || 6));
+  } else {
+    selectedProfesionales = sel.value ? [sel.value] : [];
+  }
 }
-UI.profSelect.addEventListener('change', async ()=>{ currentProfesional = UI.profSelect.value || null; await refreshAll(); });
+UI.profSelect.addEventListener('change', async ()=>{
+  const sel=UI.profSelect;
+  selectedProfesionales = sel.multiple
+    ? Array.from(sel.selectedOptions).map(o => o.value).filter(Boolean)
+    : (sel.value ? [sel.value] : []);
+  await refreshAll();
+});
 
 /* fecha */
 UI.fecha.value=todayISO(); currentFechaISO=UI.fecha.value;
 UI.fecha.addEventListener('change', ()=>{ currentFechaISO=UI.fecha.value||todayISO(); refreshAll(); });
 UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
 
-/* data día */
+/* data día (multi-profesional, sin join a profesionales) */
 async function fetchDiaData(){
-  if(!currentProfesional) return { pendientes:[], presentes:[], atencion:[], atendidos:[], agenda:[], turnos:[] };
-  const common={centro_id:currentCentroId, profesional_id:currentProfesional, fecha:currentFechaISO};
+  if(!selectedProfesionales.length) return { pendientes:[], presentes:[], atencion:[], atendidos:[], agenda:[], turnos:[] };
+  const profIds = selectedProfesionales.map(String);
+
+  const selectCols = `
+    id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, profesional_id,
+    pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)
+  `;
 
   const [pend, pres, atenc, done, agenda, turnos] = await Promise.all([
-    supabase.from('turnos')
-      .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social)')
-      .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
-      .eq('estado', EST.ASIGNADO).order('hora_inicio', {ascending:true}),
-    supabase.from('turnos')
-      .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social)')
-      .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
-      .eq('estado', EST.EN_ESPERA).order('hora_inicio', {ascending:true}),
-    supabase.from('turnos')
-      .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social)')
-      .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
-      .eq('estado', EST.EN_ATENCION).order('hora_inicio', {ascending:true}),
-    supabase.from('turnos')
-      .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)')
-      .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
-      .eq('estado', EST.ATENDIDO).order('hora_inicio', {ascending:true}),
-    supabase.from('agenda').select('id, fecha, hora_inicio, hora_fin')
-      .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos').select('id, hora_inicio, hora_fin, estado')
-      .eq('centro_id', common.centro_id).eq('profesional_id', common.profesional_id).eq('fecha', common.fecha)
+    supabase.from('turnos').select(selectCols)
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
+      .in('profesional_id', profIds).eq('estado', EST.ASIGNADO)
+      .order('hora_inicio', {ascending:true}),
+    supabase.from('turnos').select(selectCols)
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
+      .in('profesional_id', profIds).eq('estado', EST.EN_ESPERA)
+      .order('hora_inicio', {ascending:true}),
+    supabase.from('turnos').select(selectCols)
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
+      .in('profesional_id', profIds).eq('estado', EST.EN_ATENCION)
+      .order('hora_inicio', {ascending:true}),
+    supabase.from('turnos').select(selectCols)
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
+      .in('profesional_id', profIds).eq('estado', EST.ATENDIDO)
+      .order('hora_inicio', {ascending:true}),
+    supabase.from('agenda').select('id, fecha, hora_inicio, hora_fin, profesional_id')
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
+      .in('profesional_id', profIds).order('hora_inicio',{ascending:true}),
+    supabase.from('turnos').select('id, hora_inicio, hora_fin, estado, profesional_id')
+      .eq('centro_id', currentCentroId).eq('fecha', currentFechaISO)
+      .in('profesional_id', profIds)
   ]);
 
   return {
     pendientes: pend.data||[],
-    presentes: pres.data||[],
-    atencion:  atenc.data||[],
-    atendidos: done.data||[],
-    agenda:    agenda.data||[],
-    turnos:    turnos.data||[]
+    presentes:  pres.data||[],
+    atencion:   atenc.data||[],
+    atendidos:  done.data||[],
+    agenda:     agenda.data||[],
+    turnos:     turnos.data||[]
   };
 }
 
-/* —— Render helpers de filtro —— */
+/* —— Filtro —— */
 function applyFilter(data){
-  if (!filterText) return {
-    pendientes:data.pendientes, presentes:data.presentes, atencion:data.atencion, atendidos:data.atendidos
-  };
+  if (!filterText) return { pendientes:data.pendientes, presentes:data.presentes, atencion:data.atencion, atendidos:data.atendidos };
   return {
-    pendientes: (data.pendientes||[]).filter(matchTurno),
-    presentes:  (data.presentes||[]).filter(matchTurno),
-    atencion:   (data.atencion||[]).filter(matchTurno),
-    atendidos:  (data.atendidos||[]).filter(matchTurno),
+    pendientes:(data.pendientes||[]).filter(matchTurno),
+    presentes:(data.presentes||[]).filter(matchTurno),
+    atencion:(data.atencion||[]).filter(matchTurno),
+    atendidos:(data.atendidos||[]).filter(matchTurno),
   };
 }
 
-/* Por llegar */
+/* Mostrar columna “Profesional” si hay multiselección o más de 1 seleccionado */
+const showProfColumn = ()=> (UI.profSelect.multiple || selectedProfesionales.length > 1);
+
+/* ===== Render: Por llegar ===== */
 function renderPendientes(list){
-  const grid='100px 120px 1fr 1fr 1fr 150px';
+  const withProf = showProfColumn();
+  const grid = withProf
+    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
+    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
+      ${withProf?'<th class="cell">Profesional</th>':''}
       <th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeCancelar = roleAllows('cancelar', userRole);
@@ -557,9 +709,10 @@ function renderPendientes(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell">${p.obra_social||'—'}</td>
+      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${p.obra_social||'—'}</td>
+      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell right">${acciones}</td>
     </tr>`;
   }).join('');
@@ -573,7 +726,7 @@ function renderPendientes(list){
   });
 }
 
-/* En sala de espera */
+/* ===== En sala de espera ===== */
 let waitTimer=null;
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
@@ -588,15 +741,20 @@ function updateWaitBadges(){
   });
 }
 function renderPresentes(list){
-  const grid='90px 100px 1fr 1fr 1fr 110px 180px';
+  const withProf = showProfColumn();
+  const grid = withProf
+    ? `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-copago) var(--w-acc)`
+    : `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-copago) var(--w-acc)`;
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
-      <th class="cell">Apellido</th><th class="cell">Obra social</th><th class="cell">Copago</th>
+      <th class="cell">Apellido</th><th class="cell">Obra social</th>
+      ${withProf?'<th class="cell">Profesional</th>':''}
+      <th class="cell">Copago</th>
       <th class="cell right">Acciones</th></tr></thead>`;
 
-  const puedeVolver   = roleAllows('volver', userRole);     // ✅ AMC sí
-  const puedeCancelar = roleAllows('cancelar', userRole);   // ❌ AMC no
-  const puedeAtender  = roleAllows('atender', userRole);    // ❌ AMC no
+  const puedeVolver   = roleAllows('volver', userRole);
+  const puedeCancelar = roleAllows('cancelar', userRole);
+  const puedeAtender  = roleAllows('atender', userRole);
 
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
@@ -610,9 +768,10 @@ function renderPresentes(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell"><span class="wait" data-arribo-ts="${arriboISO}">—</span></td>
       <td class="cell nowrap">${hora}</td>
-      <td class="cell">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell">${p.obra_social||'—'}</td>
+      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${p.obra_social||'—'}</td>
+      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell">${copBadge}</td>
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
@@ -630,17 +789,21 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
-/* En atención */
+/* ===== En atención ===== */
 function renderAtencion(list){
-  const grid='100px 120px 1fr 1fr 1fr 210px';
+  const withProf = showProfColumn();
+  const grid = withProf
+    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
+    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
+      ${withProf?'<th class="cell">Profesional</th>':''}
       <th class="cell right">Acciones</th></tr></thead>`;
 
-  const puedeAbrir   = roleAllows('abrir_ficha', userRole);  // ❌ AMC
-  const puedeVolverE = roleAllows('atender', userRole);      // ❌ AMC (solo médico/amp)
-  const puedeFin     = roleAllows('finalizar', userRole);    // ❌ AMC
+  const puedeAbrir   = roleAllows('abrir_ficha', userRole);
+  const puedeVolverE = roleAllows('atender', userRole);
+  const puedeFin     = roleAllows('finalizar', userRole);
 
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
@@ -652,9 +815,10 @@ function renderAtencion(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell">${p.obra_social||'—'}</td>
+      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${p.obra_social||'—'}</td>
+      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
   }).join('');
@@ -668,15 +832,19 @@ function renderAtencion(list){
   });
 }
 
-/* Atendidos (con HC y abrir ficha) */
+/* ===== Atendidos ===== */
 function renderAtendidos(list){
-  const grid='100px 120px 1fr 1fr 1fr 120px 120px';
+  const withProf = showProfColumn();
+  const grid = withProf
+    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-copago) var(--w-acc)`
+    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-copago) var(--w-acc)`;
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
       <th class="cell">Hora</th><th class="cell">DNI</th>
       <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
+      ${withProf?'<th class="cell">Profesional</th>':''}
       <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
 
-  const puedeAbrir = roleAllows('abrir_ficha', userRole); // ❌ AMC
+  const puedeAbrir = roleAllows('abrir_ficha', userRole);
 
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
@@ -687,9 +855,10 @@ function renderAtendidos(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell">${p.obra_social||'—'}</td>
+      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${p.obra_social||'—'}</td>
+      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell">${cop}</td>
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
@@ -702,7 +871,7 @@ function renderAtendidos(list){
   });
 }
 
-/* Drawer: carga (defensa por rol) */
+/* Drawer: carga */
 let drawerTurnoId = null;
 
 async function loadObrasSociales(currentLabel){
@@ -794,7 +963,6 @@ async function openFicha(turnoId){
 
   setDrawerStatus('');
 
-  // Botones segun rol
   Drawer.btnFinalizar.style.display = roleAllows('finalizar', userRole) ? '' : 'none';
   Drawer.btnGuardar.style.display   = roleAllows('abrir_ficha', userRole) ? '' : 'none';
 }
@@ -868,7 +1036,7 @@ if (Drawer.nac) Drawer.nac.addEventListener('change', ()=>{
   Drawer.sub.textContent = `${dniTxt.trim()} · ${edad!=null? `${edad} años`:'Edad —'}`;
 });
 
-/* Acciones con defensas por rol */
+/* Acciones por rol */
 async function volverASalaEspera(turnoId){
   if (!roleAllows('atender', userRole)) { alert('No tenés permisos.'); return; }
   await supabase.from('turnos').update({estado:EST.EN_ESPERA}).eq('id', turnoId);
@@ -953,10 +1121,20 @@ function formatFreeTime(mins) {
   const m = mins % 60;
   return `${h} h ${m} min`;
 }
+function profsLabel(){
+  const sel = UI.profSelect;
+  if (!sel) return '—';
+  if (!sel.multiple) return sel.options[sel.selectedIndex]?.textContent || '—';
+  const names = Array.from(sel.selectedOptions).map(o => o.textContent).filter(Boolean);
+  if (names.length === 0) return '—';
+  if (names.length === 1) return names[0];
+  if (names.length <= 3) return names.join(', ');
+  return `${names.length} profesionales`;
+}
 function renderKPIs({agenda, turnos}){
   const free=computeHorasDisponibles(agenda, turnos);
   UI.kpiFree.textContent = `${formatFreeTime(free.libresMin)} disponibles`;
-  UI.kpiSub.textContent = `${currentCentroNombre || ''} · ${UI.profSelect.options[UI.profSelect.selectedIndex]?.textContent || ''} · ${currentFechaISO}`;
+  UI.kpiSub.textContent = `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO}`;
 }
 function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
   if (H.pend)  H.pend.textContent  = `Por llegar (${(pendientes||[]).length})`;
@@ -965,7 +1143,7 @@ function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
   if (H.done)  H.done.textContent  = `Atendidos (${(atendidos||[]).length})`;
 }
 
-/* —— Buscador masivo bindings —— */
+/* Buscador masivo */
 let searchTimer=null;
 function applySearch(value){ filterText = norm((value||'').trim()); refreshAll(); }
 UI.massSearch.addEventListener('input', ()=>{
@@ -974,9 +1152,18 @@ UI.massSearch.addEventListener('input', ()=>{
 });
 UI.massClear.addEventListener('click', ()=>{ UI.massSearch.value=''; applySearch(''); });
 
+/* Controles A− / A / A+ */
+const zDec   = document.getElementById('zoom-dec');
+const zInc   = document.getElementById('zoom-inc');
+const zReset = document.getElementById('zoom-reset');
+function setFs(px){ fsPx = Math.min(FONT.max, Math.max(FONT.min, px)); localStorage.setItem(FONT.key, String(fsPx)); applyFs(fsPx); }
+if (zDec)   zDec.addEventListener('click',  ()=> setFs(fsPx - FONT.step));
+if (zInc)   zInc.addEventListener('click',  ()=> setFs(fsPx + FONT.step));
+if (zReset) zReset.addEventListener('click',()=> setFs(FONT.def));
+
 /* Refresh & Init */
 async function refreshAll(){
-  if(!currentProfesional){
+  if(!selectedProfesionales.length){
     UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML=''; UI.tblDone.innerHTML='';
     UI.kpiSub.textContent=`${currentCentroNombre||''} · ${currentFechaISO}`;
     renderBoardTitles({pendientes:[],presentes:[],atendidos:[],atencion:[]});
@@ -990,11 +1177,10 @@ async function refreshAll(){
   renderAtencion(filtered.atencion);
   renderAtendidos(filtered.atendidos);
 
-  renderKPIs(raw);            // Horas libres: sobre total del día (no filtrado)
-  renderBoardTitles(filtered); // Títulos: cantidades filtradas
+  renderKPIs(raw);
+  renderBoardTitles(filtered);
 }
 async function initInicio(){
-  // Limpiezas por si quedó algo viejo
   try {
     localStorage.removeItem('reprogram_turno_intent');
     localStorage.removeItem('turnos_prefill');
