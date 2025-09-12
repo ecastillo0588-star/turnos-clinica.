@@ -24,8 +24,21 @@
     .centro-form-block h4 {margin:0 0 8px;color:#7656b0;font-size:16px;}
     .centro-form-block label {display:block;font-size:13px;margin:8px 0 2px;}
     .centro-form-block input {width:95%;margin-bottom:4px;}
-    .agendas-list-card { max-width:440px; margin: 28px auto 18px; background: #fff; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.08); padding: 18px 22px; }
+    .agendas-list-card { max-width:740px; margin: 28px auto 18px; background: #fff; border-radius: 16px; box-shadow: 0 2px 8px rgba(80,60,160,.08); padding: 18px 22px; }
     .agendas-list-card h3 { margin:0 0 14px; color:#391e60; font-size:18px;}
+
+    /* --- UI de búsqueda y sugerencias --- */
+    .agenda-search { position: relative; max-width: 360px; margin: 6px 0 8px; }
+    .agenda-search input { width:100%; padding:6px 8px; border:1px solid #d2c6ed; border-radius:8px; font-size:14px; background:#fff; }
+    .suggestions { position:absolute; top:100%; left:0; right:0; background:#fff; border:1px solid #e3d8f6;
+      box-shadow:0 2px 8px rgba(80,60,160,.08); max-height:220px; overflow:auto; border-radius:8px; z-index:100; }
+    .suggestions.hidden { display:none; }
+    .suggestions .item { padding:6px 10px; cursor:pointer; }
+    .suggestions .item:hover { background:#f7f4fa; }
+
+    .agenda-table-controls { margin:10px 0; }
+    .agenda-table td { text-align:left; }
+    .agenda-pagination { margin-top:10px; display:flex; align-items:center; gap:10px; }
   </style>
 </head>
 <body>
@@ -56,26 +69,26 @@
       </div>
     </div>
 
-    <div id="nuevo-centro-form" class="hidden centro-form-block">
+    <div id="nuevo-centro-form" class="hidden centro-form-block" aria-live="polite">
       <h4>Nuevo Centro Médico</h4>
       <div>
-        <label>Nombre <span class="obligatorio">*</span></label>
+        <label for="nuevo-centro-nombre">Nombre <span class="obligatorio">*</span></label>
         <input type="text" id="nuevo-centro-nombre" required>
       </div>
       <div>
-        <label>Dirección</label>
+        <label for="nuevo-centro-direccion">Dirección</label>
         <input type="text" id="nuevo-centro-direccion">
       </div>
       <div>
-        <label>Teléfono</label>
+        <label for="nuevo-centro-telefono">Teléfono</label>
         <input type="text" id="nuevo-centro-telefono">
       </div>
       <div>
-        <label>Email</label>
+        <label for="nuevo-centro-email">Email</label>
         <input type="email" id="nuevo-centro-email">
       </div>
       <div>
-        <label>Notas</label>
+        <label for="nuevo-centro-notas">Notas</label>
         <input type="text" id="nuevo-centro-notas">
       </div>
       <button type="button" class="btn" id="guardar-nuevo-centro">Guardar</button>
@@ -106,14 +119,47 @@
   <span id="msg-agenda" style="margin-left:18px;"></span>
 </div>
 
+<!-- NUEVA VISTA: buscar / listar / paginar / eliminar agendas -->
 <div class="agendas-list-card" id="agendas-list-card">
-  <h3>Eliminar una Agenda</h3>
-  <label for="select-agenda"><b>Seleccione la agenda a eliminar:</b></label>
-  <select id="select-agenda">
-    <option value="">-- Seleccione agenda --</option>
-  </select>
-  <button class="btn" id="btn-eliminar-agenda" disabled>Eliminar agenda seleccionada</button>
-  <span id="msg-eliminar-agenda" style="margin-left:18px;"></span>
+  <h3>Agendas</h3>
+
+  <label for="agenda-search-input"><b>Buscar agenda por nombre</b></label>
+  <div class="agenda-search">
+    <input type="text" id="agenda-search-input" placeholder="Escribí para buscar (ej. 'sept')" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox">
+    <div id="agenda-suggestions" class="suggestions hidden" role="listbox"></div>
+  </div>
+
+  <div class="agenda-table-controls">
+    <label>Mostrar
+      <select id="agenda-page-size">
+        <option value="5" selected>5</option>
+        <option value="10">10</option>
+        <option value="50">50</option>
+      </select>
+      registros
+    </label>
+  </div>
+
+  <table class="horarios-table-compact agenda-table">
+    <thead>
+      <tr>
+        <th style="text-align:left;">Nombre de Agenda</th>
+        <th style="width:100px;">Rangos</th>
+        <th style="width:140px;">Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="agenda-table-body">
+      <tr><td colspan="3" style="text-align:left;padding:8px;">Cargando…</td></tr>
+    </tbody>
+  </table>
+
+  <div class="agenda-pagination">
+    <button class="btn" id="agenda-prev" disabled>&laquo; Anterior</button>
+    <span id="agenda-page-info"></span>
+    <button class="btn" id="agenda-next" disabled>Siguiente &raquo;</button>
+  </div>
+
+  <span id="msg-eliminar-agenda" style="margin-left:0;"></span>
 </div>
 
 <script type="module">
@@ -122,19 +168,25 @@ import { isValidMorning, isValidAfternoon } from './validators.js';
 
 console.assert(supabase && typeof supabase.from === 'function', '❌ Supabase no inicializado: revisá supabaseClient.js (default export)');
 
-const profesional_id   = localStorage.getItem('profesional_id');
+// === Sesión (igual que antes) ===
+const profesional_id    = localStorage.getItem('profesional_id');
 const centro_default_id = localStorage.getItem('centro_medico_id');
 if (!profesional_id || !centro_default_id) {
   alert('Sesión no iniciada o datos incompletos. Redirigiendo a login.');
   window.location.href = "index.html";
 }
 
+// === Constantes y helpers (mismo comportamiento) ===
 const DIAS = [
   {nombre:'lunes', label:'LUN'}, {nombre:'martes', label:'MAR'}, {nombre:'miercoles', label:'MIÉR'},
   {nombre:'jueves', label:'JUEV'}, {nombre:'viernes', label:'VIER'}, {nombre:'sabado', label:'SÁB'}
 ];
 
-// ------ UI horarios
+// Helpers de fecha (local) – evitamos UTC
+const parseLocalDate = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const formatLocalYMD = (d) => { const y = d.getFullYear(); const m = String(d.getMonth()+1).padStart(2,'0'); const day = String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; };
+
+// ------ UI horarios (idéntico a lo que ya usabas)
 function generarOpcionesHora(inicio, fin) {
   const opciones = ['<option value="">--</option>'];
   for (let h = inicio; h < fin; h++) {
@@ -180,7 +232,7 @@ function renderTablaHorarios() {
 }
 renderTablaHorarios();
 
-// ------ Centros activos
+// ------ Centros activos (igual lógica)
 async function cargarCentros() {
   const selector = document.getElementById('centro-agenda');
   selector.innerHTML = '<option value="">Seleccione un centro...</option>';
@@ -224,13 +276,13 @@ document.getElementById('guardar-nuevo-centro').onclick = async function() {
 
   const { data, error } = await supabase
     .from('centros_medicos')
-    .insert([{ 
+    .insert([{
       nombre,
       direccion: document.getElementById('nuevo-centro-direccion').value.trim(),
       telefono: document.getElementById('nuevo-centro-telefono').value.trim(),
       email: document.getElementById('nuevo-centro-email').value.trim(),
       notas: document.getElementById('nuevo-centro-notas').value.trim(),
-      activo: true 
+      activo: true
     }])
     .select('id, nombre')
     .single();
@@ -248,7 +300,7 @@ document.getElementById('guardar-nuevo-centro').onclick = async function() {
   }
 };
 
-// ------ Validaciones mínimas
+// ------ Validaciones mínimas (como antes)
 const campos_requeridos = ['nombre-agenda', 'fecha-inicio', 'fecha-fin','centro-agenda'];
 campos_requeridos.forEach(id => {
   document.getElementById(id).addEventListener('input', validarCamposAgenda);
@@ -260,7 +312,7 @@ function validarCamposAgenda() {
   btn.title = completo ? "" : "Debe completar los campos obligatorios*";
 }
 
-// ------ Validación horarios
+// ------ Validación de horarios (usa tus validators)
 function horarioValido() {
   let valido = true;
   DIAS.forEach((_, idx)=>{
@@ -277,7 +329,7 @@ function horarioValido() {
   return valido;
 }
 
-// ------ Generar agenda
+// ------ Generar agenda (SIN CAMBIOS de lógica)
 document.getElementById('btn-generar-agenda').onclick = async function() {
   const msg = document.getElementById('msg-agenda');
   msg.textContent = '';
@@ -310,30 +362,11 @@ document.getElementById('btn-generar-agenda').onclick = async function() {
     return;
   }
 
-// helpers (ponelos arriba del archivo, una sola vez)
-const parseLocalDate = (s) => {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d); // 00:00 local, sin UTC
-};
-const formatLocalYMD = (d) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
+  let fechaActual = parseLocalDate(fecha_inicio);
+  const fechaFin   = parseLocalDate(fecha_fin);
 
-// antes:
-/// let fechaActual = new Date(fecha_inicio);
-/// const fechaFin = new Date(fecha_fin);
-
-// después:
-let fechaActual = parseLocalDate(fecha_inicio);
-const fechaFin   = parseLocalDate(fecha_fin);
-
-msg.textContent = "Generando agenda...";  // (opcional pero recomendable)
-let totalRangos = 0;                       // (OBLIGATORIA)
-
-
+  msg.textContent = "Generando agenda...";
+  let totalRangos = 0;
 
   while(fechaActual <= fechaFin){
     const diaSemanaNum = fechaActual.getDay();
@@ -346,7 +379,6 @@ let totalRangos = 0;                       // (OBLIGATORIA)
       const registro = {
         centro_id,
         profesional_id,
-        // después:
         fecha: formatLocalYMD(fechaActual),
         hora_inicio: b.hora_inicio,
         hora_fin: b.hora_fin,
@@ -354,7 +386,6 @@ let totalRangos = 0;                       // (OBLIGATORIA)
         estado: 'disponible',
         notas: '',
         "Nombre de Agenda": nombre_agenda,
-       
       };
 
       const { error: upsertError } = await supabase
@@ -372,72 +403,195 @@ let totalRangos = 0;                       // (OBLIGATORIA)
   }
 
   msg.textContent = `Agenda generada (${totalRangos} rangos de disponibilidad).`;
-  await cargarNombresAgendas();
+  await cargarNombresAgendas(); // refresca la vista inferior (wrapper a la nueva UI)
 };
 
-// ------ Cargar nombres de agendas (llamar también al iniciar)
+// ===== NUEVA UI de agendas: búsqueda, tabla y paginación (solo lectura/eliminación) =====
+const agendasUI = (() => {
+  let allNames = [];   // nombres crudos (pueden repetirse)
+  let unique = [];     // [{nombre, count}]
+  let filtered = [];   // dataset filtrado para la tabla
+  let page = 1;
+  let pageSize = 5;
+
+  const els = {
+    input: document.getElementById('agenda-search-input'),
+    sugg: document.getElementById('agenda-suggestions'),
+    tbody: document.getElementById('agenda-table-body'),
+    prev: document.getElementById('agenda-prev'),
+    next: document.getElementById('agenda-next'),
+    info: document.getElementById('agenda-page-info'),
+    size: document.getElementById('agenda-page-size'),
+    msg: document.getElementById('msg-eliminar-agenda'),
+  };
+
+  async function fetchAll() {
+    els.tbody.innerHTML = `<tr><td colspan="3" style="text-align:left;padding:8px;">Cargando…</td></tr>`;
+    const { data, error } = await supabase
+      .from('agenda')
+      .select('"Nombre de Agenda"')
+      .eq('profesional_id', profesional_id);
+
+    if (error) {
+      console.error('Error al cargar agendas:', error);
+      els.tbody.innerHTML = `<tr><td colspan="3" style="text-align:left;padding:8px;color:#c2001d;">Error al cargar agendas.</td></tr>`;
+      unique = []; filtered = []; allNames = [];
+      return;
+    }
+
+    allNames = (data || [])
+      .map(r => (r['Nombre de Agenda'] || '').trim())
+      .filter(n => n.length > 0);
+
+    const map = new Map(); // nombre -> count
+    for (const n of allNames) map.set(n, (map.get(n) || 0) + 1);
+
+    unique = Array.from(map.entries()).map(([nombre, count]) => ({ nombre, count }));
+    unique.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+    filtered = unique.slice(); // arranque sin filtros
+  }
+
+  function renderTable() {
+    const total = filtered.length;
+    const pages = Math.max(1, Math.ceil(total / pageSize));
+    if (page > pages) page = pages;
+
+    const start = (page - 1) * pageSize;
+    const items = filtered.slice(start, start + pageSize);
+
+    if (total === 0) {
+      els.tbody.innerHTML = `<tr><td colspan="3" style="text-align:left;padding:8px;">No hay agendas.</td></tr>`;
+    } else {
+      els.tbody.innerHTML = items.map(item => `
+        <tr>
+          <td>${item.nombre}</td>
+          <td style="text-align:center;">${item.count}</td>
+          <td>
+            <button class="btn" data-del="${encodeURIComponent(item.nombre)}">Eliminar</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    const from = total === 0 ? 0 : start + 1;
+    const to = Math.min(start + items.length, total);
+    els.info.textContent = `${from}-${to} de ${total}`;
+    els.prev.disabled = page <= 1;
+    els.next.disabled = page >= pages;
+  }
+
+  function applyFilterFromInput() {
+    const q = els.input.value.trim().toLowerCase();
+    if (!q) filtered = unique.slice();
+    else filtered = unique.filter(u => u.nombre.toLowerCase().includes(q));
+    page = 1;
+    renderTable();
+  }
+
+  function showSuggestions(list) {
+    if (!list.length) {
+      els.sugg.classList.add('hidden');
+      els.sugg.innerHTML = '';
+      els.input.setAttribute('aria-expanded','false');
+      return;
+    }
+    els.sugg.innerHTML = list.map(u => `<div class="item" role="option" data-value="${u.nombre}">${u.nombre}</div>`).join('');
+    els.sugg.classList.remove('hidden');
+    els.input.setAttribute('aria-expanded','true');
+  }
+
+  function renderSuggestions() {
+    const q = els.input.value.trim().toLowerCase();
+    let list;
+    if (!q) {
+      // foco sin escribir -> mostrar todas (limitadas para no saturar)
+      list = unique.slice(0, 50);
+    } else {
+      const starts = unique.filter(u => u.nombre.toLowerCase().startsWith(q));
+      const contains = unique.filter(u => !u.nombre.toLowerCase().startsWith(q) && u.nombre.toLowerCase().includes(q));
+      list = [...starts, ...contains];
+    }
+    showSuggestions(list.slice(0, 8));
+  }
+
+  function wireEvents() {
+    // Buscar / filtrar
+    els.input.addEventListener('input', () => { renderSuggestions(); applyFilterFromInput(); });
+    els.input.addEventListener('focus', () => { renderSuggestions(); });
+
+    // Cerrar sugerencias al clickear fuera
+    document.addEventListener('click', (e) => {
+      if (!els.sugg.contains(e.target) && e.target !== els.input) {
+        els.sugg.classList.add('hidden');
+        els.input.setAttribute('aria-expanded','false');
+      }
+    });
+
+    // Click en sugerencia
+    els.sugg.addEventListener('click', (e) => {
+      const item = e.target.closest('.item');
+      if (!item) return;
+      const nombre = item.dataset.value;
+      els.input.value = nombre;
+      els.sugg.classList.add('hidden');
+      els.input.setAttribute('aria-expanded','false');
+      applyFilterFromInput();     // tabla se filtra por la selección
+    });
+
+    // Paginación y tamaño de página
+    els.prev.onclick = () => { page--; renderTable(); };
+    els.next.onclick = () => { page++; renderTable(); };
+    els.size.onchange = () => { pageSize = parseInt(els.size.value, 10) || 5; page = 1; renderTable(); };
+
+    // Eliminar desde la tabla
+    els.tbody.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-del]');
+      if (!btn) return;
+      const nombre = decodeURIComponent(btn.dataset.del);
+      if (!confirm(`¿Seguro que deseas eliminar la agenda "${nombre}" y todos sus rangos?`)) return;
+
+      const { error } = await supabase
+        .from('agenda')
+        .delete()
+        .eq('profesional_id', profesional_id)
+        .eq('"Nombre de Agenda"', nombre);
+
+      if (error) {
+        console.error("Error al eliminar agenda:", error);
+        els.msg.textContent = 'Error al eliminar la agenda.';
+      } else {
+        els.msg.textContent = 'Agenda eliminada correctamente.';
+        // Quitar del dataset local y refrescar UI
+        unique = unique.filter(u => u.nombre !== nombre);
+        applyFilterFromInput();   // respeta el filtro actual
+      }
+    });
+  }
+
+  async function reload() {
+    els.msg.textContent = '';
+    els.sugg.classList.add('hidden');
+    page = 1;
+    pageSize = parseInt(els.size.value, 10) || 5;
+    await fetchAll();
+    renderTable();
+  }
+
+  function init() { wireEvents(); }
+
+  return { init, reload };
+})();
+
+// Inicializar UI inferior
+agendasUI.init();
+
+// Wrapper para mantener el nombre que ya usabas
 async function cargarNombresAgendas() {
-  const selectAgenda = document.getElementById('select-agenda');
-  selectAgenda.innerHTML = '<option value="">-- Seleccione agenda --</option>';
-
-  const { data, error } = await supabase
-    .from('agenda')
-    .select('"Nombre de Agenda"')
-    .eq('profesional_id', profesional_id);
-
-  if (error) {
-    console.error("Error al cargar agendas:", error);
-    document.getElementById('msg-eliminar-agenda').textContent = 'Error al cargar agendas.';
-    return;
-  }
-
-  const nombresUnicos = [...new Set(
-    (data || []).map(a => a['Nombre de Agenda']).filter(n => n && n.trim() !== '')
-  )];
-
-  if (nombresUnicos.length === 0) {
-    selectAgenda.innerHTML += '<option value="">(No hay agendas)</option>';
-    document.getElementById('btn-eliminar-agenda').disabled = true;
-    return;
-  }
-
-  nombresUnicos.forEach(nombre => {
-    const opt = document.createElement('option');
-    opt.value = nombre;
-    opt.textContent = nombre;
-    selectAgenda.appendChild(opt);
-  });
+  await agendasUI.reload();
 }
-cargarNombresAgendas(); // 👈 IMPORTANTE: cargar al iniciar
 
-document.getElementById('select-agenda').onchange = function() {
-  document.getElementById('btn-eliminar-agenda').disabled = !this.value;
-  document.getElementById('msg-eliminar-agenda').textContent = '';
-};
-
-// ------ Eliminar agenda
-document.getElementById('btn-eliminar-agenda').onclick = async function() {
-  const selectAgenda = document.getElementById('select-agenda');
-  if (!selectAgenda.value) return;
-
-  if (!confirm(`¿Seguro que deseas eliminar la agenda "${selectAgenda.value}" y todos sus rangos?`)) return;
-
-  const { error } = await supabase
-    .from('agenda')
-    .delete()
-    .eq('profesional_id', profesional_id)
-    .eq('"Nombre de Agenda"', selectAgenda.value);
-
-  if (error) {
-    console.error("Error al eliminar agenda:", error);
-    document.getElementById('msg-eliminar-agenda').textContent = 'Error al eliminar la agenda.';
-  } else {
-    document.getElementById('msg-eliminar-agenda').textContent = 'Agenda eliminada correctamente.';
-    await cargarNombresAgendas();
-    selectAgenda.value = '';
-    document.getElementById('btn-eliminar-agenda').disabled = true;
-  }
-};
+// Primera carga (si ya llamabas a cargarNombresAgendas() al iniciar, esto lo reemplaza)
+cargarNombresAgendas();
 </script>
 </body>
 </html>
