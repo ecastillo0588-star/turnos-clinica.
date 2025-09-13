@@ -43,15 +43,10 @@
   .shell{padding:10px}
   .panel{
     background:var(--card);border-radius:12px;box-shadow:0 1px 10px rgba(80,60,160,.08);
-    padding:10px;display:flex;flex-direction:column;gap:10px;min-height:calc(100vh - 20px)
+    padding:10px;display:flex;flex-direction:column;gap:8px;min-height:calc(100vh - 20px)
   }
 
-  /* ====== Toolbar ====== */
-  .toolbar{
-    display:grid;
-    grid-template-columns: minmax(220px,1fr) minmax(180px,.8fr) minmax(160px,.6fr) auto;
-    gap:10px 12px; align-items:end;
-  }
+  /* ====== Inputs básicos ====== */
   .field{display:flex;flex-direction:column;gap:3px;min-width:0}
   .field label{font-size:.85em;color:var(--muted)}
   .inp,.sel,.btn,.pill,.chip,.msg,.drawer-title,.drawer-sub,.table{ font-size:1em }
@@ -64,36 +59,47 @@
   .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer}
   .btn.secondary{background:#e7e2fa;color:#5a3e9a}
 
-  /* Chip pill del centro */
-  .pill{
-    display:inline-flex;align-items:center;gap:6px;background:#f2effc;border:1px solid var(--line);
-    color:#4b3a78;padding:6px 10px;border-radius:999px;white-space:nowrap;
+  /* ====== Chips / badges ====== */
+  .chip{
+    display:flex;align-items:baseline;gap:6px;background:#f3f1fb;border:1px solid var(--line);
+    padding:6px 9px;border-radius:999px;white-space:nowrap
+  }
+  .chip .v{font-size:1.05em;font-weight:800;line-height:1}
+  .chip.mini{ font-size:.9em; padding:4px 8px; }
+
+  /* ====== Toolbar compacta (una sola banda) ====== */
+  .toolbar{
+    display:grid;
+    grid-template-columns: minmax(260px,1.4fr) minmax(180px,.9fr) minmax(160px,.8fr) auto auto;
+    gap:10px 12px; align-items:end;
+  }
+  .toolbar-aux{
+    margin-left:auto;
+    display:flex; align-items:end; gap:8px; flex-wrap:wrap;
   }
 
-  /* ====== Barra superior ====== */
-  .bar{
-    display:grid; grid-template-columns:auto 1fr; gap:10px; align-items:center;
-  }
+  /* Buscador */
   .search-wrap{display:flex; align-items:center; gap:8px; width:fit-content;}
-  .search-wrap .inp{ height:36px; width:22ch; max-width:22ch; }
+  .search-wrap .inp{ height:36px; width:26ch; max-width:28ch; }
   .search-clear{
     border:none;background:#efeafb;border:1px solid var(--line);
     border-radius:8px;padding:6px 10px;cursor:pointer
   }
 
-  .stats{display:flex;flex-wrap:wrap;gap:8px}
-  .chip{
-    display:flex;align-items:baseline;gap:6px;background:#f3f1fb;border:1px solid var(--line);
-    padding:6px 9px;border-radius:999px;white-space:nowrap
-  }
-  .chip .v{font-size:1.15em;font-weight:800;line-height:1}
-
-  /* Control A−/A/A+ */
+  /* Control A−/A/A+ compacto */
   .zoom-chip{ gap:6px }
+  .zoom-chip.compact{
+    gap:0; padding:2px; background:#fff; border:1px solid var(--line);
+    border-radius:10px; display:inline-flex; align-items:center;
+  }
   .zoom-btn{
     appearance:none;border:1px solid var(--line);background:#fff;
     padding:.25em .55em;border-radius:6px;cursor:pointer;font-weight:700;line-height:1;min-width:2.2em;
   }
+  .zoom-chip.compact .zoom-btn{
+    border:0; background:transparent; padding:4px 8px; min-width:auto;
+  }
+  .zoom-chip.compact .zoom-btn + .zoom-btn{ border-left:1px solid var(--line); }
   .zoom-btn:hover{ background:#f4f1ff; }
   .zoom-btn:focus-visible{ outline:2px solid var(--brand-2); outline-offset:2px; }
 
@@ -229,7 +235,8 @@
     .boards{grid-template-columns:1fr}
   }
   @media (max-width:700px){
-    .bar{ grid-template-columns: 1fr; }
+    .toolbar{ grid-template-columns: 1fr 1fr; }
+    .toolbar-aux{ grid-column: 1 / -1; justify-content:flex-start; }
     .search-wrap{ width:100%; }
     .search-wrap .inp{ width:100%; max-width:100%; }
   }
@@ -239,37 +246,36 @@
 <div class="shell">
   <section class="panel" id="inicio-root">
 
-    <!-- Toolbar -->
+    <!-- Toolbar COMPACTA (sin “Centro médico” y sin chip resumen) -->
     <div class="toolbar">
-      <div class="field">
-        <label>Centro médico</label>
-        <div class="pill" id="centro-chip">—</div>
-      </div>
-      <div class="field">
-        <label>Profesional</label>
-        <select id="prof-select" class="sel compact"><option>Profesional</option></select>
-      </div>
-      <div class="field">
-        <label>Fecha</label>
-        <input id="fecha" type="date" class="inp"/>
-      </div>
-      <div class="field" style="align-items:flex-end">
-        <button id="btn-hoy" class="btn secondary">Hoy</button>
-      </div>
-    </div>
-
-    <!-- Buscador + KPI + Zoom -->
-    <div class="bar">
+      <!-- Buscador global -->
       <div class="search-wrap">
         <input id="mass-search" class="inp" placeholder="Buscar por DNI o Apellido (en toda la vista)"/>
         <button id="mass-clear" class="search-clear" title="Limpiar">✖️</button>
       </div>
-      <div class="stats">
-        <div class="chip"><span>Horas libres</span> <span class="v" id="kpi-free">0 min</span></div>
-        <div class="chip" id="kpi-sub" style="opacity:.8"></div>
 
-        <!-- Control de tipografía -->
-        <div class="chip zoom-chip" id="zoom-chip" aria-label="Tamaño de fuente">
+      <!-- Profesional -->
+      <div class="field">
+        <label>Profesional</label>
+        <select id="prof-select" class="sel compact"><option>Profesional</option></select>
+      </div>
+
+      <!-- Fecha -->
+      <div class="field">
+        <label>Fecha</label>
+        <input id="fecha" type="date" class="inp"/>
+      </div>
+
+      <!-- Hoy -->
+      <div class="field" style="align-items:flex-end">
+        <button id="btn-hoy" class="btn secondary">Hoy</button>
+      </div>
+
+      <!-- Derecha: Horas libres (mini) + Zoom compacto -->
+      <div class="toolbar-aux">
+        <div class="chip mini"><span>Horas libres</span> <span class="v" id="kpi-free">0 min</span></div>
+
+        <div class="zoom-chip compact" id="zoom-chip" aria-label="Tamaño de fuente">
           <button class="zoom-btn" id="zoom-dec" title="Reducir tamaño (A–)" type="button">A−</button>
           <button class="zoom-btn" id="zoom-reset" title="Restablecer tamaño (A)" type="button">A</button>
           <button class="zoom-btn" id="zoom-inc" title="Aumentar tamaño (A+)" type="button">A+</button>
@@ -411,7 +417,11 @@ const EST = {
   ATENDIDO:'atendido'
 };
 
+/* Util para setear textContent si el nodo existe */
+const safeSet = (el, text) => { if (el) el.textContent = text; };
+
 const UI = {
+  // (centro-chip ya no existe; lo dejamos defensivo/null por si el helper lo llama)
   centroChip: document.getElementById('centro-chip'),
   profSelect: document.getElementById('prof-select'),
   fecha: document.getElementById('fecha'),
@@ -421,7 +431,7 @@ const UI = {
   tblAtencion: document.getElementById('tbl-atencion'),
   tblDone: document.getElementById('tbl-done'),
   kpiFree: document.getElementById('kpi-free'),
-  kpiSub: document.getElementById('kpi-sub'),
+  kpiSub: document.getElementById('kpi-sub'), // eliminado del DOM; queda null
   massSearch: document.getElementById('mass-search'),
   massClear: document.getElementById('mass-clear'),
 };
@@ -493,14 +503,11 @@ let centroWatchTimer = null;
 let filterText = '';
 
 /* —— Helpers —— */
-function pad(n){return n<10?'0'+n:''+n}
 function pad2(n){return n<10?'0'+n:''+n}
-
 function todayISO(){
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`
 }
-
 function toHM(t){return (t??'').toString().slice(0,5)}
 function minutesDiff(start, end){
   const [h1,m1]=start.split(':').map(Number);
@@ -541,7 +548,6 @@ function setDrawerStatus(msg,tone=''){
   if(Drawer.status){ Drawer.status.textContent=msg||''; Drawer.status.className='msg '+(tone||''); }
 }
 
-
 /* Aplica clases de rol al <body> */
 applyRoleClasses(userRole);
 
@@ -566,7 +572,7 @@ async function fetchCentroById(id){
   const { data } = await supabase.from('centros_medicos').select('nombre').eq('id', id).maybeSingle();
   return data?.nombre || '';
 }
-function renderCentroChip(){ UI.centroChip.textContent = currentCentroNombre || '—'; }
+function renderCentroChip(){ if (UI.centroChip) UI.centroChip.textContent = currentCentroNombre || '—'; }
 async function syncCentroFromStorage(force=false){
   const id = localStorage.getItem('centro_medico_id');
   const nom = localStorage.getItem('centro_medico_nombre') || currentCentroNombre;
@@ -574,7 +580,7 @@ async function syncCentroFromStorage(force=false){
     currentCentroId = id;
     currentCentroNombre = nom || await fetchCentroById(id);
     localStorage.setItem('centro_medico_nombre', currentCentroNombre);
-    renderCentroChip();
+    renderCentroChip();       // si no existe el chip, no pasa nada
     await loadProfesionales();
     await refreshAll();
   }
@@ -1134,7 +1140,8 @@ function profsLabel(){
 function renderKPIs({agenda, turnos}){
   const free=computeHorasDisponibles(agenda, turnos);
   UI.kpiFree.textContent = `${formatFreeTime(free.libresMin)} disponibles`;
-  UI.kpiSub.textContent = `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO}`;
+  // Antes se pintaba un chip resumen (centro · profesional · fecha). Eliminado.
+  safeSet(UI.kpiSub, `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO}`);
 }
 function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
   if (H.pend)  H.pend.textContent  = `Por llegar (${(pendientes||[]).length})`;
@@ -1165,7 +1172,7 @@ if (zReset) zReset.addEventListener('click',()=> setFs(FONT.def));
 async function refreshAll(){
   if(!selectedProfesionales.length){
     UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML=''; UI.tblDone.innerHTML='';
-    UI.kpiSub.textContent=`${currentCentroNombre||''} · ${currentFechaISO}`;
+    safeSet(UI.kpiSub, `${currentCentroNombre||''} · ${currentFechaISO}`);
     renderBoardTitles({pendientes:[],presentes:[],atendidos:[],atencion:[]});
     return;
   }
@@ -1188,7 +1195,7 @@ async function initInicio(){
 
   currentCentroId = localStorage.getItem('centro_medico_id');
   currentCentroNombre = localStorage.getItem('centro_medico_nombre') || (await fetchCentroById(currentCentroId));
-  renderCentroChip();
+  renderCentroChip(); // no hace nada si no existe el chip
   await loadProfesionales();
   currentFechaISO = UI.fecha.value || todayISO();
   try { localStorage.setItem('inicio_url', location.href); } catch {}
