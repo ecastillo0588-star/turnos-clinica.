@@ -130,8 +130,36 @@ function normalizePhoneForWA(raw){
   return p;
 }
 function buildWA({ pac, fechaISO, start, end, prof, centro, dir }){
-  return `Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fmtDateLong(fechaISO)} de ${start} a ${end} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;
+  const nombre = `${(pac?.nombre||'').trim()} ${(pac?.apellido||'').trim()}`.trim() || 'Paciente';
+
+  // "martes, 5 de septiembre de 2025" -> "Martes 5 de Septiembre de 2025"
+  const fechaRaw = (fmtDateLong(fechaISO) || '').replace(',', '');
+  const fechaCap = fechaRaw
+    .split(' ')
+    .map(w => w ? w[0].toUpperCase() + w.slice(1) : w)
+    .join(' ')
+    .trim();
+
+  const horaTxt = `${(start || '').slice(0,5)} hs`;
+  const centroLineaBase = [centro, dir].filter(Boolean).join(' · ');
+  const centroLinea = centroLineaBase ? `*Centro médico*: ${centroLineaBase} 🏥` : null;
+
+  const partes = [
+    `Estimado *${nombre}*.`,
+    ``,
+    `Su turno ha sido confirmado ✅`,
+    `*Fecha:* ${fechaCap} 📅`,
+    `*Hora:* ${horaTxt} ⏰`,
+    `*Profesional:* ${prof || ''} 🩺`,
+    centroLinea,
+    `Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.`,
+    `En caso de no poder asistir, informar con antelación.`,
+    `_Muchas gracias_ 🙏`
+  ].filter(Boolean);
+
+  return partes.join('\n');
 }
+
 
 // ---------------------------
 /* UI refs */
