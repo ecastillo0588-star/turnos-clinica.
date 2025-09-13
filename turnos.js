@@ -143,6 +143,7 @@ const EMO = {
   pray:      '\u{1F64F}',      // 🙏
 };
 
+
 function buildWA({ pac, fechaISO, start, end, prof, centro, dir, osNombre = null, copago = null }){
   const nombre = `${(pac?.nombre||'').trim()} ${(pac?.apellido||'').trim()}`.trim() || 'Paciente';
 
@@ -163,28 +164,33 @@ function buildWA({ pac, fechaISO, start, end, prof, centro, dir, osNombre = null
     ? `*Obra social*: ${osNombre} ${EMO.receipt}`
     : (copago != null ? `*Particular*: Copago $${Number(copago).toLocaleString('es-AR', { maximumFractionDigits: 0 })} ${EMO.card}` : null);
 
-  // si tu público es “viejo”, cambiale EMO.steth por EMO.stethAlt
-  const emSteth = EMO.steth; // o EMO.stethAlt
+  // ✅ Mostrar “presentarse 5 min” sólo si hay OS distinta de 'particular'
+  const osNorm = (osNombre ?? '').trim().toLowerCase();
+  const tieneOSNoParticular = osNorm && osNorm !== 'particular';
+  const lineaAviso = tieneOSNoParticular
+    ? '• Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.'
+    : '• Recordá traer tus estudios realizados.';
+
+  const emSteth = EMO.steth;
 
   const partes = [
     `Estimado *${nombre}*.`,
-    ``,
+    '', // línea en blanco a propósito
     `Su turno ha sido confirmado ${EMO.check}`,
     `*Fecha:* ${fechaCap} ${EMO.calendar}`,
     `*Hora:* ${horaTxt} ${EMO.clock}`,
     `*Profesional:* ${prof || ''} ${emSteth}`,
     lineaCentro,
     lineaOSoCopago,
-    osNombre
-      ? `- Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.`
-      : `- Recorda traer tus estudios realizados.`,
+    lineaAviso,
     `En caso de no poder asistir, informar con antelación.`,
     `_Muchas gracias_ ${EMO.pray}`
-  ].filter(Boolean);
+  ]
+  // no borres strings vacíos; sólo null/undefined
+  .filter(v => v !== null && v !== undefined);
 
   return partes.join('\n');
 }
-
 
 
 // ---------------------------
