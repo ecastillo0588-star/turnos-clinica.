@@ -24,16 +24,15 @@ const UI = {
   tblAtencion: document.getElementById('tbl-atencion'),
   tblDone: document.getElementById('tbl-done'),
   kpiFree: document.getElementById('kpi-free'),
-  kpiSub: document.getElementById('kpi-sub'), // eliminado del DOM; queda null
+  kpiSub: document.getElementById('kpi-sub'),
   massSearch: document.getElementById('mass-search'),
   massClear: document.getElementById('mass-clear'),
 };
 const H = {
-  // spans de label para no borrar los botones
-  pend: document.getElementById('hl-pend'),
-  esp: document.getElementById('hl-esp'),
-  atenc: document.getElementById('hl-atencion'),
-  done: document.getElementById('hl-done'),
+  pend: document.getElementById('hl-pend') || document.getElementById('h-pend'),
+  esp: document.getElementById('hl-esp') || document.getElementById('h-esp'),
+  atenc: document.getElementById('hl-atencion') || document.getElementById('h-atencion'),
+  done: document.getElementById('hl-done') || document.getElementById('h-done'),
 };
 
 /* === Tipografía global (A− / A / A+) === */
@@ -88,9 +87,9 @@ const Drawer = {
 /* Preferencias / contexto */
 let currentCentroId = localStorage.getItem('centro_medico_id');
 let currentCentroNombre = localStorage.getItem('centro_medico_nombre') || '';
-const userRole = String(localStorage.getItem('user_role') || '').toLowerCase(); // 'medico' | 'amp' | 'amc' | 'propietario'
+const userRole = String(localStorage.getItem('user_role') || '').toLowerCase();
 const loggedProfesionalId = localStorage.getItem('profesional_id');
-let selectedProfesionales = []; // multi-selección
+let selectedProfesionales = [];
 let currentFechaISO = null;
 let centroWatchTimer = null;
 
@@ -199,6 +198,7 @@ if (Drawer.btnCerrar) Drawer.btnCerrar.onclick = hideDrawer;
 
 /* centro */
 async function fetchCentroById(id){
+  if(!id) return '';
   const { data } = await supabase.from('centros_medicos').select('nombre').eq('id', id).maybeSingle();
   return data?.nombre || '';
 }
@@ -212,8 +212,7 @@ async function syncCentroFromStorage(force=false){
     localStorage.setItem('centro_medico_nombre', currentCentroNombre);
     renderCentroChip();
     await loadProfesionales();
-  // Restaurar selección de profesional guardada (por centro)
-  if (!restoreProfSelection()) { saveProfSelection(); }
+    if (!restoreProfSelection()) saveProfSelection();
     await refreshAll();
   }
 }
@@ -223,6 +222,7 @@ window.addEventListener('beforeunload', ()=>{ if (centroWatchTimer) clearInterva
 /* profesionales */
 async function loadProfesionales(){
   const sel=UI.profSelect;
+  if (!sel) return;
 
   // AMC: multiselección
   if (userRole === 'amc') {
@@ -239,17 +239,24 @@ async function loadProfesionales(){
   // Mapa id->nombre
   rebuildProfMap();
 
-  // Selección por defecto
-  if (sel.multiple) {
-    selectedProfesionales = Array.from(sel.options)
-      .filter(o => o.value)
-      .map(o => { o.selected = true; return o.value; });
-    sel.size = Math.min(10, Math.max(4, selectedProfesionales.length || 6));
-  } else {
-    selectedProfesionales = sel.value ? [sel.value] : [];
+  // Intentar restaurar selección previa (por centro)
+  let restored = restoreProfSelection();
+  if (!restored){
+    if (sel.multiple) {
+      selectedProfesionales = Array.from(sel.options)
+        .filter(o => o.value)
+        .map(o => { o.selected = true; return o.value; });
+      sel.size = Math.min(10, Math.max(4, selectedProfesionales.length || 6));
+    } else {
+      const preferred = Array.from(sel.options).find(o=> o.value && String(o.value)===String(loggedProfesionalId));
+      const first = preferred || Array.from(sel.options).find(o=> o.value);
+      if (first){ sel.value = first.value; selectedProfesionales = [first.value]; }
+      else { selectedProfesionales = []; }
+    }
+    saveProfSelection();
   }
 }
-UI.profSelect.addEventListener('change', async ()=>{
+UI.profSelect && UI.profSelect.addEventListener('change', async ()=>{
   const sel=UI.profSelect;
   selectedProfesionales = sel.multiple
     ? Array.from(sel.selectedOptions).map(o => o.value).filter(Boolean)
@@ -257,13 +264,15 @@ UI.profSelect.addEventListener('change', async ()=>{
   saveProfSelection();
   await refreshAll();
 });
-  await refreshAll();
-});
 
 /* fecha */
-UI.fecha.value=todayISO(); currentFechaISO=UI.fecha.value;
-UI.fecha.addEventListener('change', ()=>{ currentFechaISO=UI.fecha.value||todayISO(); refreshAll(); });
-UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
+if (UI.fecha){
+  UI.fecha.value=todayISO(); currentFechaISO=UI.fecha.value;
+  UI.fecha.addEventListener('change', ()=>{ currentFechaISO=UI.fecha.value||todayISO(); refreshAll(); });
+}
+if (UI.btnHoy){
+  UI.btnHoy.addEventListener('click', ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
+}
 
 /* data día (multi-profesional, sin join a profesionales) */
 async function fetchDiaData(){
@@ -322,7 +331,7 @@ function applyFilter(data){
 }
 
 /* Mostrar columna “Profesional” si hay multiselección o más de 1 seleccionado */
-const showProfColumn = ()=> (UI.profSelect.multiple || selectedProfesionales.length > 1);
+const showProfColumn = ()=> (UI.profSelect?.multiple || selectedProfesionales.length > 1);
 
 /* ===== Render: Por llegar ===== */
 function renderPendientes(list){
@@ -591,15 +600,11 @@ async function openFicha(turnoId){
 
   if (terr || !t){ setDrawerStatus('No se pudo cargar el turno','warn'); console.error(terr); return; }
 
-  const [pRes, profRes, centroRes] = await Promise.all([
+  const [pRes] = await Promise.all([
     supabase.from('pacientes').select('id,dni,apellido,nombre,fecha_nacimiento,telefono,email,obra_social,numero_afiliado,credencial,contacto_nombre,contacto_apellido,contacto_celular,vinculo,historia_clinica,proximo_control,renovacion_receta,activo').eq('id', t.paciente_id).maybeSingle(),
-    supabase.from('profesionales').select('display_name,nombre,apellido').eq('id', t.profesional_id).maybeSingle(),
-    supabase.from('centros_medicos').select('nombre').eq('id', t.centro_id).maybeSingle(),
   ]);
 
   const p = pRes?.data || {};
-  // const prof = profRes?.data || null; // reservado por si se muestra luego
-  // const centro = centroRes?.data || null; // reservado por si se muestra luego
 
   Drawer.hora.textContent   = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
   Drawer.copago.textContent = `Copago: ${t.copago!=null ? fmtMoney(t.copago) : '—'}`;
@@ -869,10 +874,10 @@ function resetSplit(){
 function isTop(board){
   const order = ['pend','esp','atencion','done'];
   const idx = order.indexOf(board.dataset.board);
-  return idx===0 || idx===1; // pend/esp están arriba
+  return idx===0 || idx===1;
 }
 function toggleGrowFor(board){
-  // Si está expandido, no permitir grow; primero salir de expand
+  if (!boardsEl) return;
   if (boardsEl.classList.contains('fullmode')) return;
 
   const {r1,r2} = getRows();
@@ -880,7 +885,6 @@ function toggleGrowFor(board){
   const SMALL = Math.round(LAYOUT.baseH * LAYOUT.small);
 
   if (isTop(board)){
-    // Si ya está grande la fila 1, restaurar; si no, agrandar 1 y achicar 2
     const nextR1 = r1>LAYOUT.baseH ? LAYOUT.baseH : BIG;
     const nextR2 = nextR1>LAYOUT.baseH ? SMALL : LAYOUT.baseH;
     document.documentElement.style.setProperty('--row-1', nextR1+'px');
@@ -895,12 +899,14 @@ function toggleGrowFor(board){
   }
 }
 function expandBoard(board){
+  if (!boardsEl) return;
   boardsEl.classList.add('fullmode');
   boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
   board.classList.add('expanded');
   localStorage.setItem(LAYOUT.expandKey, board.dataset.board || '');
 }
 function collapseBoards(){
+  if (!boardsEl) return;
   boardsEl.classList.remove('fullmode');
   boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
   localStorage.removeItem(LAYOUT.expandKey);
@@ -908,7 +914,8 @@ function collapseBoards(){
 function setupBoardControls(){
   applyRowsFromStorage();
 
-  // Restaurar expand anterior si existía
+  if (!boardsEl) return;
+
   const prev = localStorage.getItem(LAYOUT.expandKey);
   if (prev){
     const b = boardsEl.querySelector(`.board[data-board="${prev}"]`);
@@ -925,12 +932,10 @@ function setupBoardControls(){
     if (cls)  cls.addEventListener('click',  ()=> collapseBoards());
   });
 
-  // Esc para cerrar expand
   document.addEventListener('keydown', (ev)=>{
     if (ev.key==='Escape' && boardsEl.classList.contains('fullmode')) collapseBoards();
   });
 
-  // Si pasa a 1 columna (<=1100px), normalizamos filas
   const mq = window.matchMedia('(max-width:1100px)');
   function onChange(){ if (mq.matches) resetSplit(); }
   mq.addEventListener('change', onChange);
@@ -967,7 +972,9 @@ async function initInicio(){
   if (UI.centroChip) UI.centroChip.textContent = currentCentroNombre || '';
 
   await loadProfesionales();
-  currentFechaISO = UI.fecha.value || todayISO();
+  if (!restoreProfSelection()) { saveProfSelection(); }
+
+  currentFechaISO = UI.fecha?.value || todayISO();
   try { localStorage.setItem('inicio_url', location.href); } catch {}
 
   setupBoardControls();
