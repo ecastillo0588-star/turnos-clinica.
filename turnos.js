@@ -900,29 +900,70 @@ function cerrarModalCupoAgotado(){
 }
 async function getCopagoParticular(){ return 1000; }
 
-async function tryAgendar(slot){
-  if (bookingBusy) return;
-  bookingBusy = true;
+// tryAgendar.js
+// Agenda un turno y abre el modal OK con link de WhatsApp.
+// Requiere que le pases un ctx con dependencias (ver JSDoc).
+
+/**
+ * @typedef {Object} TryAgendarCtx
+ * @property {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @property {{ value:boolean }} bookingBusyRef
+ * @property {(disabled:boolean)=>void} setSlotsDisabled
+ * @property {function(string,string):boolean} isValidHourRange
+ * @property {string|null} currentCentroId
+ * @property {string|null} modalDateISO
+ * @property {{ id:string, nombre:string, apellido:string, dni?:string, telefono?:string, obra_social_id?:string|null } | null} pacienteSeleccionado
+ * @property {Map<string, {obra_social:string}>} obrasSocialesById
+ * @property {(obraSocialId:string, medicoId:string, fechaISO:string, estados?:string[])=>Promise<{disponible:boolean, valor_copago:number|null}>} getCupoObraSocialMensual
+ * @property {(centroId:string, profId:string, fechaISO:string)=>Promise<number>} getCopagoParticular
+ * @property {()=>string|null} getCurrentUserTag
+ * @property {(monto:number)=>void} abrirModalCupoAgotado
+ * @property {()=>void} cerrarModalCupoAgotado
+ * @property {(id:string)=>string} profNameById
+ * @property {(args: {pac:any, fechaISO:string, start:string, end:string, profLabel:string, osNombre?:string|null, copago?:number|null})=>void} openOkModal
+ * @property {()=>Promise<void>} refreshDayModal
+ * @property {()=>Promise<void>} renderCalendar
+ * @property {()=>void} refreshModalTitle
+ */
+
+/**
+ * @param {{ start:string, end:string, agenda_id?:string|null, profId:string }} slot
+ * @param {TryAgendarCtx} ctx
+ */
+export async function tryAgendar(slot, ctx){
+  const {
+    supabase, bookingBusyRef, setSlotsDisabled,
+    isValidHourRange, currentCentroId, modalDateISO,
+    pacienteSeleccionado, obrasSocialesById,
+    getCupoObraSocialMensual, getCopagoParticular,
+    getCurrentUserTag, abrirModalCupoAgotado, cerrarModalCupoAgotado,
+    profNameById, openOkModal,
+    refreshDayModal, renderCalendar, refreshModalTitle,
+  } = ctx;
+
+  if (bookingBusyRef.value) return;
+  bookingBusyRef.value = true;
   setSlotsDisabled(true);
 
   try {
-    // Validaciones básicas
+    // Validaciones
     if (!pacienteSeleccionado){ alert('Seleccioná un paciente primero.'); return; }
     if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
     if (!currentCentroId || !modalDateISO || !slot?.profId){ alert('Falta centro/profesional/fecha.'); return; }
 
-    // Trazabilidad: quién otorga el turno
-    const asignadoPor = getCurrentUserTag(); // puede ser null si no hay nada en LS
+    // Trazabilidad
+    const asignadoPor = getCurrentUserTag(); // puede ser null
 
-    // OS / copago para mensaje y payload
+    // OS / copago (para DB y para mensaje)
     let obraSocialId  = pacienteSeleccionado.obra_social_id || null;
     let osNombre      = obraSocialId ? (obrasSocialesById.get(String(obraSocialId))?.obra_social || null) : null;
     let copagoElegido = null;
 
-    // Verificación de cupo por obra social (si tiene)
+    // Cupo OS
     if (obraSocialId){
       const ESTADOS_VIGENTES = ['asignado','confirmado','atendido'];
       const cupo = await getCupoObraSocialMensual(obraSocialId, slot.profId, modalDateISO, ESTADOS_VIGENTES);
+
       if (!cupo.disponible){
         copagoElegido = (cupo.valor_copago != null)
           ? Number(cupo.valor_copago)
@@ -937,18 +978,17 @@ async function tryAgendar(slot){
         });
         if (res !== 'aceptar') return;
 
-        // Si acepta, pasa a particular
+        // Pasa a particular
         obraSocialId = null;
         osNombre     = null;
       }
     }
 
-    // Calcular copago final una sola vez
     const copagoFinal = obraSocialId == null
       ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
       : null;
 
-    // Payload para INSERT
+    // INSERT
     const payload = {
       agenda_id:       slot.agenda_id || null,
       centro_id:       currentCentroId,
@@ -958,7 +998,7 @@ async function tryAgendar(slot){
       hora_inicio:     slot.start,
       hora_fin:        slot.end,
       estado:          'asignado',
-      notas:           UI.tipoTurno?.value === 'sobreturno' ? 'Sobreturno' : null,
+      notas:           null, // si usás sobreturno, setealo desde el ctx si querés
       obra_social_id:  obraSocialId,
       copago:          copagoFinal,
       asignado_por:    asignadoPor,
@@ -969,6 +1009,27 @@ async function tryAgendar(slot){
       alert(error.message || 'No se pudo reservar el turno.');
       return;
     }
+
+    // OK Modal
+    openOkModal({
+      pac:       pacienteSeleccionado,
+      fechaISO:  modalDateISO,
+      start:     slot.start,
+      end:       slot.end,
+      profLabel: profNameById(slot.profId),
+      osNombre,
+      copago:    copagoFinal,
+    });
+
+  } finally {
+    bookingBusyRef.value = false;
+    setSlotsDisabled(false);
+    await refreshDayModal();
+    await renderCalendar();
+    refreshModalTitle();
+  }
+}
+
 
     // Modal de OK + link de WhatsApp (requiere que openOkModal acepte osNombre y copago)
 function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null }){
@@ -1008,20 +1069,55 @@ function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, co
 
 
 
-async function confirmReprogram(slot){
-  if (!reprogramState || reprogramBusy) return;
-  reprogramBusy = true;
-  setSlotsDisabled(true);
+// confirmReprogram.js
+// Reprograma un turno (mismo profesional), borra el original y abre el modal OK.
+// Usa la misma openOkModal que tryAgendar.
 
+/**
+ * @typedef {Object} ConfirmReprogCtx
+ * @property {import('@supabase/supabase-js').SupabaseClient} supabase
+ * @property {{ value: { turno:any, durMin:number } | null }} reprogramStateRef
+ * @property {(disabled:boolean)=>void} setSlotsDisabled
+ * @property {function(string,string):boolean} isValidHourRange
+ * @property {string|null} currentCentroId
+ * @property {string|null} modalDateISO
+ * @property {()=>string|null} getCurrentUserTag
+ * @property {(t:string)=>string} toHM
+ * @property {{ id:string, nombre:string, apellido:string, dni?:string, telefono?:string } | null} pacienteSeleccionado
+ * @property {Map<string, {obra_social:string}>} obrasSocialesById
+ * @property {(id:string)=>string} profNameById
+ * @property {(args: {pac:any, fechaISO:string, start:string, end:string, profLabel:string, osNombre?:string|null, copago?:number|null})=>void} openOkModal
+ * @property {()=>Promise<void>} refreshDayModal
+ * @property {()=>Promise<void>} renderCalendar
+ */
+
+/**
+ * @param {{ start:string, end:string, agenda_id?:string|null, profId:string }} slot
+ * @param {ConfirmReprogCtx} ctx
+ */
+export async function confirmReprogram(slot, ctx){
+  const {
+    supabase, reprogramStateRef, setSlotsDisabled,
+    isValidHourRange, currentCentroId, modalDateISO,
+    getCurrentUserTag, toHM,
+    pacienteSeleccionado, obrasSocialesById,
+    profNameById, openOkModal,
+    refreshDayModal, renderCalendar,
+  } = ctx;
+
+  const state = reprogramStateRef.value;
+  if (!state) return;
+
+  setSlotsDisabled(true);
   try{
-    const t = reprogramState.turno;
+    const t = state.turno;
 
     if (!isValidHourRange(slot.start, slot.end)){
       alert('Rango horario inválido.');
       return;
     }
 
-    // Reprogramar solo con el mismo profesional
+    // Mismo profesional
     const profId = t.profesional_id;
     if (String(profId) !== String(slot.profId)){
       alert('La reprogramación debe ser con el mismo profesional.');
@@ -1033,9 +1129,10 @@ async function confirmReprogram(slot){
       return;
     }
 
-    // Trazabilidad: quién hace la reprogramación
-    const asignadoPor = getCurrentUserTag(); // puede ser null si no hay nada en LS
+    // Trazabilidad
+    const asignadoPor = getCurrentUserTag();
 
+    // Nuevo turno (hereda OS/copago del original)
     const nuevoTurno = {
       agenda_id:            slot.agenda_id || null,
       centro_id:            currentCentroId,
@@ -1049,25 +1146,22 @@ async function confirmReprogram(slot){
       obra_social_id:       t.obra_social_id ?? null,
       copago:               t.obra_social_id == null ? (t.copago ?? null) : null,
       reprogramado_desde:   `${t.fecha} ${toHM(t.hora_inicio)}-${toHM(t.hora_fin)}`,
-      asignado_por:         asignadoPor, // <<< NUEVO
+      asignado_por:         asignadoPor,
     };
 
     const { error: eIns } = await supabase.from('turnos').insert([nuevoTurno]);
-    if (eIns){
-      alert(eIns.message || 'No se pudo reprogramar.');
-      return;
-    }
+    if (eIns){ alert(eIns.message || 'No se pudo reprogramar.'); return; }
 
-    // Eliminamos el turno original
-    const { error: eDel } = await supabase.from('turnos').delete().eq('id', t.id);
-    if (eDel){
-      console.warn('No se pudo borrar el turno original:', eDel);
-      // No hay transacción; dejamos registro para revisión.
-    }
+    // Borrar original
+    await supabase.from('turnos').delete().eq('id', t.id);
 
+    // Datos para modal/WA
     const pac = t.pacientes
       ? { id:t.pacientes.id, nombre:t.pacientes.nombre, apellido:t.pacientes.apellido, dni:t.pacientes.dni, telefono:t.pacientes.telefono }
       : pacienteSeleccionado;
+
+    const osNombre    = t.obra_social_id ? (obrasSocialesById.get(String(t.obra_social_id))?.obra_social || null) : null;
+    const copagoFinal = t.obra_social_id == null ? (t.copago ?? null) : null;
 
     if (pac){
       openOkModal({
@@ -1076,13 +1170,14 @@ async function confirmReprogram(slot){
         start:     slot.start,
         end:       slot.end,
         profLabel: profNameById(profId),
+        osNombre,
+        copago:    copagoFinal,
       });
     }
 
-    reprogramState = null;
+    reprogramStateRef.value = null;
 
   } finally {
-    reprogramBusy = false;
     setSlotsDisabled(false);
     await refreshDayModal();
     await renderCalendar();
@@ -1103,20 +1198,103 @@ async function cancelarTurno(t){
 // ---------------------------
 /* Modal OK */
 // ---------------------------
-function openOkModal({ pac, fechaISO, start, end, profLabel }){
-  if (!UI.okBackdrop) return;
+// openOkModal.js
+// Única función para abrir el modal OK y construir el link de WhatsApp
+// (incluye buildWA y normalizePhoneForWA para que sea standalone).
+
+/**
+ * @typedef {Object} OkModalCtx
+ * @property {{ okBackdrop:HTMLElement, okTitle:HTMLElement, okPaciente:HTMLElement, okDni:HTMLElement, okFechaHora:HTMLElement, okProf:HTMLElement, okCentro:HTMLElement, okDir:HTMLElement, okWa:HTMLAnchorElement, okMsg:HTMLElement }} UI
+ * @property {string} currentCentroNombre
+ * @property {string} currentCentroDireccion
+ */
+
+/** Formatea fecha larga con capitalización tipo "Martes 16 de Septiembre de 2025" */
+function fmtDateLongNice(iso){
+  const raw = new Date(iso + 'T00:00:00').toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }).replace(',', '');
+  const stop = new Set(['de','del','la','el','los','las','y']);
+  return raw.toLowerCase().split(' ').map((w,i)=> (i===0||!stop.has(w)) ? (w[0].toUpperCase()+w.slice(1)) : w).join(' ');
+}
+
+function normalizePhoneForWA(raw){
+  if (!raw) return '';
+  let p = String(raw).replace(/[^\d]/g,'');
+  if (p.startsWith('0')) p = p.slice(1);
+  if (!p.startsWith('54')) p = '549' + p;
+  else if (p.startsWith('54') && !p.startsWith('549')) p = '549' + p.slice(2);
+  return p;
+}
+
+/**
+ * Mensaje WhatsApp con negritas y emojis. Muestra OS o Copago según corresponda.
+ */
+function buildWA({ pac, fechaISO, start, end, prof, centro, dir, osNombre = null, copago = null }){
+  const nombre = `${(pac?.nombre||'').trim()} ${(pac?.apellido||'').trim()}`.trim() || 'Paciente';
+  const fecha  = fmtDateLongNice(fechaISO);
+  const hora   = `${(start||'').slice(0,5)} hs`;
+  const centroLinea = [centro, dir].filter(Boolean).join(' · ');
+
+  const lineaOSoCopago = osNombre
+    ? `*Obra social*: ${osNombre} 🧾`
+    : (copago != null ? `*Particular*: Copago $${Number(copago).toLocaleString('es-AR', { maximumFractionDigits: 0 })} 💳` : null);
+
+  const lineaDniCred = osNombre
+    ? `Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.`
+    : `Por favor presentarse 5 minutos antes del turno con DNI.`;
+
+  return [
+    `Estimado *${nombre}*.`,
+    ``,
+    `Su turno ha sido confirmado ✅`,
+    `*Fecha:* ${fecha} 📅`,
+    `*Hora:* ${hora} ⏰`,
+    `*Profesional:* ${prof || ''} 🩺`,
+    `*Centro médico*: ${centroLinea} 🏥`,
+    lineaOSoCopago,
+    lineaDniCred,
+    `En caso de no poder asistir, informar con antelación.`,
+    `_Muchas gracias_ 🙏`,
+  ].filter(Boolean).join('\n');
+}
+
+/**
+ * Abre el modal OK y setea el link de WhatsApp.
+ * @param {{ pac:any, fechaISO:string, start:string, end:string, profLabel:string, osNombre?:string|null, copago?:number|null }} args
+ * @param {OkModalCtx} ctx
+ */
+export function openOkModal(args, ctx){
+  const { pac, fechaISO, start, end, profLabel, osNombre = null, copago = null } = args;
+  const { UI, currentCentroNombre, currentCentroDireccion } = ctx;
+
+  if (!UI?.okBackdrop) return;
+
+  // Texto visible
   UI.okTitle.textContent     = 'Turno reservado';
   UI.okPaciente.textContent  = `${pac.apellido}, ${pac.nombre}`;
   UI.okDni.textContent       = pac.dni || '';
-  UI.okFechaHora.textContent = `${fmtDateLong(fechaISO)} · ${start}–${end}`;
+  UI.okFechaHora.textContent = `${fmtDateLongNice(fechaISO)} · ${start}–${end}`;
   UI.okProf.textContent      = profLabel || '';
   UI.okCentro.textContent    = currentCentroNombre || '';
   UI.okDir.textContent       = currentCentroDireccion || '';
 
+  // WhatsApp
   const waPhone = normalizePhoneForWA(pac.telefono);
-  const waText  = buildWA({ pac, fechaISO, start, end, prof: profLabel, centro: currentCentroNombre, dir: currentCentroDireccion });
-  const waLink  = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}` : `https://wa.me/?text=${encodeURIComponent(waText)}`;
-  UI.okWa.href  = waLink;
+  const waText  = buildWA({
+    pac,
+    fechaISO,
+    start,
+    end,
+    prof:   profLabel,
+    centro: currentCentroNombre,
+    dir:    currentCentroDireccion,
+    osNombre,
+    copago,
+  });
+
+  UI.okWa.href = waPhone
+    ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}`
+    : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+
   UI.okMsg.textContent = '';
   UI.okBackdrop.style.display = 'flex';
 }
