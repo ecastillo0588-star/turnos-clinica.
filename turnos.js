@@ -971,24 +971,40 @@ async function tryAgendar(slot){
     }
 
     // Modal de OK + link de WhatsApp (requiere que openOkModal acepte osNombre y copago)
-    openOkModal({
-      pac:       pacienteSeleccionado,
-      fechaISO:  modalDateISO,
-      start:     slot.start,
-      end:       slot.end,
-      profLabel: profNameById(slot.profId),
-      osNombre,
-      copago:    copagoFinal,
-    });
+function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null }){
+  if (!UI.okBackdrop) return;
 
-  } finally {
-    bookingBusy = false;
-    setSlotsDisabled(false);
-    await refreshDayModal();
-    await renderCalendar();
-    refreshModalTitle();
-  }
+  // Info visible en el modal (opcional)
+  UI.okTitle.textContent     = 'Turno reservado';
+  UI.okPaciente.textContent  = `${pac.apellido}, ${pac.nombre}`;
+  UI.okDni.textContent       = pac.dni || '';
+  UI.okFechaHora.textContent = `${fmtDateLong(fechaISO)} · ${start}–${end}`;
+  UI.okProf.textContent      = profLabel || '';
+  UI.okCentro.textContent    = currentCentroNombre || '';
+  UI.okDir.textContent       = currentCentroDireccion || '';
+
+  // Mensaje de WhatsApp con OS o Copago
+  const waPhone = normalizePhoneForWA(pac.telefono);
+  const waText  = buildWA({
+    pac,
+    fechaISO,
+    start,
+    end,
+    prof:   profLabel,
+    centro: currentCentroNombre,
+    dir:    currentCentroDireccion,
+    osNombre,
+    copago,
+  });
+
+  UI.okWa.href = waPhone
+    ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}`
+    : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+
+  UI.okMsg.textContent = '';
+  UI.okBackdrop.style.display = 'flex';
 }
+
 
 
 
