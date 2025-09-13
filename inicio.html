@@ -43,15 +43,10 @@
   .shell{padding:10px}
   .panel{
     background:var(--card);border-radius:12px;box-shadow:0 1px 10px rgba(80,60,160,.08);
-    padding:10px;display:flex;flex-direction:column;gap:10px;min-height:calc(100vh - 20px)
+    padding:10px;display:flex;flex-direction:column;gap:8px;min-height:calc(100vh - 20px)
   }
 
-  /* ====== Toolbar ====== */
-  .toolbar{
-    display:grid;
-    grid-template-columns: minmax(220px,1fr) minmax(180px,.8fr) minmax(160px,.6fr) auto;
-    gap:10px 12px; align-items:end;
-  }
+  /* ====== Inputs básicos ====== */
   .field{display:flex;flex-direction:column;gap:3px;min-width:0}
   .field label{font-size:.85em;color:var(--muted)}
   .inp,.sel,.btn,.pill,.chip,.msg,.drawer-title,.drawer-sub,.table{ font-size:1em }
@@ -64,36 +59,47 @@
   .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer}
   .btn.secondary{background:#e7e2fa;color:#5a3e9a}
 
-  /* Chip pill del centro */
-  .pill{
-    display:inline-flex;align-items:center;gap:6px;background:#f2effc;border:1px solid var(--line);
-    color:#4b3a78;padding:6px 10px;border-radius:999px;white-space:nowrap;
+  /* ====== Chips / badges ====== */
+  .chip{
+    display:flex;align-items:baseline;gap:6px;background:#f3f1fb;border:1px solid var(--line);
+    padding:6px 9px;border-radius:999px;white-space:nowrap
+  }
+  .chip .v{font-size:1.05em;font-weight:800;line-height:1}
+  .chip.mini{ font-size:.9em; padding:4px 8px; }
+
+  /* ====== Toolbar compacta (una sola banda) ====== */
+  .toolbar{
+    display:grid;
+    grid-template-columns: minmax(260px,1.4fr) minmax(180px,.9fr) minmax(160px,.8fr) auto auto;
+    gap:10px 12px; align-items:end;
+  }
+  .toolbar-aux{
+    margin-left:auto;
+    display:flex; align-items:end; gap:8px; flex-wrap:wrap;
   }
 
-  /* ====== Barra superior ====== */
-  .bar{
-    display:grid; grid-template-columns:auto 1fr; gap:10px; align-items:center;
-  }
+  /* Buscador */
   .search-wrap{display:flex; align-items:center; gap:8px; width:fit-content;}
-  .search-wrap .inp{ height:36px; width:22ch; max-width:22ch; }
+  .search-wrap .inp{ height:36px; width:26ch; max-width:28ch; }
   .search-clear{
     border:none;background:#efeafb;border:1px solid var(--line);
     border-radius:8px;padding:6px 10px;cursor:pointer
   }
 
-  .stats{display:flex;flex-wrap:wrap;gap:8px}
-  .chip{
-    display:flex;align-items:baseline;gap:6px;background:#f3f1fb;border:1px solid var(--line);
-    padding:6px 9px;border-radius:999px;white-space:nowrap
-  }
-  .chip .v{font-size:1.15em;font-weight:800;line-height:1}
-
-  /* Control A−/A/A+ */
+  /* Control A−/A/A+ compacto */
   .zoom-chip{ gap:6px }
+  .zoom-chip.compact{
+    gap:0; padding:2px; background:#fff; border:1px solid var(--line);
+    border-radius:10px; display:inline-flex; align-items:center;
+  }
   .zoom-btn{
     appearance:none;border:1px solid var(--line);background:#fff;
     padding:.25em .55em;border-radius:6px;cursor:pointer;font-weight:700;line-height:1;min-width:2.2em;
   }
+  .zoom-chip.compact .zoom-btn{
+    border:0; background:transparent; padding:4px 8px; min-width:auto;
+  }
+  .zoom-chip.compact .zoom-btn + .zoom-btn{ border-left:1px solid var(--line); }
   .zoom-btn:hover{ background:#f4f1ff; }
   .zoom-btn:focus-visible{ outline:2px solid var(--brand-2); outline-offset:2px; }
 
@@ -172,7 +178,7 @@
   }
   .drawer.open{ transform:translateX(0); }
   .drawer-head{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#e8def8;border-bottom:1px solid var(--line)}
-  .drawer-title{margin:0;font-weight:700}
+  .drawer-title{margin:0;font-weight:800}
   .drawer-sub{color:#6b6480}
   .drawer-body{flex:1;overflow:auto;padding:12px}
   .drawer-foot{padding:10px 12px;border-top:1px solid var(--line);background:#faf7ff;display:flex;gap:10px;justify-content:flex-end}
@@ -192,6 +198,9 @@
   .hc-link:hover{ background:#fff; border-color:#b6a3ea; box-shadow:0 2px 6px rgba(0,0,0,.08); }
   .hc-link:focus-visible{ outline:2px solid var(--brand-2); outline-offset:2px; }
 
+  /* Botón HC grande */
+  .hc-link.hc-link-big{ font-size:0.98rem; padding:8px 12px; }
+
   #fichaDrawer .drawer-foot #fd-finalizar{
     background:#d32f2f !important; border-color:#b71c1c !important; color:#fff !important;
   }
@@ -200,7 +209,7 @@
 
   /* ===== Acciones sticky ===== */
  .hrow .cell:last-child,
-.row  .cell:last-child{
+ .row  .cell:last-child{
   position: sticky;
   left: calc(100% - var(--w-acc)); /* pin al borde derecho del scrollport */
   right: auto;                      /* por si quedó de antes */
@@ -212,7 +221,7 @@
   /* mejora de render en algunos casos */
   will-change: left;
   contain: layout paint;
-}
+ }
   .row .cell:last-child{
     background:
       linear-gradient(to left, #faf9ff 32px, rgba(250,249,255,0)),
@@ -225,11 +234,15 @@
       #f4f1ff;
   }
 
+  /* Mostrar solo "Hora turno" y "Copago" en el resumen */
+  #fd-prof, #fd-centro, #fd-fecha, #fd-estado { display: none !important; }
+
   @media (max-width:1100px){
     .boards{grid-template-columns:1fr}
   }
   @media (max-width:700px){
-    .bar{ grid-template-columns: 1fr; }
+    .toolbar{ grid-template-columns: 1fr 1fr; }
+    .toolbar-aux{ grid-column: 1 / -1; justify-content:flex-start; }
     .search-wrap{ width:100%; }
     .search-wrap .inp{ width:100%; max-width:100%; }
   }
@@ -239,37 +252,36 @@
 <div class="shell">
   <section class="panel" id="inicio-root">
 
-    <!-- Toolbar -->
+    <!-- Toolbar COMPACTA (sin “Centro médico” y sin chip resumen) -->
     <div class="toolbar">
-      <div class="field">
-        <label>Centro médico</label>
-        <div class="pill" id="centro-chip">—</div>
-      </div>
-      <div class="field">
-        <label>Profesional</label>
-        <select id="prof-select" class="sel compact"><option>Profesional</option></select>
-      </div>
-      <div class="field">
-        <label>Fecha</label>
-        <input id="fecha" type="date" class="inp"/>
-      </div>
-      <div class="field" style="align-items:flex-end">
-        <button id="btn-hoy" class="btn secondary">Hoy</button>
-      </div>
-    </div>
-
-    <!-- Buscador + KPI + Zoom -->
-    <div class="bar">
+      <!-- Buscador global -->
       <div class="search-wrap">
         <input id="mass-search" class="inp" placeholder="Buscar por DNI o Apellido (en toda la vista)"/>
         <button id="mass-clear" class="search-clear" title="Limpiar">✖️</button>
       </div>
-      <div class="stats">
-        <div class="chip"><span>Horas libres</span> <span class="v" id="kpi-free">0 min</span></div>
-        <div class="chip" id="kpi-sub" style="opacity:.8"></div>
 
-        <!-- Control de tipografía -->
-        <div class="chip zoom-chip" id="zoom-chip" aria-label="Tamaño de fuente">
+      <!-- Profesional -->
+      <div class="field">
+        <label>Profesional</label>
+        <select id="prof-select" class="sel compact"><option>Profesional</option></select>
+      </div>
+
+      <!-- Fecha -->
+      <div class="field">
+        <label>Fecha</label>
+        <input id="fecha" type="date" class="inp"/>
+      </div>
+
+      <!-- Hoy -->
+      <div class="field" style="align-items:flex-end">
+        <button id="btn-hoy" class="btn secondary">Hoy</button>
+      </div>
+
+      <!-- Derecha: Horas libres (mini) + Zoom compacto -->
+      <div class="toolbar-aux">
+        <div class="chip mini"><span>Horas libres</span> <span class="v" id="kpi-free">0 min</span></div>
+
+        <div class="zoom-chip compact" id="zoom-chip" aria-label="Tamaño de fuente">
           <button class="zoom-btn" id="zoom-dec" title="Reducir tamaño (A–)" type="button">A−</button>
           <button class="zoom-btn" id="zoom-reset" title="Restablecer tamaño (A)" type="button">A</button>
           <button class="zoom-btn" id="zoom-inc" title="Aumentar tamaño (A+)" type="button">A+</button>
@@ -301,13 +313,14 @@
     <aside id="fichaDrawer" class="drawer" aria-hidden="true">
       <header class="drawer-head">
         <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
-          <div id="fd-title" class="drawer-title">Paciente —</div>
-          <div id="fd-sub" class="drawer-sub">DNI — · Edad —</div>
+          <div id="fd-title" class="drawer-title">Ficha paciente: —</div>
+          <div id="fd-sub" class="drawer-sub">dni — / — años</div>
+          <div id="fd-os-year" class="drawer-sub">Turnos OS en el año: —</div>
         </div>
         <span style="flex:1"></span>
-        <a id="fd-hc" class="hc-link" href="#" target="_blank" rel="noopener" style="display:none">
+        <a id="fd-hc" class="hc-link hc-link-big" href="#" target="_blank" rel="noopener" style="display:none">
           <svg class="hc-ico" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2V8h6" fill="currentColor"/></svg>
-          <span>Historia clínica</span>
+          <span>Ver historia clínica</span>
         </a>
         <button id="fd-close" class="icon" title="Cerrar">✖️</button>
       </header>
@@ -319,7 +332,7 @@
           <div class="chip" id="fd-prof">Prof: —</div>
           <div class="chip" id="fd-centro">Centro: —</div>
           <div class="chip" id="fd-fecha">Fecha: —</div>
-          <div class="chip" id="fd-hora">Hora: —</div>
+          <div class="chip" id="fd-hora">Hora turno: —</div>
           <div class="chip" id="fd-estado">Estado: —</div>
           <div class="chip" id="fd-copago">Copago: —</div>
         </div>
@@ -411,6 +424,9 @@ const EST = {
   ATENDIDO:'atendido'
 };
 
+/* Util para setear textContent si el nodo existe */
+const safeSet = (el, text) => { if (el) el.textContent = text; };
+
 const UI = {
   centroChip: document.getElementById('centro-chip'),
   profSelect: document.getElementById('prof-select'),
@@ -421,7 +437,7 @@ const UI = {
   tblAtencion: document.getElementById('tbl-atencion'),
   tblDone: document.getElementById('tbl-done'),
   kpiFree: document.getElementById('kpi-free'),
-  kpiSub: document.getElementById('kpi-sub'),
+  kpiSub: document.getElementById('kpi-sub'), // eliminado del DOM; queda null
   massSearch: document.getElementById('mass-search'),
   massClear: document.getElementById('mass-clear'),
 };
@@ -450,6 +466,7 @@ const Drawer = {
   msg: document.getElementById('fd-msg'),
   title: document.getElementById('fd-title'),
   sub: document.getElementById('fd-sub'),
+  osYear: document.getElementById('fd-os-year'),
   hc: document.getElementById('fd-hc'),
   prof: document.getElementById('fd-prof'),
   centro: document.getElementById('fd-centro'),
@@ -493,14 +510,11 @@ let centroWatchTimer = null;
 let filterText = '';
 
 /* —— Helpers —— */
-function pad(n){return n<10?'0'+n:''+n}
 function pad2(n){return n<10?'0'+n:''+n}
-
 function todayISO(){
   const d = new Date();
   return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`
 }
-
 function toHM(t){return (t??'').toString().slice(0,5)}
 function minutesDiff(start, end){
   const [h1,m1]=start.split(':').map(Number);
@@ -541,7 +555,6 @@ function setDrawerStatus(msg,tone=''){
   if(Drawer.status){ Drawer.status.textContent=msg||''; Drawer.status.className='msg '+(tone||''); }
 }
 
-
 /* Aplica clases de rol al <body> */
 applyRoleClasses(userRole);
 
@@ -566,7 +579,7 @@ async function fetchCentroById(id){
   const { data } = await supabase.from('centros_medicos').select('nombre').eq('id', id).maybeSingle();
   return data?.nombre || '';
 }
-function renderCentroChip(){ UI.centroChip.textContent = currentCentroNombre || '—'; }
+function renderCentroChip(){ if (UI.centroChip) UI.centroChip.textContent = currentCentroNombre || '—'; }
 async function syncCentroFromStorage(force=false){
   const id = localStorage.getItem('centro_medico_id');
   const nom = localStorage.getItem('centro_medico_nombre') || currentCentroNombre;
@@ -871,6 +884,35 @@ function renderAtendidos(list){
   });
 }
 
+/* ----- Año actual: límites y conteo de turnos OS ----- */
+function yearBoundsISO(){
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 1);
+  const end   = new Date(now.getFullYear(), 11, 31);
+  const toISO = (d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return { startISO: toISO(start), endISO: toISO(end) };
+}
+async function countTurnosOSAnio(pacienteId){
+  if (!pacienteId) return 0;
+  const { startISO, endISO } = yearBoundsISO();
+  const { data, error } = await supabase
+    .from('turnos')
+    .select('id, estado, fecha, paciente_id, pacientes(obra_social)')
+    .eq('paciente_id', pacienteId)
+    .eq('estado', EST.ATENDIDO)
+    .gte('fecha', startISO)
+    .lte('fecha', endISO);
+
+  if (error || !Array.isArray(data)) return 0;
+
+  let count = 0;
+  for (const t of data){
+    const os = (t?.pacientes?.obra_social || '').trim().toLowerCase();
+    if (os && os !== 'particular') count++;
+  }
+  return count;
+}
+
 /* Drawer: carga */
 let drawerTurnoId = null;
 
@@ -893,8 +935,8 @@ function renderHeaderPaciente(p){
   const nom = titleCase(p?.nombre||'');
   const dni = (p?.dni || '—');
   const edad = calcEdad(p?.fecha_nacimiento);
-  if (Drawer.title) Drawer.title.textContent = `${ape}, ${nom}`;
-  if (Drawer.sub) Drawer.sub.textContent = `DNI ${dni} · ${edad!=null? `${edad} años`:'Edad —'}`;
+  if (Drawer.title) Drawer.title.textContent = `Ficha paciente: ${[nom, ape].filter(Boolean).join(' ') || '—'}`;
+  if (Drawer.sub)   Drawer.sub.textContent   = `dni ${dni} / ${edad!=null? `${edad} años`:'— años'}`;
   if (p?.historia_clinica){
     Drawer.hc.style.display='inline-flex';
     Drawer.hc.href = p.historia_clinica;
@@ -931,15 +973,14 @@ async function openFicha(turnoId){
   const prof = profRes?.data || null;
   const centro = centroRes?.data || null;
 
-  Drawer.prof.textContent   = `Prof: ${prof ? (prof.display_name || [prof.apellido, prof.nombre].filter(Boolean).join(', ')) : '—'}`;
-  Drawer.centro.textContent = `Centro: ${centro?.nombre || '—'}`;
-  Drawer.fecha.textContent  = `Fecha: ${t.fecha || '—'}`;
-  Drawer.hora.textContent   = `Hora: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
-  Drawer.estado.textContent = `Estado: ${t.estado || '—'}`;
+  // Chips visibles
+  Drawer.hora.textContent   = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
   Drawer.copago.textContent = `Copago: ${t.copago!=null ? fmtMoney(t.copago) : '—'}`;
-  Drawer.notas.value        = t.notas || '';
 
+  // Encabezado
   renderHeaderPaciente(p);
+
+  // Formulario paciente
   Drawer.dni.value = p.dni || '';
   Drawer.ape.value = p.apellido || '';
   Drawer.nom.value = p.nombre || '';
@@ -960,6 +1001,18 @@ async function openFicha(turnoId){
   Drawer.prox.value = p.proximo_control || '';
   Drawer.renov.value = p.renovacion_receta || '';
   Drawer.activo.checked = !!p.activo;
+
+  Drawer.notas.value        = t.notas || '';
+
+  // Contador de turnos OS en el año
+  if (Drawer.osYear){
+    Drawer.osYear.textContent = 'Turnos OS en el año: —';
+    try{
+      const pacienteId = pRes?.data?.id || t.paciente_id;
+      const n = await countTurnosOSAnio(pacienteId);
+      Drawer.osYear.textContent = `Turnos OS en el año: ${n}`;
+    }catch{}
+  }
 
   setDrawerStatus('');
 
@@ -1031,9 +1084,9 @@ if (Drawer.btnFinalizar){
 }
 if (Drawer.cred) Drawer.cred.addEventListener('input', ()=>{ Drawer.credLink.href = Drawer.cred.value || '#'; });
 if (Drawer.nac) Drawer.nac.addEventListener('change', ()=>{
-  const dniTxt = (Drawer.sub.textContent||'').split('·')[0] || '';
+  const dniTxt = (Drawer.sub.textContent||'').split(' / ')[0] || '';
   const edad = calcEdad(Drawer.nac.value);
-  Drawer.sub.textContent = `${dniTxt.trim()} · ${edad!=null? `${edad} años`:'Edad —'}`;
+  Drawer.sub.textContent = `${dniTxt.trim()} / ${edad!=null? `${edad} años`:'— años'}`;
 });
 
 /* Acciones por rol */
@@ -1047,6 +1100,7 @@ async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
   const id = turnoId ?? drawerTurnoId; if (!id) return;
   if (!confirm('¿Marcar este turno como ATENDIDO?')) return;
 
+  // Solo cambiamos el estado, no tocamos las horas
   const { data, error } = await supabase
     .from('turnos')
     .update({ estado: EST.ATENDIDO })
@@ -1054,8 +1108,11 @@ async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
     .eq('estado', EST.EN_ATENCION)
     .select('id');
 
-  if (error){ console.error('No se pudo marcar atendido:', error); alert('No se pudo finalizar.'); return; }
-  if (!data?.length){ alert('El turno no estaba en "En atención".'); return; }
+  if (error) {
+    console.error('No se pudo marcar atendido:', error);
+    alert(error.message || 'No se pudo finalizar.');
+    return;
+  }
 
   if (closeDrawer) hideDrawer();
   await refreshAll();
@@ -1134,7 +1191,7 @@ function profsLabel(){
 function renderKPIs({agenda, turnos}){
   const free=computeHorasDisponibles(agenda, turnos);
   UI.kpiFree.textContent = `${formatFreeTime(free.libresMin)} disponibles`;
-  UI.kpiSub.textContent = `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO}`;
+  safeSet(UI.kpiSub, `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO}`);
 }
 function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
   if (H.pend)  H.pend.textContent  = `Por llegar (${(pendientes||[]).length})`;
@@ -1165,7 +1222,7 @@ if (zReset) zReset.addEventListener('click',()=> setFs(FONT.def));
 async function refreshAll(){
   if(!selectedProfesionales.length){
     UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML=''; UI.tblDone.innerHTML='';
-    UI.kpiSub.textContent=`${currentCentroNombre||''} · ${currentFechaISO}`;
+    safeSet(UI.kpiSub, `${currentCentroNombre||''} · ${currentFechaISO}`);
     renderBoardTitles({pendientes:[],presentes:[],atendidos:[],atencion:[]});
     return;
   }

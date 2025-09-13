@@ -95,6 +95,29 @@ function fmtDateLong(iso){
 const DOW = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 function nativeFirstDow(d){ const g = d.getDay(); return g===0 ? 6 : g-1; }
 
+function getCurrentUserTag(){
+  const keys = ['user_email','email','username','user_name','user_id'];
+  for (const k of keys){
+    const v = safeLocalStorage.getItem(k);
+    if (v && String(v).trim()){
+      const out = String(v).trim();
+      return k.includes('email') ? out.toLowerCase().slice(0,128) : out.slice(0,128);
+    }
+  }
+  // fallback: algunas apps guardan un objeto "user" en JSON
+  try{
+    const raw = safeLocalStorage.getItem('user');
+    if (raw){
+      const u = JSON.parse(raw);
+      if (u?.email) return String(u.email).trim().toLowerCase().slice(0,128);
+      if (u?.id)    return String(u.id).trim().slice(0,128);
+    }
+  }catch{}
+  return null; // sin info en LS
+}
+
+
+
 // ---------------------------
 /* WhatsApp helpers */
 // ---------------------------
@@ -106,9 +129,69 @@ function normalizePhoneForWA(raw){
   else if (p.startsWith('54') && !p.startsWith('549')) p = '549' + p.slice(2);
   return p;
 }
-function buildWA({ pac, fechaISO, start, end, prof, centro, dir }){
-  return `Hola ${pac.apellido}, ${pac.nombre}! Te confirmamos tu turno el ${fmtDateLong(fechaISO)} de ${start} a ${end} con ${prof} en ${centro} (${dir}). Si no podés asistir, por favor avisá. ¡Gracias!`;
+
+const EMO = {
+  check:     '\u2705',         // ✅
+  calendar:  '\u{1F4C5}',      // 📅
+  clock:     '\u23F0',         // ⏰
+  // Stethoscope (puede no estar en SO viejos). Fallback: persona de salud + símbolo médico
+  steth:     '\u{1FA7A}',      // 🩺
+  stethAlt:  '\u{1F9D1}\u200D\u2695\uFE0F', // 🧑‍⚕️
+  hospital:  '\u{1F3E5}',      // 🏥
+  receipt:   '\u{1F9FE}',      // 🧾 (puede faltar en SO viejos)
+  card:      '\u{1F4B3}',      // 💳
+  pray:      '\u{1F64F}',      // 🙏
+};
+
+
+function buildWA({ pac, fechaISO, start, end, prof, centro, dir, osNombre = null, copago = null }){
+  const nombre = `${(pac?.nombre||'').trim()} ${(pac?.apellido||'').trim()}`.trim() || 'Paciente';
+
+  const fechaRaw = (fmtDateLong(fechaISO) || '').replace(',', '');
+  const stop = new Set(['de','del','la','el','los','las','y']);
+  const fechaCap = fechaRaw
+    .toLowerCase()
+    .split(' ')
+    .map((w, i) => (i === 0 || !stop.has(w)) ? (w.charAt(0).toUpperCase() + w.slice(1)) : w)
+    .join(' ')
+    .trim();
+
+  const horaTxt   = `${(start || '').slice(0,5)} hs`;
+  const centroTxt = [centro, dir].filter(Boolean).join(' · ');
+  const lineaCentro = centroTxt ? `*Centro médico*: ${centroTxt} ${EMO.hospital}` : null;
+
+  const lineaOSoCopago = osNombre
+    ? `*Obra social*: ${osNombre} ${EMO.receipt}`
+    : (copago != null ? `*Particular*: Copago $${Number(copago).toLocaleString('es-AR', { maximumFractionDigits: 0 })} ${EMO.card}` : null);
+
+  // ✅ Mostrar “presentarse 5 min” sólo si hay OS distinta de 'particular'
+  const osNorm = (osNombre ?? '').trim().toLowerCase();
+  const tieneOSNoParticular = osNorm && osNorm !== 'particular';
+  const lineaAviso = tieneOSNoParticular
+    ? '• Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.'
+    : '• Recordá traer tus estudios realizados.';
+
+  const emSteth = EMO.steth;
+
+  const partes = [
+    `Estimado *${nombre}*.`,
+    '', // línea en blanco a propósito
+    `Su turno ha sido confirmado ${EMO.check}`,
+    `*Fecha:* ${fechaCap} ${EMO.calendar}`,
+    `*Hora:* ${horaTxt} ${EMO.clock}`,
+    `*Profesional:* ${prof || ''} ${emSteth}`,
+    lineaCentro,
+    lineaOSoCopago,
+    lineaAviso,
+    `En caso de no poder asistir, informar con antelación.`,
+    `_Muchas gracias_ ${EMO.pray}`
+  ]
+  // no borres strings vacíos; sólo null/undefined
+  .filter(v => v !== null && v !== undefined);
+
+  return partes.join('\n');
 }
+
 
 // ---------------------------
 /* UI refs */
@@ -705,6 +788,97 @@ function renderSlotsGroup(slots, profId){
   });
 }
 
+async function tryAgendar(slot){
+  if (bookingBusy) return;
+  bookingBusy = true;
+  setSlotsDisabled(true);
+
+  try {
+    // Validaciones
+    if (!pacienteSeleccionado){ alert('Seleccioná un paciente primero.'); return; }
+    if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
+    if (!currentCentroId || !modalDateISO || !slot?.profId){ alert('Falta centro/profesional/fecha.'); return; }
+
+    // Trazabilidad (quién otorga el turno)
+    const asignadoPor = getCurrentUserTag(); // puede ser null
+
+    // OS / copago (para DB y para mensaje)
+    let obraSocialId  = pacienteSeleccionado.obra_social_id || null;
+    let osNombre      = obraSocialId ? (obrasSocialesById.get(String(obraSocialId))?.obra_social || null) : null;
+    let copagoElegido = null;
+
+    // Cupo OS
+    if (obraSocialId){
+      const ESTADOS_VIGENTES = ['asignado','confirmado','atendido'];
+      const cupo = await getCupoObraSocialMensual(obraSocialId, slot.profId, modalDateISO, ESTADOS_VIGENTES);
+
+      if (!cupo.disponible){
+        copagoElegido = (cupo.valor_copago != null)
+          ? Number(cupo.valor_copago)
+          : await getCopagoParticular(currentCentroId, slot.profId, modalDateISO);
+
+        abrirModalCupoAgotado(copagoElegido);
+        const res = await new Promise(resolve => {
+          const A = document.getElementById('modal-cupo-aceptar');
+          const C = document.getElementById('modal-cupo-cancelar');
+          if (A) A.onclick = () => { cerrarModalCupoAgotado(); resolve('aceptar'); };
+          if (C) C.onclick = () => { cerrarModalCupoAgotado(); resolve('cancelar'); };
+        });
+        if (res !== 'aceptar') return;
+
+        // Pasa a particular
+        obraSocialId = null;
+        osNombre     = null;
+      }
+    }
+
+    // Copago final (solo particular)
+    const copagoFinal = obraSocialId == null
+      ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
+      : null;
+
+    // INSERT
+    const payload = {
+      agenda_id:       slot.agenda_id || null,
+      centro_id:       currentCentroId,
+      profesional_id:  slot.profId,
+      paciente_id:     pacienteSeleccionado.id,
+      fecha:           modalDateISO,
+      hora_inicio:     slot.start,
+      hora_fin:        slot.end,
+      estado:          'asignado',
+      notas:           UI.tipoTurno?.value === 'sobreturno' ? 'Sobreturno' : null,
+      obra_social_id:  obraSocialId,
+      copago:          copagoFinal,
+      asignado_por:    asignadoPor,
+    };
+
+    const { error } = await supabase.from('turnos').insert([payload]);
+    if (error){ alert(error.message || 'No se pudo reservar el turno.'); return; }
+
+    // Abrir modal OK (usa SIEMPRE la misma openOkModal global)
+    openOkModal({
+      pac:       pacienteSeleccionado,
+      fechaISO:  modalDateISO,
+      start:     slot.start,
+      end:       slot.end,
+      profLabel: profNameById(slot.profId),
+      osNombre,
+      copago:    copagoFinal,
+    });
+
+  } finally {
+    bookingBusy = false;
+    setSlotsDisabled(false);
+    await refreshDayModal();
+    await renderCalendar();
+    refreshModalTitle();
+  }
+}
+
+
+
+
 async function openDayModalMulti(isoDate, AByProf, TByProf){
   if (!UI.modal) return;
   reprogramState = reprogramState || null; // mantener si estaba activo
@@ -838,111 +1012,120 @@ function cerrarModalCupoAgotado(){
 }
 async function getCopagoParticular(){ return 1000; }
 
-async function tryAgendar(slot){
-  if (bookingBusy) return;
-  bookingBusy = true;
-  setSlotsDisabled(true);
-  try{
-    if (!pacienteSeleccionado){ alert('Seleccioná un paciente primero.'); return; }
-    if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
-    if (!currentCentroId || !modalDateISO || !slot?.profId){ alert('Falta centro/profesional/fecha.'); return; }
 
-    let obraSocialId = pacienteSeleccionado.obra_social_id || null;
-    let copagoElegido = null;
 
-    if (obraSocialId){
-      const ESTADOS_VIGENTES = ['asignado','confirmado','atendido'];
-      const cupo = await getCupoObraSocialMensual(obraSocialId, slot.profId, modalDateISO, ESTADOS_VIGENTES);
-      if (!cupo.disponible){
-        copagoElegido = (cupo.valor_copago != null) ? Number(cupo.valor_copago) : await getCopagoParticular(currentCentroId, slot.profId, modalDateISO);
-        abrirModalCupoAgotado(copagoElegido);
-        const res = await new Promise(resolve => {
-          const A = document.getElementById('modal-cupo-aceptar');
-          const C = document.getElementById('modal-cupo-cancelar');
-          if (A) A.onclick = () => { cerrarModalCupoAgotado(); resolve('aceptar'); };
-          if (C) C.onclick = () => { cerrarModalCupoAgotado(); resolve('cancelar'); };
-        });
-        if (res !== 'aceptar') return;
-        obraSocialId = null; // reservar como particular
-      }
-    }
 
-    const payload = {
-      agenda_id: slot.agenda_id || null,
-      centro_id: currentCentroId,
-      profesional_id: slot.profId,
-      paciente_id: pacienteSeleccionado.id,
-      fecha: modalDateISO,
-      hora_inicio: slot.start,
-      hora_fin: slot.end,
-      estado: 'asignado',
-      notas: UI.tipoTurno?.value === 'sobreturno' ? 'Sobreturno' : null,
-      obra_social_id: obraSocialId,
-      copago: obraSocialId == null ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO)) : null,
-    };
+    // Modal de OK + link de WhatsApp (requiere que openOkModal acepte osNombre y copago)
+function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null }){
+  if (!UI.okBackdrop) return;
 
-    const { error } = await supabase.from('turnos').insert([payload]);
-    if (error){ alert(error.message || 'No se pudo reservar el turno.'); return; }
+  // Info visible en el modal (opcional)
+  UI.okTitle.textContent     = 'Turno reservado';
+  UI.okPaciente.textContent  = `${pac.apellido}, ${pac.nombre}`;
+  UI.okDni.textContent       = pac.dni || '';
+  UI.okFechaHora.textContent = `${fmtDateLong(fechaISO)} · ${start}–${end}`;
+  UI.okProf.textContent      = profLabel || '';
+  UI.okCentro.textContent    = currentCentroNombre || '';
+  UI.okDir.textContent       = currentCentroDireccion || '';
 
-    openOkModal({
-      pac: pacienteSeleccionado,
-      fechaISO: modalDateISO,
-      start: slot.start,
-      end: slot.end,
-      profLabel: profNameById(slot.profId),
-    });
-  } finally {
-    bookingBusy = false;
-    setSlotsDisabled(false);
-    await refreshDayModal();
-    await renderCalendar();
-    refreshModalTitle();
-  }
+  // Mensaje de WhatsApp con OS o Copago
+  const waPhone = normalizePhoneForWA(pac.telefono);
+  const waText  = buildWA({
+    pac,
+    fechaISO,
+    start,
+    end,
+    prof:   profLabel,
+    centro: currentCentroNombre,
+    dir:    currentCentroDireccion,
+    osNombre,
+    copago,
+  });
+
+  UI.okWa.href = waPhone
+    ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}`
+    : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+
+  UI.okMsg.textContent = '';
+  UI.okBackdrop.style.display = 'flex';
 }
+
+
+
+
+
 
 async function confirmReprogram(slot){
   if (!reprogramState || reprogramBusy) return;
   reprogramBusy = true;
   setSlotsDisabled(true);
+
   try{
     const t = reprogramState.turno;
-    if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
 
-    // Reprogramar solo con el mismo profesional
+    if (!isValidHourRange(slot.start, slot.end)){
+      alert('Rango horario inválido.');
+      return;
+    }
+
+    // mismo profesional
     const profId = t.profesional_id;
     if (String(profId) !== String(slot.profId)){
       alert('La reprogramación debe ser con el mismo profesional.');
       return;
     }
+    if (!currentCentroId || !modalDateISO){
+      alert('Faltan datos.');
+      return;
+    }
 
-    if (!currentCentroId || !modalDateISO){ alert('Faltan datos.'); return; }
+    // Trazabilidad
+    const asignadoPor = getCurrentUserTag();
 
     const nuevoTurno = {
-      agenda_id: slot.agenda_id || null,
-      centro_id: currentCentroId,
-      profesional_id: profId,
-      paciente_id: t.paciente_id,
-      fecha: modalDateISO,
-      hora_inicio: slot.start,
-      hora_fin: slot.end,
-      estado: t.estado || 'asignado',
-      notas: t.notas || null,
-      obra_social_id: t.obra_social_id ?? null,
-      copago: t.obra_social_id == null ? (t.copago ?? null) : null,
-      reprogramado_desde: `${t.fecha} ${toHM(t.hora_inicio)}-${toHM(t.hora_fin)}`
+      agenda_id:            slot.agenda_id || null,
+      centro_id:            currentCentroId,
+      profesional_id:       profId,
+      paciente_id:          t.paciente_id,
+      fecha:                modalDateISO,
+      hora_inicio:          slot.start,
+      hora_fin:             slot.end,
+      estado:               t.estado || 'asignado',
+      notas:                t.notas || null,
+      obra_social_id:       t.obra_social_id ?? null,
+      copago:               t.obra_social_id == null ? (t.copago ?? null) : null,
+      reprogramado_desde:   `${t.fecha} ${toHM(t.hora_inicio)}-${toHM(t.hora_fin)}`,
+      asignado_por:         asignadoPor,
     };
 
     const { error: eIns } = await supabase.from('turnos').insert([nuevoTurno]);
     if (eIns){ alert(eIns.message || 'No se pudo reprogramar.'); return; }
 
+    // Borrar original
     await supabase.from('turnos').delete().eq('id', t.id);
 
+    // Datos para modal/WA
     const pac = t.pacientes
       ? { id:t.pacientes.id, nombre:t.pacientes.nombre, apellido:t.pacientes.apellido, dni:t.pacientes.dni, telefono:t.pacientes.telefono }
       : pacienteSeleccionado;
 
-    if (pac) openOkModal({ pac, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: profNameById(profId) });
+    const osNombre    = t.obra_social_id ? (obrasSocialesById.get(String(t.obra_social_id))?.obra_social || null) : null;
+    const copagoFinal = t.obra_social_id == null ? (t.copago ?? null) : null;
+
+    if (pac){
+      openOkModal({
+        pac,
+        fechaISO:  modalDateISO,
+        start:     slot.start,
+        end:       slot.end,
+        profLabel: profNameById(profId),
+        osNombre,
+        copago:    copagoFinal,
+      });
+    }
+
     reprogramState = null;
+
   } finally {
     reprogramBusy = false;
     setSlotsDisabled(false);
@@ -950,6 +1133,7 @@ async function confirmReprogram(slot){
     await renderCalendar();
   }
 }
+
 
 async function cancelarTurno(t){
   if (!roleAllows('cancelar', userRole)) { alert('No tenés permisos para anular.'); return; }
@@ -964,23 +1148,33 @@ async function cancelarTurno(t){
 // ---------------------------
 /* Modal OK */
 // ---------------------------
-function openOkModal({ pac, fechaISO, start, end, profLabel }){
-  if (!UI.okBackdrop) return;
-  UI.okTitle.textContent     = 'Turno reservado';
-  UI.okPaciente.textContent  = `${pac.apellido}, ${pac.nombre}`;
-  UI.okDni.textContent       = pac.dni || '';
-  UI.okFechaHora.textContent = `${fmtDateLong(fechaISO)} · ${start}–${end}`;
-  UI.okProf.textContent      = profLabel || '';
-  UI.okCentro.textContent    = currentCentroNombre || '';
-  UI.okDir.textContent       = currentCentroDireccion || '';
+// openOkModal.js
+// Única función para abrir el modal OK y construir el link de WhatsApp
+// (incluye buildWA y normalizePhoneForWA para que sea standalone).
 
-  const waPhone = normalizePhoneForWA(pac.telefono);
-  const waText  = buildWA({ pac, fechaISO, start, end, prof: profLabel, centro: currentCentroNombre, dir: currentCentroDireccion });
-  const waLink  = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}` : `https://wa.me/?text=${encodeURIComponent(waText)}`;
-  UI.okWa.href  = waLink;
-  UI.okMsg.textContent = '';
-  UI.okBackdrop.style.display = 'flex';
+/**
+ * @typedef {Object} OkModalCtx
+ * @property {{ okBackdrop:HTMLElement, okTitle:HTMLElement, okPaciente:HTMLElement, okDni:HTMLElement, okFechaHora:HTMLElement, okProf:HTMLElement, okCentro:HTMLElement, okDir:HTMLElement, okWa:HTMLAnchorElement, okMsg:HTMLElement }} UI
+ * @property {string} currentCentroNombre
+ * @property {string} currentCentroDireccion
+ */
+
+/** Formatea fecha larga con capitalización tipo "Martes 16 de Septiembre de 2025" */
+function fmtDateLongNice(iso){
+  const raw = new Date(iso + 'T00:00:00').toLocaleDateString('es-AR', { weekday:'long', day:'numeric', month:'long', year:'numeric' }).replace(',', '');
+  const stop = new Set(['de','del','la','el','los','las','y']);
+  return raw.toLowerCase().split(' ').map((w,i)=> (i===0||!stop.has(w)) ? (w[0].toUpperCase()+w.slice(1)) : w).join(' ');
 }
+
+
+
+/**
+
+/**
+ * Abre el modal OK y setea el link de WhatsApp.
+ * @param {{ pac:any, fechaISO:string, start:string, end:string, profLabel:string, osNombre?:string|null, copago?:number|null }} args
+ * @param {OkModalCtx} ctx
+ */
 
 // ---------------------------
 /* Listeners */
