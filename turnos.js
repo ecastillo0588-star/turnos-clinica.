@@ -1145,46 +1145,9 @@ function fmtDateLongNice(iso){
   return raw.toLowerCase().split(' ').map((w,i)=> (i===0||!stop.has(w)) ? (w[0].toUpperCase()+w.slice(1)) : w).join(' ');
 }
 
-function normalizePhoneForWA(raw){
-  if (!raw) return '';
-  let p = String(raw).replace(/[^\d]/g,'');
-  if (p.startsWith('0')) p = p.slice(1);
-  if (!p.startsWith('54')) p = '549' + p;
-  else if (p.startsWith('54') && !p.startsWith('549')) p = '549' + p.slice(2);
-  return p;
-}
+
 
 /**
- * Mensaje WhatsApp con negritas y emojis. Muestra OS o Copago según corresponda.
- */
-function buildWA({ pac, fechaISO, start, end, prof, centro, dir, osNombre = null, copago = null }){
-  const nombre = `${(pac?.nombre||'').trim()} ${(pac?.apellido||'').trim()}`.trim() || 'Paciente';
-  const fecha  = fmtDateLongNice(fechaISO);
-  const hora   = `${(start||'').slice(0,5)} hs`;
-  const centroLinea = [centro, dir].filter(Boolean).join(' · ');
-
-  const lineaOSoCopago = osNombre
-    ? `*Obra social*: ${osNombre} 🧾`
-    : (copago != null ? `*Particular*: Copago $${Number(copago).toLocaleString('es-AR', { maximumFractionDigits: 0 })} 💳` : null);
-
-  const lineaDniCred = osNombre
-    ? `Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.`
-    : `Por favor presentarse 5 minutos antes del turno con DNI.`;
-
-  return [
-    `Estimado *${nombre}*.`,
-    ``,
-    `Su turno ha sido confirmado ✅`,
-    `*Fecha:* ${fecha} 📅`,
-    `*Hora:* ${hora} ⏰`,
-    `*Profesional:* ${prof || ''} 🩺`,
-    `*Centro médico*: ${centroLinea} 🏥`,
-    lineaOSoCopago,
-    lineaDniCred,
-    `En caso de no poder asistir, informar con antelación.`,
-    `_Muchas gracias_ 🙏`,
-  ].filter(Boolean).join('\n');
-}
 
 /**
  * Abre el modal OK y setea el link de WhatsApp.
