@@ -778,7 +778,7 @@ async function tryAgendar(slot){
     if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
     if (!currentCentroId || !modalDateISO || !slot?.profId){ alert('Falta centro/profesional/fecha.'); return; }
 
-    // Trazabilidad
+    // Trazabilidad (quién otorga el turno)
     const asignadoPor = getCurrentUserTag(); // puede ser null
 
     // OS / copago (para DB y para mensaje)
@@ -811,6 +811,7 @@ async function tryAgendar(slot){
       }
     }
 
+    // Copago final (solo particular)
     const copagoFinal = obraSocialId == null
       ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
       : null;
@@ -834,40 +835,26 @@ async function tryAgendar(slot){
     const { error } = await supabase.from('turnos').insert([payload]);
     if (error){ alert(error.message || 'No se pudo reservar el turno.'); return; }
 
-    // OK Modal (siempre la misma función)
-  function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null }){
-  if (!UI.okBackdrop) return;
+    // Abrir modal OK (usa SIEMPRE la misma openOkModal global)
+    openOkModal({
+      pac:       pacienteSeleccionado,
+      fechaISO:  modalDateISO,
+      start:     slot.start,
+      end:       slot.end,
+      profLabel: profNameById(slot.profId),
+      osNombre,
+      copago:    copagoFinal,
+    });
 
-  // Texto visible
-  UI.okTitle.textContent     = 'Turno reservado';
-  UI.okPaciente.textContent  = `${pac.apellido}, ${pac.nombre}`;
-  UI.okDni.textContent       = pac.dni || '';
-  UI.okFechaHora.textContent = `${fmtDateLong(fechaISO)} · ${start}–${end}`;
-  UI.okProf.textContent      = profLabel || '';
-  UI.okCentro.textContent    = currentCentroNombre || '';
-  UI.okDir.textContent       = currentCentroDireccion || '';
-
-  // WhatsApp (usa buildWA que ya incluye OS o Copago)
-  const waPhone = normalizePhoneForWA(pac.telefono);
-  const waText  = buildWA({
-    pac,
-    fechaISO,
-    start,
-    end,
-    prof:   profLabel,
-    centro: currentCentroNombre,
-    dir:    currentCentroDireccion,
-    osNombre,
-    copago,
-  });
-
-  UI.okWa.href = waPhone
-    ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}`
-    : `https://wa.me/?text=${encodeURIComponent(waText)}`;
-
-  UI.okMsg.textContent = '';
-  UI.okBackdrop.style.display = 'flex';
+  } finally {
+    bookingBusy = false;
+    setSlotsDisabled(false);
+    await refreshDayModal();
+    await renderCalendar();
+    refreshModalTitle();
+  }
 }
+
 
 
 
