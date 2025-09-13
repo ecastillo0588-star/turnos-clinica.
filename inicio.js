@@ -94,6 +94,41 @@ let selectedProfesionales = []; // multi-selección
 let currentFechaISO = null;
 let centroWatchTimer = null;
 
+/* ====== Persistencia de selección de profesional ====== */
+function profSelKey(){ return `inicio_prof_sel_${currentCentroId||'any'}`; }
+function getSavedProfIds(){
+  try{
+    const s = localStorage.getItem(profSelKey());
+    if(!s) return null;
+    const arr = JSON.parse(s);
+    return Array.isArray(arr) ? arr.map(String) : null;
+  }catch{ return null; }
+}
+function saveProfSelection(){
+  const sel = UI.profSelect; if(!sel) return;
+  const ids = sel.multiple
+    ? Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean)
+    : (sel.value ? [sel.value] : []);
+  try{ localStorage.setItem(profSelKey(), JSON.stringify(ids)); }catch{}
+}
+function restoreProfSelection(){
+  const sel = UI.profSelect; if(!sel) return false;
+  const saved = getSavedProfIds();
+  if(!saved || !saved.length) return false;
+  const values = new Set(saved.map(String));
+  let firstSelected = null;
+  Array.from(sel.options).forEach(o=>{
+    if(!o.value) return;
+    if(values.has(String(o.value))){ o.selected = true; if(!firstSelected) firstSelected = o.value; }
+    else if(sel.multiple){ o.selected = false; }
+  });
+  if(!sel.multiple){ sel.value = firstSelected || ''; }
+  selectedProfesionales = sel.multiple
+    ? Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean)
+    : (sel.value ? [sel.value] : []);
+  return selectedProfesionales.length>0;
+}
+
 /* Filtro global */
 let filterText = '';
 
@@ -177,6 +212,8 @@ async function syncCentroFromStorage(force=false){
     localStorage.setItem('centro_medico_nombre', currentCentroNombre);
     renderCentroChip();
     await loadProfesionales();
+  // Restaurar selección de profesional guardada (por centro)
+  if (!restoreProfSelection()) { saveProfSelection(); }
     await refreshAll();
   }
 }
@@ -217,6 +254,9 @@ UI.profSelect.addEventListener('change', async ()=>{
   selectedProfesionales = sel.multiple
     ? Array.from(sel.selectedOptions).map(o => o.value).filter(Boolean)
     : (sel.value ? [sel.value] : []);
+  saveProfSelection();
+  await refreshAll();
+});
   await refreshAll();
 });
 
