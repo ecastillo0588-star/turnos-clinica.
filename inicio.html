@@ -1100,15 +1100,19 @@ async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
   const id = turnoId ?? drawerTurnoId; if (!id) return;
   if (!confirm('¿Marcar este turno como ATENDIDO?')) return;
 
+  // Solo cambiamos el estado, no tocamos las horas
   const { data, error } = await supabase
     .from('turnos')
-    .update({ estado: EST.ATENDIDO, hora_fin: nowHHMMSS() })
+    .update({ estado: EST.ATENDIDO })
     .eq('id', id)
     .eq('estado', EST.EN_ATENCION)
     .select('id');
 
-  if (error){ console.error('No se pudo marcar atendido:', error); alert('No se pudo finalizar.'); return; }
-  if (!data?.length){ alert('El turno no estaba en "En atención".'); return; }
+  if (error) {
+    console.error('No se pudo marcar atendido:', error);
+    alert(error.message || 'No se pudo finalizar.');
+    return;
+  }
 
   if (closeDrawer) hideDrawer();
   await refreshAll();
