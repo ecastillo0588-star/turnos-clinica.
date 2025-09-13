@@ -176,8 +176,8 @@ function buildWA({ pac, fechaISO, start, end, prof, centro, dir, osNombre = null
     lineaCentro,
     lineaOSoCopago,
     osNombre
-      ? `Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.`
-      : `Por favor presentarse 5 minutos antes del turno con DNI.`,
+      ? `- Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.`
+      : `- Recorda traer tus estudios realizados.`,
     `En caso de no poder asistir, informar con antelación.`,
     `_Muchas gracias_ ${EMO.pray}`
   ].filter(Boolean);
