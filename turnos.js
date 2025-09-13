@@ -129,12 +129,25 @@ function normalizePhoneForWA(raw){
   else if (p.startsWith('54') && !p.startsWith('549')) p = '549' + p.slice(2);
   return p;
 }
+
+const EMO = {
+  check:     '\u2705',         // ✅
+  calendar:  '\u{1F4C5}',      // 📅
+  clock:     '\u23F0',         // ⏰
+  // Stethoscope (puede no estar en SO viejos). Fallback: persona de salud + símbolo médico
+  steth:     '\u{1FA7A}',      // 🩺
+  stethAlt:  '\u{1F9D1}\u200D\u2695\uFE0F', // 🧑‍⚕️
+  hospital:  '\u{1F3E5}',      // 🏥
+  receipt:   '\u{1F9FE}',      // 🧾 (puede faltar en SO viejos)
+  card:      '\u{1F4B3}',      // 💳
+  pray:      '\u{1F64F}',      // 🙏
+};
+
 function buildWA({ pac, fechaISO, start, end, prof, centro, dir, osNombre = null, copago = null }){
   const nombre = `${(pac?.nombre||'').trim()} ${(pac?.apellido||'').trim()}`.trim() || 'Paciente';
 
-  // "martes, 16 de septiembre de 2025" -> "Martes 16 de Septiembre de 2025"
   const fechaRaw = (fmtDateLong(fechaISO) || '').replace(',', '');
-  const stop = new Set(['de','del','la','el','los','las','y']); // palabras que mantenemos en minúscula
+  const stop = new Set(['de','del','la','el','los','las','y']);
   const fechaCap = fechaRaw
     .toLowerCase()
     .split(' ')
@@ -144,32 +157,34 @@ function buildWA({ pac, fechaISO, start, end, prof, centro, dir, osNombre = null
 
   const horaTxt   = `${(start || '').slice(0,5)} hs`;
   const centroTxt = [centro, dir].filter(Boolean).join(' · ');
-  const lineaCentro = centroTxt ? `*Centro médico*: ${centroTxt} 🏥` : null;
+  const lineaCentro = centroTxt ? `*Centro médico*: ${centroTxt} ${EMO.hospital}` : null;
 
   const lineaOSoCopago = osNombre
-    ? `*Obra social*: ${osNombre} 🧾`
-    : (copago != null ? `*Particular*: Copago $${Number(copago).toLocaleString('es-AR', { maximumFractionDigits: 0 })} 💳` : null);
+    ? `*Obra social*: ${osNombre} ${EMO.receipt}`
+    : (copago != null ? `*Particular*: Copago $${Number(copago).toLocaleString('es-AR', { maximumFractionDigits: 0 })} ${EMO.card}` : null);
 
-  const lineaDniCred = osNombre
-    ? `Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.`
-    : `Por favor presentarse 5 minutos antes del turno con DNI.`;
+  // si tu público es “viejo”, cambiale EMO.steth por EMO.stethAlt
+  const emSteth = EMO.steth; // o EMO.stethAlt
 
   const partes = [
     `Estimado *${nombre}*.`,
     ``,
-    `Su turno ha sido confirmado ✅`,
-    `*Fecha:* ${fechaCap} 📅`,
-    `*Hora:* ${horaTxt} ⏰`,
-    `*Profesional:* ${prof || ''} 🩺`,
+    `Su turno ha sido confirmado ${EMO.check}`,
+    `*Fecha:* ${fechaCap} ${EMO.calendar}`,
+    `*Hora:* ${horaTxt} ${EMO.clock}`,
+    `*Profesional:* ${prof || ''} ${emSteth}`,
     lineaCentro,
     lineaOSoCopago,
-    lineaDniCred,
+    osNombre
+      ? `Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.`
+      : `Por favor presentarse 5 minutos antes del turno con DNI.`,
     `En caso de no poder asistir, informar con antelación.`,
-    `_Muchas gracias_ 🙏`
+    `_Muchas gracias_ ${EMO.pray}`
   ].filter(Boolean);
 
   return partes.join('\n');
 }
+
 
 
 // ---------------------------
