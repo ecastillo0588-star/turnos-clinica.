@@ -95,6 +95,29 @@ function fmtDateLong(iso){
 const DOW = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 function nativeFirstDow(d){ const g = d.getDay(); return g===0 ? 6 : g-1; }
 
+function getCurrentUserTag(){
+  const keys = ['user_email','email','username','user_name','user_id'];
+  for (const k of keys){
+    const v = safeLocalStorage.getItem(k);
+    if (v && String(v).trim()){
+      const out = String(v).trim();
+      return k.includes('email') ? out.toLowerCase().slice(0,128) : out.slice(0,128);
+    }
+  }
+  // fallback: algunas apps guardan un objeto "user" en JSON
+  try{
+    const raw = safeLocalStorage.getItem('user');
+    if (raw){
+      const u = JSON.parse(raw);
+      if (u?.email) return String(u.email).trim().toLowerCase().slice(0,128);
+      if (u?.id)    return String(u.id).trim().slice(0,128);
+    }
+  }catch{}
+  return null; // sin info en LS
+}
+
+
+
 // ---------------------------
 /* WhatsApp helpers */
 // ---------------------------
@@ -842,19 +865,29 @@ async function tryAgendar(slot){
   if (bookingBusy) return;
   bookingBusy = true;
   setSlotsDisabled(true);
-  try{
+
+  try {
+    // Validaciones básicas
     if (!pacienteSeleccionado){ alert('Seleccioná un paciente primero.'); return; }
     if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
     if (!currentCentroId || !modalDateISO || !slot?.profId){ alert('Falta centro/profesional/fecha.'); return; }
 
-    let obraSocialId = pacienteSeleccionado.obra_social_id || null;
+    // Quien asigna (localStorage)
+    const asignadoPor = getCurrentUserTag(); // puede ser null si no hay nada en LS
+
+    let obraSocialId  = pacienteSeleccionado.obra_social_id || null;
     let copagoElegido = null;
 
+    // Cupo por obra social (si corresponde)
     if (obraSocialId){
       const ESTADOS_VIGENTES = ['asignado','confirmado','atendido'];
       const cupo = await getCupoObraSocialMensual(obraSocialId, slot.profId, modalDateISO, ESTADOS_VIGENTES);
+
       if (!cupo.disponible){
-        copagoElegido = (cupo.valor_copago != null) ? Number(cupo.valor_copago) : await getCopagoParticular(currentCentroId, slot.profId, modalDateISO);
+        copagoElegido = (cupo.valor_copago != null)
+          ? Number(cupo.valor_copago)
+          : await getCopagoParticular(currentCentroId, slot.profId, modalDateISO);
+
         abrirModalCupoAgotado(copagoElegido);
         const res = await new Promise(resolve => {
           const A = document.getElementById('modal-cupo-aceptar');
@@ -862,35 +895,46 @@ async function tryAgendar(slot){
           if (A) A.onclick = () => { cerrarModalCupoAgotado(); resolve('aceptar'); };
           if (C) C.onclick = () => { cerrarModalCupoAgotado(); resolve('cancelar'); };
         });
+
         if (res !== 'aceptar') return;
-        obraSocialId = null; // reservar como particular
+        // Pasar a particular
+        obraSocialId = null;
       }
     }
 
+    // Armado del payload
     const payload = {
-      agenda_id: slot.agenda_id || null,
-      centro_id: currentCentroId,
-      profesional_id: slot.profId,
-      paciente_id: pacienteSeleccionado.id,
-      fecha: modalDateISO,
-      hora_inicio: slot.start,
-      hora_fin: slot.end,
-      estado: 'asignado',
-      notas: UI.tipoTurno?.value === 'sobreturno' ? 'Sobreturno' : null,
-      obra_social_id: obraSocialId,
-      copago: obraSocialId == null ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO)) : null,
+      agenda_id:     slot.agenda_id || null,
+      centro_id:     currentCentroId,
+      profesional_id:slot.profId,
+      paciente_id:   pacienteSeleccionado.id,
+      fecha:         modalDateISO,
+      hora_inicio:   slot.start,
+      hora_fin:      slot.end,
+      estado:        'asignado',
+      notas:         UI.tipoTurno?.value === 'sobreturno' ? 'Sobreturno' : null,
+      obra_social_id:obraSocialId,
+      copago:        obraSocialId == null
+                      ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
+                      : null,
+      asignado_por:  asignadoPor, // <<< NUEVO: trazabilidad del usuario que dio el turno
     };
 
     const { error } = await supabase.from('turnos').insert([payload]);
-    if (error){ alert(error.message || 'No se pudo reservar el turno.'); return; }
+    if (error){
+      alert(error.message || 'No se pudo reservar el turno.');
+      return;
+    }
 
+    // Modal de confirmación + link de WhatsApp
     openOkModal({
-      pac: pacienteSeleccionado,
-      fechaISO: modalDateISO,
-      start: slot.start,
-      end: slot.end,
+      pac:       pacienteSeleccionado,
+      fechaISO:  modalDateISO,
+      start:     slot.start,
+      end:       slot.end,
       profLabel: profNameById(slot.profId),
     });
+
   } finally {
     bookingBusy = false;
     setSlotsDisabled(false);
@@ -900,13 +944,19 @@ async function tryAgendar(slot){
   }
 }
 
+
 async function confirmReprogram(slot){
   if (!reprogramState || reprogramBusy) return;
   reprogramBusy = true;
   setSlotsDisabled(true);
+
   try{
     const t = reprogramState.turno;
-    if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
+
+    if (!isValidHourRange(slot.start, slot.end)){
+      alert('Rango horario inválido.');
+      return;
+    }
 
     // Reprogramar solo con el mismo profesional
     const profId = t.profesional_id;
@@ -915,34 +965,59 @@ async function confirmReprogram(slot){
       return;
     }
 
-    if (!currentCentroId || !modalDateISO){ alert('Faltan datos.'); return; }
+    if (!currentCentroId || !modalDateISO){
+      alert('Faltan datos.');
+      return;
+    }
+
+    // Trazabilidad: quién hace la reprogramación
+    const asignadoPor = getCurrentUserTag(); // puede ser null si no hay nada en LS
 
     const nuevoTurno = {
-      agenda_id: slot.agenda_id || null,
-      centro_id: currentCentroId,
-      profesional_id: profId,
-      paciente_id: t.paciente_id,
-      fecha: modalDateISO,
-      hora_inicio: slot.start,
-      hora_fin: slot.end,
-      estado: t.estado || 'asignado',
-      notas: t.notas || null,
-      obra_social_id: t.obra_social_id ?? null,
-      copago: t.obra_social_id == null ? (t.copago ?? null) : null,
-      reprogramado_desde: `${t.fecha} ${toHM(t.hora_inicio)}-${toHM(t.hora_fin)}`
+      agenda_id:            slot.agenda_id || null,
+      centro_id:            currentCentroId,
+      profesional_id:       profId,
+      paciente_id:          t.paciente_id,
+      fecha:                modalDateISO,
+      hora_inicio:          slot.start,
+      hora_fin:             slot.end,
+      estado:               t.estado || 'asignado',
+      notas:                t.notas || null,
+      obra_social_id:       t.obra_social_id ?? null,
+      copago:               t.obra_social_id == null ? (t.copago ?? null) : null,
+      reprogramado_desde:   `${t.fecha} ${toHM(t.hora_inicio)}-${toHM(t.hora_fin)}`,
+      asignado_por:         asignadoPor, // <<< NUEVO
     };
 
     const { error: eIns } = await supabase.from('turnos').insert([nuevoTurno]);
-    if (eIns){ alert(eIns.message || 'No se pudo reprogramar.'); return; }
+    if (eIns){
+      alert(eIns.message || 'No se pudo reprogramar.');
+      return;
+    }
 
-    await supabase.from('turnos').delete().eq('id', t.id);
+    // Eliminamos el turno original
+    const { error: eDel } = await supabase.from('turnos').delete().eq('id', t.id);
+    if (eDel){
+      console.warn('No se pudo borrar el turno original:', eDel);
+      // No hay transacción; dejamos registro para revisión.
+    }
 
     const pac = t.pacientes
       ? { id:t.pacientes.id, nombre:t.pacientes.nombre, apellido:t.pacientes.apellido, dni:t.pacientes.dni, telefono:t.pacientes.telefono }
       : pacienteSeleccionado;
 
-    if (pac) openOkModal({ pac, fechaISO: modalDateISO, start: slot.start, end: slot.end, profLabel: profNameById(profId) });
+    if (pac){
+      openOkModal({
+        pac,
+        fechaISO:  modalDateISO,
+        start:     slot.start,
+        end:       slot.end,
+        profLabel: profNameById(profId),
+      });
+    }
+
     reprogramState = null;
+
   } finally {
     reprogramBusy = false;
     setSlotsDisabled(false);
@@ -950,6 +1025,7 @@ async function confirmReprogram(slot){
     await renderCalendar();
   }
 }
+
 
 async function cancelarTurno(t){
   if (!roleAllows('cancelar', userRole)) { alert('No tenés permisos para anular.'); return; }
