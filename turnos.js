@@ -129,20 +129,30 @@ function normalizePhoneForWA(raw){
   else if (p.startsWith('54') && !p.startsWith('549')) p = '549' + p.slice(2);
   return p;
 }
-function buildWA({ pac, fechaISO, start, end, prof, centro, dir }){
+function buildWA({ pac, fechaISO, start, end, prof, centro, dir, osNombre = null, copago = null }){
   const nombre = `${(pac?.nombre||'').trim()} ${(pac?.apellido||'').trim()}`.trim() || 'Paciente';
 
-  // "martes, 5 de septiembre de 2025" -> "Martes 5 de Septiembre de 2025"
+  // "martes, 16 de septiembre de 2025" -> "Martes 16 de Septiembre de 2025"
   const fechaRaw = (fmtDateLong(fechaISO) || '').replace(',', '');
+  const stop = new Set(['de','del','la','el','los','las','y']); // palabras que mantenemos en minúscula
   const fechaCap = fechaRaw
+    .toLowerCase()
     .split(' ')
-    .map(w => w ? w[0].toUpperCase() + w.slice(1) : w)
+    .map((w, i) => (i === 0 || !stop.has(w)) ? (w.charAt(0).toUpperCase() + w.slice(1)) : w)
     .join(' ')
     .trim();
 
-  const horaTxt = `${(start || '').slice(0,5)} hs`;
-  const centroLineaBase = [centro, dir].filter(Boolean).join(' · ');
-  const centroLinea = centroLineaBase ? `*Centro médico*: ${centroLineaBase} 🏥` : null;
+  const horaTxt   = `${(start || '').slice(0,5)} hs`;
+  const centroTxt = [centro, dir].filter(Boolean).join(' · ');
+  const lineaCentro = centroTxt ? `*Centro médico*: ${centroTxt} 🏥` : null;
+
+  const lineaOSoCopago = osNombre
+    ? `*Obra social*: ${osNombre} 🧾`
+    : (copago != null ? `*Particular*: Copago $${Number(copago).toLocaleString('es-AR', { maximumFractionDigits: 0 })} 💳` : null);
+
+  const lineaDniCred = osNombre
+    ? `Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.`
+    : `Por favor presentarse 5 minutos antes del turno con DNI.`;
 
   const partes = [
     `Estimado *${nombre}*.`,
@@ -151,8 +161,9 @@ function buildWA({ pac, fechaISO, start, end, prof, centro, dir }){
     `*Fecha:* ${fechaCap} 📅`,
     `*Hora:* ${horaTxt} ⏰`,
     `*Profesional:* ${prof || ''} 🩺`,
-    centroLinea,
-    `Por favor presentarse 5 minutos antes del turno con DNI y credencial de Obra Social.`,
+    lineaCentro,
+    lineaOSoCopago,
+    lineaDniCred,
     `En caso de no poder asistir, informar con antelación.`,
     `_Muchas gracias_ 🙏`
   ].filter(Boolean);
@@ -900,17 +911,18 @@ async function tryAgendar(slot){
     if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
     if (!currentCentroId || !modalDateISO || !slot?.profId){ alert('Falta centro/profesional/fecha.'); return; }
 
-    // Quien asigna (localStorage)
+    // Trazabilidad: quién otorga el turno
     const asignadoPor = getCurrentUserTag(); // puede ser null si no hay nada en LS
 
+    // OS / copago para mensaje y payload
     let obraSocialId  = pacienteSeleccionado.obra_social_id || null;
+    let osNombre      = obraSocialId ? (obrasSocialesById.get(String(obraSocialId))?.obra_social || null) : null;
     let copagoElegido = null;
 
-    // Cupo por obra social (si corresponde)
+    // Verificación de cupo por obra social (si tiene)
     if (obraSocialId){
       const ESTADOS_VIGENTES = ['asignado','confirmado','atendido'];
       const cupo = await getCupoObraSocialMensual(obraSocialId, slot.profId, modalDateISO, ESTADOS_VIGENTES);
-
       if (!cupo.disponible){
         copagoElegido = (cupo.valor_copago != null)
           ? Number(cupo.valor_copago)
@@ -923,29 +935,33 @@ async function tryAgendar(slot){
           if (A) A.onclick = () => { cerrarModalCupoAgotado(); resolve('aceptar'); };
           if (C) C.onclick = () => { cerrarModalCupoAgotado(); resolve('cancelar'); };
         });
-
         if (res !== 'aceptar') return;
-        // Pasar a particular
+
+        // Si acepta, pasa a particular
         obraSocialId = null;
+        osNombre     = null;
       }
     }
 
-    // Armado del payload
+    // Calcular copago final una sola vez
+    const copagoFinal = obraSocialId == null
+      ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
+      : null;
+
+    // Payload para INSERT
     const payload = {
-      agenda_id:     slot.agenda_id || null,
-      centro_id:     currentCentroId,
-      profesional_id:slot.profId,
-      paciente_id:   pacienteSeleccionado.id,
-      fecha:         modalDateISO,
-      hora_inicio:   slot.start,
-      hora_fin:      slot.end,
-      estado:        'asignado',
-      notas:         UI.tipoTurno?.value === 'sobreturno' ? 'Sobreturno' : null,
-      obra_social_id:obraSocialId,
-      copago:        obraSocialId == null
-                      ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
-                      : null,
-      asignado_por:  asignadoPor, // <<< NUEVO: trazabilidad del usuario que dio el turno
+      agenda_id:       slot.agenda_id || null,
+      centro_id:       currentCentroId,
+      profesional_id:  slot.profId,
+      paciente_id:     pacienteSeleccionado.id,
+      fecha:           modalDateISO,
+      hora_inicio:     slot.start,
+      hora_fin:        slot.end,
+      estado:          'asignado',
+      notas:           UI.tipoTurno?.value === 'sobreturno' ? 'Sobreturno' : null,
+      obra_social_id:  obraSocialId,
+      copago:          copagoFinal,
+      asignado_por:    asignadoPor,
     };
 
     const { error } = await supabase.from('turnos').insert([payload]);
@@ -954,13 +970,15 @@ async function tryAgendar(slot){
       return;
     }
 
-    // Modal de confirmación + link de WhatsApp
+    // Modal de OK + link de WhatsApp (requiere que openOkModal acepte osNombre y copago)
     openOkModal({
       pac:       pacienteSeleccionado,
       fechaISO:  modalDateISO,
       start:     slot.start,
       end:       slot.end,
       profLabel: profNameById(slot.profId),
+      osNombre,
+      copago:    copagoFinal,
     });
 
   } finally {
@@ -971,6 +989,7 @@ async function tryAgendar(slot){
     refreshModalTitle();
   }
 }
+
 
 
 async function confirmReprogram(slot){
