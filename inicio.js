@@ -356,9 +356,46 @@ function collapseBoards(){
   boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
   localStorage.removeItem(LAYOUT.expandKey);
 }
+
+function ensureBoardCtrlMarkup(){
+  if (!boardsEl) return;
+
+  // CSS mínimo para que se vean los controles
+  if (!document.getElementById('boards-ctrls-css')) {
+    const st = document.createElement('style');
+    st.id = 'boards-ctrls-css';
+    st.textContent = `
+      .board { position: relative; }
+      .b-ctrls{ position:absolute; top:8px; right:8px; display:flex; gap:6px; z-index:5; }
+      .b-ctrl{ border:1px solid #ddd; background:#fff; padding:4px 6px; border-radius:8px; cursor:pointer; }
+      .b-ctrl:hover{ box-shadow:0 1px 6px rgba(0,0,0,.08); }
+    `;
+    document.head.appendChild(st);
+  }
+
+  boardsEl.querySelectorAll('.board').forEach(board=>{
+    // Asegurate de tener data-board="pend|esp|atencion|done" en cada .board
+    let ctrls = board.querySelector('.b-ctrls');
+    if (!ctrls) {
+      ctrls = document.createElement('div');
+      ctrls.className = 'b-ctrls';
+      ctrls.innerHTML = `
+        <button class="b-ctrl b-ctrl--grow"     title="Agrandar fila">↕︎</button>
+        <button class="b-ctrl b-ctrl--expand"   title="Expandir">⤢</button>
+        <button class="b-ctrl b-ctrl--collapse" title="Restaurar">⤡</button>
+      `;
+      (board.querySelector('.b-head') || board).appendChild(ctrls);
+    }
+  });
+}
+
+
 function setupBoardControls(){
   applyRowsFromStorage();
   if (!boardsEl) return;
+
+  // CREA los botones si faltan
+  ensureBoardCtrlMarkup();
 
   const prev = localStorage.getItem(LAYOUT.expandKey);
   if (prev){
@@ -378,6 +415,7 @@ function setupBoardControls(){
   const onChange = ()=>{ if (mq.matches) resetSplit(); };
   mq.addEventListener('change', onChange); onChange();
 }
+
 
 /* =======================
    Datos del día (con abort)
