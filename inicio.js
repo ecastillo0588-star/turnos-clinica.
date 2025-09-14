@@ -35,7 +35,7 @@ const nowHHMMSS = () => { const d=new Date(); return `${pad2(d.getHours())}:${pa
 /* =======================
    Estado de módulo
    ======================= */
-let rootEl = document;       // contenedor del panel (se setea en init)
+
 let UI = {};
 let H  = {};
 let Drawer = {};
@@ -159,7 +159,6 @@ function ensureOverlay(root) {
     document.head.appendChild(style);
   }
 
-  // root debe poder posicionar hijos absolutos
   const cs = getComputedStyle(root);
   if (cs.position === 'static') root.style.position = 'relative';
 
@@ -170,16 +169,6 @@ function ensureOverlay(root) {
   root.appendChild(overlay);
 }
 
-function setLoading(on) {
-  const root = rootEl || document.getElementById('inicio-root');
-  if (!root) return;
-
-  // Si la boot mask sigue puesta, no mostrar el overlay JS
-  if (root.hasAttribute('data-boot')) return;
-
-  const cont = root.querySelector('#inicio-loading');
-  if (cont) cont.classList.toggle('show', !!on);
-}
 
 
 /* =======================
@@ -855,35 +844,51 @@ async function anularTurno(turnoId){
 /* =======================
    Refresh principal
    ======================= */
-async function refreshAll({ showOverlay = false } = {}){
+/* =======================
+   Refresh principal
+   ======================= */
+async function refreshAll(opts = {}) {
+  // opciones: showOverlay (inmediato) | showOverlayIfSlow (tras 220ms)
+  const { showOverlay = false, showOverlayIfSlow = false } = opts;
+
   const myReqId = ++_refresh.reqId;
 
-  if (showOverlay) setLoading(true);
+  let timer = null;
+  if (showOverlay) {
+    setLoading(true);
+  } else if (showOverlayIfSlow) {
+    timer = setTimeout(() => setLoading(true), 220);
+  }
 
   // si no hay profesionales seleccionados => limpiar
-  if(!selectedProfesionales.length){
-    UI.tblPend && (UI.tblPend.innerHTML='');
-    UI.tblEsp && (UI.tblEsp.innerHTML='');
-    UI.tblAtencion && (UI.tblAtencion.innerHTML='');
-    UI.tblDone && (UI.tblDone.innerHTML='');
-    safeSet(UI.kpiSub, `${currentCentroNombre||''} · ${currentFechaISO||todayISO()}`);
-    renderBoardTitles({pendientes:[],presentes:[],atencion:[],atendidos:[]});
-    if (showOverlay) setLoading(false);
+  if (!selectedProfesionales.length) {
+    UI.tblPend && (UI.tblPend.innerHTML = '');
+    UI.tblEsp && (UI.tblEsp.innerHTML = '');
+    UI.tblAtencion && (UI.tblAtencion.innerHTML = '');
+    UI.tblDone && (UI.tblDone.innerHTML = '');
+    safeSet(UI.kpiSub, `${currentCentroNombre || ''} · ${currentFechaISO || todayISO()}`);
+    renderBoardTitles({ pendientes: [], presentes: [], atencion: [], atendidos: [] });
+
+    if (timer) clearTimeout(timer);
+    setLoading(false);
     return;
   }
 
-  const raw = await fetchDiaData();
-  if (myReqId !== _refresh.reqId) return; // respuesta vieja
+  try {
+    const raw = await fetchDiaData();
+    if (myReqId !== _refresh.reqId) return; // respuesta vieja
 
-  const filtered = applyFilter(raw);
-  renderPendientes(filtered.pendientes);
-  renderPresentes(filtered.presentes);
-  renderAtencion(filtered.atencion);
-  renderAtendidos(filtered.atendidos);
-  renderKPIs(raw);
-  renderBoardTitles(filtered);
-
-  if (showOverlay) setLoading(false);
+    const filtered = applyFilter(raw);
+    renderPendientes(filtered.pendientes);
+    renderPresentes(filtered.presentes);
+    renderAtencion(filtered.atencion);
+    renderAtendidos(filtered.atendidos);
+    renderKPIs(raw);
+    renderBoardTitles(filtered);
+  } finally {
+    if (timer) clearTimeout(timer);
+    setLoading(false);
+  }
 }
 
 /* =======================
@@ -945,7 +950,11 @@ export async function initInicio(root) {
   await loadProfesionales();
   if (!restoreProfSelection()) saveProfSelection();
 
-  await refreshAll({ showOverlayIfSlow: false }); // primer render: sin overlay JS
+  await refreshAll({ showOverlayIfSlow: false }); // primer render
+// ...
+  await refreshAll({ showOverlayIfSlow: true });  // al cambiar profesional / fecha / centro
+
+
 
   // 10) Fin de boot: saco la máscara y quedo listo
   const rootNode = document.getElementById('inicio-root');
