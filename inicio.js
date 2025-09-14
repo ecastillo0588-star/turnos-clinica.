@@ -159,15 +159,6 @@ function ensureOverlay(root) {
     document.head.appendChild(style);
   }
 
-function setLoading(on) {
-  const root = rootEl || document.getElementById('inicio-root');
-  if (!root) return;
-  // si la máscara de boot sigue, no mostrar overlay JS
-  if (root.hasAttribute('data-boot')) return;
-  const cont = root.querySelector('#inicio-overlay');
-  if (cont) cont.classList.toggle('show', !!on);
-}
-
 
   const cs = getComputedStyle(root);
   if (cs.position === 'static') root.style.position = 'relative';
@@ -180,6 +171,14 @@ function setLoading(on) {
 }
 
 
+function setLoading(on) {
+  const root = rootEl || document.getElementById('inicio-root');
+  if (!root) return;
+  // si la máscara de boot sigue, no mostrar overlay JS
+  if (root.hasAttribute('data-boot')) return;
+  const cont = root.querySelector('#inicio-overlay');
+  if (cont) cont.classList.toggle('show', !!on);
+}
 
 /* =======================
    Preferencias (FS, centro, prof)
