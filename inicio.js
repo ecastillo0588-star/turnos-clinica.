@@ -956,10 +956,10 @@ export async function initInicio(root) {
 
   // 9) Profesionales + PRIMERA CARGA
   //    No muestres el overlay JS ahora: la "boot mask" (data-boot) ya tapa todo.
-  await loadProfesionales();
-  if (!restoreProfSelection()) saveProfSelection();
+ await loadProfesionales();
+if (!restoreProfSelection()) saveProfSelection();
+await refreshAll({ showOverlayIfSlow: false }); // primer render sin overlay
 
- await refreshAll({ showOverlayIfSlow: true });  // al cambiar profesional / fecha / centro
 
 
 
