@@ -1,463 +1,182 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Inicio — EG Health Solutions</title>
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-<style>
-  /* ====== Variables ====== */
-  :root{
-    --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
-    --bg:#f7f9fb; --card:#fff; --line:#ece5fc;
-    --ok:#0a7d38; --warn:#8a5800; --danger:#d32f2f;
-
-    --board-h: 420px;              /* alto base de fila */
-    --row-1: var(--board-h);       /* altura fila 1 (controlada por JS) */
-    --row-2: var(--board-h);       /* altura fila 2 (controlada por JS) */
-
-    /* Tipografía global escalable */
-    --fs: 14px; /* cambiable con A−/A/A+ */
-
-    /* Anchos y mínimos de columnas */
-    --w-acc: 100px;   /* Acciones */
-    --w-hora: 110px;
-    --w-dni: 120px;
-    --w-espera: 90px;
-    --w-copago: 110px;
-    --w-prof: 220px;
-
-    --minch-nombre: 12ch;
-    --minch-apellido: 12ch;
-    --minch-obra: 10ch;
-
-    --gap-acc: 2px;  /* separación visual antes de Acciones sticky */
-  }
-
-  :where(#main-content.card){
-    max-width:none!important;width:100%!important;padding:0!important;
-    background:transparent!important;box-shadow:none!important;border-radius:0!important;
-  }
-
-  *{box-sizing:border-box}
-  body{background:var(--bg);margin:0;font-family:'Segoe UI',Arial,sans-serif;color:var(--ink);font-size:var(--fs)}
-
-  /* ====== Panel contenedor ====== */
-  .shell{padding:10px}
-  .panel{
-    background:var(--card);border-radius:12px;box-shadow:0 1px 10px rgba(80,60,160,.08);
-    padding:10px;display:flex;flex-direction:column;gap:8px;min-height:calc(100vh - 20px)
-  }
-
-  /* ====== Inputs básicos ====== */
-  .field{display:flex;flex-direction:column;gap:3px;min-width:0}
-  .field label{font-size:.85em;color:var(--muted)}
-  .inp,.sel,.btn,.pill,.chip,.msg,.drawer-title,.drawer-sub,.table{ font-size:1em }
-  .inp,.sel{
-    background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:7px 9px;
-    color:var(--ink);outline:none;width:100%;
-  }
-  .inp:focus,.sel:focus,textarea:focus{border-color:var(--brand-2)}
-  .sel.compact{max-width:240px}
-  .btn{appearance:none;border:none;background:var(--brand);color:#fff;border-radius:8px;padding:7px 10px;font-weight:600;cursor:pointer}
-  .btn.secondary{background:#e7e2fa;color:#5a3e9a}
-
-  /* ====== Chips / badges ====== */
-  .chip{
-    display:flex;align-items:baseline;gap:6px;background:#f3f1fb;border:1px solid var(--line);
-    padding:6px 9px;border-radius:999px;white-space:nowrap
-  }
-  .chip .v{font-size:1.05em;font-weight:800;line-height:1}
-  .chip.mini{ font-size:.9em; padding:4px 8px; }
-
-  /* ====== Toolbar compacta (una sola banda) ====== */
-  .toolbar{
-    display:grid;
-    grid-template-columns: minmax(260px,1.4fr) minmax(180px,.9fr) minmax(160px,.8fr) auto auto;
-    gap:10px 12px; align-items:end;
-  }
-  .toolbar-aux{
-    margin-left:auto;
-    display:flex; align-items:end; gap:8px; flex-wrap:wrap;
-  }
-
-  /* Buscador */
-  .search-wrap{display:flex; align-items:center; gap:8px; width:fit-content;}
-  .search-wrap .inp{ height:36px; width:26ch; max-width:28ch; }
-  .search-clear{
-    border:none;background:#efeafb;border:1px solid var(--line);
-    border-radius:8px;padding:6px 10px;cursor:pointer
-  }
-
-  /* Control A−/A/A+ compacto */
-  .zoom-chip{ gap:6px }
-  .zoom-chip.compact{
-    gap:0; padding:2px; background:#fff; border:1px solid var(--line);
-    border-radius:10px; display:inline-flex; align-items:center;
-  }
-  .zoom-btn{
-    appearance:none;border:1px solid var(--line);background:#fff;
-    padding:.25em .55em;border-radius:6px;cursor:pointer;font-weight:700;line-height:1;min-width:2.2em;
-  }
-  .zoom-chip.compact .zoom-btn{
-    border:0; background:transparent; padding:4px 8px; min-width:auto;
-  }
-  .zoom-chip.compact .zoom-btn + .zoom-btn{ border-left:1px solid var(--line); }
-  .zoom-btn:hover{ background:#f4f1ff; }
-  .zoom-btn:focus-visible{ outline:2px solid var(--brand-2); outline-offset:2px; }
-
-  /* ====== Grilla de tableros (2x2) ====== */
-  .boards{
-    display:grid; gap:12px; grid-template-columns:1fr 1fr;
-    /* Antes: grid-auto-rows: var(--board-h);  Ahora controlamos 2 filas explícitas */
-    grid-template-rows: var(--row-1) var(--row-2);
-    grid-auto-rows: unset;
-    min-height:0; position:relative;
-  }
-  .board{
-    background:var(--card); border:1px solid var(--line); border-radius:10px;
-    padding:10px; display:flex; flex-direction:column;
-    min-height:0; overflow:hidden;
-  }
-  .board h3{
-    margin:2px 2px 8px; font-size:1.15em; line-height:1.2;
-    display:flex; align-items:center; gap:8px; color:#3b2b66;
-  }
-
-  /* ====== Controles por tablero (ampliar/expandir) ====== */
-  .b-ctrls{ margin-left:auto; display:flex; gap:6px; }
-  .b-ctrl{
-    border:none;background:#f4f1ff;border:1px solid var(--line);
-    width:28px;height:28px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;
-  }
-  .b-ctrl:hover{ background:#e6defa; }
-  .b-ctrl:focus-visible{ outline:2px solid var(--brand-2); outline-offset:2px; }
-
-  /* ====== Modo expandido dentro del área de boards ====== */
-  .boards.fullmode > .board{ display:none; }
-  .boards.fullmode > .board.expanded{
-    display:flex !important; position:absolute; inset:0; z-index:9;
-    height:100%; width:100%; box-shadow:0 8px 40px rgba(0,0,0,.18);
-  }
-  .b-ctrl--collapse{ display:none; }
-  .board.expanded .b-ctrl--collapse{ display:flex; }
-
-  /* ====== Cuerpo con scroll y canal para Acciones sticky ====== */
-  .board-body{
-    position:relative; flex:1 1 auto; min-height:0;
-    overflow-y:auto;
-    overflow-x:auto; /* aparece solo si hace falta con tipografía grande */
-    padding:0 calc(var(--w-acc) + var(--gap-acc)) 6px 2px; /* reserva canal derecho UNA sola vez */
-    overscroll-behavior:contain;
-    -webkit-overflow-scrolling:touch;
-    scrollbar-gutter: stable both-edges;
-  }
-
-  .table{
-    width:100%;
-    border-collapse:separate;border-spacing:0 5px;
-    min-width:0;
-  }
-  .thead{position:sticky; top:0; z-index:2; background:#fff}
-  .hrow,.row{
-    display:grid;gap:0;align-items:center;border:1px solid var(--line);padding:5px 8px;border-radius:8px;
-    margin-right:0; /* no reservar de nuevo el canal */
-  }
-  .hrow{background:#f4f1ff;color:#5a3e9a;font-weight:700}
-  .row{background:#faf9ff}
-  .cell{padding:0 4px;min-width:0}
-  .right{text-align:right} .nowrap{white-space:nowrap}
-  .truncate{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-  .thead .hrow .cell{white-space:nowrap} /* evitar cortes en encabezados */
-
-  .actions{display:flex;gap:6px;justify-content:flex-end}
-  .icon{
-    border:none;background:#f4f1ff;border:1px solid var(--line);
-    width:28px;height:28px;border-radius:7px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;
-  }
-
-  /* Badges */
-  .wait{display:inline-block;font-size:.85em;padding:2px 7px;border-radius:999px;background:#fff4e6;border:1px solid #ffe0b3;color:#8a5800}
-  .copago{display:inline-block;font-size:.85em;padding:2px 7px;border-radius:999px;background:#e8fff0;border:1px solid #b9f0cb;color:#0a7d38}
-  .copago.none{background:#f1f1f1;border-color:#e0e0e0;color:#666}
-
-  /* Scrollbar */
-  .board-body::-webkit-scrollbar{height:8px;width:8px}
-  .board-body::-webkit-scrollbar-thumb{background:#d8cfff;border-radius:8px}
-
-  /* ===== Ocultaciones por rol (AMC) ===== */
-  body.role-amc [data-act="cancel"]{ display:none !important; }
-  body.role-amc [data-act="atender"]{ display:none !important; }
-  body.role-amc [data-act="abrir-ficha"]{ display:none !important; }
-  body.role-amc [data-act="finalizar"]{ display:none !important; }
-
-  /* ===== Drawer ===== */
-  .drawer{
-    position:fixed; top:0; right:0; height:100vh; width:min(980px,96vw);
-    background:#fff; border-left:1px solid var(--line);
-    box-shadow:-12px 0 40px rgba(0,0,0,.18);
-    transform:translateX(100%); transition:transform .28s ease; z-index:9999;
-    display:flex; flex-direction:column;
-  }
-  .drawer.open{ transform:translateX(0); }
-  .drawer-head{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#e8def8;border-bottom:1px solid var(--line)}
-  .drawer-title{margin:0;font-weight:800}
-  .drawer-sub{color:#6b6480}
-  .drawer-body{flex:1;overflow:auto;padding:12px}
-  .drawer-foot{padding:10px 12px;border-top:1px solid var(--line);background:#faf7ff;display:flex;gap:10px;justify-content:flex-end}
-  .msg{font-size:1em}
-  .ok{color:var(--ok)} .warn{color:var(--warn)}
-  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
-  .card h4{margin:0 0 10px 0;font-size:1em;color:#4b3a78}
-
-  .hc-link{
-    display:inline-flex; align-items:center; gap:6px;
-    font-weight:600; text-decoration:none;
-    color:#3b2b66; background:#ffffff; border:1px solid #cbbbe8;
-    padding:6px 10px; border-radius:8px; box-shadow:0 1px 0 rgba(0,0,0,.05);
-  }
-  .hc-link:hover{ background:#fff; border-color:#b6a3ea; box-shadow:0 2px 6px rgba(0,0,0,.08); }
-  .hc-link:focus-visible{ outline:2px solid var(--brand-2); outline-offset:2px; }
-
-  /* Botón HC grande */
-  .hc-link.hc-link-big{ font-size:0.98rem; padding:8px 12px; }
-
-  #fichaDrawer .drawer-foot #fd-finalizar{
-    background:#d32f2f !important; border-color:#b71c1c !important; color:#fff !important;
-  }
-  #fichaDrawer .drawer-foot #fd-finalizar:hover{ background:#b71c1c !important; }
-  #fichaDrawer .drawer-foot #fd-finalizar:focus-visible{ outline:2px solid #7f1d1d; outline-offset:2px; }
-
-  /* ===== Acciones sticky ===== */
- .hrow .cell:last-child,
- .row  .cell:last-child{
-  position: sticky;
-  left: calc(100% - var(--w-acc)); /* pin al borde derecho del scrollport */
-  right: auto;                      /* por si quedó de antes */
-  z-index: 3;
-  min-width: var(--w-acc);
-  max-width: var(--w-acc);
-  width: var(--w-acc);
-  border-left: 1px solid var(--line);
-  /* mejora de render en algunos casos */
-  will-change: left;
-  contain: layout paint;
- }
-  .row .cell:last-child{
-    background:
-      linear-gradient(to left, #faf9ff 32px, rgba(250,249,255,0)),
-      #faf9ff;
-  }
-  .thead .hrow .cell:last-child{
-    z-index: 4;
-    background:
-      linear-gradient(to left, #f4f1ff 32px, rgba(244,241,255,0)),
-      #f4f1ff;
-  }
-
-  /* Mostrar solo "Hora turno" y "Copago" en el resumen */
-  #fd-prof, #fd-centro, #fd-fecha, #fd-estado { display: none !important; }
-
-  @media (max-width:1100px){
-    .boards{grid-template-columns:1fr; grid-template-rows:auto auto auto auto}
-    .b-ctrl--grow{ opacity:.5; pointer-events:none; }
-  }
-  @media (max-width:700px){
-    .toolbar{ grid-template-columns: 1fr 1fr; }
-    .toolbar-aux{ grid-column: 1 / -1; justify-content:flex-start; }
-    .search-wrap{ width:100%; }
-    .search-wrap .inp{ width:100%; max-width:100%; }
-  }
-</style>
+  <title>Inicio · Tablero de Turnos</title>
+  <link rel="stylesheet" href="/css/inicio.css">
 </head>
 <body>
-<div class="shell">
-  <section class="panel" id="inicio-root">
+  <div id="app-inicio">
+    <!-- Barra superior -->
+    <header class="topbar">
+      <div class="left">
+        <span id="centro-chip" class="chip">—</span>
 
-    <!-- Toolbar COMPACTA (sin “Centro médico” y sin chip resumen) -->
-    <div class="toolbar">
-      <!-- Buscador global -->
-      <div class="search-wrap">
-        <input id="mass-search" class="inp" placeholder="Buscar por DNI o Apellido (en toda la vista)"/>
-        <button id="mass-clear" class="search-clear" title="Limpiar">✖️</button>
+        <label class="ctrl">
+          <span>Profesional(es)</span>
+          <select id="prof-select" class="compact"></select>
+        </label>
+
+        <label class="ctrl">
+          <span>Fecha</span>
+          <div class="date-group">
+            <input id="fecha" type="date" />
+            <button id="btn-hoy" class="btn">Hoy</button>
+          </div>
+        </label>
       </div>
 
-      <!-- Profesional -->
-      <div class="field">
-        <label>Profesional</label>
-        <select id="prof-select" class="sel compact"><option>Profesional</option></select>
-      </div>
+      <div class="right">
+        <div class="kpis">
+          <div id="kpi-free" class="kpi">—</div>
+          <div id="kpi-sub" class="kpi-sub">—</div>
+        </div>
 
-      <!-- Fecha -->
-      <div class="field">
-        <label>Fecha</label>
-        <input id="fecha" type="date" class="inp"/>
-      </div>
+        <div class="search">
+          <input id="mass-search" type="search" placeholder="Buscar por apellido o DNI…" />
+          <button id="mass-clear" class="btn" title="Limpiar">✖</button>
+        </div>
 
-      <!-- Hoy -->
-      <div class="field" style="align-items:flex-end">
-        <button id="btn-hoy" class="btn secondary">Hoy</button>
-      </div>
-
-      <!-- Derecha: Horas libres (mini) + Zoom compacto -->
-      <div class="toolbar-aux">
-        <div class="chip mini"><span>Horas libres</span> <span class="v" id="kpi-free">0 min</span></div>
-
-        <div class="zoom-chip compact" id="zoom-chip" aria-label="Tamaño de fuente">
-          <button class="zoom-btn" id="zoom-dec" title="Reducir tamaño (A–)" type="button">A−</button>
-          <button class="zoom-btn" id="zoom-reset" title="Restablecer tamaño (A)" type="button">A</button>
-          <button class="zoom-btn" id="zoom-inc" title="Aumentar tamaño (A+)" type="button">A+</button>
+        <div class="zoom">
+          <button id="zoom-dec" class="btn" title="A−">A−</button>
+          <button id="zoom-reset" class="btn" title="A">A</button>
+          <button id="zoom-inc" class="btn" title="A+">A+</button>
         </div>
       </div>
-    </div>
+    </header>
 
-    <!-- Boards -->
-    <div class="boards" id="boards">
-      <div class="board" data-board="pend">
-        <h3 id="h-pend"><span id="hl-pend">Por llegar</span>
-          <span class="b-ctrls">
-            <button class="b-ctrl b-ctrl--grow" title="Ampliar/Restaurar fila">⬍</button>
-            <button class="b-ctrl b-ctrl--expand" title="Expandir">⛶</button>
-            <button class="b-ctrl b-ctrl--collapse" title="Cerrar">✖️</button>
-          </span>
-        </h3>
-        <div class="board-body"><table class="table" id="tbl-pend"></table></div>
-      </div>
-      <div class="board" data-board="esp">
-        <h3 id="h-esp"><span id="hl-esp">En sala de espera</span>
-          <span class="b-ctrls">
-            <button class="b-ctrl b-ctrl--grow" title="Ampliar/Restaurar fila">⬍</button>
-            <button class="b-ctrl b-ctrl--expand" title="Expandir">⛶</button>
-            <button class="b-ctrl b-ctrl--collapse" title="Cerrar">✖️</button>
-          </span>
-        </h3>
-        <div class="board-body"><table class="table" id="tbl-esp"></table></div>
-      </div>
-      <div class="board" data-board="atencion">
-        <h3 id="h-atencion"><span id="hl-atencion">En atención</span>
-          <span class="b-ctrls">
-            <button class="b-ctrl b-ctrl--grow" title="Ampliar/Restaurar fila">⬍</button>
-            <button class="b-ctrl b-ctrl--expand" title="Expandir">⛶</button>
-            <button class="b-ctrl b-ctrl--collapse" title="Cerrar">✖️</button>
-          </span>
-        </h3>
-        <div class="board-body"><table class="table" id="tbl-atencion"></table></div>
-      </div>
-      <div class="board" data-board="done">
-        <h3 id="h-done"><span id="hl-done">Atendidos</span>
-          <span class="b-ctrls">
-            <button class="b-ctrl b-ctrl--grow" title="Ampliar/Restaurar fila">⬍</button>
-            <button class="b-ctrl b-ctrl--expand" title="Expandir">⛶</button>
-            <button class="b-ctrl b-ctrl--collapse" title="Cerrar">✖️</button>
-          </span>
-        </h3>
-        <div class="board-body"><table class="table" id="tbl-done"></table></div>
-      </div>
-    </div>
+    <!-- Tableros -->
+    <main id="boards">
+      <!-- Por llegar -->
+      <section class="board" data-board="pend">
+        <div class="header">
+          <h3 id="hl-pend">Por llegar (0)</h3>
+          <div class="controls">
+            <button class="b-ctrl--grow" title="Agrandar fila">⤢</button>
+            <button class="b-ctrl--expand" title="Expandir">⛶</button>
+            <button class="b-ctrl--collapse" title="Salir de expandido">🗗</button>
+          </div>
+        </div>
+        <div class="content">
+          <table id="tbl-pend"></table>
+        </div>
+      </section>
+
+      <!-- En sala de espera -->
+      <section class="board" data-board="esp">
+        <div class="header">
+          <h3 id="hl-esp">En sala de espera (0)</h3>
+          <div class="controls">
+            <button class="b-ctrl--grow" title="Agrandar fila">⤢</button>
+            <button class="b-ctrl--expand" title="Expandir">⛶</button>
+            <button class="b-ctrl--collapse" title="Salir de expandido">🗗</button>
+          </div>
+        </div>
+        <div class="content">
+          <table id="tbl-esp"></table>
+        </div>
+      </section>
+
+      <!-- En atención -->
+      <section class="board" data-board="atencion">
+        <div class="header">
+          <h3 id="hl-atencion">En atención (0)</h3>
+          <div class="controls">
+            <button class="b-ctrl--grow" title="Agrandar fila">⤢</button>
+            <button class="b-ctrl--expand" title="Expandir">⛶</button>
+            <button class="b-ctrl--collapse" title="Salir de expandido">🗗</button>
+          </div>
+        </div>
+        <div class="content">
+          <table id="tbl-atencion"></table>
+        </div>
+      </section>
+
+      <!-- Atendidos -->
+      <section class="board" data-board="done">
+        <div class="header">
+          <h3 id="hl-done">Atendidos (0)</h3>
+          <div class="controls">
+            <button class="b-ctrl--grow" title="Agrandar fila">⤢</button>
+            <button class="b-ctrl--expand" title="Expandir">⛶</button>
+            <button class="b-ctrl--collapse" title="Salir de expandido">🗗</button>
+          </div>
+        </div>
+        <div class="content">
+          <table id="tbl-done"></table>
+        </div>
+      </section>
+    </main>
 
     <!-- Drawer Ficha Paciente -->
-    <aside id="fichaDrawer" class="drawer" aria-hidden="true">
-      <header class="drawer-head">
-        <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
-          <div id="fd-title" class="drawer-title">Ficha paciente: —</div>
-          <div id="fd-sub" class="drawer-sub">dni — / — años</div>
-          <div id="fd-os-year" class="drawer-sub">Turnos OS en el año: —</div>
+    <aside id="fichaDrawer" aria-hidden="true">
+      <button id="fd-close" aria-label="Cerrar">✖</button>
+
+      <div class="fd-head">
+        <div id="fd-status" class="msg"></div>
+        <h2 id="fd-title">Ficha paciente</h2>
+        <div class="subrow">
+          <span id="fd-sub">dni — / — años</span>
+          <span id="fd-os-year" class="osyear">Turnos OS en el año: —</span>
+          <a id="fd-hc" class="hc-link" href="#" target="_blank" rel="noopener">Historia clínica</a>
         </div>
-        <span style="flex:1"></span>
-        <a id="fd-hc" class="hc-link hc-link-big" href="#" target="_blank" rel="noopener" style="display:none">
-          <svg class="hc-ico" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2V8h6" fill="currentColor"/></svg>
-          <span>Ver historia clínica</span>
-        </a>
-        <button id="fd-close" class="icon" title="Cerrar">✖️</button>
-      </header>
-
-      <div class="drawer-body">
-        <div id="fd-status" class="msg" style="margin-bottom:8px"></div>
-
-        <div class="stats" id="fd-summary" style="margin-bottom:10px">
-          <div class="chip" id="fd-prof">Prof: —</div>
-          <div class="chip" id="fd-centro">Centro: —</div>
-          <div class="chip" id="fd-fecha">Fecha: —</div>
-          <div class="chip" id="fd-hora">Hora turno: —</div>
-          <div class="chip" id="fd-estado">Estado: —</div>
-          <div class="chip" id="fd-copago">Copago: —</div>
-        </div>
-
-        <div class="card">
-          <h4>Datos del paciente</h4>
-          <div class="row3">
-            <div class="field"><label>DNI</label><input id="fd-dni" class="inp"></div>
-            <div class="field"><label>Apellido</label><input id="fd-apellido" class="inp"></div>
-            <div class="field"><label>Nombre</label><input id="fd-nombre" class="inp"></div>
-          </div>
-          <div class="row3" style="margin-top:10px">
-            <div class="field"><label>Fecha de nacimiento</label><input id="fd-nac" type="date" class="inp"></div>
-            <div class="field"><label>Teléfono</label><input id="fd-tel" class="inp"></div>
-            <div class="field"><label>Email</label><input id="fd-mail" class="inp"></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h4>Obra social</h4>
-          <div class="row3">
-            <div class="field">
-              <label>Obra social</label>
-              <select id="fd-obra" class="sel"></select>
-            </div>
-            <div class="field"><label>N° afiliado</label><input id="fd-afiliado" class="inp"></div>
-            <div class="field">
-              <label>Credencial (URL)</label>
-              <div style="display:flex;gap:8px;align-items:center">
-                <input id="fd-cred" class="inp" placeholder="https://..." />
-                <a id="fd-cred-link" class="btn secondary" href="#" target="_blank" rel="noopener">Ver</a>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h4>Contacto de emergencia</h4>
-          <div class="row2">
-            <div class="field"><label>Nombre</label><input id="fd-ec-nom" class="inp" /></div>
-            <div class="field"><label>Apellido</label><input id="fd-ec-ape" class="inp" /></div>
-          </div>
-          <div class="row2" style="margin-top:10px">
-            <div class="field"><label>Celular</label><input id="fd-ec-cel" class="inp" /></div>
-            <div class="field"><label>Vínculo</label><input id="fd-ec-vin" class="inp" /></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h4>Seguimiento</h4>
-          <div class="row3">
-            <div class="field"><label>Próximo control</label><input id="fd-prox" type="date" class="inp" /></div>
-            <div class="field"><label>Renovación de receta</label><input id="fd-renov" type="date" class="inp" /></div>
-            <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:22px">
-              <input id="fd-activo" type="checkbox" /><label for="fd-activo">Activo</label>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h4>Notas del turno</h4>
-          <div class="field"><textarea id="fd-notas" class="inp" placeholder="Observaciones internas..." style="min-height:80px"></textarea></div>
-        </div>
-
       </div>
 
-      <footer class="drawer-foot">
-        <span id="fd-msg" class="msg"></span>
-        <button id="fd-cerrar" class="btn secondary">Cerrar</button>
-        <button id="fd-guardar" class="btn">Guardar cambios</button>
-        <button id="fd-finalizar" class="btn">Finalizar</button>
-      </footer>
+      <div class="fd-body">
+        <div class="fd-info">
+          <span id="fd-prof"></span> ·
+          <span id="fd-centro"></span> ·
+          <span id="fd-fecha"></span> ·
+          <span id="fd-hora"></span> ·
+          <span id="fd-estado"></span> ·
+          <span id="fd-copago"></span>
+        </div>
+
+        <div id="fd-msg" class="msg"></div>
+
+        <div class="fd-grid">
+          <label>DNI<input id="fd-dni" type="text" inputmode="numeric"></label>
+          <label>Fecha nac.<input id="fd-nac" type="date"></label>
+
+          <label>Apellido<input id="fd-apellido" type="text"></label>
+          <label>Nombre<input id="fd-nombre" type="text"></label>
+
+          <label>Teléfono<input id="fd-tel" type="tel"></label>
+          <label>Email<input id="fd-mail" type="email"></label>
+
+          <label>Obra social<select id="fd-obra"></select></label>
+          <label>N° afiliado<input id="fd-afiliado" type="text"></label>
+
+          <label>Credencial<input id="fd-cred" type="url" placeholder="URL a credencial"></label>
+          <label>&nbsp;<a id="fd-cred-link" href="#" target="_blank" rel="noopener">Abrir credencial</a></label>
+
+          <label>Contacto (nombre)<input id="fd-ec-nom" type="text"></label>
+          <label>Contacto (apellido)<input id="fd-ec-ape" type="text"></label>
+
+          <label>Contacto (celular)<input id="fd-ec-cel" type="tel"></label>
+          <label>Vínculo<input id="fd-ec-vin" type="text"></label>
+
+          <label>Próximo control<input id="fd-prox" type="date"></label>
+          <label>Renovación receta<input id="fd-renov" type="date"></label>
+
+          <label class="check"><input id="fd-activo" type="checkbox"> Activo</label>
+
+          <label style="grid-column:1/-1">Notas
+            <textarea id="fd-notas" rows="4"></textarea>
+          </label>
+        </div>
+      </div>
+
+      <div class="fd-actions">
+        <button id="fd-guardar" class="btn">Guardar</button>
+        <button id="fd-finalizar" class="btn primary">Finalizar atención</button>
+        <button id="fd-cerrar" class="btn">Cerrar</button>
+      </div>
     </aside>
+  </div>
 
-  </section>
-</div>
-
-<!-- Tu lógica va aparte en inicio.js -->
-<script type="module" src="./inicio.js"></script>
+  <!-- Carga de JS como módulo (respeta tus imports relativos) -->
+  <script type="module" src="/js/inicio.js"></script>
 </body>
 </html>
