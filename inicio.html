@@ -1,182 +1,198 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
+  <title>Inicio — EG Health Solutions</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Inicio · Tablero de Turnos</title>
   <link rel="stylesheet" href="./inicio.css">
 </head>
 <body>
-  <div id="app-inicio">
-    <!-- Barra superior -->
-    <header class="topbar">
-      <div class="left">
-        <span id="centro-chip" class="chip">—</span>
+<div class="shell">
+  <section class="panel" id="inicio-root">
 
-        <label class="ctrl">
-          <span>Profesional(es)</span>
-          <select id="prof-select" class="compact"></select>
-        </label>
-
-        <label class="ctrl">
-          <span>Fecha</span>
-          <div class="date-group">
-            <input id="fecha" type="date" />
-            <button id="btn-hoy" class="btn">Hoy</button>
-          </div>
-        </label>
+    <!-- Toolbar COMPACTA (sin “Centro médico” y sin chip resumen) -->
+    <div class="toolbar">
+      <!-- Buscador global -->
+      <div class="search-wrap">
+        <input id="mass-search" class="inp" placeholder="Buscar por DNI o Apellido (en toda la vista)"/>
+        <button id="mass-clear" class="search-clear" title="Limpiar">✖️</button>
       </div>
 
-      <div class="right">
-        <div class="kpis">
-          <div id="kpi-free" class="kpi">—</div>
-          <div id="kpi-sub" class="kpi-sub">—</div>
-        </div>
+      <!-- Profesional -->
+      <div class="field">
+        <label>Profesional</label>
+        <select id="prof-select" class="sel compact"><option>Profesional</option></select>
+      </div>
 
-        <div class="search">
-          <input id="mass-search" type="search" placeholder="Buscar por apellido o DNI…" />
-          <button id="mass-clear" class="btn" title="Limpiar">✖</button>
-        </div>
+      <!-- Fecha -->
+      <div class="field">
+        <label>Fecha</label>
+        <input id="fecha" type="date" class="inp"/>
+      </div>
 
-        <div class="zoom">
-          <button id="zoom-dec" class="btn" title="A−">A−</button>
-          <button id="zoom-reset" class="btn" title="A">A</button>
-          <button id="zoom-inc" class="btn" title="A+">A+</button>
+      <!-- Hoy -->
+      <div class="field" style="align-items:flex-end">
+        <button id="btn-hoy" class="btn secondary">Hoy</button>
+      </div>
+
+      <!-- Derecha: Horas libres (mini) + Zoom compacto -->
+      <div class="toolbar-aux">
+        <div class="chip mini"><span>Horas libres</span> <span class="v" id="kpi-free">0 min</span></div>
+
+        <div class="zoom-chip compact" id="zoom-chip" aria-label="Tamaño de fuente">
+          <button class="zoom-btn" id="zoom-dec" title="Reducir tamaño (A–)" type="button">A−</button>
+          <button class="zoom-btn" id="zoom-reset" title="Restablecer tamaño (A)" type="button">A</button>
+          <button class="zoom-btn" id="zoom-inc" title="Aumentar tamaño (A+)" type="button">A+</button>
         </div>
       </div>
-    </header>
+    </div>
 
-    <!-- Tableros -->
-    <main id="boards">
-      <!-- Por llegar -->
-      <section class="board" data-board="pend">
-        <div class="header">
-          <h3 id="hl-pend">Por llegar (0)</h3>
-          <div class="controls">
-            <button class="b-ctrl--grow" title="Agrandar fila">⤢</button>
-            <button class="b-ctrl--expand" title="Expandir">⛶</button>
-            <button class="b-ctrl--collapse" title="Salir de expandido">🗗</button>
-          </div>
-        </div>
-        <div class="content">
-          <table id="tbl-pend"></table>
-        </div>
-      </section>
-
-      <!-- En sala de espera -->
-      <section class="board" data-board="esp">
-        <div class="header">
-          <h3 id="hl-esp">En sala de espera (0)</h3>
-          <div class="controls">
-            <button class="b-ctrl--grow" title="Agrandar fila">⤢</button>
-            <button class="b-ctrl--expand" title="Expandir">⛶</button>
-            <button class="b-ctrl--collapse" title="Salir de expandido">🗗</button>
-          </div>
-        </div>
-        <div class="content">
-          <table id="tbl-esp"></table>
-        </div>
-      </section>
-
-      <!-- En atención -->
-      <section class="board" data-board="atencion">
-        <div class="header">
-          <h3 id="hl-atencion">En atención (0)</h3>
-          <div class="controls">
-            <button class="b-ctrl--grow" title="Agrandar fila">⤢</button>
-            <button class="b-ctrl--expand" title="Expandir">⛶</button>
-            <button class="b-ctrl--collapse" title="Salir de expandido">🗗</button>
-          </div>
-        </div>
-        <div class="content">
-          <table id="tbl-atencion"></table>
-        </div>
-      </section>
-
-      <!-- Atendidos -->
-      <section class="board" data-board="done">
-        <div class="header">
-          <h3 id="hl-done">Atendidos (0)</h3>
-          <div class="controls">
-            <button class="b-ctrl--grow" title="Agrandar fila">⤢</button>
-            <button class="b-ctrl--expand" title="Expandir">⛶</button>
-            <button class="b-ctrl--collapse" title="Salir de expandido">🗗</button>
-          </div>
-        </div>
-        <div class="content">
-          <table id="tbl-done"></table>
-        </div>
-      </section>
-    </main>
+    <!-- Boards -->
+    <div class="boards" id="boards">
+      <div class="board" data-board="pend">
+        <h3 id="h-pend"><span id="hl-pend">Por llegar</span>
+          <span class="b-ctrls">
+            <button class="b-ctrl b-ctrl--grow" title="Ampliar/Restaurar fila">⬍</button>
+            <button class="b-ctrl b-ctrl--expand" title="Expandir">⛶</button>
+            <button class="b-ctrl b-ctrl--collapse" title="Cerrar">✖️</button>
+          </span>
+        </h3>
+        <div class="board-body"><table class="table" id="tbl-pend"></table></div>
+      </div>
+      <div class="board" data-board="esp">
+        <h3 id="h-esp"><span id="hl-esp">En sala de espera</span>
+          <span class="b-ctrls">
+            <button class="b-ctrl b-ctrl--grow" title="Ampliar/Restaurar fila">⬍</button>
+            <button class="b-ctrl b-ctrl--expand" title="Expandir">⛶</button>
+            <button class="b-ctrl b-ctrl--collapse" title="Cerrar">✖️</button>
+          </span>
+        </h3>
+        <div class="board-body"><table class="table" id="tbl-esp"></table></div>
+      </div>
+      <div class="board" data-board="atencion">
+        <h3 id="h-atencion"><span id="hl-atencion">En atención</span>
+          <span class="b-ctrls">
+            <button class="b-ctrl b-ctrl--grow" title="Ampliar/Restaurar fila">⬍</button>
+            <button class="b-ctrl b-ctrl--expand" title="Expandir">⛶</button>
+            <button class="b-ctrl b-ctrl--collapse" title="Cerrar">✖️</button>
+          </span>
+        </h3>
+        <div class="board-body"><table class="table" id="tbl-atencion"></table></div>
+      </div>
+      <div class="board" data-board="done">
+        <h3 id="h-done"><span id="hl-done">Atendidos</span>
+          <span class="b-ctrls">
+            <button class="b-ctrl b-ctrl--grow" title="Ampliar/Restaurar fila">⬍</button>
+            <button class="b-ctrl b-ctrl--expand" title="Expandir">⛶</button>
+            <button class="b-ctrl b-ctrl--collapse" title="Cerrar">✖️</button>
+          </span>
+        </h3>
+        <div class="board-body"><table class="table" id="tbl-done"></table></div>
+      </div>
+    </div>
 
     <!-- Drawer Ficha Paciente -->
-    <aside id="fichaDrawer" aria-hidden="true">
-      <button id="fd-close" aria-label="Cerrar">✖</button>
-
-      <div class="fd-head">
-        <div id="fd-status" class="msg"></div>
-        <h2 id="fd-title">Ficha paciente</h2>
-        <div class="subrow">
-          <span id="fd-sub">dni — / — años</span>
-          <span id="fd-os-year" class="osyear">Turnos OS en el año: —</span>
-          <a id="fd-hc" class="hc-link" href="#" target="_blank" rel="noopener">Historia clínica</a>
+    <aside id="fichaDrawer" class="drawer" aria-hidden="true">
+      <header class="drawer-head">
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0">
+          <div id="fd-title" class="drawer-title">Ficha paciente: —</div>
+          <div id="fd-sub" class="drawer-sub">dni — / — años</div>
+          <div id="fd-os-year" class="drawer-sub">Turnos OS en el año: —</div>
         </div>
+        <span style="flex:1"></span>
+        <a id="fd-hc" class="hc-link hc-link-big" href="#" target="_blank" rel="noopener" style="display:none">
+          <svg class="hc-ico" width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2V8h6" fill="currentColor"/></svg>
+          <span>Ver historia clínica</span>
+        </a>
+        <button id="fd-close" class="icon" title="Cerrar">✖️</button>
+      </header>
+
+      <div class="drawer-body">
+        <div id="fd-status" class="msg" style="margin-bottom:8px"></div>
+
+        <div class="stats" id="fd-summary" style="margin-bottom:10px">
+          <div class="chip" id="fd-prof">Prof: —</div>
+          <div class="chip" id="fd-centro">Centro: —</div>
+          <div class="chip" id="fd-fecha">Fecha: —</div>
+          <div class="chip" id="fd-hora">Hora turno: —</div>
+          <div class="chip" id="fd-estado">Estado: —</div>
+          <div class="chip" id="fd-copago">Copago: —</div>
+        </div>
+
+        <div class="card">
+          <h4>Datos del paciente</h4>
+          <div class="row3">
+            <div class="field"><label>DNI</label><input id="fd-dni" class="inp"></div>
+            <div class="field"><label>Apellido</label><input id="fd-apellido" class="inp"></div>
+            <div class="field"><label>Nombre</label><input id="fd-nombre" class="inp"></div>
+          </div>
+          <div class="row3" style="margin-top:10px">
+            <div class="field"><label>Fecha de nacimiento</label><input id="fd-nac" type="date" class="inp"></div>
+            <div class="field"><label>Teléfono</label><input id="fd-tel" class="inp"></div>
+            <div class="field"><label>Email</label><input id="fd-mail" class="inp"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Obra social</h4>
+          <div class="row3">
+            <div class="field">
+              <label>Obra social</label>
+              <select id="fd-obra" class="sel"></select>
+            </div>
+            <div class="field"><label>N° afiliado</label><input id="fd-afiliado" class="inp"></div>
+            <div class="field">
+              <label>Credencial (URL)</label>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input id="fd-cred" class="inp" placeholder="https://..." />
+                <a id="fd-cred-link" class="btn secondary" href="#" target="_blank" rel="noopener">Ver</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Contacto de emergencia</h4>
+          <div class="row2">
+            <div class="field"><label>Nombre</label><input id="fd-ec-nom" class="inp" /></div>
+            <div class="field"><label>Apellido</label><input id="fd-ec-ape" class="inp" /></div>
+          </div>
+          <div class="row2" style="margin-top:10px">
+            <div class="field"><label>Celular</label><input id="fd-ec-cel" class="inp" /></div>
+            <div class="field"><label>Vínculo</label><input id="fd-ec-vin" class="inp" /></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Seguimiento</h4>
+          <div class="row3">
+            <div class="field"><label>Próximo control</label><input id="fd-prox" type="date" class="inp" /></div>
+            <div class="field"><label>Renovación de receta</label><input id="fd-renov" type="date" class="inp" /></div>
+            <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:22px">
+              <input id="fd-activo" type="checkbox" /><label for="fd-activo">Activo</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h4>Notas del turno</h4>
+          <div class="field"><textarea id="fd-notas" class="inp" placeholder="Observaciones internas..." style="min-height:80px"></textarea></div>
+        </div>
+
       </div>
 
-      <div class="fd-body">
-        <div class="fd-info">
-          <span id="fd-prof"></span> ·
-          <span id="fd-centro"></span> ·
-          <span id="fd-fecha"></span> ·
-          <span id="fd-hora"></span> ·
-          <span id="fd-estado"></span> ·
-          <span id="fd-copago"></span>
-        </div>
-
-        <div id="fd-msg" class="msg"></div>
-
-        <div class="fd-grid">
-          <label>DNI<input id="fd-dni" type="text" inputmode="numeric"></label>
-          <label>Fecha nac.<input id="fd-nac" type="date"></label>
-
-          <label>Apellido<input id="fd-apellido" type="text"></label>
-          <label>Nombre<input id="fd-nombre" type="text"></label>
-
-          <label>Teléfono<input id="fd-tel" type="tel"></label>
-          <label>Email<input id="fd-mail" type="email"></label>
-
-          <label>Obra social<select id="fd-obra"></select></label>
-          <label>N° afiliado<input id="fd-afiliado" type="text"></label>
-
-          <label>Credencial<input id="fd-cred" type="url" placeholder="URL a credencial"></label>
-          <label>&nbsp;<a id="fd-cred-link" href="#" target="_blank" rel="noopener">Abrir credencial</a></label>
-
-          <label>Contacto (nombre)<input id="fd-ec-nom" type="text"></label>
-          <label>Contacto (apellido)<input id="fd-ec-ape" type="text"></label>
-
-          <label>Contacto (celular)<input id="fd-ec-cel" type="tel"></label>
-          <label>Vínculo<input id="fd-ec-vin" type="text"></label>
-
-          <label>Próximo control<input id="fd-prox" type="date"></label>
-          <label>Renovación receta<input id="fd-renov" type="date"></label>
-
-          <label class="check"><input id="fd-activo" type="checkbox"> Activo</label>
-
-          <label style="grid-column:1/-1">Notas
-            <textarea id="fd-notas" rows="4"></textarea>
-          </label>
-        </div>
-      </div>
-
-      <div class="fd-actions">
-        <button id="fd-guardar" class="btn">Guardar</button>
-        <button id="fd-finalizar" class="btn primary">Finalizar atención</button>
-        <button id="fd-cerrar" class="btn">Cerrar</button>
-      </div>
+      <footer class="drawer-foot">
+        <span id="fd-msg" class="msg"></span>
+        <button id="fd-cerrar" class="btn secondary">Cerrar</button>
+        <button id="fd-guardar" class="btn">Guardar cambios</button>
+        <button id="fd-finalizar" class="btn">Finalizar</button>
+      </footer>
     </aside>
-  </div>
 
-  <!-- Carga de JS como módulo (respeta tus imports relativos) -->
-  <script type="module" src="./inicio.js"></script>
+  </section>
+</div>
+
+<!-- Tu lógica va aparte en inicio.js -->
+<script type="module" src="./inicio.js"></script>
 </body>
 </html>
