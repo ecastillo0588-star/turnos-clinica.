@@ -1,21 +1,24 @@
-// inicio.js
-// -----------------------------------------------
+// inicio.js — versión limpia
+// -------------------------------------------------
 import supabase from './supabaseClient.js';
 import { applyRoleClasses, loadProfesionalesIntoSelect, roleAllows } from './global.js';
+
+'use strict';
 
 /* =======================
    Constantes / utilidades
    ======================= */
 const EST = {
-  ASIGNADO:    'asignado',
-  EN_ESPERA:   'en_espera',
-  EN_ATENCION: 'en_atencion',
-  CANCELADO:   'cancelado',
-  CONFIRMADO:  'confirmado',
-  ATENDIDO:    'atendido',
+  ASIGNADO:     'asignado',
+  EN_ESPERA:    'en_espera',
+  EN_ATENCION:  'en_atencion',
+  CANCELADO:    'cancelado',
+  CONFIRMADO:   'confirmado',
+  ATENDIDO:     'atendido',
 };
 
 const FONT = { key:'ui_fs_px', def:14, min:12, max:18, step:1 };
+const LAYOUT = { rowsKey:'boards_rows_v1', expandKey:'board_expanded_v1', baseH:420, big:1.6, small:0.6 };
 
 const pad2 = n => (n<10?'0'+n:''+n);
 const todayISO = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
@@ -26,10 +29,8 @@ const safeSet = (el, text) => { if (el) el.textContent = text; };
 const money = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0));
 const titleCase = s => (s||'').split(' ').filter(Boolean).map(w=> w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ');
 const minutesDiff = (start, end) => {
-  if(!start || !end) return 0;
   const [h1,m1]=start.split(':').map(Number);
   const [h2,m2]=end.split(':').map(Number);
-  if([h1,m1,h2,m2].some(v=>Number.isNaN(v))) return 0;
   return (h2*60+m2)-(h1*60+m1);
 };
 const nowHHMMSS = () => { const d=new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
@@ -42,7 +43,6 @@ let H  = {};
 let Drawer = {};
 let boardsEl, zDec, zInc, zReset;
 let rootEl = null;
-
 let fsPx;
 
 let currentCentroId       = null;
@@ -53,9 +53,53 @@ let filterText            = '';
 
 let centroWatchTimer = null;
 let waitTimer        = null;
+let PROF_NAME = new Map();
+let _refresh = { reqId: 0 };
 
-let PROF_NAME = new Map();       // id -> nombre profesional
-let _refresh  = { reqId: 0 };    // control de refresh concurrentes
+const userRole            = String(localStorage.getItem('user_role')||'').toLowerCase();
+const loggedProfesionalId = localStorage.getItem('profesional_id');
+
+/* =======================
+   Overlay (CSS + DOM + control)
+   ======================= */
+function ensureOverlay(root) {
+  if (!document.getElementById('inicio-overlay-css')) {
+    const style = document.createElement('style');
+    style.id = 'inicio-overlay-css';
+    style.textContent = `
+      .ioverlay{
+        position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+        background:rgba(255,255,255,.92); opacity:0; pointer-events:none; transition:opacity .18s ease; z-index:200;
+      }
+      .ioverlay.show{ opacity:1; pointer-events:all; }
+      .ioverlay .box{
+        display:flex; align-items:center; gap:12px; padding:16px 18px; border-radius:12px;
+        background:#ffffff; border:1px solid #e8def8; box-shadow:0 6px 28px rgba(0,0,0,.08);
+        color:#4f3b7a; font-weight:600;
+      }
+      .ioverlay .spin{ width:34px; height:34px; border-radius:50%; border:3px solid #d9d1f3; border-top-color:#7656b0; animation:rr .8s linear infinite; }
+      @keyframes rr{ to{ transform:rotate(360deg) } }
+    `;
+    document.head.appendChild(style);
+  }
+  const cs = getComputedStyle(root);
+  if (cs.position === 'static') root.style.position = 'relative';
+
+  if (!root.querySelector('#inicio-overlay')) {
+    const overlay = document.createElement('div');
+    overlay.id = 'inicio-overlay';
+    overlay.className = 'ioverlay';
+    overlay.innerHTML = `<div class="box"><div class="spin"></div><div>Cargando…</div></div>`;
+    root.appendChild(overlay);
+  }
+}
+// control del overlay (respeta la máscara de boot)
+function setLoading(on) {
+  const root = rootEl || document.getElementById('inicio-root');
+  if (!root || root.hasAttribute('data-boot')) return;
+  const cont = root.querySelector('#inicio-overlay');
+  if (cont) cont.classList.toggle('show', !!on);
+}
 
 /* =======================
    Binder de referencias
@@ -71,12 +115,11 @@ function bindUI(root = document) {
     tblAtencion:root.querySelector('#tbl-atencion'),
     tblDone:    root.querySelector('#tbl-done'),
     kpiFree:    root.querySelector('#kpi-free'),
-    kpiSub:     root.querySelector('#kpi-sub'), // puede no existir; safeSet lo maneja
+    kpiSub:     root.querySelector('#kpi-sub'), // opcional en este HTML
     massSearch: root.querySelector('#mass-search'),
     massClear:  root.querySelector('#mass-clear'),
   };
 
-  // OJO: solo a los <span id="hl-*> (no al <h3>)
   H = {
     pend:  root.querySelector('#hl-pend'),
     esp:   root.querySelector('#hl-esp'),
@@ -133,50 +176,6 @@ function bindUI(root = document) {
 }
 
 /* =======================
-   Overlay de “Cargando…”
-   ======================= */
-function ensureOverlay(root) {
-  if (root.querySelector('#inicio-overlay')) return;
-
-  if (!document.getElementById('inicio-overlay-css')) {
-    const style = document.createElement('style');
-    style.id = 'inicio-overlay-css';
-    style.textContent = `
-      .ioverlay{
-        position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-        background:rgba(255,255,255,.92); opacity:0; pointer-events:none; transition:opacity .18s ease; z-index:200;
-      }
-      .ioverlay.show{ opacity:1; pointer-events:all; }
-      .ioverlay .box{
-        display:flex; align-items:center; gap:12px; padding:16px 18px; border-radius:12px;
-        background:#ffffff; border:1px solid #e8def8; box-shadow:0 6px 28px rgba(0,0,0,.08);
-        color:#4f3b7a; font-weight:600;
-      }
-      .ioverlay .spin{ width:34px; height:34px; border-radius:50%; border:3px solid #d9d1f3; border-top-color:#7656b0; animation:rr .8s linear infinite; }
-      @keyframes rr{ to{ transform:rotate(360deg) } }
-    `;
-    document.head.appendChild(style);
-  }
-
-  const cs = getComputedStyle(root);
-  if (cs.position === 'static') root.style.position = 'relative';
-
-  const overlay = document.createElement('div');
-  overlay.id = 'inicio-overlay';
-  overlay.className = 'ioverlay';
-  overlay.innerHTML = `<div class="box"><div class="spin"></div><div>Cargando…</div></div>`;
-  root.appendChild(overlay);
-}
-function setLoading(on) {
-  const root = rootEl || document.getElementById('inicio-root');
-  if (!root) return;
-  // si la máscara de boot sigue, no mostrar overlay JS
-  if (root.hasAttribute('data-boot')) return;
-  const cont = root.querySelector('#inicio-overlay');
-  if (cont) cont.classList.toggle('show', !!on);
-}
-
-/* =======================
    Preferencias (FS, centro, prof)
    ======================= */
 function applyFs(px){ document.documentElement.style.setProperty('--fs', `${px}px`); }
@@ -187,6 +186,7 @@ function loadFs(){
 }
 function setFs(px){ fsPx = Math.min(FONT.max, Math.max(FONT.min, px)); localStorage.setItem(FONT.key, String(fsPx)); applyFs(fsPx); }
 
+// per-centro
 function profSelKey(){ return `inicio_prof_sel_${currentCentroId||'any'}`; }
 function getSavedProfIds(){
   try{ const s=localStorage.getItem(profSelKey()); if(!s) return null; const a=JSON.parse(s); return Array.isArray(a)?a.map(String):null; }catch{ return null; }
@@ -232,7 +232,7 @@ async function syncCentroFromStorage(force=false){
     renderCentroChip();
     await loadProfesionales();
     if (!restoreProfSelection()) saveProfSelection();
-    await refreshAll({ showOverlayIfSlow: true });
+    await refreshAll(); // recarga dataset
   }
 }
 function startCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=setInterval(()=>syncCentroFromStorage(false), 1000); }
@@ -242,9 +242,6 @@ window.addEventListener('beforeunload', stopCentroWatcher);
 /* =======================
    Profesionales
    ======================= */
-const userRole             = String(localStorage.getItem('user_role')||'').toLowerCase();
-const loggedProfesionalId  = localStorage.getItem('profesional_id');
-
 function rebuildProfMap(){
   PROF_NAME.clear();
   Array.from(UI.profSelect?.options || []).forEach(o=>{
@@ -289,7 +286,6 @@ async function loadProfesionales(){
     saveProfSelection();
   }
 }
-
 async function onProfChange() {
   const sel = UI.profSelect;
   if (!sel) return;
@@ -306,17 +302,10 @@ async function onProfChange() {
 let searchTimer=null;
 function applySearch(value){ filterText = norm((value||'').trim()); refreshAll(); }
 
-/* =======================
-   Layout (grow/expand)
-   ======================= */
-const LAYOUT = {
-  rowsKey:   'boards_rows_v1',
-  expandKey: 'board_expanded_v1',
-  baseH:     420,
-  big:       1.6,
-  small:     0.6,
-};
-function applyRowsFromStorage(){
+function applyFsFromStorage(){
+  const raw = localStorage.getItem(LAYOUT.rowsKey); // no confundir, solo reutilizo helper de storage existente
+}
+function loadRowsFromStorage(){
   const raw = localStorage.getItem(LAYOUT.rowsKey);
   let r1 = LAYOUT.baseH, r2 = LAYOUT.baseH;
   try{ if (raw){ const o=JSON.parse(raw); if (o.row1>0) r1=o.row1; if (o.row2>0) r2=o.row2; } }catch{}
@@ -335,6 +324,45 @@ function resetSplit(){
   saveRows(LAYOUT.baseH, LAYOUT.baseH);
 }
 function isTop(board){ const order=['pend','esp','atencion','done']; const idx=order.indexOf(board.dataset.board); return idx===0 || idx===1; }
+
+/* =======================
+   Controles de boards (SVG + listeners)
+   ======================= */
+const ICONS = {
+  grow: `
+    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3l4 4h-3v10h3l-4 4-4-4h3V7H8l4-4z" fill="currentColor"/>
+    </svg>`,
+  expand: `
+    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M3 9V3h6M3 3l7 7M21 9V3h-6M21 3l-7 7M3 15v6h6M3 21l7-7M21 15v6h-6M21 21l-7-7"/>
+    </svg>`,
+  close: `
+    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M6 6l12 12M18 6l-12 12"/>
+    </svg>`
+};
+
+function decorateBoardControls(){
+  if (!boardsEl) return;
+  boardsEl.querySelectorAll('.b-ctrl--grow').forEach(b => { b.type='button'; b.innerHTML = ICONS.grow; });
+  boardsEl.querySelectorAll('.b-ctrl--expand').forEach(b => { b.type='button'; b.innerHTML = ICONS.expand; });
+  boardsEl.querySelectorAll('.b-ctrl--collapse').forEach(b => { b.type='button'; b.innerHTML = ICONS.close; });
+}
+
+function expandBoard(board){
+  if (!boardsEl) return;
+  boardsEl.classList.add('fullmode');
+  boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
+  board.classList.add('expanded');
+  localStorage.setItem(LAYOUT.expandKey, board.dataset.board || '');
+}
+function collapseBoards(){
+  if (!boardsEl) return;
+  boardsEl.classList.remove('fullmode');
+  boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
+  localStorage.removeItem(LAYOUT.expandKey);
+}
 function toggleGrowFor(board){
   if (!boardsEl || boardsEl.classList.contains('fullmode')) return;
   const {r1,r2} = getRows();
@@ -355,22 +383,12 @@ function toggleGrowFor(board){
     saveRows(nextR1, nextR2);
   }
 }
-function expandBoard(board){
-  if (!boardsEl) return;
-  boardsEl.classList.add('fullmode');
-  boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
-  board.classList.add('expanded');
-  localStorage.setItem(LAYOUT.expandKey, board.dataset.board || '');
-}
-function collapseBoards(){
-  if (!boardsEl) return;
-  boardsEl.classList.remove('fullmode');
-  boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
-  localStorage.removeItem(LAYOUT.expandKey);
-}
+
 function setupBoardControls(){
-  applyRowsFromStorage();
+  loadRowsFromStorage();
   if (!boardsEl) return;
+
+  decorateBoardControls();
 
   const prev = localStorage.getItem(LAYOUT.expandKey);
   if (prev){
@@ -392,7 +410,7 @@ function setupBoardControls(){
 }
 
 /* =======================
-   Datos del día
+   Datos del día (Supabase)
    ======================= */
 async function fetchDiaData(){
   if(!selectedProfesionales.length) return { pendientes:[], presentes:[], atencion:[], atendidos:[], agenda:[], turnos:[] };
@@ -486,7 +504,6 @@ function renderPendientes(list){
   });
 }
 
-/* En sala de espera */
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
   if (!boardsEl) return;
@@ -548,7 +565,6 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
-/* En atención */
 function renderAtencion(list){
   const withProf = showProfColumn();
   const grid = withProf
@@ -591,7 +607,6 @@ function renderAtencion(list){
   });
 }
 
-/* Atendidos */
 function renderAtendidos(list){
   const withProf = showProfColumn();
   const grid = withProf
@@ -658,7 +673,7 @@ function profsLabel(){
 function renderKPIs({agenda, turnos}){
   const free=computeHorasDisponibles(agenda, turnos);
   UI.kpiFree && (UI.kpiFree.textContent = `${formatFreeTime(free.libresMin)} disponibles`);
-  safeSet(UI.kpiSub, `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO}`);
+  safeSet(UI.kpiSub, `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO||''}`);
 }
 function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
   H.pend  && (H.pend.textContent  = `Por llegar (${(pendientes||[]).length})`);
@@ -668,7 +683,7 @@ function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
 }
 
 /* =======================
-   Drawer (abrir/guardar/finalizar)
+   Drawer
    ======================= */
 function showDrawer(){ Drawer.el?.classList.add('open'); Drawer.el?.setAttribute('aria-hidden','false'); }
 function hideDrawer(){ Drawer.el?.classList.remove('open'); Drawer.el?.setAttribute('aria-hidden','true'); }
@@ -748,7 +763,6 @@ async function openFicha(turnoId){
 
   setDrawerStatus('');
 
-  // acciones
   if (Drawer.btnGuardar)   Drawer.btnGuardar.onclick   = guardarFicha;
   if (Drawer.btnFinalizar){
     Drawer.btnFinalizar.style.display = roleAllows('finalizar', userRole) ? '' : 'none';
@@ -849,9 +863,7 @@ async function anularTurno(turnoId){
    Refresh principal
    ======================= */
 async function refreshAll(opts = {}) {
-  // opciones: showOverlay (inmediato) | showOverlayIfSlow (tras 220ms)
   const { showOverlay = false, showOverlayIfSlow = false } = opts;
-
   const myReqId = ++_refresh.reqId;
 
   let timer = null;
@@ -861,7 +873,7 @@ async function refreshAll(opts = {}) {
     timer = setTimeout(() => setLoading(true), 220);
   }
 
-  // si no hay profesionales seleccionados => limpiar
+  // sin profesionales seleccionados => limpiar
   if (!selectedProfesionales.length) {
     UI.tblPend && (UI.tblPend.innerHTML = '');
     UI.tblEsp && (UI.tblEsp.innerHTML = '');
@@ -877,7 +889,7 @@ async function refreshAll(opts = {}) {
 
   try {
     const raw = await fetchDiaData();
-    if (myReqId !== _refresh.reqId) return; // respuesta vieja, descartar
+    if (myReqId !== _refresh.reqId) return; // respuesta vieja
 
     const filtered = applyFilter(raw);
     renderPendientes(filtered.pendientes);
@@ -896,25 +908,25 @@ async function refreshAll(opts = {}) {
    INIT (export)
    ======================= */
 export async function initInicio(root) {
-  // 1) Root de la vista
   rootEl = root || document.getElementById('inicio-root') || document;
 
-  // 2) Bind + overlay (el overlay JS no tapa mientras exista data-boot)
+  // Bind + overlay + drawer oculto
   bindUI(rootEl);
   ensureOverlay(rootEl);
+  hideDrawer();
 
-  // 3) Estado base (centro / nombre)
+  // Estado base (centro / nombre)
   currentCentroId     = localStorage.getItem('centro_medico_id');
   currentCentroNombre = localStorage.getItem('centro_medico_nombre') || await fetchCentroById(currentCentroId);
   renderCentroChip();
 
-  // 4) Tipografía (A− / A / A+)
+  // Tipografía (A− / A / A+)
   loadFs();
   zDec   && (zDec.onclick   = () => setFs(fsPx - FONT.step));
   zInc   && (zInc.onclick   = () => setFs(fsPx + FONT.step));
   zReset && (zReset.onclick = () => setFs(FONT.def));
 
-  // 5) Fecha + “Hoy”
+  // Fecha + “Hoy”
   if (UI.fecha && !UI.fecha.value) UI.fecha.value = todayISO();
   currentFechaISO = UI.fecha?.value || todayISO();
   UI.fecha && (UI.fecha.onchange = () => {
@@ -928,7 +940,7 @@ export async function initInicio(root) {
     refreshAll({ showOverlayIfSlow: true });
   });
 
-  // 6) Buscador masivo
+  // Buscador masivo
   if (UI.massSearch) {
     UI.massSearch.oninput = () => {
       clearTimeout(searchTimer);
@@ -939,30 +951,29 @@ export async function initInicio(root) {
     UI.massClear.onclick = () => { UI.massSearch.value = ''; applySearch(''); };
   }
 
-  // 7) Clases por rol + layout (controles de boards)
+  // Rol + layout (controles de boards)
   applyRoleClasses(userRole);
   setupBoardControls();
 
-  // 8) Eventos de selección de profesional
+  // Eventos de selección de profesional
   UI.profSelect && UI.profSelect.addEventListener('change', onProfChange);
 
-  // 9) Profesionales + PRIMERA CARGA
-  //    No muestres el overlay JS ahora: la "boot mask" (data-boot) ya tapa todo.
+  // PRIMERA CARGA (sin overlay: la boot mask tapa todo)
   await loadProfesionales();
   if (!restoreProfSelection()) saveProfSelection();
-  await refreshAll({ showOverlayIfSlow: false }); // primer render sin overlay
+  await refreshAll({ showOverlayIfSlow: false });
 
-  // 10) Fin de boot: saco la máscara y quedo listo
+  // Fin de boot: saco la máscara
   const rootNode = document.getElementById('inicio-root');
   if (rootNode) rootNode.removeAttribute('data-boot');
 
-  // 11) Watcher de centro (si cambia desde el sidebar)
+  // Watcher de centro (si cambia desde el sidebar)
   startCentroWatcher();
 }
 
-// Auto-init si esta vista es entrypoint
-if (document.currentScript?.type === 'module') {
-  // Permite importar y también ejecutar directo
-  // (Si preferís solo import, podés borrar esto)
+// auto-init opcional si se importa como <script type="module">
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => initInicio().catch(console.error));
+} else {
   initInicio().catch(console.error);
 }
