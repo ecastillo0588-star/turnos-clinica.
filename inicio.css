@@ -1,0 +1,220 @@
+/* ===========================
+   INICIO · estilos de la vista
+   =========================== */
+
+/* ---- Variables globales (las usa tu JS) ---- */
+:root{
+  /* Tipografía y layout base */
+  --fs: 14px;              /* el JS la cambia y persiste */
+  --content-max: 920px;
+
+  /* Alturas del tablero (2 filas) */
+  --board-h: 420px;        /* LAYOUT.baseH lee este valor */
+  --row-1: var(--board-h);
+  --row-2: var(--board-h);
+
+  /* Anchos de columnas usados por inicio.js en grid-template */
+  --w-hora: 7.5rem;
+  --w-dni: 7rem;
+  --w-prof: 12rem;
+  --w-copago: 8rem;
+  --w-acc: 10rem;
+  --w-espera: 5.5rem;
+
+  --minch-nombre: 12ch;
+  --minch-apellido: 12ch;
+  --minch-obra: 14ch;
+
+  /* Colores */
+  --bg: #f6f7fb;
+  --panel: #ffffff;
+  --bd: #e5e7eb;
+  --ink: #111827;
+  --muted: #6b7280;
+  --muted-2: #374151;
+}
+
+/* ---- Reset mínimo / tipografía ---- */
+html{ font-size: var(--fs); }
+*, *::before, *::after{ box-sizing: border-box; }
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+/* ---- Contenedor principal de la vista ---- */
+#app-inicio{
+  max-width: var(--content-max);
+  margin: 24px auto;
+  padding: 0 16px;
+}
+
+/* ===========================
+   TOPBAR (filtros + kpis + zoom)
+   =========================== */
+.topbar{
+  background: var(--panel);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  padding: 14px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.topbar .left, .topbar .right{ display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px; }
+.ctrl{ display:flex; flex-direction:column; gap:4px; font-size:.9rem; color:var(--muted-2); }
+.ctrl .date-group{ display:flex; gap:6px; align-items:center; }
+
+.chip{
+  padding:6px 10px; border-radius:999px;
+  background:#111827; color:#fff; font-weight:600;
+}
+
+input, select{
+  padding:6px 10px; border:1px solid var(--bd);
+  border-radius:8px; font:inherit; background:#fff;
+}
+.btn{
+  padding:6px 10px; border:1px solid var(--bd);
+  border-radius:8px; background:#fff; cursor:pointer;
+}
+.search{ display:flex; gap:6px; align-items:center; }
+.kpis{ display:flex; gap:10px; align-items:center; }
+.kpi{ font-weight:600; }
+.kpi-sub{ color:var(--muted); }
+
+/* ===========================
+   TABLEROS (4 recuadros)
+   =========================== */
+#boards{
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));   /* 2 columnas */
+  grid-template-rows: var(--row-1) var(--row-2);      /* 2 filas controladas por JS */
+  grid-auto-rows: var(--board-h);                     /* fallback para filas extra */
+  gap: 12px;
+}
+
+/* Recuadro de cada estado */
+.board{
+  background: var(--panel);
+  border: 1px solid var(--bd);
+  border-radius: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  padding: 8px 8px 12px;
+  display: flex; flex-direction: column;
+  height: 100%;    /* clave para que se vea el “recuadro” completo */
+  min-height: 0;
+}
+.board .header{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:8px; margin-bottom:8px; padding:0 4px;
+}
+.board h3{ margin:0; font-size:1rem; }
+.board .controls{ display:flex; gap:6px; }
+.board .controls > button{ cursor:pointer; border:0; background:transparent; font-size:1rem; }
+
+.content{ flex:1 1 auto; min-height:0; overflow:auto; }
+
+/* Modo expandido (un board ocupa todo) */
+#boards.fullmode .board{ display:none; }
+#boards.fullmode .board.expanded{
+  display:flex;
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+}
+
+/* ===========================
+   TABLAS dentro de cada board
+   =========================== */
+table{ width:100%; border-collapse:separate; border-spacing:0; }
+
+/* Cabeceras y filas se maquetan en grid (el JS setea grid-template-columns inline) */
+.thead .hrow,
+.row{
+  display:grid;
+  align-items:center;
+  gap:8px;
+}
+.thead{
+  position:sticky; top:0; background:#fff; z-index:1;
+  border-bottom:1px solid #f1f5f9;
+}
+.hrow .cell{ font-weight:600; font-size:.95rem; padding:6px 8px; color:var(--muted-2); }
+.row  .cell{ padding:6px 8px; border-top:1px solid #f1f5f9; }
+.cell.right{ text-align:right; }
+.cell.nowrap{ white-space:nowrap; }
+.cell.truncate{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* Acciones / chips */
+.actions{ display:inline-flex; gap:6px; }
+.icon{ cursor:pointer; border:0; background:transparent; font-size:1rem; }
+.icon[disabled]{ opacity:.4; cursor:not-allowed; }
+.wait{ display:inline-block; min-width:3.5ch; text-align:center; font-variant-numeric:tabular-nums; }
+.copago{ padding:2px 6px; border-radius:999px; background:#f1f5f9; }
+.copago.none{ opacity:.65; }
+
+/* ===========================
+   DRAWER Ficha paciente
+   =========================== */
+#fichaDrawer{
+  position: fixed; inset: 0 0 0 auto; width: min(600px, 100%);
+  transform: translateX(100%);                 /* cerrado por defecto */
+  background:#fff; border-left:1px solid var(--bd);
+  box-shadow: -20px 0 40px rgba(0,0,0,.06);
+  transition: transform .25s ease;
+  display:flex; flex-direction:column;
+  max-height: 100dvh;
+}
+#fichaDrawer.open{ transform: translateX(0); }
+#fd-close{
+  position:absolute; top:8px; right:8px;
+  background:transparent; border:0; font-size:1.2rem; cursor:pointer;
+}
+
+.fd-head{ padding:16px 20px 8px; border-bottom:1px solid #f1f5f9; }
+#fd-title{ font-size:1.1rem; margin:0 0 6px; }
+.subrow{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; color:var(--muted); }
+.hc-link{ text-decoration:none; }
+
+.fd-body{ padding:12px 20px; overflow:auto; display:grid; gap:10px; }
+.fd-info{ color:var(--muted); font-size:.9rem; }
+
+.fd-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+.fd-grid label{ display:flex; flex-direction:column; gap:4px; font-size:.9rem; color:var(--muted-2); }
+.fd-grid input, .fd-grid select, .fd-grid textarea{
+  width:100%; padding:8px 10px; border:1px solid var(--bd); border-radius:8px; font:inherit;
+}
+.fd-grid .check{ flex-direction:row; align-items:center; gap:8px; }
+
+.fd-actions{
+  padding:12px 20px 16px; display:flex; gap:8px; justify-content:flex-end;
+  border-top:1px solid #f1f5f9;
+}
+.fd-actions .btn{ padding:8px 12px; border-radius:8px; border:1px solid var(--bd); background:#fff; cursor:pointer; }
+.fd-actions .btn.primary{ background:#111827; color:#fff; border-color:#111827; }
+
+/* Mensajes */
+.msg{ margin:8px 0; font-size:.9rem; }
+.msg.warn{ color:#b45309; }
+.msg.ok{ color:#047857; }
+
+/* Utilidades */
+.hidden{ display:none !important; }
+
+/* ===========================
+   RESPONSIVE
+   =========================== */
+@media (max-width: 1100px){
+  :root{ --row-1: var(--board-h); --row-2: var(--board-h); }
+  #boards{
+    grid-template-columns: 1fr;    /* una columna */
+    grid-template-rows: none;      /* dejan de importar las 2 filas */
+    grid-auto-rows: var(--board-h);
+  }
+  .fd-grid{ grid-template-columns: 1fr; }
+}
