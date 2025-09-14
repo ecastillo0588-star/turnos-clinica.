@@ -264,3 +264,31 @@ body.role-amc [data-act="finalizar"]{ display:none !important; }
   .search-wrap{ width:100%; }
   .search-wrap .inp{ width:100%; max-width:100%; }
 }
+
+/* ===== Boot mask: visible desde primer paint ===== */
+#inicio-root[data-boot]{
+  position: relative; /* para posicionar la máscara */
+}
+
+/* oculta el contenido visual mientras bootea (evita ver “cargar de a poco”) */
+#inicio-root[data-boot] > * {
+  visibility: hidden;
+}
+
+/* máscara con mensaje */
+#inicio-root[data-boot]::after{
+  content: "Cargando…";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,.96);
+  color: #4f3b7a;
+  font-weight: 700;
+  z-index: 1000;
+}
+
+/* opcional: que los botoncitos de ampliar no aparezcan/ desaparezcan durante el boot */
+#inicio-root[data-boot] .b-ctrls { visibility: hidden; }
+
