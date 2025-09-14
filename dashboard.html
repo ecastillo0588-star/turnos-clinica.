@@ -104,7 +104,7 @@
   <script type="module">
     import supabase from "./supabaseClient.js";
 
-    // --- Labels de rol
+    // ------------ Labels de rol
     const roleLabels = {
       propietario: "Propietario",
       medico: "Médico",
@@ -112,90 +112,89 @@
       amc: "Asistente de Centro Médico",
     };
 
-    // --- Utilidades
+    // ------------ Utils
     const strip = (s='') => s.normalize('NFD').replace(/\p{Diacritic}/gu,'');
-    const norm = (s='') => strip(s).toLowerCase().trim();
+    const norm  = (s='') => strip(s).toLowerCase().trim();
 
     function isRoleLikeName(name) {
       const n = norm(name);
       if (!n) return true;
       const tokens = [
-        'propietario',
-        'medico',
-        'asistente medico personal',
-        'asistente de centro medico',
-        'asistente medico pers',      // detecta truncados
-        'asistente de centro me'
+        'propietario','medico',
+        'asistente medico personal','asistente medico pers',
+        'asistente de centro medico','asistente de centro me'
       ];
       return tokens.some(t => n === t || n.startsWith(t));
     }
 
     async function getSafeDisplayName() {
-      const email = localStorage.getItem('email') || '';
-      const badStored = localStorage.getItem('user_name') || '';
+      try {
+        const email = localStorage.getItem('email') || '';
+        const badStored = localStorage.getItem('user_name') || '';
 
-      // si lo que hay guardado parece un rol => intentamos reconstruir
-      if (isRoleLikeName(badStored)) {
-        const profId = localStorage.getItem('profesional_id');
-        // 1) profesionales.nombre + apellido
-        if (profId) {
-          const { data: p } = await supabase
-            .from('profesionales')
-            .select('nombre, apellido, email')
-            .eq('id', profId)
-            .maybeSingle();
-          const full = [p?.nombre, p?.apellido].filter(Boolean).join(' ').trim();
-          if (full) return full;
-          if (p?.email) return p.email;
+        // Si lo guardado parece un rol => buscamos un nombre real
+        if (isRoleLikeName(badStored)) {
+          const profId = localStorage.getItem('profesional_id');
+
+          // 1) profesionales.nombre + apellido
+          if (profId) {
+            const { data: p } = await supabase
+              .from('profesionales')
+              .select('nombre, apellido, email')
+              .eq('id', profId)
+              .maybeSingle();
+            const full = [p?.nombre, p?.apellido].filter(Boolean).join(' ').trim();
+            if (full) return full;
+            if (p?.email) return p.email;
+          }
+
+          // 2) profiles.display_name
+          const { data: userResp } = await supabase.auth.getUser();
+          const uid = userResp?.user?.id;
+          if (uid) {
+            const { data: prof } = await supabase
+              .from('profiles')
+              .select('display_name, email')
+              .eq('id', uid)
+              .maybeSingle();
+            if (prof?.display_name && !isRoleLikeName(prof.display_name)) return prof.display_name;
+            if (prof?.email) return prof.email;
+          }
+
+          // 3) fallback
+          return email || 'Usuario';
         }
 
-        // 2) profiles.display_name
-        const { data: userResp } = await supabase.auth.getUser();
-        const uid = userResp?.user?.id;
-        if (uid) {
-          const { data: prof } = await supabase
-            .from('profiles')
-            .select('display_name, email')
-            .eq('id', uid)
-            .maybeSingle();
-          if (prof?.display_name && !isRoleLikeName(prof.display_name)) return prof.display_name;
-          if (prof?.email) return prof.email;
-        }
-
-        // 3) fallback: email
-        return email || 'Usuario';
+        // Si no parece un rol, úsalo
+        return badStored || 'Usuario';
+      } catch {
+        return localStorage.getItem('email') || 'Usuario';
       }
-
-      // si lo guardado no parece un rol, úsalo
-      return badStored;
     }
 
-    // --- Estado base
-    const userRolRaw = (localStorage.getItem('user_role') || '').toLowerCase(); // medico|propietario|amp|amc
+    // ------------ Estado base (localStorage)
+    const userRolRaw   = (localStorage.getItem('user_role') || '').toLowerCase(); // medico|propietario|amp|amc
     const userRolLabel = roleLabels[userRolRaw] || userRolRaw || '—';
-    const centroId      = localStorage.getItem('centro_medico_id');
-    const profesionalId = localStorage.getItem('profesional_id');
+    let   centroId     = localStorage.getItem('centro_medico_id');
+    const profesionalId= localStorage.getItem('profesional_id');
 
-    // Pinta header (nombre corregido + rol)
+    // Pinta header (nombre + rol)
     const safeName = await getSafeDisplayName();
     document.getElementById('user-name').textContent = safeName;
     document.getElementById('user-rol').textContent  = userRolLabel;
     localStorage.setItem('user_name', safeName); // persistimos el bueno
 
-    // --- Permisos de Configuración: médico, propietario y AMP sí; AMC no.
+    // ------------ Permisos de Configuración
     const btnConfig   = document.getElementById('btn-config');
     const puedeConfig = ['medico','propietario','amp'].includes(userRolRaw);
-    if (!puedeConfig) {
-      btnConfig.style.display = 'none';
-      // o: btnConfig.disabled = true;
-    }
+    if (!puedeConfig) btnConfig.style.display = 'none';
 
-    // --- Cargar centros del profesional
+    // ------------ Cargar centros del profesional
     async function cargarCentroDashboard() {
       const centroSelect = document.getElementById('centro-select');
       centroSelect.innerHTML = '<option disabled selected>Cargando...</option>';
-      let centros = [];
 
+      let centros = [];
       if (profesionalId) {
         const { data, error } = await supabase
           .from('profesional_centro')
@@ -218,175 +217,178 @@
         return;
       }
 
-      centros.forEach(c => {
+      // Render opciones
+      for (const c of centros) {
         const opt = document.createElement('option');
-        opt.value = c.id;
+        opt.value = String(c.id);
         opt.textContent = c.nombre;
         centroSelect.appendChild(opt);
-      });
+      }
 
-      centroSelect.value = centroId || centros[0].id;
+      // Selección inicial + persistencia inmediata
+      centroSelect.value = String(centroId || centros[0].id);
+      {
+        const sel = centros.find(c => String(c.id) === String(centroSelect.value));
+        if (sel) {
+          localStorage.setItem('centro_medico_id', sel.id);
+          localStorage.setItem('centro_medico_nombre', sel.nombre);
+          centroId = String(sel.id);
+        }
+      }
 
+      // Persistir al cambiar
       centroSelect.onchange = function() {
-        const seleccionado = centros.find(c => c.id === this.value);
-        localStorage.setItem('centro_medico_id', seleccionado.id);
-        localStorage.setItem('centro_medico_nombre', seleccionado.nombre);
+        const seleccionado = centros.find(c => String(c.id) === String(this.value));
+        localStorage.setItem('centro_medico_id', seleccionado?.id ?? '');
+        localStorage.setItem('centro_medico_nombre', seleccionado?.nombre ?? '');
+        centroId = String(this.value);
       };
     }
     await cargarCentroDashboard();
 
-  
-    // --- estado interno para evitar condiciones de carrera / abortar fetch previos
-let _panelLoader = { reqId: 0, abort: null };
+    // ------------ Carga dinámica de paneles (UNA sola función)
+    let _panelLoader = { reqId: 0, abort: null };
 
-/**
- * Carga un fragmento HTML en #main-content y ejecuta el init del módulo asociado.
- * - inicio.html  -> import('./inicio.js').then(m => m.initInicio(main))
- * - turnos.html  -> import('./turnos.js').then(m => m.initTurnos(main))
- * - pacientes.html -> import('./pacientes.js').then(m => m.initPacientes(main))
- *
- * @param {string} url  Ruta relativa del fragmento (p.ej. 'inicio.html')
- */
-async function cargarPanelHtml(url) {
-  const main = document.getElementById('main-content');
-  if (!main) throw new Error('#main-content no encontrado');
+    /**
+     * Carga un fragmento HTML en #main-content y ejecuta el init del módulo asociado.
+     * - inicio.html  -> import('./inicio.js').then(m => m.initInicio(main))
+     * - turnos.html  -> import('./turnos.js').then(m => m.initTurnos(main))
+     * - pacientes.html -> import('./pacientes.js').then(m => m.initPacientes(main))
+     *
+     * @param {string} url  Ruta del fragmento (p.ej. 'inicio.html')
+     */
+    async function cargarPanelHtml(url) {
+      const main = document.getElementById('main-content');
+      if (!main) throw new Error('#main-content no encontrado');
 
-  // cancelar carga anterior si sigue en vuelo
-  _panelLoader.abort?.abort();
-  const abort = new AbortController();
-  _panelLoader.abort = abort;
+      // cancelar carga anterior si sigue en vuelo
+      _panelLoader.abort?.abort();
+      const abort = new AbortController();
+      _panelLoader.abort = abort;
 
-  // id incremental para descartar respuestas viejas
-  const myReqId = ++_panelLoader.reqId;
+      // id incremental para descartar respuestas viejas
+      const myReqId = ++_panelLoader.reqId;
 
-  // loader simple
-  main.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;height:180px;color:#6b6480">
-      Cargando…
-    </div>
-  `;
-
-  try {
-    const resp = await fetch(url, { signal: abort.signal });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status} al cargar ${url}`);
-    const html = await resp.text();
-
-    // si llegó otra navegación en el medio, descarto esta respuesta
-    if (myReqId !== _panelLoader.reqId) return;
-
-    // Inyectar HTML (los <script type="module"> embebidos NO se ejecutan con innerHTML, a propósito)
-    main.innerHTML = html;
-    main.scrollTop = 0;
-
-    // Determinar qué init correr según el nombre del archivo
-    const file = url.split('#')[0].split('?')[0].split('/').pop() || '';
-
-    if (file === 'inicio.html') {
-      const mod = await import('./inicio.js');      // cacheado por el runtime
-      if (typeof mod.initInicio === 'function') {
-        await mod.initInicio(main);
-      }
-    } else if (file === 'turnos.html') {
-      const mod = await import('./turnos.js');
-      if (typeof mod.initTurnos === 'function') {
-        await mod.initTurnos(main);
-      }
-    } else if (file === 'pacientes.html') {
-      // pacientes puede ser opcional
-      try {
-        const mod = await import('./pacientes.js');
-        if (typeof mod.initPacientes === 'function') {
-          await mod.initPacientes(main);
-        }
-      } catch (e) {
-        console.warn('pacientes.js no disponible:', e);
-      }
-    } else {
-      // otros paneles futuros: no hacer nada especial
-      // console.debug('Panel sin init específico:', file);
-    }
-  } catch (err) {
-    if (err.name === 'AbortError') return; // navegación interrumpida, no es error real
-    console.error(err);
-    // pintar error visible
-    main.innerHTML = `
-      <div style="padding:18px">
-        <div style="background:#fff0f0;border:1px solid #f3c2c2;color:#8e0c2f;border-radius:8px;padding:14px">
-          <strong>Error al cargar el panel:</strong><br>
-          <code>${(err && err.message) || err}</code>
+      // loader simple
+      main.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;height:180px;color:#6b6480">
+          Cargando…
         </div>
-      </div>
-    `;
-  } finally {
-    // limpiar referencia al abort si esta era la última operación
-    if (myReqId === _panelLoader.reqId) {
-      _panelLoader.abort = null;
+      `;
+
+      try {
+        const resp = await fetch(url, { signal: abort.signal });
+        if (!resp.ok) throw new Error(\`HTTP \${resp.status} al cargar \${url}\`);
+        const html = await resp.text();
+
+        // si llegó otra navegación en el medio, descarto esta respuesta
+        if (myReqId !== _panelLoader.reqId) return;
+
+        // Inyectar HTML (los <script type="module"> embebidos NO se ejecutan con innerHTML, a propósito)
+        main.innerHTML = html;
+        main.scrollTop = 0;
+
+        // Determinar qué init correr según el archivo
+        const file = url.split('#')[0].split('?')[0].split('/').pop() || '';
+
+        if (file === 'inicio.html') {
+          const mod = await import('./inicio.js');      // cacheado por el runtime
+          if (typeof mod.initInicio === 'function') {
+            await mod.initInicio(main);
+          }
+        } else if (file === 'turnos.html') {
+          const mod = await import('./turnos.js');
+          if (typeof mod.initTurnos === 'function') {
+            await mod.initTurnos(main);
+          }
+        } else if (file === 'pacientes.html') {
+          try {
+            const mod = await import('./pacientes.js');
+            if (typeof mod.initPacientes === 'function') {
+              await mod.initPacientes(main);
+            }
+          } catch (e) {
+            console.warn('pacientes.js no disponible:', e);
+          }
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') return; // navegación interrumpida
+        console.error(err);
+        // pintar error visible
+        main.innerHTML = `
+          <div style="padding:18px">
+            <div style="background:#fff0f0;border:1px solid #f3c2c2;color:#8e0c2f;border-radius:8px;padding:14px">
+              <strong>Error al cargar el panel:</strong><br>
+              <code>${(err && err.message) || err}</code>
+            </div>
+          </div>
+        `;
+      } finally {
+        if (myReqId === _panelLoader.reqId) {
+          _panelLoader.abort = null;
+        }
+      }
     }
-  }
-}
 
-
+    // ------------ Auxiliares
     function setActiveMenu(btn) {
       document.querySelectorAll('.menu button').forEach(b => b.classList.remove('active'));
       if (btn) btn.classList.add('active');
     }
 
     async function cargarPanelConfiguracion() {
-      const resp = await fetch('configuracion.html');
-      const html = await resp.text();
       const panel = document.getElementById('configuracion-panel');
-      panel.innerHTML = html;
-      Array.from(panel.querySelectorAll('script[type="module"]')).forEach(oldScript => {
-        const s = document.createElement('script');
-        s.type = 'module';
-        if (oldScript.src) s.src = oldScript.src;
-        else s.textContent = oldScript.textContent;
-        document.body.appendChild(s);
-      });
+      panel.innerHTML = `
+        <div class="card">
+          <h2>Configuración</h2>
+          <p>Próximamente…</p>
+        </div>
+      `;
+      // Si más adelante querés cargar un HTML externo:
+      // const resp = await fetch('configuracion.html');
+      // panel.innerHTML = await resp.text();
+      // (Evitar re-inyectar <script type="module">; preferir import() de módulos)
     }
 
-// ==== CARGA INICIAL ====
-await cargarPanelHtml('inicio.html');
+    // ------------ Carga inicial + Navegación
+    await cargarPanelHtml('inicio.html'); // Inicio por defecto
 
-// ==== NAVEGACIÓN ====
-const mainEl = document.getElementById('main-content');
-const cfgEl  = document.getElementById('configuracion-panel');
+    const mainEl = document.getElementById('main-content');
+    const cfgEl  = document.getElementById('configuracion-panel');
 
-document.getElementById('btn-inicio').addEventListener('click', async function () {
-  setActiveMenu(this);
-  mainEl.classList.remove('hidden');
-  cfgEl.classList.add('hidden');
-  await cargarPanelHtml('inicio.html');
-});
+    document.getElementById('btn-inicio').addEventListener('click', async function () {
+      setActiveMenu(this);
+      mainEl.classList.remove('hidden');
+      cfgEl.classList.add('hidden');
+      await cargarPanelHtml('inicio.html');
+    });
 
-document.getElementById('btn-turnos').addEventListener('click', async function () {
-  setActiveMenu(this);
-  mainEl.classList.remove('hidden');
-  cfgEl.classList.add('hidden');
-  await cargarPanelHtml('turnos.html');
-});
+    document.getElementById('btn-turnos').addEventListener('click', async function () {
+      setActiveMenu(this);
+      mainEl.classList.remove('hidden');
+      cfgEl.classList.add('hidden');
+      await cargarPanelHtml('turnos.html');
+    });
 
-document.getElementById('btn-pacientes').addEventListener('click', async function () {
-  setActiveMenu(this);
-  mainEl.classList.remove('hidden');
-  cfgEl.classList.add('hidden');
-  await cargarPanelHtml('pacientes.html');
-});
+    document.getElementById('btn-pacientes').addEventListener('click', async function () {
+      setActiveMenu(this);
+      mainEl.classList.remove('hidden');
+      cfgEl.classList.add('hidden');
+      await cargarPanelHtml('pacientes.html');
+    });
 
-document.getElementById('btn-config').addEventListener('click', async function () {
-  // respeta el permiso ya calculado arriba
-  if (!['medico','propietario','amp'].includes((localStorage.getItem('user_role')||'').toLowerCase())) return;
-  setActiveMenu(this);
-  mainEl.classList.add('hidden');
-  cfgEl.classList.remove('hidden');
-  await cargarPanelConfiguracion();
-});
+    document.getElementById('btn-config').addEventListener('click', async function () {
+      if (!['medico','propietario','amp'].includes((localStorage.getItem('user_role')||'').toLowerCase())) return;
+      setActiveMenu(null);                // no marques nada en el menú lateral
+      mainEl.classList.add('hidden');
+      cfgEl.classList.remove('hidden');
+      await cargarPanelConfiguracion();
+    });
 
-document.getElementById('btn-logout').addEventListener('click', () => {
-  localStorage.clear();
-  window.location.href = 'index.html';
-});
-
+    document.getElementById('btn-logout').addEventListener('click', () => {
+      localStorage.clear();
+      window.location.href = 'index.html';
+    });
   </script>
 </body>
 </html>
