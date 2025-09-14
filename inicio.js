@@ -1,4 +1,4 @@
-// inicio.js (rehecho)
+// inicio.js
 // -----------------------------------------------
 import supabase from './supabaseClient.js';
 import { applyRoleClasses, loadProfesionalesIntoSelect, roleAllows } from './global.js';
@@ -35,7 +35,6 @@ const nowHHMMSS = () => { const d=new Date(); return `${pad2(d.getHours())}:${pa
 /* =======================
    Estado de módulo
    ======================= */
-let rootEl = document;       // contenedor del panel (se setea en init)
 let UI = {};
 let H  = {};
 let Drawer = {};
@@ -55,8 +54,8 @@ let waitTimer        = null;
 // mapa id -> nombre profesional
 let PROF_NAME = new Map();
 
-// control de refresh concurrentes
-let _refresh = { reqId: 0 };
+// control de carga y de carrera
+let _refresh = { reqId: 0, abort: null };
 
 /* =======================
    Binder de referencias
@@ -136,43 +135,34 @@ function bindUI(root = document) {
    Overlay de “Cargando…”
    ======================= */
 function ensureOverlay(root) {
-  if (root.querySelector('#inicio-overlay')) return;
+  if (root.querySelector('#inicio-loading')) return;
 
-  if (!document.getElementById('inicio-overlay-css')) {
-    const style = document.createElement('style');
-    style.id = 'inicio-overlay-css';
-    style.textContent = `
-      .ioverlay{
-        position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-        background:rgba(255,255,255,.92); opacity:0; pointer-events:none; transition:opacity .18s ease; z-index:200;
-      }
-      .ioverlay.show{ opacity:1; pointer-events:all; }
-      .ioverlay .box{
-        display:flex; align-items:center; gap:12px; padding:16px 18px; border-radius:12px;
-        background:#ffffff; border:1px solid #e8def8; box-shadow:0 6px 28px rgba(0,0,0,.08);
-        color:#4f3b7a; font-weight:600;
-      }
-      .ioverlay .spin{ width:34px; height:34px; border-radius:50%; border:3px solid #d9d1f3; border-top-color:#7656b0; animation:rr .8s linear infinite; }
-      @keyframes rr{ to{ transform:rotate(360deg) } }
-    `;
-    document.head.appendChild(style);
+  const style = document.createElement('style');
+  style.textContent = `
+  #inicio-loading{position:relative}
+  #inicio-loading.show .mask{opacity:1;pointer-events:all}
+  #inicio-loading .mask{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,.85); transition:opacity .18s ease; opacity:0; pointer-events:none; z-index:50;
+    border-radius:12px;
   }
+  .spin{width:34px;height:34px;border-radius:50%;border:3px solid #d9d1f3;border-top-color:#7656b0;animation:rr .8s linear infinite;margin-right:10px}
+  @keyframes rr{to{transform:rotate(360deg)}}
+  `;
+  document.head.appendChild(style);
 
-  // root debe poder posicionar hijos absolutos
-  const cs = getComputedStyle(root);
-  if (cs.position === 'static') root.style.position = 'relative';
-
-  const overlay = document.createElement('div');
-  overlay.id = 'inicio-overlay';
-  overlay.className = 'ioverlay';
-  overlay.innerHTML = `<div class="box"><div class="spin"></div><div>Cargando…</div></div>`;
-  root.appendChild(overlay);
+  const wrap = document.createElement('div');
+  wrap.id = 'inicio-loading';
+  wrap.innerHTML = `<div class="mask"><div class="spin"></div><div style="color:#4f3b7a;font-weight:600">Cargando…</div></div>`;
+  // envolvemos el contenedor de la vista (root) con el overlay
+  root.style.position = 'relative';
+  root.appendChild(wrap);
 }
 
-function setLoading(on) {
-  const el = rootEl.querySelector('#inicio-overlay');
-  if (!el) return;
-  el.classList.toggle('show', !!on);
+function setLoading(root, on) {
+  const cont = root.querySelector('#inicio-loading');
+  if (!cont) return;
+  cont.classList.toggle('show', !!on);
 }
 
 /* =======================
@@ -289,14 +279,14 @@ async function loadProfesionales(){
     saveProfSelection();
   }
 }
-function onProfChange(){
+UI.profSelect?.addEventListener?.('change', async ()=>{
   const sel=UI.profSelect;
   selectedProfesionales = sel.multiple
     ? Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean)
     : (sel.value ? [sel.value] : []);
   saveProfSelection();
-  refreshAll();
-}
+  await refreshAll();
+});
 
 /* =======================
    Filtro global + Zoom
@@ -390,9 +380,9 @@ function setupBoardControls(){
 }
 
 /* =======================
-   Datos del día
+   Datos del día (con abort)
    ======================= */
-async function fetchDiaData(){
+async function fetchDiaData(signal){
   if(!selectedProfesionales.length) return { pendientes:[], presentes:[], atencion:[], atendidos:[], agenda:[], turnos:[] };
 
   const profIds = selectedProfesionales.map(String);
@@ -410,6 +400,7 @@ async function fetchDiaData(){
     supabase.from('turnos') .select('id, hora_inicio, hora_fin, estado, profesional_id').eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds)
   ]);
 
+  // `signal` está para la interfaz, pero supabase-js no soporta abort; igual usamos nuestro reqId
   return {
     pendientes: pend.data||[],
     presentes:  pres.data||[],
@@ -487,8 +478,7 @@ function renderPendientes(list){
 /* En sala de espera */
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
-  if (!boardsEl) return;
-  const nodes=boardsEl.querySelectorAll('[data-arribo-ts]');
+  const nodes=document.querySelectorAll('[data-arribo-ts]');
   const now=new Date();
   nodes.forEach(n=>{
     const ts=n.getAttribute('data-arribo-ts'); if(!ts) return;
@@ -747,7 +737,7 @@ async function openFicha(turnoId){
   setDrawerStatus('');
 
   // acciones
-  if (Drawer.btnGuardar)   Drawer.btnGuardar.onclick   = guardarFicha;
+  if (Drawer.btnGuardar) Drawer.btnGuardar.onclick = guardarFicha;
   if (Drawer.btnFinalizar){
     Drawer.btnFinalizar.style.display = roleAllows('finalizar', userRole) ? '' : 'none';
     Drawer.btnFinalizar.onclick = () => finalizarAtencion(drawerTurnoId, { closeDrawer: true });
@@ -844,46 +834,52 @@ async function anularTurno(turnoId){
 }
 
 /* =======================
-   Refresh principal
+   Refresh principal (con abort + overlay suave)
    ======================= */
-async function refreshAll({ showOverlay = false } = {}){
-  const myReqId = ++_refresh.reqId;
-
-  if (showOverlay) setLoading(true);
-
+async function refreshAll({ showOverlayIfSlow = false } = {}){
   // si no hay profesionales seleccionados => limpiar
   if(!selectedProfesionales.length){
-    UI.tblPend && (UI.tblPend.innerHTML='');
-    UI.tblEsp && (UI.tblEsp.innerHTML='');
-    UI.tblAtencion && (UI.tblAtencion.innerHTML='');
-    UI.tblDone && (UI.tblDone.innerHTML='');
-    safeSet(UI.kpiSub, `${currentCentroNombre||''} · ${currentFechaISO||todayISO()}`);
-    renderBoardTitles({pendientes:[],presentes:[],atencion:[],atendidos:[]});
-    if (showOverlay) setLoading(false);
+    UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML=''; UI.tblDone.innerHTML='';
+    safeSet(UI.kpiSub, `${currentCentroNombre||''} · ${currentFechaISO||todayISO()}`); renderBoardTitles({pendientes:[],presentes:[],atencion:[],atendidos:[]});
     return;
   }
 
-  const raw = await fetchDiaData();
-  if (myReqId !== _refresh.reqId) return; // respuesta vieja
+  // cancelar refresh previo
+  _refresh.abort?.abort();
+  const abort = new AbortController();
+  _refresh.abort = abort;
+  const myReqId = ++_refresh.reqId;
 
-  const filtered = applyFilter(raw);
-  renderPendientes(filtered.pendientes);
-  renderPresentes(filtered.presentes);
-  renderAtencion(filtered.atencion);
-  renderAtendidos(filtered.atendidos);
-  renderKPIs(raw);
-  renderBoardTitles(filtered);
+  // overlay si tarda (pequeño grace)
+  let overlayTimer;
+  if (showOverlayIfSlow) {
+    overlayTimer = setTimeout(()=> setLoading(document, true), 220);
+  }
 
-  if (showOverlay) setLoading(false);
+  try{
+    const raw = await fetchDiaData(abort.signal);
+    if (myReqId !== _refresh.reqId) return; // respuesta vieja
+
+    const filtered = applyFilter(raw);
+    renderPendientes(filtered.pendientes);
+    renderPresentes(filtered.presentes);
+    renderAtencion(filtered.atencion);
+    renderAtendidos(filtered.atendidos);
+    renderKPIs(raw);
+    renderBoardTitles(filtered);
+  } finally {
+    if (overlayTimer) clearTimeout(overlayTimer);
+    setLoading(document, false);
+    if (myReqId === _refresh.reqId) _refresh.abort = null;
+  }
 }
 
 /* =======================
    INIT (export)
    ======================= */
-export async function initInicio(root = document){
-  rootEl = root;                   // importante para overlay/scoping
-  bindUI(rootEl);
-  ensureOverlay(rootEl);
+export async function initInicio(root){
+  bindUI(root);
+  ensureOverlay(root);
 
   // estado base (centro/fecha)
   currentCentroId     = localStorage.getItem('centro_medico_id');
@@ -899,8 +895,8 @@ export async function initInicio(root = document){
   // fecha + hoy
   if (UI.fecha && !UI.fecha.value) UI.fecha.value = todayISO();
   currentFechaISO = UI.fecha?.value || todayISO();
-  UI.fecha && (UI.fecha.onchange = ()=>{ currentFechaISO = UI.fecha.value || todayISO(); refreshAll(); });
-  UI.btnHoy && (UI.btnHoy.onclick = ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
+  UI.fecha && (UI.fecha.onchange = ()=>{ currentFechaISO = UI.fecha.value || todayISO(); refreshAll({ showOverlayIfSlow:false }); });
+  UI.btnHoy && (UI.btnHoy.onclick = ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll({ showOverlayIfSlow:false }); });
 
   // buscador
   if (UI.massSearch){
@@ -919,15 +915,14 @@ export async function initInicio(root = document){
   // layout boards
   setupBoardControls();
 
-  // eventos de selección de profesional (después del bindUI)
-  UI.profSelect && UI.profSelect.addEventListener('change', onProfChange);
-
-  // profesionales + primera carga con overlay visible
-  setLoading(true);
+  // profesionales
   await loadProfesionales();
   if (!restoreProfSelection()) saveProfSelection();
-  await refreshAll();
-  setLoading(false);
+
+  // primera carga con overlay visible
+  setLoading(root, true);
+  await refreshAll({ showOverlayIfSlow:false });
+  setLoading(root, false);
 
   // watcher de centro (si cambia en el sidebar, re-carga todo)
   startCentroWatcher();
