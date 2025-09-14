@@ -159,6 +159,16 @@ function ensureOverlay(root) {
     document.head.appendChild(style);
   }
 
+function setLoading(on) {
+  const root = rootEl || document.getElementById('inicio-root');
+  if (!root) return;
+  // si la máscara de boot sigue, no mostrar overlay JS
+  if (root.hasAttribute('data-boot')) return;
+  const cont = root.querySelector('#inicio-overlay');
+  if (cont) cont.classList.toggle('show', !!on);
+}
+
+
   const cs = getComputedStyle(root);
   if (cs.position === 'static') root.style.position = 'relative';
 
@@ -950,9 +960,7 @@ export async function initInicio(root) {
   await loadProfesionales();
   if (!restoreProfSelection()) saveProfSelection();
 
-  await refreshAll({ showOverlayIfSlow: false }); // primer render
-// ...
-  await refreshAll({ showOverlayIfSlow: true });  // al cambiar profesional / fecha / centro
+ await refreshAll({ showOverlayIfSlow: true });  // al cambiar profesional / fecha / centro
 
 
 
