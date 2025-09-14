@@ -40,6 +40,7 @@ let UI = {};
 let H  = {};
 let Drawer = {};
 let boardsEl, zDec, zInc, zReset;
+let rootEl = null;
 
 let fsPx;
 
@@ -170,10 +171,16 @@ function ensureOverlay(root) {
 }
 
 function setLoading(on) {
-  const el = rootEl.querySelector('#inicio-overlay');
-  if (!el) return;
-  el.classList.toggle('show', !!on);
+  const root = rootEl || document.getElementById('inicio-root');
+  if (!root) return;
+
+  // Si la boot mask sigue puesta, no mostrar el overlay JS
+  if (root.hasAttribute('data-boot')) return;
+
+  const cont = root.querySelector('#inicio-loading');
+  if (cont) cont.classList.toggle('show', !!on);
 }
+
 
 /* =======================
    Preferencias (FS, centro, prof)
@@ -289,13 +296,15 @@ async function loadProfesionales(){
     saveProfSelection();
   }
 }
-function onProfChange(){
-  const sel=UI.profSelect;
+// handler para el <select> de profesional (lo uso en init)
+async function onProfChange() {
+  const sel = UI.profSelect;
+  if (!sel) return;
   selectedProfesionales = sel.multiple
-    ? Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean)
+    ? Array.from(sel.selectedOptions).map(o => o.value).filter(Boolean)
     : (sel.value ? [sel.value] : []);
   saveProfSelection();
-  refreshAll();
+  await refreshAll({ showOverlayIfSlow: true }); // en nav normales, overlay suave
 }
 
 /* =======================
@@ -880,55 +889,68 @@ async function refreshAll({ showOverlay = false } = {}){
 /* =======================
    INIT (export)
    ======================= */
-export async function initInicio(root = document){
-  rootEl = root;                   // importante para overlay/scoping
+export async function initInicio(root) {
+  // 1) Root de la vista (soporta que te pasen el nodo o que no)
+  rootEl = root || document.getElementById('inicio-root') || document;
+
+  // 2) Bind + overlay (el overlay JS no tapa mientras exista data-boot)
   bindUI(rootEl);
   ensureOverlay(rootEl);
 
-  // estado base (centro/fecha)
+  // 3) Estado base (centro / nombre)
   currentCentroId     = localStorage.getItem('centro_medico_id');
   currentCentroNombre = localStorage.getItem('centro_medico_nombre') || await fetchCentroById(currentCentroId);
   renderCentroChip();
 
-  // tipografía
+  // 4) Tipografía (A− / A / A+)
   loadFs();
-  zDec   && (zDec.onclick   = ()=> setFs(fsPx - FONT.step));
-  zInc   && (zInc.onclick   = ()=> setFs(fsPx + FONT.step));
-  zReset && (zReset.onclick = ()=> setFs(FONT.def));
+  zDec   && (zDec.onclick   = () => setFs(fsPx - FONT.step));
+  zInc   && (zInc.onclick   = () => setFs(fsPx + FONT.step));
+  zReset && (zReset.onclick = () => setFs(FONT.def));
 
-  // fecha + hoy
+  // 5) Fecha + “Hoy”
   if (UI.fecha && !UI.fecha.value) UI.fecha.value = todayISO();
   currentFechaISO = UI.fecha?.value || todayISO();
-  UI.fecha && (UI.fecha.onchange = ()=>{ currentFechaISO = UI.fecha.value || todayISO(); refreshAll(); });
-  UI.btnHoy && (UI.btnHoy.onclick = ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll(); });
+  UI.fecha && (UI.fecha.onchange = () => {
+    currentFechaISO = UI.fecha.value || todayISO();
+    refreshAll({ showOverlayIfSlow: true });
+  });
+  UI.btnHoy && (UI.btnHoy.onclick = () => {
+    const h = todayISO();
+    UI.fecha.value = h;
+    currentFechaISO = h;
+    refreshAll({ showOverlayIfSlow: true });
+  });
 
-  // buscador
-  if (UI.massSearch){
-    UI.massSearch.oninput = ()=>{
+  // 6) Buscador masivo
+  if (UI.massSearch) {
+    UI.massSearch.oninput = () => {
       clearTimeout(searchTimer);
-      searchTimer=setTimeout(()=> applySearch(UI.massSearch.value), 160);
+      searchTimer = setTimeout(() => applySearch(UI.massSearch.value), 160);
     };
   }
-  if (UI.massClear){
-    UI.massClear.onclick = ()=>{ UI.massSearch.value=''; applySearch(''); };
+  if (UI.massClear) {
+    UI.massClear.onclick = () => { UI.massSearch.value = ''; applySearch(''); };
   }
 
-  // aplicar clases por rol
+  // 7) Clases por rol + layout (controles de boards)
   applyRoleClasses(userRole);
-
-  // layout boards
   setupBoardControls();
 
-  // eventos de selección de profesional (después del bindUI)
+  // 8) Eventos de selección de profesional
   UI.profSelect && UI.profSelect.addEventListener('change', onProfChange);
 
-  // profesionales + primera carga con overlay visible
-  setLoading(true);
+  // 9) Profesionales + PRIMERA CARGA
+  //    No muestres el overlay JS ahora: la "boot mask" (data-boot) ya tapa todo.
   await loadProfesionales();
   if (!restoreProfSelection()) saveProfSelection();
-  await refreshAll();
-  setLoading(false);
 
-  // watcher de centro (si cambia en el sidebar, re-carga todo)
+  await refreshAll({ showOverlayIfSlow: false }); // primer render: sin overlay JS
+
+  // 10) Fin de boot: saco la máscara y quedo listo
+  const rootNode = document.getElementById('inicio-root');
+  if (rootNode) rootNode.removeAttribute('data-boot');
+
+  // 11) Watcher de centro (si cambia desde el sidebar)
   startCentroWatcher();
 }
