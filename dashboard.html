@@ -235,63 +235,96 @@
     }
     await cargarCentroDashboard();
 
-    // --- Carga dinámica del contenido principal
-    async function cargarPanelHtml(url) {
-      const resp = await fetch(url);
-      const html = await resp.text();
-      document.getElementById('main-content').innerHTML = html;
+  
+    // --- estado interno para evitar condiciones de carrera / abortar fetch previos
+let _panelLoader = { reqId: 0, abort: null };
 
-      // Ejecutar <script type="module"> embebidos si los hubiera
-      const scripts = document.getElementById('main-content').querySelectorAll('script[type="module"]');
-      for (const oldScript of scripts) {
-        const s = document.createElement('script');
-        s.type = 'module';
-        if (oldScript.src) s.src = oldScript.src;
-        else s.textContent = oldScript.textContent;
-        document.body.appendChild(s);
-      }
+/**
+ * Carga un fragmento HTML en #main-content y ejecuta el init del módulo asociado.
+ * - inicio.html  -> import('./inicio.js').then(m => m.initInicio(main))
+ * - turnos.html  -> import('./turnos.js').then(m => m.initTurnos(main))
+ * - pacientes.html -> import('./pacientes.js').then(m => m.initPacientes(main))
+ *
+ * @param {string} url  Ruta relativa del fragmento (p.ej. 'inicio.html')
+ */
+async function cargarPanelHtml(url) {
+  const main = document.getElementById('main-content');
+  if (!main) throw new Error('#main-content no encontrado');
 
-      if (url.includes('turnos.html')) {
-        const { initTurnos } = await import('./turnos.js');
-        await initTurnos();
+  // cancelar carga anterior si sigue en vuelo
+  _panelLoader.abort?.abort();
+  const abort = new AbortController();
+  _panelLoader.abort = abort;
+
+  // id incremental para descartar respuestas viejas
+  const myReqId = ++_panelLoader.reqId;
+
+  // loader simple
+  main.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;height:180px;color:#6b6480">
+      Cargando…
+    </div>
+  `;
+
+  try {
+    const resp = await fetch(url, { signal: abort.signal });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} al cargar ${url}`);
+    const html = await resp.text();
+
+    // si llegó otra navegación en el medio, descarto esta respuesta
+    if (myReqId !== _panelLoader.reqId) return;
+
+    // Inyectar HTML (los <script type="module"> embebidos NO se ejecutan con innerHTML, a propósito)
+    main.innerHTML = html;
+    main.scrollTop = 0;
+
+    // Determinar qué init correr según el nombre del archivo
+    const file = url.split('#')[0].split('?')[0].split('/').pop() || '';
+
+    if (file === 'inicio.html') {
+      const mod = await import('./inicio.js');      // cacheado por el runtime
+      if (typeof mod.initInicio === 'function') {
+        await mod.initInicio(main);
       }
+    } else if (file === 'turnos.html') {
+      const mod = await import('./turnos.js');
+      if (typeof mod.initTurnos === 'function') {
+        await mod.initTurnos(main);
+      }
+    } else if (file === 'pacientes.html') {
+      // pacientes puede ser opcional
+      try {
+        const mod = await import('./pacientes.js');
+        if (typeof mod.initPacientes === 'function') {
+          await mod.initPacientes(main);
+        }
+      } catch (e) {
+        console.warn('pacientes.js no disponible:', e);
+      }
+    } else {
+      // otros paneles futuros: no hacer nada especial
+      // console.debug('Panel sin init específico:', file);
     }
+  } catch (err) {
+    if (err.name === 'AbortError') return; // navegación interrumpida, no es error real
+    console.error(err);
+    // pintar error visible
+    main.innerHTML = `
+      <div style="padding:18px">
+        <div style="background:#fff0f0;border:1px solid #f3c2c2;color:#8e0c2f;border-radius:8px;padding:14px">
+          <strong>Error al cargar el panel:</strong><br>
+          <code>${(err && err.message) || err}</code>
+        </div>
+      </div>
+    `;
+  } finally {
+    // limpiar referencia al abort si esta era la última operación
+    if (myReqId === _panelLoader.reqId) {
+      _panelLoader.abort = null;
+    }
+  }
+}
 
-    // Inicio por defecto
-    await cargarPanelHtml('inicio.html');
-
-    // Navegación
-    document.getElementById('btn-inicio').addEventListener('click', async function() {
-      setActiveMenu(this);
-      document.getElementById('main-content').classList.remove('hidden');
-      document.getElementById('configuracion-panel').classList.add('hidden');
-      await cargarPanelHtml('inicio.html');
-    });
-    document.getElementById('btn-turnos').addEventListener('click', async function() {
-      setActiveMenu(this);
-      document.getElementById('main-content').classList.remove('hidden');
-      document.getElementById('configuracion-panel').classList.add('hidden');
-      await cargarPanelHtml('turnos.html');
-    });
-    document.getElementById('btn-pacientes').addEventListener('click', async function() {
-      setActiveMenu(this);
-      document.getElementById('main-content').classList.remove('hidden');
-      document.getElementById('configuracion-panel').classList.add('hidden');
-      await cargarPanelHtml('pacientes.html');
-    });
-
-    btnConfig.addEventListener('click', async function() {
-      if (!puedeConfig) return;
-      setActiveMenu(this);
-      document.getElementById('main-content').classList.add('hidden');
-      document.getElementById('configuracion-panel').classList.remove('hidden');
-      await cargarPanelConfiguracion();
-    });
-
-    document.getElementById('btn-logout').addEventListener('click', () => {
-      localStorage.clear();
-      window.location.href = "index.html";
-    });
 
     function setActiveMenu(btn) {
       document.querySelectorAll('.menu button').forEach(b => b.classList.remove('active'));
@@ -311,6 +344,49 @@
         document.body.appendChild(s);
       });
     }
+
+// ==== CARGA INICIAL ====
+await cargarPanelHtml('inicio.html');
+
+// ==== NAVEGACIÓN ====
+const mainEl = document.getElementById('main-content');
+const cfgEl  = document.getElementById('configuracion-panel');
+
+document.getElementById('btn-inicio').addEventListener('click', async function () {
+  setActiveMenu(this);
+  mainEl.classList.remove('hidden');
+  cfgEl.classList.add('hidden');
+  await cargarPanelHtml('inicio.html');
+});
+
+document.getElementById('btn-turnos').addEventListener('click', async function () {
+  setActiveMenu(this);
+  mainEl.classList.remove('hidden');
+  cfgEl.classList.add('hidden');
+  await cargarPanelHtml('turnos.html');
+});
+
+document.getElementById('btn-pacientes').addEventListener('click', async function () {
+  setActiveMenu(this);
+  mainEl.classList.remove('hidden');
+  cfgEl.classList.add('hidden');
+  await cargarPanelHtml('pacientes.html');
+});
+
+document.getElementById('btn-config').addEventListener('click', async function () {
+  // respeta el permiso ya calculado arriba
+  if (!['medico','propietario','amp'].includes((localStorage.getItem('user_role')||'').toLowerCase())) return;
+  setActiveMenu(this);
+  mainEl.classList.add('hidden');
+  cfgEl.classList.remove('hidden');
+  await cargarPanelConfiguracion();
+});
+
+document.getElementById('btn-logout').addEventListener('click', () => {
+  localStorage.clear();
+  window.location.href = 'index.html';
+});
+
   </script>
 </body>
 </html>
