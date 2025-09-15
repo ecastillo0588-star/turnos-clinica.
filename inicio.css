@@ -1,49 +1,54 @@
 /* =========================
-   EG Health — inicio.css (v2)
-   Look clásico + controles de tamaño
-   Scope: SOLO dentro de #inicio-root
+   EG Health — inicio.css (scoped)
+   Todo el estilo vive bajo #inicio-root
    ========================= */
 
-/* ---------- tokens ---------- */
+/* -------------------------
+   Variables (design tokens)
+   ------------------------- */
 #inicio-root{
+  /* tipografía + layout (ajustado vía JS) */
   --fs: 14px;
+
+  /* alturas de filas del grid 2×2 (ajustadas por JS) */
   --row-1: 420px;
   --row-2: 420px;
 
+  /* anchos orientativos para tablas (los usa JS al setear grid-template-columns) */
   --w-hora:   120px;
   --w-dni:    110px;
   --w-prof:   180px;
   --w-copago: 120px;
   --w-espera: 86px;
+  --w-acc:    120px;  /* ✨ NUEVO: ancho col. Acciones (faltaba) */
 
   --minch-nombre:   10ch;
   --minch-apellido: 12ch;
   --minch-obra:     10ch;
 
+  /* escala de UI */
   --gap: 12px;
   --radius: 12px;
   --shadow: 0 6px 26px rgba(0,0,0,.05);
 
+  /* colores */
   --fg: #222;
   --muted: #6b7280;
   --brand: #6b56b8;
-  --bg: #f7f9fb;     /* como la 2ª imagen */
+  --bg: #fafbff;
   --white: #fff;
   --border-clr: #e6e6ef;
   --border: 1px solid var(--border-clr);
 
+  /* bordes de elementos internos */
   --subborder: 1px solid #eef0fb;
-}
 
-/* reset mínimo solo dentro del root */
-#inicio-root *{ box-sizing:border-box; }
-#inicio-root{
-  position: relative;
+  /* fuente base del panel */
+  font: 400 var(--fs)/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   color: var(--fg);
-  font: 400 var(--fs)/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
 }
 
-/* máscara de boot */
+/* Evita FOUC mientras #inicio-root tenga data-boot */
 #inicio-root[data-boot]::after{
   content:'Cargando…';
   position:absolute; inset:0;
@@ -53,22 +58,31 @@
   font-weight:600; color:#4f3b7a;
 }
 
-/* ---------- contenedor ---------- */
-#inicio-root .panel{
-  display:flex; flex-direction:column; gap: var(--gap);
+/* -------------------------
+   Reset mínimo (scoped)
+   ------------------------- */
+#inicio-root *{ box-sizing: border-box; }
+
+/* -------------------------
+   Shell / Panel contenedor
+   ------------------------- */
+#inicio-root{
+  position:relative;
+  display:flex; flex-direction:column;
+  gap: var(--gap);
+  padding: 14px;
+  width: 100%;
+  background: var(--bg);
 }
 
-/* ---------- toolbar (look clásico) ---------- */
+/* -------------------------
+   Toolbar compacta
+   ------------------------- */
 #inicio-root .toolbar{
   display:grid;
   grid-template-columns: 1fr auto auto auto auto;
   gap: var(--gap);
   align-items:end;
-  background: var(--white);
-  border: var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 12px;
 }
 
 #inicio-root .search-wrap{ position:relative; display:flex; align-items:center; }
@@ -83,11 +97,12 @@
   padding: 10px 12px;
   font: inherit;
 }
-
 #inicio-root .sel.compact{ padding-right: 28px; }
+
 #inicio-root .search-clear{
   position:absolute; right:8px; top:50%; transform:translateY(-50%);
-  border:0; background:transparent; cursor:pointer; font-size:14px; opacity:.7;
+  border:0; background:transparent; cursor:pointer; font-size:14px;
+  opacity:.7;
 }
 
 #inicio-root .field{ display:flex; flex-direction:column; gap:6px; min-width:0; }
@@ -102,7 +117,7 @@
   border-radius:8px; cursor:pointer; line-height:1;
 }
 
-/* KPI mini */
+/* KPI chip mini */
 #inicio-root .chip{
   display:inline-flex; align-items:center; gap:6px;
   padding:6px 10px; border-radius:999px;
@@ -110,15 +125,19 @@
 }
 #inicio-root .chip.mini{ font-size:12px; }
 
-/* ---------- boards 2×2 ---------- */
+/* -------------------------
+   Boards (grid 2×2)
+   ------------------------- */
 #inicio-root .boards{
-  flex:1 1 auto; min-height:0;
-  display:grid; gap: var(--gap);
+  flex:1 1 auto;
+  min-height:0;
+  display:grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: var(--row-1) var(--row-2);
+  gap: var(--gap);
 }
 
-/* tarjeta del board */
+/* Board */
 #inicio-root .board{
   display:flex; flex-direction:column; min-height:0;
   border: var(--border); border-radius: var(--radius);
@@ -127,105 +146,130 @@
   overflow:hidden;
 }
 
-/* header del board */
+/* Header del board con controles a la derecha */
 #inicio-root .board > h3{
-  margin:0; padding: 10px 12px;
-  display:grid; grid-template-columns: 1fr auto; align-items:center; gap:8px;
+  margin:0;
+  padding: 10px 12px;
+  display:grid;
+  grid-template-columns: 1fr auto;  /* título a la izq, controles a la der */
+  align-items:center;
+  gap: 8px;
   border-bottom: var(--subborder);
   background:#fbfbff;
   font-size: 15px; font-weight:700;
 }
-#inicio-root #hl-pend,#inicio-root #hl-esp,#inicio-root #hl-atencion,#inicio-root #hl-done{
+
+/* Título (texto que cambia JS) */
+#inicio-root #hl-pend, 
+#inicio-root #hl-esp, 
+#inicio-root #hl-atencion, 
+#inicio-root #hl-done{
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 
-/* controles (⬍ ⛶ ✖️) a la derecha */
+/* Controles (⬍ ⛶ ✖️) */
 #inicio-root .b-ctrls{ display:inline-flex; gap:6px; align-items:center; }
 #inicio-root .b-ctrl{
-  border:1px solid #e1e3f6; background:#fff; padding:6px 8px;
-  border-radius:8px; cursor:pointer; line-height:1;
+  border:1px solid #e1e3f6;
+  background:#fff;
+  padding:6px 8px;
+  border-radius:8px;
+  cursor:pointer;
+  line-height:1;
 }
 #inicio-root .b-ctrl:hover{ background:#f2f3fd; }
 #inicio-root .b-ctrl svg{ width:14px; height:14px; display:block; }
 
-/* cuerpo con solo scroll vertical */
+/* Cuerpo del board: scroll solo vertical */
 #inicio-root .board-body{
-  flex:1 1 auto; min-height:0;
-  overflow-y:auto; overflow-x:hidden;
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden; /* evita barra horizontal */
 }
 
-/* modo expandido (full) */
+/* Full mode: un solo board a pantalla */
 #inicio-root .boards.fullmode{ display:block; height:100%; }
 #inicio-root .boards.fullmode .board{ display:none; }
 #inicio-root .boards.fullmode .board.expanded{
-  display:flex; height: calc(100vh - 28px - 56px);
+  display:flex;
+  height: calc(100vh - 14px*2 - 56px); /* margen panel + toolbar (aprox) */
 }
 
-/* ---------- tabla estilo “clásico” ---------- */
+/* -------------------------
+   Tablas internas (grid)
+   ------------------------- */
 #inicio-root .table{
-  width:100%; border-collapse:separate; border-spacing:0;
-  table-layout: fixed; font-size: inherit;
+  width:100%;
+  border-collapse: separate;
+  border-spacing:0;
+  table-layout: fixed; /* evita overflow por contenidos largos */
+  font-size: inherit;
 }
 
-/* header sticky */
+/* Fila de header sticky + filas */
+#inicio-root .thead .hrow,
+#inicio-root .table .row{
+  display:grid;
+  align-items:center;
+  gap:10px;
+  padding: 8px 12px;
+  border-bottom:1px solid #f0f1fb;
+}
+
 #inicio-root .thead .hrow{
   position:sticky; top:0; z-index:1;
   background: #f9f9ff;
   font-weight:700;
-  display:grid; align-items:center; gap:10px;
-  padding: 8px 12px;
-  border-bottom:1px solid #f0f1fb;
 }
 
-/* “píldoras” moradas en cada th (como la 2ª imagen) */
-#inicio-root .thead .hrow .cell{
-  min-width:0;
-  display:inline-block;
-  padding:4px 8px;
-  border-radius:999px;
-  background:#f5f0ff;
-  border:1px solid #e7ddff;
-  color:#4a3ea3;
-  font-weight:700;
-}
-
-/* filas */
-#inicio-root .table .row{
-  display:grid; align-items:center; gap:10px;
-  padding: 8px 12px;
-  border-bottom:1px solid #f0f1fb;
-}
 #inicio-root .cell{ min-width:0; }
 #inicio-root .cell.right{ justify-self:end; }
 #inicio-root .nowrap{ white-space:nowrap; }
 #inicio-root .truncate{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-/* acciones */
+/* Acciones en celda */
 #inicio-root .actions{ display:inline-flex; gap:6px; }
 #inicio-root .icon{
-  border:1px solid #e5e7f8; background:#fff;
-  border-radius:8px; padding:4px 8px; cursor:pointer; line-height:1;
+  border:1px solid #e5e7f8;
+  background:#fff;
+  border-radius:8px;
+  padding:4px 8px;
+  cursor:pointer;
+  line-height:1;
 }
 #inicio-root .icon:hover{ background:#f4f5fd; }
 
-/* badges */
+/* Badges */
 #inicio-root .wait{
   display:inline-flex; align-items:center; justify-content:center;
-  min-width: 54px; padding:2px 8px; border-radius:999px;
-  background:#f3f4fe; color:#333; font-weight:600; border:1px solid #e6e8ff;
+  min-width: 54px;
+  padding:2px 8px;
+  border-radius:999px;
+  background:#f3f4fe;
+  color:#333;
+  font-weight:600;
+  border:1px solid #e6e8ff;
 }
 #inicio-root .copago{
   display:inline-flex; padding:2px 8px; border-radius:999px;
-  background:#fff4e6; color:#7a4b08; border:1px solid #ffe2ba; font-weight:600;
+  background:#fff4e6; color:#7a4b08; border:1px solid #ffe2ba;
+  font-weight:600;
 }
-#inicio-root .copago.none{ background:#f2f5f9; color:#667085; border-color:#dfe6ee; font-weight:500; }
+#inicio-root .copago.none{
+  background:#f2f5f9; color:#667085; border-color:#dfe6ee;
+  font-weight:500;
+}
 
-/* ---------- drawer ---------- */
+/* -------------------------
+   Drawer (ficha paciente)
+   ------------------------- */
 #inicio-root .drawer{
   position: fixed; inset:0 0 0 auto; width:min(780px, 100vw);
   background:#fff; border-left:1px solid #eceffd;
   transform: translateX(100%); transition: transform .2s ease;
-  display:flex; flex-direction:column; z-index:250;
+  display:flex; flex-direction:column;
+  z-index:250;
 }
 #inicio-root .drawer.open{ transform: translateX(0); }
 
@@ -236,10 +280,10 @@
 #inicio-root .drawer-title{ font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 #inicio-root .drawer-sub{ font-size:12px; color:var(--muted); }
 
-#inicio-root .hc-link{
-  display:inline-flex; gap:6px; align-items:center; text-decoration:none;
-  border:1px solid #e1e3f6; padding:6px 10px; border-radius:10px; color:#3730a3; background:#fff;
-}
+#inicio-root .hc-link{ display:inline-flex; gap:6px; align-items:center; text-decoration:none;
+  border:1px solid #e1e3f6; padding:6px 10px; border-radius:10px; color:#3730a3; background:#fff; }
+#inicio-root .hc-ico{ display:block; }
+
 #inicio-root .drawer-body{ padding:12px; overflow:auto; display:flex; flex-direction:column; gap:12px; }
 #inicio-root .drawer-foot{ display:flex; align-items:center; gap:10px; padding:12px; border-top:var(--subborder); background:#fbfbff; }
 
@@ -247,13 +291,16 @@
 #inicio-root .msg.ok{ color:#1f7a37; }
 #inicio-root .msg.warn{ color:#a11313; }
 
+/* Cards y filas del drawer */
 #inicio-root .card{ border:1px solid #eceffd; border-radius:12px; background:#fff; padding:12px; }
 #inicio-root .card > h4{ margin:0 0 10px 0; font-size:14px; }
 
 #inicio-root .row2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
 #inicio-root .row3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
 
-/* ---------- responsive ---------- */
+/* -------------------------
+   Responsive
+   ------------------------- */
 @media (max-width:1100px){
   #inicio-root .boards{
     grid-template-columns: 1fr;
@@ -263,7 +310,12 @@
   #inicio-root .row2{ grid-template-columns:1fr; }
 }
 
-/* accesibilidad */
+/* -------------------------
+   Pequeños helpers
+   ------------------------- */
+#inicio-root #kpi-sub{ color:var(--muted); }
+
+/* Enfoques accesibles */
 #inicio-root .inp:focus, 
 #inicio-root .sel:focus, 
 #inicio-root .btn:focus, 
@@ -275,3 +327,19 @@
   outline-offset: 2px;
   box-shadow: 0 0 0 2px rgba(107,86,184,.12);
 }
+
+/* -------------------------
+   Overlay de carga (dinámico)
+   ------------------------- */
+#inicio-root .ioverlay{
+  position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,.92); opacity:0; pointer-events:none; transition:opacity .18s ease; z-index:200;
+}
+#inicio-root .ioverlay.show{ opacity:1; pointer-events:all; }
+#inicio-root .ioverlay .box{
+  display:flex; align-items:center; gap:12px; padding:16px 18px; border-radius:12px;
+  background:#ffffff; border:1px solid #e8def8; box-shadow:0 6px 28px rgba(0,0,0,.08);
+  color:#4f3b7a; font-weight:600;
+}
+#inicio-root .ioverlay .spin{ width:34px; height:34px; border-radius:50%; border:3px solid #d9d1f3; border-top-color:#7656b0; animation:rr .8s linear infinite; }
+@keyframes rr{ to{ transform:rotate(360deg) } }
