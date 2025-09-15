@@ -244,10 +244,14 @@
     // ---------- Carga dinámica de paneles
     let _panelLoader = { reqId: 0, abort: null };
 
-    async function cargarPanelHtml(url) {
+   // ---------- Carga dinámica de paneles
+let _panelLoader = { reqId: 0, abort: null };
+
+async function cargarPanelHtml(url) {
   const main = document.getElementById("main-content");
   if (!main) throw new Error("#main-content no encontrado");
 
+  // cancelar carga anterior si la hubiera
   _panelLoader.abort?.abort();
   const abort = new AbortController();
   _panelLoader.abort = abort;
@@ -263,16 +267,36 @@
     const resp = await fetch(url, { signal: abort.signal });
     if (!resp.ok) throw new Error("HTTP " + resp.status + " al cargar " + url);
     const html = await resp.text();
-    if (myReqId !== _panelLoader.reqId) return;
+    if (myReqId !== _panelLoader.reqId) return; // respuesta vieja
 
-    // 1) Parsear el documento recibido
+    // 1) Parsear el HTML del panel
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
 
-    // 2) Mover <link rel="stylesheet"> al <head> REAL (con de-dup)
-    const links = [...doc.querySelectorAll('link[rel="stylesheet"]')];
+    // 2) Inyectar <link rel="stylesheet"> del panel en el <head> REAL (resolviendo paths relativos)
+    const head = doc.head || doc;
+    const links = [...head.querySelectorAll('link[rel="stylesheet"]')];
+
+    // Base absoluta segura, aun si "url" es relativa (p.ej. "inicio.html")
+    let base;
+    try {
+      base = new URL(url, document.baseURI || window.location.href);
+    } catch {
+      base = new URL(window.location.href);
+    }
+
     for (const l of links) {
-      const absHref = new URL(l.getAttribute("href"), url).href; // resuelve relativo al archivo cargado
+      const hrefRaw = l.getAttribute("href") || "";
+      if (!hrefRaw || hrefRaw.startsWith("data:")) continue;
+
+      let absHref = hrefRaw;
+      try {
+        absHref = new URL(hrefRaw, base).href;
+      } catch {
+        // si no se puede resolver, usamos lo que vino
+      }
+
+      // de-dup para no repetir el mismo CSS varias veces
       if (!document.head.querySelector(`link[data-dyn-style="${absHref}"]`)) {
         const n = document.createElement("link");
         n.rel = "stylesheet";
@@ -282,12 +306,13 @@
       }
     }
 
-    // 3) Poner SOLO el body del panel dentro de main
+    // 3) Renderizar SOLO el <body> del panel dentro de #main-content
     main.innerHTML = doc.body ? doc.body.innerHTML : html;
     main.scrollTop = 0;
 
-    // 4) Resolver módulo según archivo
+    // 4) Ejecutar la lógica del panel según el archivo
     const file = url.split("#")[0].split("?")[0].split("/").pop() || "";
+
     if (file === "inicio.html") {
       const mod = await import("./inicio.js");
       if (typeof mod.initInicio === "function") await mod.initInicio(main);
@@ -298,10 +323,12 @@
       try {
         const mod = await import("./pacientes.js");
         if (typeof mod.initPacientes === "function") await mod.initPacientes(main);
-      } catch (e) { console.warn("pacientes.js no disponible:", e); }
+      } catch (e) {
+        console.warn("pacientes.js no disponible:", e);
+      }
     }
   } catch (err) {
-    if (err.name === "AbortError") return;
+    if (err && err.name === "AbortError") return;
     console.error(err);
     main.innerHTML = `
       <div style="padding:18px">
@@ -315,6 +342,7 @@
     if (myReqId === _panelLoader.reqId) _panelLoader.abort = null;
   }
 }
+
 
 
     // ---------- Auxiliares
