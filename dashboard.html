@@ -7,28 +7,40 @@
   <link rel="stylesheet" href="app.css">
   <style>
     body { background: #f7f9fb; }
-    .app { display:flex; min-height:100vh; }
+    .app { display: flex; min-height: 100vh; }
     .sidebar {
-      width:270px; background:#fff; box-shadow:0 2px 18px rgba(60,40,140,0.07);
+      width: 270px; background:#fff; box-shadow:0 2px 18px rgba(60,40,140,.07);
       display:flex; flex-direction:column; padding:22px 18px 0 24px; min-width:240px;
     }
-    .user-mini { display:flex; flex-direction:column; margin-bottom:7px; gap:2px; }
+    .sidebar .user-mini { display:flex; flex-direction:column; margin-bottom:7px; gap:2px; }
     .user-name { font-size:14px; color:#6b6480; font-weight:500; }
     .user-rol { font-size:12px; background:#a490d7; color:#fff; border-radius:5px; padding:2px 8px; }
-    .brand-title { font-weight:bold; font-size:21px; color:#381e60; margin:10px 0; }
+    .brand-title { font-weight:bold; font-size:21px; color:#381e60; margin-bottom:8px; }
     .centro-row { display:flex; align-items:center; gap:6px; margin-bottom:14px; }
     .centro-label { font-size:15px; color:#6b6480; }
+    .custom-select { position:relative; width:130px; }
     .custom-select select {
       appearance:none; background:#f7f9fb; border:1.5px solid #ece5fc; border-radius:7px;
-      padding:5px 28px 5px 10px; font-size:14px; color:#4f3b7a; width:100%; font-weight:500;
+      padding:5px 28px 5px 10px; font-size:14px; color:#4f3b7a; width:100%;
+    }
+    .custom-select::after {
+      content:''; position:absolute; top:50%; right:11px; width:11px; height:11px;
+      background:url('data:image/svg+xml;utf8,<svg fill="none" stroke="rgb(164,144,215)" stroke-width="2" viewBox="0 0 14 14"><path d="M3 6l4 4 4-4"/></svg>') no-repeat center/contain;
+      transform:translateY(-50%);
     }
     .menu { display:flex; flex-direction:column; gap:6px; margin-top:20px; }
-    .menu button { background:#f7f9fb; border:none; padding:10px 16px; border-radius:6px; font-size:15px; color:#381e60; cursor:pointer; text-align:left; }
+    .menu button { background:#f7f9fb; border:none; padding:10px 16px; border-radius:6px;
+      font-size:15px; color:#381e60; cursor:pointer; text-align:left; }
     .menu button.active { background:#e7e2fa; color:#7656b0; }
     .settings-slot { margin-top:auto; margin-bottom:16px; }
-    .settings-btn { background:#7656b0; color:#fff; border:none; border-radius:7px; padding:11px 0; font-size:16px; cursor:pointer; font-weight:500; width:92%; }
-    .logout-slot { margin-bottom:18px; margin-top:8px; display:flex; justify-content:center; }
-    .main { padding:32px 20px; min-height:100vh; background:#f7f9fb; flex:1; }
+    .settings-btn { background:#7656b0; color:#fff; border:none; border-radius:7px; padding:11px 0; font-size:16px; cursor:pointer; width:92%; }
+    .logout-slot { margin:12px 0; display:flex; justify-content:center; }
+    .power-btn { background:none; border:none; cursor:pointer; width:44px; height:44px; border-radius:50%; }
+    .power-btn svg { width:30px; height:30px; stroke:#b00020; }
+    .power-btn:hover { background:rgba(220,0,40,.08); }
+    .power-btn .tooltip { display:none; position:absolute; left:44px; top:50%; transform:translateY(-50%); background:#381e60; color:#fff; padding:4px 12px; border-radius:6px; font-size:14px; }
+    .power-btn:hover .tooltip { display:block; }
+    .main { padding:32px 20px; flex:1; background:#f7f9fb; }
     .card { background:#fff; padding:28px 22px; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.10); max-width:900px; margin:0 auto; }
   </style>
 </head>
@@ -36,8 +48,8 @@
   <div class="app">
     <aside class="sidebar">
       <div class="user-mini">
-        <span class="user-name" id="user-name"></span>
-        <span class="user-rol" id="user-rol"></span>
+        <span id="user-name" class="user-name"></span>
+        <span id="user-rol" class="user-rol"></span>
       </div>
       <div class="brand-title">EG Health</div>
       <div class="centro-row">
@@ -48,109 +60,113 @@
         <button id="btn-inicio" class="active">Inicio</button>
         <button id="btn-turnos">Turnos</button>
         <button id="btn-pacientes">Pacientes</button>
+        <button id="btn-config">Configuración</button>
       </nav>
-      <div class="settings-slot">
-        <button class="settings-btn" id="btn-config">Configuración</button>
-      </div>
       <div class="logout-slot">
-        <button class="power-btn" id="btn-logout">Salir</button>
+        <button class="power-btn" id="btn-logout">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 2v10" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke-width="2"/></svg>
+          <span class="tooltip">Cerrar sesión</span>
+        </button>
       </div>
     </aside>
 
     <main class="main">
       <div id="main-content" class="card"></div>
+      <div id="modal-root"></div>
     </main>
   </div>
 
   <script type="module">
     import supabase from "./supabaseClient.js";
+    import { normalizeRole, applyRoleClasses } from "./global.js";
 
-    // --- Roles ---
-    const roleLabels = {
-      propietario:"Propietario",
-      medico:"Médico",
-      amp:"Asistente Médico Personal",
-      amc:"Asistente de Centro Médico"
+    // --- Estado base
+    const rawRole = localStorage.getItem("user_role") || "";
+    const userRolRaw = normalizeRole(rawRole);
+    const userRolLabel = {
+      propietario:"Propietario", medico:"Médico",
+      amp:"Asistente Médico Personal", amc:"Asistente de Centro Médico"
+    }[userRolRaw] || rawRole || "—";
+
+    document.getElementById("user-name").textContent = localStorage.getItem("user_name") || "Usuario";
+    document.getElementById("user-rol").textContent = userRolLabel;
+    applyRoleClasses(userRolRaw);
+
+    // --- Configuración botón según rol
+    const btnConfig = document.getElementById("btn-config");
+    if (!["medico","propietario","amp"].includes(userRolRaw)) btnConfig.style.display = "none";
+
+    // --- Selector de centros
+    const centroSelect = document.getElementById("centro-select");
+    const profesionalId = localStorage.getItem("profesional_id");
+    async function cargarCentros() {
+      centroSelect.innerHTML = "<option>Cargando...</option>";
+      let centros = [];
+      if (profesionalId) {
+        const { data } = await supabase
+          .from("profesional_centro")
+          .select("centros_medicos(id,nombre)")
+          .eq("profesional_id", profesionalId)
+          .eq("activo", true);
+        centros = (data||[]).map(r=>r.centros_medicos).filter(Boolean);
+      }
+      if (!centros.length) {
+        centroSelect.innerHTML = "<option>No hay centros</option>";
+        return;
+      }
+      centroSelect.innerHTML = centros.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
+      centroSelect.value = localStorage.getItem("centro_medico_id") || centros[0].id;
+      localStorage.setItem("centro_medico_id", centroSelect.value);
+      localStorage.setItem("centro_medico_nombre", centros.find(c=>String(c.id)===String(centroSelect.value))?.nombre || "");
+    }
+    await cargarCentros();
+    centroSelect.onchange = ()=> {
+      localStorage.setItem("centro_medico_id", centroSelect.value);
+      localStorage.setItem("centro_medico_nombre", centroSelect.options[centroSelect.selectedIndex]?.text || "");
     };
 
-    const userRolRaw   = (localStorage.getItem("user_role") || "").toLowerCase();
-    const userRolLabel = roleLabels[userRolRaw] || userRolRaw || "—";
-    document.getElementById("user-rol").textContent = userRolLabel;
-
-    // Nombre de usuario seguro
-    async function getSafeDisplayName() {
-      try {
-        const email = localStorage.getItem("email") || "";
-        const badStored = localStorage.getItem("user_name") || "";
-        if (badStored) return badStored;
-        return email || "Usuario";
-      } catch { return "Usuario"; }
-    }
-    document.getElementById("user-name").textContent = await getSafeDisplayName();
-
-    // Permisos configuración
-    if (!["medico","propietario","amp"].includes(userRolRaw)) {
-      document.getElementById("btn-config").style.display="none";
-    }
-
-    // --- Carga dinámica de paneles ---
+    // --- Loader dinámico
     let _panelLoader = { reqId:0, abort:null };
-
     async function cargarPanelHtml(url) {
       const main = document.getElementById("main-content");
-      if (!main) return;
       _panelLoader.abort?.abort();
       const abort = new AbortController();
       _panelLoader.abort = abort;
       const myReqId = ++_panelLoader.reqId;
-      main.innerHTML = `<div style="text-align:center;padding:40px;">Cargando...</div>`;
-
+      main.innerHTML = "<div style='text-align:center;padding:50px;'>Cargando...</div>";
       try {
-        const resp = await fetch(url, { signal:abort.signal });
+        const resp = await fetch(url, { signal: abort.signal });
         if (!resp.ok) throw new Error("HTTP "+resp.status);
         const html = await resp.text();
         if (myReqId !== _panelLoader.reqId) return;
         main.innerHTML = html;
-        main.scrollTop = 0;
-        const file = url.split("/").pop() || "";
-
-        if (file === "inicio.html") {
-          const mod = await import("./inicio.js");
-          if (mod.initInicio) await mod.initInicio(main);
-        } else if (file === "turnos.html") {
-          const mod = await import("./turnos.js");
-          if (mod.initTurnos) await mod.initTurnos(main);
-        } else if (file === "configuracion.html") {
-          Array.from(main.querySelectorAll("script")).forEach(s=>{
-            const ns=document.createElement("script");
-            ns.type=s.type||"text/javascript";
-            if (s.src) ns.src=s.src; else ns.textContent=s.textContent;
-            document.body.appendChild(ns);
+        const file = url.split("/").pop();
+        if (file==="inicio.html") {
+          const mod = await import("./inicio.js"); mod.initInicio?.(main);
+        } else if (file==="turnos.html") {
+          const mod = await import("./turnos.js"); mod.initTurnos?.(main);
+        } else if (file==="configuracion.html") {
+          // reinyección de scripts internos
+          main.querySelectorAll("script").forEach(old=>{
+            const s=document.createElement("script"); s.type=old.type||"text/javascript";
+            if (old.src) s.src=old.src; else s.textContent=old.textContent;
+            document.body.appendChild(s);
           });
         }
-      } catch(err) {
-        if (err.name!=="AbortError") {
-          main.innerHTML = `<div style="color:#b00020;padding:20px;">Error: ${err.message}</div>`;
-        }
-      } finally {
-        if (myReqId===_panelLoader.reqId) _panelLoader.abort=null;
-      }
+      } catch(e){ main.innerHTML=`<div style="color:#b00020;">Error: ${e.message}</div>`; }
+      finally { if(myReqId===_panelLoader.reqId) _panelLoader.abort=null; }
     }
 
-    function setActiveMenu(btn) {
-      document.querySelectorAll(".menu button").forEach(b=>b.classList.remove("active"));
-      if (btn) btn.classList.add("active");
-    }
-
-    // Carga inicial
+    // --- Navegación
     await cargarPanelHtml("inicio.html");
+    document.getElementById("btn-inicio").onclick=()=>{setActive("btn-inicio");cargarPanelHtml("inicio.html");};
+    document.getElementById("btn-turnos").onclick=()=>{setActive("btn-turnos");cargarPanelHtml("turnos.html");};
+    document.getElementById("btn-pacientes").onclick=()=>{setActive("btn-pacientes");cargarPanelHtml("pacientes.html");};
+    document.getElementById("btn-config").onclick=()=>{setActive("btn-config");cargarPanelHtml("configuracion.html");};
+    function setActive(id){ document.querySelectorAll(".menu button").forEach(b=>b.classList.remove("active")); document.getElementById(id).classList.add("active"); }
 
-    // Navegación
-    document.getElementById("btn-inicio").onclick   = e=>{setActiveMenu(e.target);cargarPanelHtml("inicio.html");};
-    document.getElementById("btn-turnos").onclick   = e=>{setActiveMenu(e.target);cargarPanelHtml("turnos.html");};
-    document.getElementById("btn-pacientes").onclick= e=>{setActiveMenu(e.target);cargarPanelHtml("pacientes.html");};
-    document.getElementById("btn-config").onclick   = e=>{setActiveMenu(e.target);cargarPanelHtml("configuracion.html");};
-    document.getElementById("btn-logout").onclick   = ()=>{localStorage.clear();window.location.href="index.html";};
+    // --- Logout
+    document.getElementById("btn-logout").onclick=()=>{ localStorage.clear(); location.href="index.html"; };
   </script>
 </body>
 </html>
