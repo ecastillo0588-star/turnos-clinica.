@@ -1,242 +1,116 @@
-   /* =========================
-   EG Health — inicio.css (scoped, limpio)
-   ========================= */
-
+/* ===== Ajuste fino de look & feel + uso del espacio (FINAL) ===== */
 #inicio-root{
-  /* Tipografía + colores */
-  --fs: 13.5px; --fw: 400;
-  --fg:#3B3665; --muted:#6f6a86; --brand:#6b56b8;
-  --white:#fff; --bg:#F7F7FC;
-
-  /* Bordes/sombras */
-  --border-clr:#E6E2F6; --subborder-clr:#F0EDFF; --header-bg:#F5F2FF;
-  --shadow:0 6px 28px rgba(90,70,170,.07);
-
-  /* Alturas de filas del grid 2×2 (mínimos) */
-  --row-1:360px; --row-2:320px;
-
-  /* Para llenar viewport (toolbar+padding aprox.) */
-  --h-offset:180px;
-
-  /* Anchos de columnas */
-  --w-hora:130px; --w-dni:130px; --w-prof:210px;
-  --w-copago:120px; --w-espera:100px; --w-acc:150px;
-
-  /* Mínimos de columnas flex */
-  --minch-nombre:14ch; --minch-apellido:14ch; --minch-obra:12ch;
-
-  /* Escala y radios */
-  --gap:12px; --radius:14px; --radius-sm:10px;
-
-  font: var(--fw) var(--fs)/1.35 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
-  color:var(--fg);
-  position:relative; display:flex; flex-direction:column; gap:var(--gap);
-  padding:16px 18px; width:100%;
-  background:transparent;
-}
-
-/* Boot-mask */
-#inicio-root[data-boot]::after{
-  content:'Cargando…'; position:absolute; inset:0; display:flex;
-  align-items:center; justify-content:center; background:rgba(255,255,255,.96);
-  z-index:300; font-weight:600; color:#4f3b7a;
-}
-
-#inicio-root *{ box-sizing:border-box; }
-
-/* ---------- Toolbar ---------- */
-#inicio-root .toolbar{
-  display:grid; grid-template-columns:1fr auto auto auto auto;
-  gap:var(--gap); align-items:end;
-}
-#inicio-root .search-wrap{ position:relative; display:flex; align-items:center; }
-#inicio-root .inp,#inicio-root .sel,#inicio-root .btn{
-  border:1.5px solid var(--border-clr); background:#fff; color:var(--fg);
-  border-radius:var(--radius-sm); padding:9px 12px; font:inherit;
-}
-#inicio-root .search-clear{ position:absolute; right:8px; top:50%; transform:translateY(-50%); border:0; background:transparent; cursor:pointer; font-size:14px; opacity:.7; }
-#inicio-root .field{ display:flex; flex-direction:column; gap:6px; min-width:0; }
-#inicio-root .field>label{ font-size:12px; color:var(--muted); }
-#inicio-root .btn.secondary{ background:#f5f6fe; }
-#inicio-root .zoom-chip{ display:inline-flex; gap:4px; align-items:center; }
-#inicio-root .zoom-btn{ border:1.5px solid var(--border-clr); background:#fff; padding:6px 8px; border-radius:8px; cursor:pointer; }
-
-/* ---------- KPI chip ---------- */
-#inicio-root .chip{ display:inline-flex; gap:6px; align-items:center; padding:6px 10px; border-radius:999px; background:#F2EEFF; border:1px solid #E6E2F6; color:#3B3665; }
-#inicio-root .chip.mini{ font-size:12px; }
-
-/* ---------- Boards (grid 2×2, alto viewport) ---------- */
-#inicio-root .boards{
-  display:grid; gap:var(--gap); grid-template-columns:1fr 1fr;
-  height:calc(100vh - var(--h-offset));
-  grid-template-rows: minmax(var(--row-1),1fr) minmax(var(--row-2),1fr);
-}
-#inicio-root .boards.fullmode{ height:calc(100vh - var(--h-offset)); }
-#inicio-root .boards.fullmode .board.expanded{ height:calc(100vh - var(--h-offset)); }
-
-#inicio-root .board{
-  display:flex; flex-direction:column; min-height:0; overflow:hidden;
-  border:1px solid var(--border-clr); border-radius:var(--radius);
-  background:var(--white); color:var(--fg); box-shadow:var(--shadow);
-}
-#inicio-root .board>h3{
-  margin:0; padding:10px 12px; display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center;
-  background:var(--header-bg); border-bottom:1px solid var(--subborder-clr); font-weight:700;
-}
-#inicio-root .b-ctrls{ display:inline-flex; gap:6px; }
-#inicio-root .b-ctrl{ border:1px solid var(--border-clr); background:#fff; padding:6px 8px; border-radius:8px; cursor:pointer; }
-#inicio-root .b-ctrl:hover{ background:#f1efff; }
-
-#inicio-root .board-body{
-  flex:1 1 auto; min-height:0; overflow:auto;
-  scrollbar-width:thin; scrollbar-color:#D8D2F0 transparent;
-}
-#inicio-root .board-body::-webkit-scrollbar{ height:10px; width:10px; }
-#inicio-root .board-body::-webkit-scrollbar-thumb{ background:#D8D2F0; border-radius:8px; }
-
-/* ---------- Tabla interna ---------- */
-#inicio-root .table{ width:100%; table-layout:fixed; }
-#inicio-root .thead .hrow,#inicio-root .table .row{
-  display:grid; align-items:center; gap:10px; padding:8px 12px; border-bottom:1px solid var(--subborder-clr);
-}
-#inicio-root .thead .hrow{ position:sticky; top:0; z-index:1; background:var(--header-bg); color:var(--fg); }
-
-/* Si NO querés la “barrita” debajo de los headers, descomenta la siguiente línea */
-/* #inicio-root .thead .hrow .cell::after{ display:none !important; content:none !important; } */
-
-#inicio-root .cell{ min-width:0; }
-#inicio-root .cell.right{ justify-self:end; }
-#inicio-root .nowrap{ white-space:nowrap; }
-#inicio-root .truncate{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-
-/* Acciones */
-#inicio-root .actions{ display:inline-flex; gap:6px; }
-#inicio-root .icon{ border:1px solid var(--border-clr); background:#fff; border-radius:8px; padding:4px 8px; cursor:pointer; }
-#inicio-root .icon:hover{ background:#f3f1ff; }
-
-/* Badges */
-#inicio-root .wait{ display:inline-flex; align-items:center; justify-content:center; min-width:54px; padding:2px 8px; border-radius:999px; background:#f0efff; color:#3b3563; font-weight:600; border:1px solid #E6E2F6; }
-#inicio-root .copago{ display:inline-flex; padding:2px 8px; border-radius:999px; background:#fff4e6; color:#7a4b08; border:1px solid #ffe2ba; font-weight:600; }
-#inicio-root .copago.none{ background:#f2f5f9; color:#667085; border-color:#dfe6ee; font-weight:500; }
-
-/* ---------- Drawer ---------- */
-#inicio-root .drawer{ position:fixed; inset:0 0 0 auto; width:min(780px,100vw); background:#fff; border-left:1px solid var(--border-clr); transform:translateX(100%); transition:transform .2s ease; display:flex; flex-direction:column; z-index:250; }
-#inicio-root .drawer.open{ transform:translateX(0); }
-#inicio-root .drawer-head{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid var(--subborder-clr); background:#fff; }
-#inicio-root .drawer-title{ font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#2c255a; }
-#inicio-root .drawer-sub{ font-size:12px; color:var(--muted); }
-#inicio-root .hc-link{ display:inline-flex; gap:6px; align-items:center; text-decoration:none; border:1px solid var(--border-clr); padding:6px 10px; border-radius:10px; color:#3730a3; background:#fff; }
-#inicio-root .drawer-body{ padding:12px; overflow:auto; display:flex; flex-direction:column; gap:12px; }
-#inicio-root .drawer-foot{ display:flex; align-items:center; gap:10px; padding:12px; border-top:1px solid var(--subborder-clr); background:#fff; }
-#inicio-root .msg{ font-size:12px; color:#6b7280; }
-#inicio-root .msg.ok{ color:#1f7a37; }
-#inicio-root .msg.warn{ color:#a11313; }
-#inicio-root .card{ border:1px solid var(--border-clr); border-radius:12px; background:#fff; padding:12px; }
-#inicio-root .card>h4{ margin:0 0 10px 0; font-size:14px; color:#3b3563; }
-#inicio-root .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-#inicio-root .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
-
-/* ---------- Responsive ---------- */
-@media (max-width:1100px){
-  #inicio-root .boards{ grid-template-columns:1fr; grid-template-rows:auto auto auto auto; }
-  #inicio-root .row3{ grid-template-columns:1fr; }
-  #inicio-root .row2{ grid-template-columns:1fr; }
-}
-
-/* ---------- Focus accesible ---------- */
-#inicio-root .inp:focus,#inicio-root .sel:focus,#inicio-root .btn:focus,
-#inicio-root .zoom-btn:focus,#inicio-root .b-ctrl:focus,#inicio-root .icon:focus,#inicio-root .hc-link:focus{
-  outline:2px solid rgba(111,96,200,.35); outline-offset:2px; box-shadow:0 0 0 2px rgba(111,96,200,.12);
-}
-
-/* ---------- Overlay de carga ---------- */
-#inicio-root .ioverlay{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.92); opacity:0; pointer-events:none; transition:opacity .18s ease; z-index:200; }
-#inicio-root .ioverlay.show{ opacity:1; pointer-events:all; }
-#inicio-root .ioverlay .box{ display:flex; gap:12px; padding:16px 18px; border-radius:12px; background:#fff; border:1px solid var(--border-clr); box-shadow:0 6px 28px rgba(0,0,0,.08); color:#4f3b7a; font-weight:600; }
-#inicio-root .ioverlay .spin{ width:34px; height:34px; border-radius:50%; border:3px solid #d9d1f3; border-top-color:var(--brand); animation:rr .8s linear infinite; }
-@keyframes rr{ to{ transform:rotate(360deg) } }
-
-@media (min-height:900px){
-  #inicio-root{ --row-1:500px; --row-2:500px; }
-}
-
-/* =========================================================
-   FIX SCOPED — que inicio.css gane a app.css y use el viewport
-   ========================================================= */
-
-/* 1) Tokens y anchos (más legibles y “anchos”) */
-#inicio-root{
-  --fs: 14px;                 /* fuente un poquito más grande */
-  --fg: #3B3665;              /* texto principal */
-  --muted: #6f6a86;           /* texto secundario */
-
-  --header-bg: #F5F2FF;       /* encabezados suaves lavanda */
+  /* tipografía y colores */
+  --fs: 13.5px;
+  --fg: #3B3665;
+  --muted: #6f6a86;
+  --white: #fff;
+  --header-bg: #F5F2FF;
   --border-clr: #E6E2F6;
-  --subborder-clr: #F0EDFF;
-  --shadow: 0 6px 28px rgba(90,70,170,.07);
+  --subborder-clr: #EFEAFF;
+  --shadow: 0 6px 26px rgba(70,50,140,.07);
 
-  /* columnas (más anchas para que “se vea todo”) */
-  --w-hora:   140px;
+  /* densidad */
+  --gap: 14px;
+  --radius: 14px;
+  --radius-sm: 10px;
+
+  /* alturas de filas (llenar pantalla) */
+  --h-offset: 138px;        /* alto total ocupado por toolbar + paddings */
+  --row-1: 480px;           /* arriba un poco más alto */
+  --row-2: 420px;
+
+  /* anchos reales de columnas */
+  --w-hora:   145px;
   --w-dni:    140px;
   --w-prof:   220px;
   --w-copago: 120px;
-  --w-espera: 104px;
-  --w-acc:    180px;
+  --w-espera: 110px;
+  --w-acc:    170px;
 
+  /* mínimos de columnas elásticas */
   --minch-nombre:   16ch;
-  --minch-apellido: 16ch;
+  --minch-apellido: 18ch;
   --minch-obra:     14ch;
-
-  /* offset alto usado para calcular la altura del grid 2×2 */
-  --h-offset: 152px; /* toolbar + padding; ajustá si lo ves corto/largo */
 }
 
-/* 2) Aprovechar el alto del viewport */
+/* Panel y grid ocupando viewport */
+#inicio-root .panel{ padding: 16px 18px; }
 #inicio-root .boards{
-  height: calc(100vh - var(--h-offset)) !important;
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  height: calc(100vh - var(--h-offset));
+  grid-template-rows: minmax(var(--row-1), 1fr) minmax(var(--row-2), 1fr);
+  gap: var(--gap);
 }
-#inicio-root .boards.fullmode{ height: calc(100vh - var(--h-offset)) !important; }
-#inicio-root .boards.fullmode .board.expanded{ height: calc(100vh - var(--h-offset)) !important; }
+#inicio-root .boards.fullmode{ height: calc(100vh - var(--h-offset)); }
+#inicio-root .boards.fullmode .board.expanded{ height: calc(100vh - var(--h-offset)); }
 
-/* 3) Neutralizar reglas globales de app.css sobre tablas */
-#inicio-root table{ width:100% !important; border-collapse:separate !important; border-spacing:0 !important; }
-#inicio-root thead th{
-  position: static !important;
-  background: transparent !important;
-  border: 0 !important;
-  padding: 0 !important;
-  text-align: left !important;
-  font-size: inherit !important;
+/* Tarjetas/boards */
+#inicio-root .board{
+  background: var(--white);
+  border: 1px solid var(--border-clr);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: var(--fg);
 }
-#inicio-root tbody td{
-  padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
+#inicio-root .board > h3{
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--subborder-clr);
+  padding: 10px 12px;
+  font-weight: 700;
+  color: #372e72;
 }
 
-/* 4) Encabezados de board/tabla con el look lavanda y texto correcto */
-#inicio-root .board{ border:1px solid var(--border-clr) !important; box-shadow: var(--shadow) !important; }
-#inicio-root .board>h3{
-  background: var(--header-bg) !important;
-  border-bottom: 1px solid var(--subborder-clr) !important;
-  color: var(--fg) !important;
-  font-weight: 700 !important;
-}
+/* Cabeceras de tabla: texto legible (sin truncar) y barra lavanda fina */
 #inicio-root .thead .hrow{
-  background: var(--header-bg) !important;
-  border-bottom: 1px solid var(--subborder-clr) !important;
+  position: sticky; top: 0; z-index: 1;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--subborder-clr);
+  padding: 8px 12px;
 }
-#inicio-root .thead .hrow .cell{ color:#5a418d !important; }
+#inicio-root .thead .hrow .cell{
+  color: #5b4f9e;
+  font-size: 13px;
+  white-space: nowrap; overflow: visible; text-overflow: clip;
+}
+#inicio-root .thead .hrow .cell::after{
+  height: 6px;            /* barra más fina */
+  margin-top: 4px;
+  border-radius: 6px;
+  background: #EDE7FF;
+  border: 1px solid #D8CEFF;
+}
 
-/* 5) Asegurar que nada limite el ancho */
-#inicio-root, #inicio-root .panel, #inicio-root .boards, #inicio-root .board{ max-width: none !important; }
+/* Filas de datos: un pelo más densas */
+#inicio-root .table .row{
+  padding: 7px 12px;
+  border-bottom: 1px solid #F0EDFF;
+  color: var(--fg);
+}
+#inicio-root .cell.truncate{ min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-/* (Opcional) si tu dashboard envuelve el panel con una .card de ancho fijo: */
-#main-content.card{
-  max-width: none !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  background: transparent !important;
+/* Acciones: más aire para que no se corten */
+#inicio-root .icon{
+  padding: 4px 8px;
+  border: 1px solid #E8E2F6;
+  border-radius: 8px;
+  background: #fff;
+}
+#inicio-root .icon:hover{ background:#F3F0FF; }
+
+/* Chips/kpis */
+#inicio-root .chip{
+  background:#F2EEFF; border-color:#E6E2F6; color:#3B3665;
+}
+
+/* Scrollbar suave dentro de cada board (horizontal/vertical) */
+#inicio-root .board-body{
+  scrollbar-width: thin; scrollbar-color: #D8D2F0 transparent;
+}
+#inicio-root .board-body::-webkit-scrollbar{ height:10px; width:10px; }
+#inicio-root .board-body::-webkit-scrollbar-thumb{ background:#D8D2F0; border-radius:8px; }
+#inicio-root .board-body::-webkit-scrollbar-track{ background:transparent; }
+
+/* Pantallas altas: subimos aún más los mínimos */
+@media (min-height: 900px){
+  #inicio-root{ --row-1: 520px; --row-2: 460px; --h-offset: 138px; }
 }
