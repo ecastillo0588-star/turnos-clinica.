@@ -1,12 +1,17 @@
-/* ================
-   Variables globales
-   ================ */
+/* =========================
+   EG Health — inicio.css
+   ========================= */
+
+/* -------------------------
+   Variables (design tokens)
+   ------------------------- */
 :root{
-  --fs: 14px;               /* la ajusta JS (zoom) */
-  --row-1: 420px;           /* la ajusta JS (grow) */
+  /* tipografía + layout (las ajusta JS) */
+  --fs: 14px;
+  --row-1: 420px;
   --row-2: 420px;
 
-  /* anchos de columnas (tablas) */
+  /* anchos orientativos para tablas (los usa JS al setear grid-template-columns) */
   --w-hora:   120px;
   --w-dni:    110px;
   --w-prof:   180px;
@@ -17,42 +22,51 @@
   --minch-apellido: 12ch;
   --minch-obra:     10ch;
 
+  /* escala de UI */
   --gap: 12px;
   --radius: 12px;
-  --border: 1px solid #e6e6ef;
   --shadow: 0 6px 26px rgba(0,0,0,.05);
+
+  /* colores */
   --fg: #222;
   --muted: #6b7280;
   --brand: #6b56b8;
   --bg: #fafbff;
   --white: #fff;
+  --border-clr: #e6e6ef;
+  --border: 1px solid var(--border-clr);
+
+  /* bordes de elementos internos */
+  --subborder: 1px solid #eef0fb;
 }
 
-/* ================
+/* -------------------------
    Reset mínimo
-   ================ */
-*{ box-sizing:border-box; }
-html,body{ height:100%; }
+   ------------------------- */
+*{ box-sizing: border-box; }
+html, body{ height: 100%; }
 body{
-  margin:0;
+  margin: 0;
+  color: var(--fg);
   font: 400 var(--fs)/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  color:var(--fg);
-  background:var(--bg);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* ================
-   Shell / Panel
-   ================ */
+/* -------------------------
+   Shell / Panel contenedor
+   ------------------------- */
 .shell{ min-height:100%; display:flex; }
 .panel{
   position:relative;
   display:flex; flex-direction:column;
   gap: var(--gap);
   padding: 14px;
-  width:100%;
+  width: 100%;
 }
 
-/* Boot mask: evita FOUC mientras data-boot esté en #inicio-root */
+/* Boot mask (evita FOUC mientras #inicio-root tenga data-boot) */
 #inicio-root[data-boot]::after{
   content:'Cargando…';
   position:absolute; inset:0;
@@ -62,49 +76,57 @@ body{
   font-weight:600; color:#4f3b7a;
 }
 
-/* ================
+/* -------------------------
    Toolbar compacta
-   ================ */
+   ------------------------- */
 .toolbar{
   display:grid;
   grid-template-columns: 1fr auto auto auto auto;
   gap: var(--gap);
   align-items:end;
 }
+
 .search-wrap{ position:relative; display:flex; align-items:center; }
+
 .inp, .sel, .btn{
   border: 1px solid #dfe2f3;
-  background:#fff;
+  background: #fff;
   color: var(--fg);
   border-radius: 10px;
   padding: 10px 12px;
   font: inherit;
 }
 .sel.compact{ padding-right: 28px; }
+
 .search-clear{
   position:absolute; right:8px; top:50%; transform:translateY(-50%);
   border:0; background:transparent; cursor:pointer; font-size:14px;
   opacity:.7;
 }
+
 .field{ display:flex; flex-direction:column; gap:6px; min-width:0; }
 .field > label{ font-size:12px; color:var(--muted); }
-.btn{ cursor:pointer; }
+
+.btn{ cursor:pointer; user-select:none; }
 .btn.secondary{ background:#f4f5fb; }
 
-/* Zoom chip */
 .zoom-chip{ display:inline-flex; gap:4px; align-items:center; }
-.zoom-btn{ border:1px solid #dfe2f3; background:#fff; padding:6px 8px; border-radius:8px; cursor:pointer; }
+.zoom-btn{
+  border:1px solid #dfe2f3; background:#fff; padding:6px 8px;
+  border-radius:8px; cursor:pointer; line-height:1;
+}
 
 /* KPI chip mini */
 .chip{
   display:inline-flex; align-items:center; gap:6px;
-  padding:6px 10px; border-radius:999px; background:#f4f5fb; color:#333; border:1px solid #e6e8f9;
+  padding:6px 10px; border-radius:999px;
+  background:#f4f5fb; color:#333; border:1px solid #e6e8f9;
 }
 .chip.mini{ font-size:12px; }
 
-/* ================
-   Boards grid
-   ================ */
+/* -------------------------
+   Boards (grid 2×2)
+   ------------------------- */
 .boards{
   flex:1 1 auto;
   min-height:0;
@@ -118,7 +140,7 @@ body{
 .board{
   display:flex; flex-direction:column; min-height:0;
   border: var(--border); border-radius: var(--radius);
-  background:var(--white);
+  background: var(--white);
   box-shadow: var(--shadow);
   overflow:hidden;
 }
@@ -128,23 +150,21 @@ body{
   margin:0;
   padding: 10px 12px;
   display:grid;
-  grid-template-columns: 1fr auto;  /* Título a la izq, controles a la der */
+  grid-template-columns: 1fr auto;  /* título a la izq, controles a la der */
   align-items:center;
   gap: 8px;
-  border-bottom: 1px solid #eef0fb;
+  border-bottom: var(--subborder);
   background:#fbfbff;
   font-size: 15px; font-weight:700;
 }
 
-/* Span del título (donde JS cambia el texto) */
+/* Título (texto que cambia JS) */
 #hl-pend, #hl-esp, #hl-atencion, #hl-done{
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 
-/* Controles (⬍ ⛶ ✖️) SIEMPRE visibles */
-.b-ctrls{
-  display:inline-flex; gap:6px; align-items:center;
-}
+/* Controles (⬍ ⛶ ✖️) */
+.b-ctrls{ display:inline-flex; gap:6px; align-items:center; }
 .b-ctrl{
   border:1px solid #e1e3f6;
   background:#fff;
@@ -154,33 +174,36 @@ body{
   line-height:1;
 }
 .b-ctrl:hover{ background:#f2f3fd; }
+.b-ctrl svg{ width:14px; height:14px; display:block; }
 
-/* Cuerpo del board (ocupa todo el alto restante) */
+/* Cuerpo del board: scroll solo vertical */
 .board-body{
   flex:1 1 auto;
   min-height:0;
-  overflow:auto;
+  overflow-y:auto;
+  overflow-x:hidden; /* <- clave para que no salga la barra morada */
 }
 
-/* Full mode: solo el board.expandido ocupa el panel */
-.boards.fullmode{
-  display:block; /* 1 solo board */
-  height: 100%;
-}
+/* Full mode: un solo board a pantalla */
+.boards.fullmode{ display:block; height:100%; }
 .boards.fullmode .board{ display:none; }
 .boards.fullmode .board.expanded{
   display:flex;
-  height: calc(100vh - 14px*2 - 56px); /* margen panel + toolbar aprox */
+  height: calc(100vh - 14px*2 - 56px); /* margen panel + toolbar (aprox) */
 }
 
-/* ================
-   Tablas (grid)
-   ================ */
+/* -------------------------
+   Tablas internas (grid)
+   ------------------------- */
 .table{
   width:100%;
-  border-collapse: separate; border-spacing:0;
+  border-collapse: separate;
+  border-spacing:0;
+  table-layout: fixed; /* evita overflow por contenidos largos */
   font-size: inherit;
 }
+
+/* Fila de header sticky + filas */
 .thead .hrow,
 .table .row{
   display:grid;
@@ -189,17 +212,19 @@ body{
   padding: 8px 12px;
   border-bottom:1px solid #f0f1fb;
 }
+
 .thead .hrow{
   position:sticky; top:0; z-index:1;
   background: #f9f9ff;
   font-weight:700;
 }
+
 .cell{ min-width:0; }
 .cell.right{ justify-self:end; }
 .nowrap{ white-space:nowrap; }
 .truncate{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-/* Acciones dentro de la celda */
+/* Acciones en celda */
 .actions{ display:inline-flex; gap:6px; }
 .icon{
   border:1px solid #e5e7f8;
@@ -207,9 +232,11 @@ body{
   border-radius:8px;
   padding:4px 8px;
   cursor:pointer;
+  line-height:1;
 }
+.icon:hover{ background:#f4f5fd; }
 
-/* Badges auxiliares */
+/* Badges */
 .wait{
   display:inline-flex; align-items:center; justify-content:center;
   min-width: 54px;
@@ -230,9 +257,9 @@ body{
   font-weight:500;
 }
 
-/* ================
-   Drawer
-   ================ */
+/* -------------------------
+   Drawer (ficha paciente)
+   ------------------------- */
 .drawer{
   position: fixed; inset:0 0 0 auto; width:min(780px, 100vw);
   background:#fff; border-left:1px solid #eceffd;
@@ -241,30 +268,35 @@ body{
   z-index:250;
 }
 .drawer.open{ transform: translateX(0); }
+
 .drawer-head{
   display:flex; align-items:center; gap:10px;
-  padding:12px 14px; border-bottom:1px solid #eef0fb; background:#fbfbff;
+  padding:12px 14px; border-bottom:var(--subborder); background:#fbfbff;
 }
 .drawer-title{ font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .drawer-sub{ font-size:12px; color:var(--muted); }
-.hc-link{ display:inline-flex; gap:6px; align-items:center; text-decoration:none; border:1px solid #e1e3f6; padding:6px 10px; border-radius:10px; color:#3730a3; background:#fff; }
+
+.hc-link{ display:inline-flex; gap:6px; align-items:center; text-decoration:none;
+  border:1px solid #e1e3f6; padding:6px 10px; border-radius:10px; color:#3730a3; background:#fff; }
 .hc-ico{ display:block; }
+
 .drawer-body{ padding:12px; overflow:auto; display:flex; flex-direction:column; gap:12px; }
-.drawer-foot{ display:flex; align-items:center; gap:10px; padding:12px; border-top:1px solid #eef0fb; background:#fbfbff; }
+.drawer-foot{ display:flex; align-items:center; gap:10px; padding:12px; border-top:var(--subborder); background:#fbfbff; }
+
 .msg{ font-size:12px; color:#6b7280; }
 .msg.ok{ color:#1f7a37; }
 .msg.warn{ color:#a11313; }
 
-/* Cards y filas */
+/* Cards y filas del drawer */
 .card{ border:1px solid #eceffd; border-radius:12px; background:#fff; padding:12px; }
 .card > h4{ margin:0 0 10px 0; font-size:14px; }
 
 .row2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
 .row3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
 
-/* ================
-   Helpers responsive
-   ================ */
+/* -------------------------
+   Responsive
+   ------------------------- */
 @media (max-width:1100px){
   .boards{
     grid-template-columns: 1fr;
@@ -274,7 +306,14 @@ body{
   .row2{ grid-template-columns:1fr; }
 }
 
-/* ================
+/* -------------------------
    Pequeños helpers
-   ================ */
+   ------------------------- */
 #kpi-sub{ color:var(--muted); }
+
+/* Enfoques accesibles */
+.inp:focus, .sel:focus, .btn:focus, .zoom-btn:focus, .b-ctrl:focus, .icon:focus, .hc-link:focus{
+  outline: 2px solid rgba(107,86,184,.35);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px rgba(107,86,184,.12);
+}
