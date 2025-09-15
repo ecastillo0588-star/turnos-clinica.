@@ -17,12 +17,12 @@
     }
     .sidebar .user-mini { display:flex; flex-direction:column; align-items:flex-start; margin-bottom:7px; gap:2px; }
     .sidebar .user-mini .user-name {
-      font-size:14px; color:#6b6480; font-weight:500; margin-bottom:2px; letter-spacing:.01em;
+      font-size:14px; color:#6b6480; font-weight:500; margin-bottom:2px;
       white-space:nowrap; text-overflow:ellipsis; overflow:hidden; max-width:160px;
     }
     .sidebar .user-mini .user-rol {
       font-size:12px; background:#a490d7; color:#fff; border-radius:5px; padding:2px 8px;
-      font-weight:400; margin-bottom:1px; letter-spacing:.03em;
+      font-weight:400; margin-bottom:1px;
       white-space:nowrap; max-width:160px; overflow:hidden; text-overflow:ellipsis;
     }
     .brand-title { font-weight:bold; font-size:21px; color:#381e60; margin-bottom:8px; }
@@ -32,32 +32,24 @@
     .custom-select select {
       appearance:none; background:#f7f9fb; border:1.5px solid #ece5fc; border-radius:7px;
       padding:5px 28px 5px 10px; font-size:14px; color:#4f3b7a; width:100%;
-      font-weight:500; cursor:pointer; transition:border .14s; outline:none; box-shadow:none;
+      font-weight:500; cursor:pointer;
     }
-    .custom-select select:focus { border-color:#a490d7; }
     .custom-select::after {
       content:''; position:absolute; top:50%; right:11px; width:11px; height:11px; pointer-events:none;
       transform:translateY(-50%);
       background:url('data:image/svg+xml;utf8,<svg fill="none" stroke="rgb(164,144,215)" stroke-width="2" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><path d="M3 6l4 4 4-4"/></svg>') no-repeat center/contain;
     }
     .menu { display:flex; flex-direction:column; gap:6px; margin-top:20px; }
-    .menu button { background:#f7f9fb; border:none; padding:10px 16px; border-radius:6px; font-size:15px; color:#381e60; cursor:pointer; transition:background .12s; text-align:left; }
-    .menu button.active,.menu-subitem.active { background:#e7e2fa; color:#7656b0; }
-    .menu button:hover,.menu-subitem:hover { background:#ece5fc; }
-    .settings-slot { margin-top:auto; margin-bottom:16px; }
-    .settings-btn { background:#7656b0; color:#fff; border:none; border-radius:7px; padding:11px 0; font-size:16px; cursor:pointer; font-weight:500; width:92%; margin-left:2px; }
-    .settings-btn:hover { background:#7f62b6; }
-    .settings-btn[disabled]{ opacity:.4; cursor:not-allowed; }
+    .menu button { background:#f7f9fb; border:none; padding:10px 16px; border-radius:6px; font-size:15px; color:#381e60; cursor:pointer; }
+    .menu button.active { background:#e7e2fa; color:#7656b0; }
+    .menu button:hover { background:#ece5fc; }
     .logout-slot { margin-bottom:18px; margin-top:8px; display:flex; justify-content:center; }
-    .power-btn { background:none; border:none; cursor:pointer; padding:0; margin:0; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:50%; transition:background .18s; position:relative; }
-    .power-btn:hover { background:rgba(220,0,40,.08); }
-    .power-btn svg { width:30px; height:30px; stroke:#b00020; transition:stroke .18s; }
-    .power-btn:hover svg { stroke:#8e0c2f; }
-    .power-btn .tooltip { display:none; position:absolute; left:44px; top:50%; transform:translateY(-50%); background:#381e60; color:#fff; padding:4px 12px; border-radius:6px; font-size:14px; white-space:nowrap; z-index:999; }
+    .power-btn { background:none; border:none; cursor:pointer; padding:0; margin:0; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:50%; }
+    .power-btn svg { width:30px; height:30px; stroke:#b00020; }
+    .power-btn .tooltip { display:none; position:absolute; left:44px; top:50%; transform:translateY(-50%); background:#381e60; color:#fff; padding:4px 12px; border-radius:6px; font-size:14px; white-space:nowrap; }
     .power-btn:hover .tooltip { display:block; }
     .main { padding:32px 20px; min-height:100vh; background:#f7f9fb; }
-    .card { background:#fff; padding:28px 22px; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.10); max-width:700px; margin:0 auto; }
-    .card h2 { margin-top:0; }
+    .card { background:#fff; padding:28px 22px; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.10); max-width:900px; margin:0 auto; }
   </style>
 </head>
 <body>
@@ -78,12 +70,11 @@
         <button id="btn-pacientes">Pacientes</button>
         <button id="btn-config">Configuración</button>
       </nav>
-
       <div class="logout-slot">
         <button class="power-btn" id="btn-logout" tabindex="0">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M12 2v10" stroke-width="2" stroke-linecap="round"/>
-            <circle cx="12" cy="12" r="9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="12" r="9" stroke-width="2"/>
           </svg>
           <span class="tooltip">Cerrar sesión</span>
         </button>
@@ -92,223 +83,74 @@
 
     <main class="main">
       <div id="main-content" class="card"></div>
-      <div id="modal-root"></div>
     </main>
   </div>
 
   <script type="module">
-    import supabase from "./supabaseClient.js";
-
-    // ---------- Labels de rol
-    const roleLabels = {
-      propietario: "Propietario",
-      medico: "Médico",
-      amp: "Asistente Médico Personal",
-      amc: "Asistente de Centro Médico",
-    };
-
-    // ---------- Utils
-    const strip = (s = "") => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const norm  = (s = "") => strip(s).toLowerCase().trim();
-
-    function isRoleLikeName(name) {
-      const n = norm(name);
-      if (!n) return true;
-      const tokens = [
-        "propietario", "medico",
-        "asistente medico personal", "asistente medico pers",
-        "asistente de centro medico", "asistente de centro me"
-      ];
-      return tokens.some(t => n === t || n.startsWith(t));
-    }
-
-    async function getSafeDisplayName() {
-      try {
-        const email     = localStorage.getItem("email") || "";
-        const badStored = localStorage.getItem("user_name") || "";
-
-        if (isRoleLikeName(badStored)) {
-          const profId = localStorage.getItem("profesional_id");
-          if (profId) {
-            const { data: p } = await supabase
-              .from("profesionales")
-              .select("nombre, apellido, email")
-              .eq("id", profId)
-              .maybeSingle();
-            const full = [p?.nombre, p?.apellido].filter(Boolean).join(" ").trim();
-            if (full) return full;
-            if (p?.email) return p.email;
-          }
-
-          const { data: userResp } = await supabase.auth.getUser();
-          const uid = userResp?.user?.id;
-          if (uid) {
-            const { data: prof } = await supabase
-              .from("profiles")
-              .select("display_name, email")
-              .eq("id", uid)
-              .maybeSingle();
-            if (prof?.display_name && !isRoleLikeName(prof.display_name)) return prof.display_name;
-            if (prof?.email) return prof.email;
-          }
-
-          return email || "Usuario";
-        }
-        return badStored || "Usuario";
-      } catch {
-        return localStorage.getItem("email") || "Usuario";
-      }
-    }
-
-    // ---------- Estado base
-    const userRolRaw   = (localStorage.getItem("user_role") || "").toLowerCase();
-    const userRolLabel = roleLabels[userRolRaw] || userRolRaw || "—";
-    let   centroId     = localStorage.getItem("centro_medico_id");
-    const profesionalId= localStorage.getItem("profesional_id");
-
-    // Header
-    const safeName = await getSafeDisplayName();
-    document.getElementById("user-name").textContent = safeName;
-    document.getElementById("user-rol").textContent  = userRolLabel;
-    localStorage.setItem("user_name", safeName);
-
-    // ---------- Centros (sidebar)
-    async function cargarCentroDashboard() {
-      const centroSelect = document.getElementById("centro-select");
-      centroSelect.innerHTML = '<option disabled selected>Cargando...</option>';
-
-      let centros = [];
-      if (profesionalId) {
-        const { data, error } = await supabase
-          .from("profesional_centro")
-          .select("centro_id, centros_medicos(id, nombre)")
-          .eq("profesional_id", profesionalId)
-          .eq("activo", true);
-
-        if (!error && data?.length) {
-          centros = data
-            .filter(r => r.centros_medicos)
-            .map(r => ({ id: r.centros_medicos.id, nombre: r.centros_medicos.nombre }));
-        }
-      }
-
-      centroSelect.innerHTML = "";
-      if (!centros.length) {
-        centroSelect.innerHTML = '<option disabled selected>No hay centros</option>';
-        localStorage.removeItem("centro_medico_id");
-        localStorage.removeItem("centro_medico_nombre");
-        return;
-      }
-
-      for (const c of centros) {
-        const opt = document.createElement("option");
-        opt.value = String(c.id);
-        opt.textContent = c.nombre;
-        centroSelect.appendChild(opt);
-      }
-
-      centroSelect.value = String(centroId || centros[0].id);
-      {
-        const sel = centros.find(c => String(c.id) === String(centroSelect.value));
-        if (sel) {
-          localStorage.setItem("centro_medico_id", sel.id);
-          localStorage.setItem("centro_medico_nombre", sel.nombre);
-          centroId = String(sel.id);
-        }
-      }
-
-      centroSelect.onchange = function () {
-        const seleccionado = centros.find(c => String(c.id) === String(this.value));
-        localStorage.setItem("centro_medico_id", seleccionado?.id ?? "");
-        localStorage.setItem("centro_medico_nombre", seleccionado?.nombre ?? "");
-        centroId = String(this.value);
-      };
-    }
-    await cargarCentroDashboard();
-
-    // ---------- Carga dinámica de paneles
+    // ---------- Carga dinámica de paneles ----------
     let _panelLoader = { reqId: 0, abort: null };
 
     async function cargarPanelHtml(url) {
       const main = document.getElementById("main-content");
-      if (!main) throw new Error("#main-content no encontrado");
+      if (!main) return;
 
       _panelLoader.abort?.abort();
       const abort = new AbortController();
       _panelLoader.abort = abort;
 
       const myReqId = ++_panelLoader.reqId;
-
-      main.innerHTML = `<div style="text-align:center;padding:50px;">Cargando...</div>`;
+      main.innerHTML = `<div style="text-align:center;padding:40px;">Cargando...</div>`;
 
       try {
         const resp = await fetch(url, { signal: abort.signal });
-        if (!resp.ok) throw new Error("HTTP " + resp.status + " al cargar " + url);
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
         const html = await resp.text();
-
         if (myReqId !== _panelLoader.reqId) return;
 
         main.innerHTML = html;
-        main.scrollTop = 0;
 
-        const file = url.split("/").pop() || "";
-        if (file === "inicio.html") {
-          const mod = await import("./inicio.js");
-          if (typeof mod.initInicio === "function") await mod.initInicio(main);
-        } else if (file === "turnos.html") {
-          const mod = await import("./turnos.js");
-          if (typeof mod.initTurnos === "function") await mod.initTurnos(main);
-        } else if (file === "configuracion.html") {
-          try {
-            const mod = await import("./configuracion.js");
-            if (typeof mod.initConfiguracion === "function") await mod.initConfiguracion(main);
-          } catch (e) {
-            console.warn("configuracion.js no disponible:", e);
+        // Reinyectar scripts embebidos para que funcionen (ej. configuracion.html)
+        Array.from(main.querySelectorAll("script")).forEach(oldScript => {
+          const newScript = document.createElement("script");
+          newScript.type = oldScript.type || "text/javascript";
+          if (oldScript.src) {
+            newScript.src = oldScript.src;
+          } else {
+            newScript.textContent = oldScript.textContent;
           }
-        }
+          document.body.appendChild(newScript);
+        });
+
       } catch (err) {
-        if (err.name === "AbortError") return;
-        console.error(err);
-        main.innerHTML = `<div style="color:#b00020;">Error al cargar: ${err.message}</div>`;
+        if (err.name !== "AbortError") {
+          main.innerHTML = `<div style="color:#b00020;padding:20px;">Error: ${err.message}</div>`;
+        }
       } finally {
         if (myReqId === _panelLoader.reqId) _panelLoader.abort = null;
       }
     }
 
-    // ---------- Aux
     function setActiveMenu(btn) {
       document.querySelectorAll(".menu button").forEach(b => b.classList.remove("active"));
       if (btn) btn.classList.add("active");
     }
 
-    // ---------- Navegación
+    // ---------- Navegación ----------
     await cargarPanelHtml("inicio.html");
 
-    document.getElementById("btn-inicio").addEventListener("click", async function () {
-      setActiveMenu(this);
-      await cargarPanelHtml("inicio.html");
-    });
+    document.getElementById("btn-inicio").onclick = e => { setActiveMenu(e.target); cargarPanelHtml("inicio.html"); };
+    document.getElementById("btn-turnos").onclick = e => { setActiveMenu(e.target); cargarPanelHtml("turnos.html"); };
+    document.getElementById("btn-pacientes").onclick = e => { setActiveMenu(e.target); cargarPanelHtml("pacientes.html"); };
+    document.getElementById("btn-config").onclick = e => {
+      if (!["medico","propietario","amp"].includes((localStorage.getItem("user_role")||"").toLowerCase())) return;
+      setActiveMenu(e.target);
+      cargarPanelHtml("configuracion.html");
+    };
 
-    document.getElementById("btn-turnos").addEventListener("click", async function () {
-      setActiveMenu(this);
-      await cargarPanelHtml("turnos.html");
-    });
-
-    document.getElementById("btn-pacientes").addEventListener("click", async function () {
-      setActiveMenu(this);
-      await cargarPanelHtml("pacientes.html");
-    });
-
-    document.getElementById("btn-config").addEventListener("click", async function () {
-      if (!["medico","propietario","amp"].includes((localStorage.getItem("user_role") || "").toLowerCase())) return;
-      setActiveMenu(this);
-      await cargarPanelHtml("configuracion.html");
-    });
-
-    document.getElementById("btn-logout").addEventListener("click", () => {
+    document.getElementById("btn-logout").onclick = () => {
       localStorage.clear();
       window.location.href = "index.html";
-    });
+    };
   </script>
 </body>
 </html>
