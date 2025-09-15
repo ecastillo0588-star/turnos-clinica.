@@ -1,54 +1,62 @@
 /* =========================
    EG Health — inicio.css (scoped)
-   Todo el estilo vive bajo #inicio-root
    ========================= */
 
-/* -------------------------
-   Variables (design tokens)
-   ------------------------- */
+/* --------------------------------
+   Tokens del tema (ajustables)
+   -------------------------------- */
 #inicio-root{
-  /* tipografía + layout (ajustado vía JS) */
-  --fs: 14px;
+  /* Tipografía base (el JS puede variarla con zoom) */
+  --fs: 13.5px;               /* más compacto para que respire */
+  --fw: 400;
 
-  /* alturas de filas del grid 2×2 (ajustadas por JS) */
-  --row-1: 420px;
-  --row-2: 420px;
+  /* Alturas de los dos renglones del grid 2×2 */
+  --row-1: 360px;             /* arriba un poco más bajo que 420 */
+  --row-2: 320px;
 
-  /* anchos orientativos para tablas (los usa JS al setear grid-template-columns) */
+  /* Anchos de columnas (usados por JS en grid-template-columns) */
   --w-hora:   120px;
   --w-dni:    110px;
   --w-prof:   180px;
   --w-copago: 120px;
   --w-espera: 86px;
-  --w-acc:    120px;  /* ✨ NUEVO: ancho col. Acciones (faltaba) */
+  --w-acc:    120px;          /* Acciones */
 
   --minch-nombre:   10ch;
   --minch-apellido: 12ch;
   --minch-obra:     10ch;
 
-  /* escala de UI */
+  /* Escala y radios */
   --gap: 12px;
-  --radius: 12px;
-  --shadow: 0 6px 26px rgba(0,0,0,.05);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 6px 26px rgba(60,40,140,.06);
 
-  /* colores */
-  --fg: #222;
-  --muted: #6b7280;
-  --brand: #6b56b8;
-  --bg: #fafbff;
-  --white: #fff;
-  --border-clr: #e6e6ef;
-  --border: 1px solid var(--border-clr);
+  /* Paleta “lavanda” suave (match con dashboard) */
+  --fg: #2a2940;
+  --muted: #6b6480;
+  --brand: #6f60c8;
+  --brand-600: #6758c2;
+  --bg: #f7f9fb;
+  --panel: #ffffff;
 
-  /* bordes de elementos internos */
-  --subborder: 1px solid #eef0fb;
+  --stroke: #ece5fc;          /* bordes suaves */
+  --stroke-2: #e7e2fa;
+  --sub-stroke: #f0edff;
 
-  /* fuente base del panel */
-  font: 400 var(--fs)/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  --chip-bg: #eef1ff;
+  --chip-stroke: #dee3ff;
+
+  --thead-bg: #faf9ff;        /* barrita del thead */
+  --thead-bar: #ede7ff;
+  --thead-bar-stroke: #dacfff;
+
+  font: var(--fw) var(--fs)/1.35 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
   color: var(--fg);
+  background: transparent; /* el contenedor principal pone su fondo */
 }
 
-/* Evita FOUC mientras #inicio-root tenga data-boot */
+/* Boot-mask durante la carga */
 #inicio-root[data-boot]::after{
   content:'Cargando…';
   position:absolute; inset:0;
@@ -58,26 +66,23 @@
   font-weight:600; color:#4f3b7a;
 }
 
-/* -------------------------
-   Reset mínimo (scoped)
-   ------------------------- */
+/* Reset mínimo (scoped) */
 #inicio-root *{ box-sizing: border-box; }
 
-/* -------------------------
-   Shell / Panel contenedor
-   ------------------------- */
+/* --------------------------------
+   Contenedor
+   -------------------------------- */
 #inicio-root{
   position:relative;
   display:flex; flex-direction:column;
   gap: var(--gap);
-  padding: 14px;
+  padding: 16px 18px;
   width: 100%;
-  background: var(--bg);
 }
 
-/* -------------------------
+/* --------------------------------
    Toolbar compacta
-   ------------------------- */
+   -------------------------------- */
 #inicio-root .toolbar{
   display:grid;
   grid-template-columns: 1fr auto auto auto auto;
@@ -90,11 +95,11 @@
 #inicio-root .inp, 
 #inicio-root .sel, 
 #inicio-root .btn{
-  border: 1px solid #dfe2f3;
+  border: 1.5px solid var(--stroke);
   background: #fff;
   color: var(--fg);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  padding: 9px 12px;
   font: inherit;
 }
 #inicio-root .sel.compact{ padding-right: 28px; }
@@ -109,11 +114,12 @@
 #inicio-root .field > label{ font-size:12px; color:var(--muted); }
 
 #inicio-root .btn{ cursor:pointer; user-select:none; }
-#inicio-root .btn.secondary{ background:#f4f5fb; }
+#inicio-root .btn.secondary{ background:#f5f6fe; }
 
+/* Zoom */
 #inicio-root .zoom-chip{ display:inline-flex; gap:4px; align-items:center; }
 #inicio-root .zoom-btn{
-  border:1px solid #dfe2f3; background:#fff; padding:6px 8px;
+  border:1.5px solid var(--stroke); background:#fff; padding:6px 8px;
   border-radius:8px; cursor:pointer; line-height:1;
 }
 
@@ -121,13 +127,13 @@
 #inicio-root .chip{
   display:inline-flex; align-items:center; gap:6px;
   padding:6px 10px; border-radius:999px;
-  background:#f4f5fb; color:#333; border:1px solid #e6e8f9;
+  background:var(--chip-bg); color:#3b3563; border:1px solid var(--chip-stroke);
 }
 #inicio-root .chip.mini{ font-size:12px; }
 
-/* -------------------------
+/* --------------------------------
    Boards (grid 2×2)
-   ------------------------- */
+   -------------------------------- */
 #inicio-root .boards{
   flex:1 1 auto;
   min-height:0;
@@ -137,108 +143,127 @@
   gap: var(--gap);
 }
 
-/* Board */
+/* Tarjetas de cada estado */
 #inicio-root .board{
   display:flex; flex-direction:column; min-height:0;
-  border: var(--border); border-radius: var(--radius);
-  background: var(--white);
+  border: 1.5px solid var(--stroke);
+  border-radius: var(--radius);
+  background: var(--panel);
   box-shadow: var(--shadow);
   overflow:hidden;
 }
 
-/* Header del board con controles a la derecha */
+/* Header del board */
 #inicio-root .board > h3{
   margin:0;
   padding: 10px 12px;
   display:grid;
-  grid-template-columns: 1fr auto;  /* título a la izq, controles a la der */
+  grid-template-columns: 1fr auto;
   align-items:center;
   gap: 8px;
-  border-bottom: var(--subborder);
-  background:#fbfbff;
-  font-size: 15px; font-weight:700;
+  border-bottom: 1px solid var(--sub-stroke);
+  background:#fff;
+  font-size: 14px; font-weight:700;
 }
 
-/* Título (texto que cambia JS) */
-#inicio-root #hl-pend, 
-#inicio-root #hl-esp, 
-#inicio-root #hl-atencion, 
+#inicio-root #hl-pend,
+#inicio-root #hl-esp,
+#inicio-root #hl-atencion,
 #inicio-root #hl-done{
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  color:#3b3563;
 }
 
 /* Controles (⬍ ⛶ ✖️) */
 #inicio-root .b-ctrls{ display:inline-flex; gap:6px; align-items:center; }
 #inicio-root .b-ctrl{
-  border:1px solid #e1e3f6;
+  border:1px solid var(--stroke);
   background:#fff;
   padding:6px 8px;
   border-radius:8px;
   cursor:pointer;
   line-height:1;
 }
-#inicio-root .b-ctrl:hover{ background:#f2f3fd; }
+#inicio-root .b-ctrl:hover{ background:#f1efff; }
 #inicio-root .b-ctrl svg{ width:14px; height:14px; display:block; }
 
-/* Cuerpo del board: scroll solo vertical */
+/* Cuerpo del board */
 #inicio-root .board-body{
   flex:1 1 auto;
   min-height:0;
   overflow-y:auto;
-  overflow-x:hidden; /* evita barra horizontal */
+  overflow-x:hidden;
+  background: linear-gradient(#fff,#fff) padding-box;
 }
 
-/* Full mode: un solo board a pantalla */
+/* Modo expandido */
 #inicio-root .boards.fullmode{ display:block; height:100%; }
 #inicio-root .boards.fullmode .board{ display:none; }
 #inicio-root .boards.fullmode .board.expanded{
   display:flex;
-  height: calc(100vh - 14px*2 - 56px); /* margen panel + toolbar (aprox) */
+  height: calc(100vh - 16px*2 - 56px);
 }
 
-/* -------------------------
+/* --------------------------------
    Tablas internas (grid)
-   ------------------------- */
+   -------------------------------- */
 #inicio-root .table{
   width:100%;
   border-collapse: separate;
   border-spacing:0;
-  table-layout: fixed; /* evita overflow por contenidos largos */
+  table-layout: fixed;
   font-size: inherit;
 }
 
-/* Fila de header sticky + filas */
+/* Fila header sticky + filas comunes */
 #inicio-root .thead .hrow,
 #inicio-root .table .row{
   display:grid;
   align-items:center;
   gap:10px;
   padding: 8px 12px;
-  border-bottom:1px solid #f0f1fb;
+  border-bottom:1px solid var(--sub-stroke);
 }
 
 #inicio-root .thead .hrow{
   position:sticky; top:0; z-index:1;
-  background: #f9f9ff;
+  background: #fff;
   font-weight:700;
 }
 
+/* Estética de “barrita lavanda” debajo del nombre de la columna */
+#inicio-root .thead .hrow .cell{
+  position:relative;
+  font-size:12px;
+  color:#5b4f9e;
+}
+#inicio-root .thead .hrow .cell::after{
+  content:"";
+  display:block;
+  height:8px;
+  margin-top:4px;
+  border-radius: 6px;
+  background: var(--thead-bar);
+  border: 1px solid var(--thead-bar-stroke);
+}
+
+/* Celdas */
 #inicio-root .cell{ min-width:0; }
 #inicio-root .cell.right{ justify-self:end; }
 #inicio-root .nowrap{ white-space:nowrap; }
 #inicio-root .truncate{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-/* Acciones en celda */
+/* Acciones */
 #inicio-root .actions{ display:inline-flex; gap:6px; }
 #inicio-root .icon{
-  border:1px solid #e5e7f8;
+  border:1px solid var(--stroke);
   background:#fff;
   border-radius:8px;
   padding:4px 8px;
   cursor:pointer;
   line-height:1;
 }
-#inicio-root .icon:hover{ background:#f4f5fd; }
+#inicio-root .icon:hover{ background:#f3f1ff; }
 
 /* Badges */
 #inicio-root .wait{
@@ -246,10 +271,10 @@
   min-width: 54px;
   padding:2px 8px;
   border-radius:999px;
-  background:#f3f4fe;
-  color:#333;
+  background:#f0efff;
+  color:#3b3563;
   font-weight:600;
-  border:1px solid #e6e8ff;
+  border:1px solid var(--stroke-2);
 }
 #inicio-root .copago{
   display:inline-flex; padding:2px 8px; border-radius:999px;
@@ -261,12 +286,12 @@
   font-weight:500;
 }
 
-/* -------------------------
+/* --------------------------------
    Drawer (ficha paciente)
-   ------------------------- */
+   -------------------------------- */
 #inicio-root .drawer{
   position: fixed; inset:0 0 0 auto; width:min(780px, 100vw);
-  background:#fff; border-left:1px solid #eceffd;
+  background:#fff; border-left:1px solid var(--stroke);
   transform: translateX(100%); transition: transform .2s ease;
   display:flex; flex-direction:column;
   z-index:250;
@@ -275,32 +300,33 @@
 
 #inicio-root .drawer-head{
   display:flex; align-items:center; gap:10px;
-  padding:12px 14px; border-bottom:var(--subborder); background:#fbfbff;
+  padding:12px 14px; border-bottom:1px solid var(--sub-stroke); background:#fff;
 }
-#inicio-root .drawer-title{ font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+#inicio-root .drawer-title{ font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#2c255a; }
 #inicio-root .drawer-sub{ font-size:12px; color:var(--muted); }
 
-#inicio-root .hc-link{ display:inline-flex; gap:6px; align-items:center; text-decoration:none;
-  border:1px solid #e1e3f6; padding:6px 10px; border-radius:10px; color:#3730a3; background:#fff; }
+#inicio-root .hc-link{
+  display:inline-flex; gap:6px; align-items:center; text-decoration:none;
+  border:1px solid var(--stroke); padding:6px 10px; border-radius:10px; color:#3730a3; background:#fff;
+}
 #inicio-root .hc-ico{ display:block; }
 
 #inicio-root .drawer-body{ padding:12px; overflow:auto; display:flex; flex-direction:column; gap:12px; }
-#inicio-root .drawer-foot{ display:flex; align-items:center; gap:10px; padding:12px; border-top:var(--subborder); background:#fbfbff; }
+#inicio-root .drawer-foot{ display:flex; align-items:center; gap:10px; padding:12px; border-top:1px solid var(--sub-stroke); background:#fff; }
 
 #inicio-root .msg{ font-size:12px; color:#6b7280; }
 #inicio-root .msg.ok{ color:#1f7a37; }
 #inicio-root .msg.warn{ color:#a11313; }
 
-/* Cards y filas del drawer */
-#inicio-root .card{ border:1px solid #eceffd; border-radius:12px; background:#fff; padding:12px; }
-#inicio-root .card > h4{ margin:0 0 10px 0; font-size:14px; }
+#inicio-root .card{ border:1px solid var(--stroke); border-radius:12px; background:#fff; padding:12px; }
+#inicio-root .card > h4{ margin:0 0 10px 0; font-size:14px; color:#3b3563; }
 
 #inicio-root .row2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
 #inicio-root .row3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; }
 
-/* -------------------------
+/* --------------------------------
    Responsive
-   ------------------------- */
+   -------------------------------- */
 @media (max-width:1100px){
   #inicio-root .boards{
     grid-template-columns: 1fr;
@@ -310,27 +336,27 @@
   #inicio-root .row2{ grid-template-columns:1fr; }
 }
 
-/* -------------------------
-   Pequeños helpers
-   ------------------------- */
+/* --------------------------------
+   Helpers
+   -------------------------------- */
 #inicio-root #kpi-sub{ color:var(--muted); }
 
-/* Enfoques accesibles */
-#inicio-root .inp:focus, 
-#inicio-root .sel:focus, 
-#inicio-root .btn:focus, 
-#inicio-root .zoom-btn:focus, 
-#inicio-root .b-ctrl:focus, 
-#inicio-root .icon:focus, 
+/* Focus accesible */
+#inicio-root .inp:focus,
+#inicio-root .sel:focus,
+#inicio-root .btn:focus,
+#inicio-root .zoom-btn:focus,
+#inicio-root .b-ctrl:focus,
+#inicio-root .icon:focus,
 #inicio-root .hc-link:focus{
-  outline: 2px solid rgba(107,86,184,.35);
+  outline: 2px solid rgba(111,96,200,.35);
   outline-offset: 2px;
-  box-shadow: 0 0 0 2px rgba(107,86,184,.12);
+  box-shadow: 0 0 0 2px rgba(111,96,200,.12);
 }
 
-/* -------------------------
-   Overlay de carga (dinámico)
-   ------------------------- */
+/* --------------------------------
+   Overlay de carga
+   -------------------------------- */
 #inicio-root .ioverlay{
   position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
   background:rgba(255,255,255,.92); opacity:0; pointer-events:none; transition:opacity .18s ease; z-index:200;
@@ -338,8 +364,8 @@
 #inicio-root .ioverlay.show{ opacity:1; pointer-events:all; }
 #inicio-root .ioverlay .box{
   display:flex; align-items:center; gap:12px; padding:16px 18px; border-radius:12px;
-  background:#ffffff; border:1px solid #e8def8; box-shadow:0 6px 28px rgba(0,0,0,.08);
+  background:#ffffff; border:1px solid var(--stroke); box-shadow:0 6px 28px rgba(0,0,0,.08);
   color:#4f3b7a; font-weight:600;
 }
-#inicio-root .ioverlay .spin{ width:34px; height:34px; border-radius:50%; border:3px solid #d9d1f3; border-top-color:#7656b0; animation:rr .8s linear infinite; }
+#inicio-root .ioverlay .spin{ width:34px; height:34px; border-radius:50%; border:3px solid #d9d1f3; border-top-color:var(--brand-600); animation:rr .8s linear infinite; }
 @keyframes rr{ to{ transform:rotate(360deg) } }
