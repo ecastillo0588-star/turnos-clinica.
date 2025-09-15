@@ -245,63 +245,77 @@
     let _panelLoader = { reqId: 0, abort: null };
 
     async function cargarPanelHtml(url) {
-      const main = document.getElementById("main-content");
-      if (!main) throw new Error("#main-content no encontrado");
+  const main = document.getElementById("main-content");
+  if (!main) throw new Error("#main-content no encontrado");
 
-      // cancelar si había uno en vuelo
-      _panelLoader.abort?.abort();
-      const abort = new AbortController();
-      _panelLoader.abort = abort;
+  _panelLoader.abort?.abort();
+  const abort = new AbortController();
+  _panelLoader.abort = abort;
+  const myReqId = ++_panelLoader.reqId;
 
-      const myReqId = ++_panelLoader.reqId;
+  main.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;height:180px;color:#6b6480">
+      Cargando...
+    </div>
+  `;
 
-      main.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;height:180px;color:#6b6480">
-          Cargando...
-        </div>
-      `;
+  try {
+    const resp = await fetch(url, { signal: abort.signal });
+    if (!resp.ok) throw new Error("HTTP " + resp.status + " al cargar " + url);
+    const html = await resp.text();
+    if (myReqId !== _panelLoader.reqId) return;
 
-      try {
-        const resp = await fetch(url, { signal: abort.signal });
-        if (!resp.ok) throw new Error("HTTP " + resp.status + " al cargar " + url);
-        const html = await resp.text();
+    // 1) Parsear el documento recibido
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
 
-        if (myReqId !== _panelLoader.reqId) return;
-
-        main.innerHTML = html;
-        main.scrollTop = 0;
-
-        const file = url.split("#")[0].split("?")[0].split("/").pop() || "";
-
-        if (file === "inicio.html") {
-          const mod = await import("./inicio.js");
-          if (typeof mod.initInicio === "function") await mod.initInicio(main);
-        } else if (file === "turnos.html") {
-          const mod = await import("./turnos.js");
-          if (typeof mod.initTurnos === "function") await mod.initTurnos(main);
-        } else if (file === "pacientes.html") {
-          try {
-            const mod = await import("./pacientes.js");
-            if (typeof mod.initPacientes === "function") await mod.initPacientes(main);
-          } catch (e) {
-            console.warn("pacientes.js no disponible:", e);
-          }
-        }
-      } catch (err) {
-        if (err.name === "AbortError") return;
-        console.error(err);
-        main.innerHTML = `
-          <div style="padding:18px">
-            <div style="background:#fff0f0;border:1px solid #f3c2c2;color:#8e0c2f;border-radius:8px;padding:14px">
-              <strong>Error al cargar el panel:</strong><br>
-              <code>${(err && err.message) || err}</code>
-            </div>
-          </div>
-        `;
-      } finally {
-        if (myReqId === _panelLoader.reqId) _panelLoader.abort = null;
+    // 2) Mover <link rel="stylesheet"> al <head> REAL (con de-dup)
+    const links = [...doc.querySelectorAll('link[rel="stylesheet"]')];
+    for (const l of links) {
+      const absHref = new URL(l.getAttribute("href"), url).href; // resuelve relativo al archivo cargado
+      if (!document.head.querySelector(`link[data-dyn-style="${absHref}"]`)) {
+        const n = document.createElement("link");
+        n.rel = "stylesheet";
+        n.href = absHref;
+        n.setAttribute("data-dyn-style", absHref);
+        document.head.appendChild(n);
       }
     }
+
+    // 3) Poner SOLO el body del panel dentro de main
+    main.innerHTML = doc.body ? doc.body.innerHTML : html;
+    main.scrollTop = 0;
+
+    // 4) Resolver módulo según archivo
+    const file = url.split("#")[0].split("?")[0].split("/").pop() || "";
+    if (file === "inicio.html") {
+      const mod = await import("./inicio.js");
+      if (typeof mod.initInicio === "function") await mod.initInicio(main);
+    } else if (file === "turnos.html") {
+      const mod = await import("./turnos.js");
+      if (typeof mod.initTurnos === "function") await mod.initTurnos(main);
+    } else if (file === "pacientes.html") {
+      try {
+        const mod = await import("./pacientes.js");
+        if (typeof mod.initPacientes === "function") await mod.initPacientes(main);
+      } catch (e) { console.warn("pacientes.js no disponible:", e); }
+    }
+  } catch (err) {
+    if (err.name === "AbortError") return;
+    console.error(err);
+    main.innerHTML = `
+      <div style="padding:18px">
+        <div style="background:#fff0f0;border:1px solid #f3c2c2;color:#8e0c2f;border-radius:8px;padding:14px">
+          <strong>Error al cargar el panel:</strong><br>
+          <code>${(err && err.message) || err}</code>
+        </div>
+      </div>
+    `;
+  } finally {
+    if (myReqId === _panelLoader.reqId) _panelLoader.abort = null;
+  }
+}
+
 
     // ---------- Auxiliares
     function setActiveMenu(btn) {
