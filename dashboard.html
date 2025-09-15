@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -145,11 +146,13 @@
           const mod = await import("./inicio.js"); mod.initInicio?.(main);
         } else if (file==="turnos.html") {
           const mod = await import("./turnos.js"); mod.initTurnos?.(main);
-        } else if (file==="configuracion.html") {
+        } else if (file==="configuracion.html" || file==="pacientes.html") {
           // reinyección de scripts internos
           main.querySelectorAll("script").forEach(old=>{
-            const s=document.createElement("script"); s.type=old.type||"text/javascript";
-            if (old.src) s.src=old.src; else s.textContent=old.textContent;
+            const s=document.createElement("script");
+            s.type = old.type || "text/javascript";
+            if (old.src) s.src = old.src;
+            else s.textContent = old.textContent;
             document.body.appendChild(s);
           });
         }
@@ -157,17 +160,16 @@
       finally { if(myReqId===_panelLoader.reqId) _panelLoader.abort=null; }
     }
 
-// --- Navegación
-await cargarPanelHtml("inicio.html");
-document.getElementById("btn-inicio").onclick=()=>{setActive("btn-inicio");cargarPanelHtml("inicio.html");};
-document.getElementById("btn-turnos").onclick=()=>{setActive("btn-turnos");cargarPanelHtml("turnos.html");};
-document.getElementById("btn-pacientes").onclick=()=>{setActive("btn-pacientes");cargarPanelHtml("pacientes.html");};
-document.getElementById("btn-config").onclick=()=>{setActive("btn-config");cargarPanelHtml("configuracion.html");};
-function setActive(id){
-  document.querySelectorAll(".menu button").forEach(b=>b.classList.remove("active"));
-  document.getElementById(id).classList.add("active");
-}
-
+    // --- Navegación
+    await cargarPanelHtml("inicio.html");
+    document.getElementById("btn-inicio").onclick=()=>{setActive("btn-inicio");cargarPanelHtml("inicio.html");};
+    document.getElementById("btn-turnos").onclick=()=>{setActive("btn-turnos");cargarPanelHtml("turnos.html");};
+    document.getElementById("btn-pacientes").onclick=()=>{setActive("btn-pacientes");cargarPanelHtml("pacientes.html");};
+    document.getElementById("btn-config").onclick=()=>{setActive("btn-config");cargarPanelHtml("configuracion.html");};
+    function setActive(id){
+      document.querySelectorAll(".menu button").forEach(b=>b.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
+    }
 
     // --- Logout
     document.getElementById("btn-logout").onclick=()=>{ localStorage.clear(); location.href="index.html"; };
