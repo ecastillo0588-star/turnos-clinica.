@@ -157,13 +157,17 @@
       finally { if(myReqId===_panelLoader.reqId) _panelLoader.abort=null; }
     }
 
-    // --- Navegación
-    await cargarPanelHtml("inicio.html");
-    document.getElementById("btn-inicio").onclick=()=>{setActive("btn-inicio");cargarPanelHtml("inicio.html");};
-    document.getElementById("btn-turnos").onclick=()=>{setActive("btn-turnos");cargarPanelHtml("turnos.html");};
-    document.getElementById("btn-pacientes").onclick=()=>{setActive("btn-pacientes");cargarPanelHtml("pacientes.html");};
-    document.getElementById("btn-config").onclick=()=>{setActive("btn-config");cargarPanelHtml("configuracion.html");};
-    function setActive(id){ document.querySelectorAll(".menu button").forEach(b=>b.classList.remove("active")); document.getElementById(id).classList.add("active"); }
+// --- Navegación
+await cargarPanelHtml("inicio.html");
+document.getElementById("btn-inicio").onclick=()=>{setActive("btn-inicio");cargarPanelHtml("inicio.html");};
+document.getElementById("btn-turnos").onclick=()=>{setActive("btn-turnos");cargarPanelHtml("turnos.html");};
+document.getElementById("btn-pacientes").onclick=()=>{setActive("btn-pacientes");cargarPanelHtml("pacientes.html");};
+document.getElementById("btn-config").onclick=()=>{setActive("btn-config");cargarPanelHtml("configuracion.html");};
+function setActive(id){
+  document.querySelectorAll(".menu button").forEach(b=>b.classList.remove("active"));
+  document.getElementById(id).classList.add("active");
+}
+
 
     // --- Logout
     document.getElementById("btn-logout").onclick=()=>{ localStorage.clear(); location.href="index.html"; };
