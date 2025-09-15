@@ -1,10 +1,9 @@
 /* =========================
-   EG Health — inicio.css
+   EG Health — inicio.css (scoped)
    ========================= */
-/* PING TEMPORAL */
-/* PING TEMPORAL */
-body { background:#fff5f0 !important; }
 
+/* Fondo SOLO para Inicio (el dashboard tiene su propia .main) */
+.main[data-panel="inicio"] { background:#fff5f0 !important; }
 
 /* -------------------------
    Variables (design tokens)
@@ -45,17 +44,26 @@ body { background:#fff5f0 !important; }
 }
 
 /* -------------------------
-   Reset mínimo
+   Reset mínimo (SCOPED)
    ------------------------- */
-*{ box-sizing: border-box; }
-html, body{ height: 100%; }
-body{
-  margin: 0;
+#inicio-root, #inicio-root *{ box-sizing: border-box; }
+#inicio-root{
+  min-height: 100%;
   color: var(--fg);
   font: 400 var(--fs)/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Boot mask (evita FOUC mientras #inicio-root tenga data-boot) */
+#inicio-root[data-boot]::after{
+  content:'Cargando…';
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(255,255,255,.96);
+  z-index: 300;
+  font-weight:600; color:#4f3b7a;
 }
 
 /* -------------------------
@@ -68,16 +76,6 @@ body{
   gap: var(--gap);
   padding: 14px;
   width: 100%;
-}
-
-/* Boot mask (evita FOUC mientras #inicio-root tenga data-boot) */
-#inicio-root[data-boot]::after{
-  content:'Cargando…';
-  position:absolute; inset:0;
-  display:flex; align-items:center; justify-content:center;
-  background:rgba(255,255,255,.96);
-  z-index: 300;
-  font-weight:600; color:#4f3b7a;
 }
 
 /* -------------------------
@@ -321,3 +319,20 @@ body{
   outline-offset: 2px;
   box-shadow: 0 0 0 2px rgba(107,86,184,.12);
 }
+
+/* ---------------------------------------------
+   Anti-colisiones con estilos globales (app.css)
+   --------------------------------------------- */
+#inicio-root table{ border-collapse:separate; border-spacing:0; table-layout:fixed; }
+#inicio-root thead th{
+  position: static; background: transparent; border: 0; padding: 0;
+  text-align: left; font: inherit;
+}
+#inicio-root tbody td{
+  padding: 0; border: 0; background: transparent; font: inherit; white-space: normal;
+}
+#inicio-root tr:nth-child(even) td,
+#inicio-root tr:nth-child(odd) td{ background: transparent; }
+
+/* app.css hace label flex en algunos contextos; aquí va como lo usa Inicio */
+#inicio-root .field > label{ display:block; }
