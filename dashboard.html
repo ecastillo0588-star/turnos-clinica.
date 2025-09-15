@@ -4,76 +4,27 @@
   <meta charset="UTF-8">
   <title>Panel - EG Health Solutions</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <!-- CSS global de la app -->
   <link rel="stylesheet" href="app.css">
-  <style>
-    body { background: #f7f9fb; }
-    .app { display: flex; min-height: 100vh; }
-    .sidebar {
-      width: 270px;
-      background: #fff;
-      box-shadow: 0 2px 18px rgba(60,40,140,0.07);
-      display: flex; flex-direction: column;
-      padding: 22px 18px 0 24px; min-width: 240px;
-    }
-    .sidebar .user-mini { display:flex; flex-direction:column; align-items:flex-start; margin-bottom:7px; gap:2px; }
-    .sidebar .user-mini .user-name {
-      font-size:14px; color:#6b6480; font-weight:500; margin-bottom:2px; letter-spacing:.01em;
-      white-space:nowrap; text-overflow:ellipsis; overflow:hidden; max-width:160px;
-    }
-    .sidebar .user-mini .user-rol {
-      font-size:12px; background:#a490d7; color:#fff; border-radius:5px; padding:2px 8px;
-      font-weight:400; margin-bottom:1px; letter-spacing:.03em;
-      white-space:nowrap; max-width:160px; overflow:hidden; text-overflow:ellipsis;
-    }
-    .brand-title { font-weight:bold; font-size:21px; color:#381e60; margin-bottom:8px; }
-    .centro-row { display:flex; align-items:center; gap:6px; margin-bottom:14px; }
-    .centro-label { font-size:15px; color:#6b6480; }
-    .custom-select { position:relative; width:130px; font-size:14px; margin-left:4px; margin-right:2px; }
-    .custom-select select {
-      appearance:none; background:#f7f9fb; border:1.5px solid #ece5fc; border-radius:7px;
-      padding:5px 28px 5px 10px; font-size:14px; color:#4f3b7a; width:100%;
-      font-weight:500; cursor:pointer; transition:border .14s; outline:none; box-shadow:none;
-    }
-    .custom-select select:focus { border-color:#a490d7; }
-    .custom-select::after {
-      content:''; position:absolute; top:50%; right:11px; width:11px; height:11px; pointer-events:none;
-      transform:translateY(-50%);
-      background:url('data:image/svg+xml;utf8,<svg fill="none" stroke="rgb(164,144,215)" stroke-width="2" viewBox="0 0 14 14" xmlns="http://www.w3.org/2000/svg"><path d="M3 6l4 4 4-4"/></svg>') no-repeat center/contain;
-    }
-    .menu { display:flex; flex-direction:column; gap:6px; margin-top:20px; }
-    .menu button { background:#f7f9fb; border:none; padding:10px 16px; border-radius:6px; font-size:15px; color:#381e60; cursor:pointer; transition:background .12s; text-align:left; }
-    .menu button.active,.menu-subitem.active { background:#e7e2fa; color:#7656b0; }
-    .menu button:hover,.menu-subitem:hover { background:#ece5fc; }
-    .settings-slot { margin-top:auto; margin-bottom:16px; }
-    .settings-btn { background:#7656b0; color:#fff; border:none; border-radius:7px; padding:11px 0; font-size:16px; cursor:pointer; font-weight:500; width:92%; margin-left:2px; }
-    .settings-btn:hover { background:#7f62b6; }
-    .settings-btn[disabled]{ opacity:.4; cursor:not-allowed; }
-    .logout-slot { margin-bottom:18px; margin-top:8px; display:flex; justify-content:center; }
-    .power-btn { background:none; border:none; cursor:pointer; padding:0; margin:0; width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:50%; transition:background .18s; position:relative; }
-    .power-btn:hover { background:rgba(220,0,40,.08); }
-    .power-btn svg { width:30px; height:30px; stroke:#b00020; transition:stroke .18s; }
-    .power-btn:hover svg { stroke:#8e0c2f; }
-    .power-btn .tooltip { display:none; position:absolute; left:44px; top:50%; transform:translateY(-50%); background:#381e60; color:#fff; padding:4px 12px; border-radius:6px; font-size:14px; white-space:nowrap; z-index:999; }
-    .power-btn:hover .tooltip { display:block; }
-    .main { padding:32px 20px; min-height:100vh; background:#f7f9fb; }
-    .card { background:#fff; padding:28px 22px; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.10); max-width:700px; margin:0 auto; }
-    .card h2 { margin-top:0; }
-    .hidden { display:none; }
-  </style>
 </head>
 <body>
   <div class="app">
+    <!-- Sidebar -->
     <aside class="sidebar">
-      <div class="user-mini">
-        <span class="user-name" id="user-name"></span>
-        <span class="user-rol" id="user-rol"></span>
+      <div>
+        <div class="brand-title">EG Health</div>
+        <div class="brand-sub" id="user-name">—</div>
+        <div class="badge" id="user-rol">—</div>
       </div>
-      <div class="brand-title">EG Health</div>
-      <div class="centro-row">
-        <span class="centro-label">Centro:</span>
-        <span class="custom-select"><select id="centro-select"></select></span>
-      </div>
-      <nav class="menu">
+
+      <div class="separator"></div>
+
+      <label style="gap:6px;font-size:14px">
+        <span class="muted" style="font-size:12px">Centro</span>
+        <select id="centro-select"></select>
+      </label>
+
+      <nav class="menu" style="margin-top:8px">
         <button id="btn-inicio" class="active">Inicio</button>
         <button id="btn-turnos">Turnos</button>
         <button id="btn-pacientes">Pacientes</button>
@@ -83,19 +34,15 @@
         <button class="settings-btn btn" id="btn-config">Configuración</button>
       </div>
 
-      <div class="logout-slot">
-        <button class="power-btn" id="btn-logout" tabindex="0">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path d="M12 2v10" stroke-width="2" stroke-linecap="round"/>
-            <circle cx="12" cy="12" r="9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span class="tooltip">Cerrar sesión</span>
-        </button>
+      <div class="logout-slot" style="text-align:center">
+        <button class="btn danger" id="btn-logout">Cerrar sesión</button>
       </div>
     </aside>
 
+    <!-- Contenido principal -->
     <main class="main">
-      <div id="main-content" class="card"></div>
+      <!-- OJO: por defecto SIN .card para que Inicio pueda ser full width -->
+      <div id="main-content"></div>
       <div id="configuracion-panel" class="hidden"></div>
       <div id="modal-root"></div>
     </main>
@@ -104,7 +51,102 @@
   <script type="module">
     import supabase from "./supabaseClient.js";
 
-    // ---------- Labels de rol
+    /* =============================
+       Utilidades de estilos/paneles
+       ============================= */
+    function ensureStylesheet(href, id) {
+      if (!href) return;
+      const linkId = id || ('css-' + href.replace(/[^\w]/g, '-'));
+      let link = document.getElementById(linkId);
+      if (link) return; // ya cargado
+      link = document.createElement('link');
+      link.id = linkId;
+      link.rel = 'stylesheet';
+      // cache-bust para evitar usar versión vieja del panel
+      link.href = href + (href.includes('?') ? '&' : '?') + 'v=' + Date.now();
+      document.head.appendChild(link);
+    }
+
+    function setActiveMenu(btn) {
+      document.querySelectorAll(".menu button").forEach(b => b.classList.remove("active"));
+      if (btn) btn.classList.add("active");
+    }
+
+    /* =============================
+       Mapeo de paneles
+       ============================= */
+    const PANELS = {
+      inicio:   { html: "inicio.html",   js: "./inicio.js",   init: "initInicio",   css: "inicio.css",   full: true  },
+      turnos:   { html: "turnos.html",   js: "./turnos.js",   init: "initTurnos",   css: "turnos.css",   full: false },
+      pacientes:{ html: "pacientes.html",js: "./pacientes.js",init: "initPacientes",css: "pacientes.css",full: false },
+    };
+
+    let _panelLoader = { reqId: 0, abort: null };
+
+    async function cargarPanel(key) {
+      const meta = PANELS[key];
+      if (!meta) throw new Error("Panel no definido: " + key);
+
+      const main = document.getElementById("main-content");
+      const cfg  = document.getElementById("configuracion-panel");
+      main.classList.remove("hidden");
+      cfg.classList.add("hidden");
+
+      // cancelar carga anterior si existía
+      _panelLoader.abort?.abort();
+      const abort = new AbortController();
+      _panelLoader.abort = abort;
+      const myReqId = ++_panelLoader.reqId;
+
+      // loader
+      main.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;height:180px;color:#6b6480">
+          Cargando...
+        </div>
+      `;
+
+      try {
+        // 1) Traer HTML del panel
+        const resp = await fetch(meta.html, { signal: abort.signal });
+        if (!resp.ok) throw new Error("HTTP " + resp.status + " al cargar " + meta.html);
+        const html = await resp.text();
+        if (myReqId !== _panelLoader.reqId) return;
+
+        // 2) Inyectar HTML
+        main.innerHTML = html;
+        main.scrollTop = 0;
+
+        // 3) Asegurar CSS del panel
+        if (meta.css) ensureStylesheet(meta.css, "css-" + key);
+
+        // 4) Control de ancho: Inicio es full (sin .card); otros, en card
+        if (meta.full) main.classList.remove("card");
+        else           main.classList.add("card");
+
+        // 5) Import dinámico del JS del panel y llamar init(...)
+        if (meta.js && meta.init) {
+          const mod = await import(meta.js);
+          const fn  = mod?.[meta.init];
+          if (typeof fn === "function") await fn(main);
+        }
+      } catch (err) {
+        if (err?.name === "AbortError") return;
+        console.error(err);
+        main.classList.add("card"); // el error lo mostramos como card
+        main.innerHTML = `
+          <div style="background:#fff0f0;border:1px solid #f3c2c2;color:#8e0c2f;border-radius:8px;padding:14px">
+            <strong>Error al cargar el panel:</strong><br>
+            <code>${(err && err.message) || err}</code>
+          </div>
+        `;
+      } finally {
+        if (myReqId === _panelLoader.reqId) _panelLoader.abort = null;
+      }
+    }
+
+    /* =============================
+       Usuario / Rol / Nombre seguro
+       ============================= */
     const roleLabels = {
       propietario: "Propietario",
       medico: "Médico",
@@ -112,10 +154,7 @@
       amc: "Asistente de Centro Médico",
     };
 
-    // ---------- Utils (compatibles: sin \p{...} ni elipsis)
-    const strip = (s = "") => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const norm  = (s = "") => strip(s).toLowerCase().trim();
-
+    const norm = (s="") => s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
     function isRoleLikeName(name) {
       const n = norm(name);
       if (!n) return true;
@@ -131,64 +170,58 @@
       try {
         const email     = localStorage.getItem("email") || "";
         const badStored = localStorage.getItem("user_name") || "";
+        if (!isRoleLikeName(badStored)) return badStored || email || "Usuario";
 
-        if (isRoleLikeName(badStored)) {
-          const profId = localStorage.getItem("profesional_id");
-
-          // 1) profesionales
-          if (profId) {
-            const { data: p } = await supabase
-              .from("profesionales")
-              .select("nombre, apellido, email")
-              .eq("id", profId)
-              .maybeSingle();
-            const full = [p?.nombre, p?.apellido].filter(Boolean).join(" ").trim();
-            if (full) return full;
-            if (p?.email) return p.email;
-          }
-
-          // 2) profiles
-          const { data: userResp } = await supabase.auth.getUser();
-          const uid = userResp?.user?.id;
-          if (uid) {
-            const { data: prof } = await supabase
-              .from("profiles")
-              .select("display_name, email")
-              .eq("id", uid)
-              .maybeSingle();
-            if (prof?.display_name && !isRoleLikeName(prof.display_name)) return prof.display_name;
-            if (prof?.email) return prof.email;
-          }
-
-          // 3) fallback
-          return email || "Usuario";
+        const profId = localStorage.getItem("profesional_id");
+        if (profId) {
+          const { data: p } = await supabase
+            .from("profesionales")
+            .select("nombre, apellido, email")
+            .eq("id", profId)
+            .maybeSingle();
+          const full = [p?.nombre, p?.apellido].filter(Boolean).join(" ").trim();
+          if (full) return full;
+          if (p?.email) return p.email;
         }
 
-        return badStored || "Usuario";
+        const { data: userResp } = await supabase.auth.getUser();
+        const uid = userResp?.user?.id;
+        if (uid) {
+          const { data: prof } = await supabase
+            .from("profiles")
+            .select("display_name, email")
+            .eq("id", uid)
+            .maybeSingle();
+          if (prof?.display_name && !isRoleLikeName(prof.display_name)) return prof.display_name;
+          if (prof?.email) return prof.email;
+        }
+
+        return email || "Usuario";
       } catch {
         return localStorage.getItem("email") || "Usuario";
       }
     }
 
-    // ---------- Estado base
     const userRolRaw   = (localStorage.getItem("user_role") || "").toLowerCase();
     const userRolLabel = roleLabels[userRolRaw] || userRolRaw || "—";
-    let   centroId     = localStorage.getItem("centro_medico_id");
-    const profesionalId= localStorage.getItem("profesional_id");
+    document.getElementById("user-rol").textContent  = userRolLabel;
 
-    // Header
     const safeName = await getSafeDisplayName();
     document.getElementById("user-name").textContent = safeName;
-    document.getElementById("user-rol").textContent  = userRolLabel;
     localStorage.setItem("user_name", safeName);
 
-    // Permisos config
+    // mostrar/ocultar Config
     const btnConfig   = document.getElementById("btn-config");
     const puedeConfig = ["medico","propietario","amp"].includes(userRolRaw);
     if (!puedeConfig) btnConfig.style.display = "none";
 
-    // ---------- Centros (sidebar)
-    async function cargarCentroDashboard() {
+    /* =============================
+       Centros (sidebar)
+       ============================= */
+    let centroId = localStorage.getItem("centro_medico_id");
+    const profesionalId = localStorage.getItem("profesional_id");
+
+    async function cargarCentros() {
       const centroSelect = document.getElementById("centro-select");
       centroSelect.innerHTML = '<option disabled selected>Cargando...</option>';
 
@@ -233,124 +266,54 @@
       }
 
       centroSelect.onchange = function () {
-        const seleccionado = centros.find(c => String(c.id) === String(this.value));
-        localStorage.setItem("centro_medico_id", seleccionado?.id ?? "");
-        localStorage.setItem("centro_medico_nombre", seleccionado?.nombre ?? "");
+        const sel = centros.find(c => String(c.id) === String(this.value));
+        localStorage.setItem("centro_medico_id", sel?.id ?? "");
+        localStorage.setItem("centro_medico_nombre", sel?.nombre ?? "");
         centroId = String(this.value);
+        // si el panel actual depende del centro, que lo refresque él mismo
       };
     }
-    await cargarCentroDashboard();
+    await cargarCentros();
 
-    // ---------- Carga dinámica de paneles
-    let _panelLoader = { reqId: 0, abort: null };
-
-    async function cargarPanelHtml(url) {
-      const main = document.getElementById("main-content");
-      if (!main) throw new Error("#main-content no encontrado");
-
-      // cancelar si había uno en vuelo
-      _panelLoader.abort?.abort();
-      const abort = new AbortController();
-      _panelLoader.abort = abort;
-
-      const myReqId = ++_panelLoader.reqId;
-
-      main.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;height:180px;color:#6b6480">
-          Cargando...
-        </div>
-      `;
-
-      try {
-        const resp = await fetch(url, { signal: abort.signal });
-        if (!resp.ok) throw new Error("HTTP " + resp.status + " al cargar " + url);
-        const html = await resp.text();
-
-        if (myReqId !== _panelLoader.reqId) return;
-
-        main.innerHTML = html;
-        main.scrollTop = 0;
-
-        const file = url.split("#")[0].split("?")[0].split("/").pop() || "";
-
-        if (file === "inicio.html") {
-          const mod = await import("./inicio.js");
-          if (typeof mod.initInicio === "function") await mod.initInicio(main);
-        } else if (file === "turnos.html") {
-          const mod = await import("./turnos.js");
-          if (typeof mod.initTurnos === "function") await mod.initTurnos(main);
-        } else if (file === "pacientes.html") {
-          try {
-            const mod = await import("./pacientes.js");
-            if (typeof mod.initPacientes === "function") await mod.initPacientes(main);
-          } catch (e) {
-            console.warn("pacientes.js no disponible:", e);
-          }
-        }
-      } catch (err) {
-        if (err.name === "AbortError") return;
-        console.error(err);
-        main.innerHTML = `
-          <div style="padding:18px">
-            <div style="background:#fff0f0;border:1px solid #f3c2c2;color:#8e0c2f;border-radius:8px;padding:14px">
-              <strong>Error al cargar el panel:</strong><br>
-              <code>${(err && err.message) || err}</code>
-            </div>
-          </div>
-        `;
-      } finally {
-        if (myReqId === _panelLoader.reqId) _panelLoader.abort = null;
-      }
-    }
-
-    // ---------- Auxiliares
-    function setActiveMenu(btn) {
-      document.querySelectorAll(".menu button").forEach(b => b.classList.remove("active"));
-      if (btn) btn.classList.add("active");
-    }
-
+    /* =============================
+       Configuración (stub)
+       ============================= */
     async function cargarPanelConfiguracion() {
       const panel = document.getElementById("configuracion-panel");
       panel.innerHTML = `
         <div class="card">
-          <h2>Configuracion</h2>
-          <p>Proximamente...</p>
+          <h2>Configuración</h2>
+          <p class="muted">Próximamente…</p>
         </div>
       `;
     }
 
-    // ---------- Carga inicial + Navegacion
-    await cargarPanelHtml("inicio.html");
-
-    const mainEl = document.getElementById("main-content");
-    const cfgEl  = document.getElementById("configuracion-panel");
+    /* =============================
+       Navegación
+       ============================= */
+    await cargarPanel("inicio"); // carga inicial
 
     document.getElementById("btn-inicio").addEventListener("click", async function () {
       setActiveMenu(this);
-      mainEl.classList.remove("hidden");
-      cfgEl.classList.add("hidden");
-      await cargarPanelHtml("inicio.html");
+      await cargarPanel("inicio");
     });
 
     document.getElementById("btn-turnos").addEventListener("click", async function () {
       setActiveMenu(this);
-      mainEl.classList.remove("hidden");
-      cfgEl.classList.add("hidden");
-      await cargarPanelHtml("turnos.html");
+      await cargarPanel("turnos");
     });
 
     document.getElementById("btn-pacientes").addEventListener("click", async function () {
       setActiveMenu(this);
-      mainEl.classList.remove("hidden");
-      cfgEl.classList.add("hidden");
-      await cargarPanelHtml("pacientes.html");
+      await cargarPanel("pacientes");
     });
 
     document.getElementById("btn-config").addEventListener("click", async function () {
       if (!["medico","propietario","amp"].includes((localStorage.getItem("user_role") || "").toLowerCase())) return;
       setActiveMenu(null);
-      mainEl.classList.add("hidden");
-      cfgEl.classList.remove("hidden");
+      document.getElementById("main-content").classList.add("hidden");
+      const cfg = document.getElementById("configuracion-panel");
+      cfg.classList.remove("hidden");
       await cargarPanelConfiguracion();
     });
 
