@@ -22,7 +22,7 @@
     }
     .sidebar .user-mini .user-rol {
       font-size:12px; background:#a490d7; color:#fff; border-radius:5px; padding:2px 8px;
-      font-weight:400; margin-bottom:1px; letter-spacing:.03em;
+      font-weight:400; margin-bottom:1px; letter-spacing:.03em; text-transform:none;
       white-space:nowrap; max-width:160px; overflow:hidden; text-overflow:ellipsis;
     }
     .brand-title { font-weight:bold; font-size:21px; color:#381e60; margin-bottom:8px; }
@@ -56,7 +56,8 @@
     .power-btn .tooltip { display:none; position:absolute; left:44px; top:50%; transform:translateY(-50%); background:#381e60; color:#fff; padding:4px 12px; border-radius:6px; font-size:14px; white-space:nowrap; z-index:999; }
     .power-btn:hover .tooltip { display:block; }
     .main { padding:32px 20px; min-height:100vh; background:#f7f9fb; }
-    .card { background:#fff; padding:28px 22px; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.10); max-width:1140px; margin:0 auto; }
+    .card { background:#fff; padding:28px 22px; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.10); max-width:700px; margin:0 auto; }
+    .card h2 { margin-top:0; }
     .hidden { display:none; }
   </style>
 </head>
@@ -103,7 +104,7 @@
   <script type="module">
     import supabase from "./supabaseClient.js";
 
-    // ---------- Labels de rol
+    // --- Labels de rol
     const roleLabels = {
       propietario: "Propietario",
       medico: "Médico",
@@ -111,93 +112,96 @@
       amc: "Asistente de Centro Médico",
     };
 
-    // ---------- Utils (compatibles: sin \p{...} ni elipsis)
-    const strip = (s = "") => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const norm  = (s = "") => strip(s).toLowerCase().trim();
+    // --- Utilidades
+    const strip = (s='') => s.normalize('NFD').replace(/\p{Diacritic}/gu,'');
+    const norm = (s='') => strip(s).toLowerCase().trim();
 
     function isRoleLikeName(name) {
       const n = norm(name);
       if (!n) return true;
       const tokens = [
-        "propietario", "medico",
-        "asistente medico personal", "asistente medico pers",
-        "asistente de centro medico", "asistente de centro me"
+        'propietario',
+        'medico',
+        'asistente medico personal',
+        'asistente de centro medico',
+        'asistente medico pers',      // detecta truncados
+        'asistente de centro me'
       ];
       return tokens.some(t => n === t || n.startsWith(t));
     }
 
     async function getSafeDisplayName() {
-      try {
-        const email     = localStorage.getItem("email") || "";
-        const badStored = localStorage.getItem("user_name") || "";
+      const email = localStorage.getItem('email') || '';
+      const badStored = localStorage.getItem('user_name') || '';
 
-        if (isRoleLikeName(badStored)) {
-          const profId = localStorage.getItem("profesional_id");
-
-          // 1) profesionales
-          if (profId) {
-            const { data: p } = await supabase
-              .from("profesionales")
-              .select("nombre, apellido, email")
-              .eq("id", profId)
-              .maybeSingle();
-            const full = [p?.nombre, p?.apellido].filter(Boolean).join(" ").trim();
-            if (full) return full;
-            if (p?.email) return p.email;
-          }
-
-          // 2) profiles
-          const { data: userResp } = await supabase.auth.getUser();
-          const uid = userResp?.user?.id;
-          if (uid) {
-            const { data: prof } = await supabase
-              .from("profiles")
-              .select("display_name, email")
-              .eq("id", uid)
-              .maybeSingle();
-            if (prof?.display_name && !isRoleLikeName(prof.display_name)) return prof.display_name;
-            if (prof?.email) return prof.email;
-          }
-
-          // 3) fallback
-          return email || "Usuario";
+      // si lo que hay guardado parece un rol => intentamos reconstruir
+      if (isRoleLikeName(badStored)) {
+        const profId = localStorage.getItem('profesional_id');
+        // 1) profesionales.nombre + apellido
+        if (profId) {
+          const { data: p } = await supabase
+            .from('profesionales')
+            .select('nombre, apellido, email')
+            .eq('id', profId)
+            .maybeSingle();
+          const full = [p?.nombre, p?.apellido].filter(Boolean).join(' ').trim();
+          if (full) return full;
+          if (p?.email) return p.email;
         }
 
-        return badStored || "Usuario";
-      } catch {
-        return localStorage.getItem("email") || "Usuario";
+        // 2) profiles.display_name
+        const { data: userResp } = await supabase.auth.getUser();
+        const uid = userResp?.user?.id;
+        if (uid) {
+          const { data: prof } = await supabase
+            .from('profiles')
+            .select('display_name, email')
+            .eq('id', uid)
+            .maybeSingle();
+          if (prof?.display_name && !isRoleLikeName(prof.display_name)) return prof.display_name;
+          if (prof?.email) return prof.email;
+        }
+
+        // 3) fallback: email
+        return email || 'Usuario';
       }
+
+      // si lo guardado no parece un rol, úsalo
+      return badStored;
     }
 
-    // ---------- Estado base
-    const userRolRaw   = (localStorage.getItem("user_role") || "").toLowerCase();
-    const userRolLabel = roleLabels[userRolRaw] || userRolRaw || "—";
-    let   centroId     = localStorage.getItem("centro_medico_id");
-    const profesionalId= localStorage.getItem("profesional_id");
+    // --- Estado base
+    const userRolRaw = (localStorage.getItem('user_role') || '').toLowerCase(); // medico|propietario|amp|amc
+    const userRolLabel = roleLabels[userRolRaw] || userRolRaw || '—';
+    const centroId      = localStorage.getItem('centro_medico_id');
+    const profesionalId = localStorage.getItem('profesional_id');
 
-    // Header
+    // Pinta header (nombre corregido + rol)
     const safeName = await getSafeDisplayName();
-    document.getElementById("user-name").textContent = safeName;
-    document.getElementById("user-rol").textContent  = userRolLabel;
-    localStorage.setItem("user_name", safeName);
+    document.getElementById('user-name').textContent = safeName;
+    document.getElementById('user-rol').textContent  = userRolLabel;
+    localStorage.setItem('user_name', safeName); // persistimos el bueno
 
-    // Permisos config
-    const btnConfig   = document.getElementById("btn-config");
-    const puedeConfig = ["medico","propietario","amp"].includes(userRolRaw);
-    if (!puedeConfig) btnConfig.style.display = "none";
+    // --- Permisos de Configuración: médico, propietario y AMP sí; AMC no.
+    const btnConfig   = document.getElementById('btn-config');
+    const puedeConfig = ['medico','propietario','amp'].includes(userRolRaw);
+    if (!puedeConfig) {
+      btnConfig.style.display = 'none';
+      // o: btnConfig.disabled = true;
+    }
 
-    // ---------- Centros (sidebar)
+    // --- Cargar centros del profesional
     async function cargarCentroDashboard() {
-      const centroSelect = document.getElementById("centro-select");
+      const centroSelect = document.getElementById('centro-select');
       centroSelect.innerHTML = '<option disabled selected>Cargando...</option>';
-
       let centros = [];
+
       if (profesionalId) {
         const { data, error } = await supabase
-          .from("profesional_centro")
-          .select("centro_id, centros_medicos(id, nombre)")
-          .eq("profesional_id", profesionalId)
-          .eq("activo", true);
+          .from('profesional_centro')
+          .select('centro_id, centros_medicos(id, nombre)')
+          .eq('profesional_id', profesionalId)
+          .eq('activo', true);
 
         if (!error && data?.length) {
           centros = data
@@ -206,191 +210,107 @@
         }
       }
 
-      centroSelect.innerHTML = "";
+      centroSelect.innerHTML = '';
       if (!centros.length) {
         centroSelect.innerHTML = '<option disabled selected>No hay centros</option>';
-        localStorage.removeItem("centro_medico_id");
-        localStorage.removeItem("centro_medico_nombre");
+        localStorage.removeItem('centro_medico_id');
+        localStorage.removeItem('centro_medico_nombre');
         return;
       }
 
-      for (const c of centros) {
-        const opt = document.createElement("option");
-        opt.value = String(c.id);
+      centros.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
         opt.textContent = c.nombre;
         centroSelect.appendChild(opt);
-      }
+      });
 
-      centroSelect.value = String(centroId || centros[0].id);
-      {
-        const sel = centros.find(c => String(c.id) === String(centroSelect.value));
-        if (sel) {
-          localStorage.setItem("centro_medico_id", sel.id);
-          localStorage.setItem("centro_medico_nombre", sel.nombre);
-          centroId = String(sel.id);
-        }
-      }
+      centroSelect.value = centroId || centros[0].id;
 
-      centroSelect.onchange = function () {
-        const seleccionado = centros.find(c => String(c.id) === String(this.value));
-        localStorage.setItem("centro_medico_id", seleccionado?.id ?? "");
-        localStorage.setItem("centro_medico_nombre", seleccionado?.nombre ?? "");
-        centroId = String(this.value);
+      centroSelect.onchange = function() {
+        const seleccionado = centros.find(c => c.id === this.value);
+        localStorage.setItem('centro_medico_id', seleccionado.id);
+        localStorage.setItem('centro_medico_nombre', seleccionado.nombre);
       };
     }
     await cargarCentroDashboard();
 
-   // ---------- Carga dinámica de paneles (CORREGIDA)
-let _panelLoader = { reqId: 0, abort: null };
+    // --- Carga dinámica del contenido principal
+    async function cargarPanelHtml(url) {
+      const resp = await fetch(url);
+      const html = await resp.text();
+      document.getElementById('main-content').innerHTML = html;
 
-async function cargarPanelHtml(url) {
-  const main = document.getElementById("main-content");
-  if (!main) throw new Error("#main-content no encontrado");
+      // Ejecutar <script type="module"> embebidos si los hubiera
+      const scripts = document.getElementById('main-content').querySelectorAll('script[type="module"]');
+      for (const oldScript of scripts) {
+        const s = document.createElement('script');
+        s.type = 'module';
+        if (oldScript.src) s.src = oldScript.src;
+        else s.textContent = oldScript.textContent;
+        document.body.appendChild(s);
+      }
 
-  // cancelar carga anterior si la hubiera
-  _panelLoader.abort?.abort();
-  const abort = new AbortController();
-  _panelLoader.abort = abort;
-  const myReqId = ++_panelLoader.reqId;
-
-  main.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:center;height:180px;color:#6b6480">
-      Cargando...
-    </div>
-  `;
-
-  try {
-    const resp = await fetch(url, { signal: abort.signal });
-    if (!resp.ok) throw new Error("HTTP " + resp.status + " al cargar " + url);
-    const html = await resp.text();
-    if (myReqId !== _panelLoader.reqId) return; // respuesta vieja
-
-    // 1) Parsear el HTML del panel
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-
-    // 2) Inyectar <link rel="stylesheet"> del panel en el <head> REAL
-    const head = doc.head || doc;
-    const links = [...head.querySelectorAll('link[rel="stylesheet"]')];
-
-    let base;
-    try {
-      base = new URL(url, document.baseURI || window.location.href);
-    } catch {
-      base = new URL(window.location.href);
-    }
-
-    for (const l of links) {
-      const hrefRaw = l.getAttribute("href") || "";
-      if (!hrefRaw || hrefRaw.startsWith("data:")) continue;
-
-      let absHref = hrefRaw;
-      try {
-        absHref = new URL(hrefRaw, base).href;
-      } catch {}
-
-      if (!document.head.querySelector(`link[data-dyn-style="${absHref}"]`)) {
-        const n = document.createElement("link");
-        n.rel = "stylesheet";
-        n.href = absHref;
-        n.setAttribute("data-dyn-style", absHref);
-        document.head.appendChild(n);
+      if (url.includes('turnos.html')) {
+        const { initTurnos } = await import('./turnos.js');
+        await initTurnos();
       }
     }
 
-    // 3) Renderizar SOLO el <body> del panel dentro de #main-content
-    main.innerHTML = doc.body ? doc.body.innerHTML : html;
-    main.scrollTop = 0;
+    // Inicio por defecto
+    await cargarPanelHtml('inicio.html');
 
-    // 3.1) Marcar panel activo
-    const file = url.split("#")[0].split("?")[0].split("/").pop() || "";
-    const panelName = file.replace(/\.html$/,'');
-    main.setAttribute('data-panel', panelName);
-
-    // 4) Ejecutar lógica específica si aplica
-    if (file === "inicio.html") {
-      const mod = await import("./inicio.js");
-      if (typeof mod.initInicio === "function") await mod.initInicio(main);
-    } else if (file === "turnos.html") {
-      const mod = await import("./turnos.js");
-      if (typeof mod.initTurnos === "function") await mod.initTurnos(main);
-    }
-    // 🔹 ya no hay bloque de pacientes.js
-  } catch (err) {
-    if (err && err.name === "AbortError") return;
-    console.error(err);
-    const main = document.getElementById("main-content");
-    if (main) {
-      main.innerHTML = `
-        <div style="padding:18px">
-          <div style="background:#fff0f0;border:1px solid #f3c2c2;color:#8e0c2f;border-radius:8px;padding:14px">
-            <strong>Error al cargar el panel:</strong><br>
-            <code>${(err && err.message) || err}</code>
-          </div>
-        </div>
-      `;
-    }
-  } finally {
-    if (myReqId === _panelLoader.reqId) _panelLoader.abort = null;
-  }
-}
-
-
-    // ---------- Auxiliares
-    function setActiveMenu(btn) {
-      document.querySelectorAll(".menu button").forEach(b => b.classList.remove("active"));
-      if (btn) btn.classList.add("active");
-    }
-
-    async function cargarPanelConfiguracion() {
-      const panel = document.getElementById("configuracion-panel");
-      panel.innerHTML = `
-        <div class="card">
-          <h2>Configuración</h2>
-          <p>Próximamente...</p>
-        </div>
-      `;
-    }
-
-    // ---------- Carga inicial + Navegación
-    await cargarPanelHtml("inicio.html");
-
-    const mainEl = document.getElementById("main-content");
-    const cfgEl  = document.getElementById("configuracion-panel");
-
-    document.getElementById("btn-inicio").addEventListener("click", async function () {
+    // Navegación
+    document.getElementById('btn-inicio').addEventListener('click', async function() {
       setActiveMenu(this);
-      mainEl.classList.remove("hidden");
-      cfgEl.classList.add("hidden");
-      await cargarPanelHtml("inicio.html");
+      document.getElementById('main-content').classList.remove('hidden');
+      document.getElementById('configuracion-panel').classList.add('hidden');
+      await cargarPanelHtml('inicio.html');
+    });
+    document.getElementById('btn-turnos').addEventListener('click', async function() {
+      setActiveMenu(this);
+      document.getElementById('main-content').classList.remove('hidden');
+      document.getElementById('configuracion-panel').classList.add('hidden');
+      await cargarPanelHtml('turnos.html');
+    });
+    document.getElementById('btn-pacientes').addEventListener('click', async function() {
+      setActiveMenu(this);
+      document.getElementById('main-content').classList.remove('hidden');
+      document.getElementById('configuracion-panel').classList.add('hidden');
+      await cargarPanelHtml('pacientes.html');
     });
 
-    document.getElementById("btn-turnos").addEventListener("click", async function () {
+    btnConfig.addEventListener('click', async function() {
+      if (!puedeConfig) return;
       setActiveMenu(this);
-      mainEl.classList.remove("hidden");
-      cfgEl.classList.add("hidden");
-      await cargarPanelHtml("turnos.html");
-    });
-
-    document.getElementById("btn-pacientes").addEventListener("click", async function () {
-      setActiveMenu(this);
-      mainEl.classList.remove("hidden");
-      cfgEl.classList.add("hidden");
-      await cargarPanelHtml("pacientes.html");
-    });
-
-    document.getElementById("btn-config").addEventListener("click", async function () {
-      if (!["medico","propietario","amp"].includes((localStorage.getItem("user_role") || "").toLowerCase())) return;
-      setActiveMenu(null);
-      mainEl.classList.add("hidden");
-      cfgEl.classList.remove("hidden");
+      document.getElementById('main-content').classList.add('hidden');
+      document.getElementById('configuracion-panel').classList.remove('hidden');
       await cargarPanelConfiguracion();
     });
 
-    document.getElementById("btn-logout").addEventListener("click", () => {
+    document.getElementById('btn-logout').addEventListener('click', () => {
       localStorage.clear();
       window.location.href = "index.html";
     });
+
+    function setActiveMenu(btn) {
+      document.querySelectorAll('.menu button').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+    }
+
+    async function cargarPanelConfiguracion() {
+      const resp = await fetch('configuracion.html');
+      const html = await resp.text();
+      const panel = document.getElementById('configuracion-panel');
+      panel.innerHTML = html;
+      Array.from(panel.querySelectorAll('script[type="module"]')).forEach(oldScript => {
+        const s = document.createElement('script');
+        s.type = 'module';
+        if (oldScript.src) s.src = oldScript.src;
+        else s.textContent = oldScript.textContent;
+        document.body.appendChild(s);
+      });
+    }
   </script>
 </body>
 </html>
