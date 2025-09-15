@@ -240,110 +240,101 @@
     }
     await cargarCentroDashboard();
 
-    // ---------- Carga dinámica de paneles (CORREGIDA)
-    let _panelLoader = { reqId: 0, abort: null };
+   // ---------- Carga dinámica de paneles (CORREGIDA)
+let _panelLoader = { reqId: 0, abort: null };
 
-    async function cargarPanelHtml(url) {
-      const main = document.getElementById("main-content");
-      if (!main) throw new Error("#main-content no encontrado");
+async function cargarPanelHtml(url) {
+  const main = document.getElementById("main-content");
+  if (!main) throw new Error("#main-content no encontrado");
 
-      // cancelar carga anterior si la hubiera
-      _panelLoader.abort?.abort();
-      const abort = new AbortController();
-      _panelLoader.abort = abort;
-      const myReqId = ++_panelLoader.reqId;
+  // cancelar carga anterior si la hubiera
+  _panelLoader.abort?.abort();
+  const abort = new AbortController();
+  _panelLoader.abort = abort;
+  const myReqId = ++_panelLoader.reqId;
 
-      main.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;height:180px;color:#6b6480">
-          Cargando...
-        </div>
-      `;
+  main.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:center;height:180px;color:#6b6480">
+      Cargando...
+    </div>
+  `;
 
+  try {
+    const resp = await fetch(url, { signal: abort.signal });
+    if (!resp.ok) throw new Error("HTTP " + resp.status + " al cargar " + url);
+    const html = await resp.text();
+    if (myReqId !== _panelLoader.reqId) return; // respuesta vieja
+
+    // 1) Parsear el HTML del panel
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+
+    // 2) Inyectar <link rel="stylesheet"> del panel en el <head> REAL
+    const head = doc.head || doc;
+    const links = [...head.querySelectorAll('link[rel="stylesheet"]')];
+
+    let base;
+    try {
+      base = new URL(url, document.baseURI || window.location.href);
+    } catch {
+      base = new URL(window.location.href);
+    }
+
+    for (const l of links) {
+      const hrefRaw = l.getAttribute("href") || "";
+      if (!hrefRaw || hrefRaw.startsWith("data:")) continue;
+
+      let absHref = hrefRaw;
       try {
-        const resp = await fetch(url, { signal: abort.signal });
-        if (!resp.ok) throw new Error("HTTP " + resp.status + " al cargar " + url);
-        const html = await resp.text();
-        if (myReqId !== _panelLoader.reqId) return; // respuesta vieja
+        absHref = new URL(hrefRaw, base).href;
+      } catch {}
 
-        // 1) Parsear el HTML del panel
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, "text/html");
-
-        // 2) Inyectar <link rel="stylesheet"> del panel en el <head> REAL (resolviendo paths relativos)
-        const head = doc.head || doc;
-        const links = [...head.querySelectorAll('link[rel="stylesheet"]')];
-
-        // Base absoluta segura, aun si "url" es relativa (p.ej. "inicio.html")
-        let base;
-        try {
-          base = new URL(url, document.baseURI || window.location.href);
-        } catch {
-          base = new URL(window.location.href);
-        }
-
-        for (const l of links) {
-          const hrefRaw = l.getAttribute("href") || "";
-          if (!hrefRaw || hrefRaw.startsWith("data:")) continue;
-
-          let absHref = hrefRaw;
-          try {
-            absHref = new URL(hrefRaw, base).href;
-          } catch {
-            // si no se puede resolver, usamos lo que vino
-          }
-
-          // de-dup para no repetir el mismo CSS varias veces
-          if (!document.head.querySelector(`link[data-dyn-style="${absHref}"]`)) {
-            const n = document.createElement("link");
-            n.rel = "stylesheet";
-            n.href = absHref;
-            n.setAttribute("data-dyn-style", absHref);
-            document.head.appendChild(n);
-          }
-        }
-
-        // 3) Renderizar SOLO el <body> del panel dentro de #main-content
-        main.innerHTML = doc.body ? doc.body.innerHTML : html;
-        main.scrollTop = 0;
-
-        // 3.1) Marcar panel activo para scope de estilos
-        const file = url.split("#")[0].split("?")[0].split("/").pop() || "";
-        const panelName = file.replace(/\.html$/,'');
-        main.setAttribute('data-panel', panelName);
-
-        // 4) Ejecutar la lógica del panel según el archivo
-        if (file === "inicio.html") {
-          const mod = await import("./inicio.js");
-          if (typeof mod.initInicio === "function") await mod.initInicio(main);
-        } else if (file === "turnos.html") {
-          const mod = await import("./turnos.js");
-          if (typeof mod.initTurnos === "function") await mod.initTurnos(main);
-        } else if (file === "pacientes.html") {
-          try {
-            const mod = await import("./pacientes.js");
-            if (typeof mod.initPacientes === "function") await mod.initPacientes(main);
-          } catch (e) {
-            console.warn("pacientes.js no disponible:", e);
-          }
-        }
-      } catch (err) {
-        if (err && err.name === "AbortError") return;
-        console.error(err);
-        const main = document.getElementById("main-content");
-        if (main) {
-          main.innerHTML = `
-            <div style="padding:18px">
-              <div style="background:#fff0f0;border:1px solid #f3c2c2;color:#8e0c2f;border-radius:8px;padding:14px">
-                <strong>Error al cargar el panel:</strong><br>
-                <code>${(err && err.message) || err}</code>
-              </div>
-            </div>
-          `;
-        }
-      } finally {
-        if (myReqId === _panelLoader.reqId) _panelLoader.abort = null;
+      if (!document.head.querySelector(`link[data-dyn-style="${absHref}"]`)) {
+        const n = document.createElement("link");
+        n.rel = "stylesheet";
+        n.href = absHref;
+        n.setAttribute("data-dyn-style", absHref);
+        document.head.appendChild(n);
       }
     }
+
+    // 3) Renderizar SOLO el <body> del panel dentro de #main-content
+    main.innerHTML = doc.body ? doc.body.innerHTML : html;
+    main.scrollTop = 0;
+
+    // 3.1) Marcar panel activo
+    const file = url.split("#")[0].split("?")[0].split("/").pop() || "";
+    const panelName = file.replace(/\.html$/,'');
+    main.setAttribute('data-panel', panelName);
+
+    // 4) Ejecutar lógica específica si aplica
+    if (file === "inicio.html") {
+      const mod = await import("./inicio.js");
+      if (typeof mod.initInicio === "function") await mod.initInicio(main);
+    } else if (file === "turnos.html") {
+      const mod = await import("./turnos.js");
+      if (typeof mod.initTurnos === "function") await mod.initTurnos(main);
+    }
+    // 🔹 ya no hay bloque de pacientes.js
+  } catch (err) {
+    if (err && err.name === "AbortError") return;
+    console.error(err);
+    const main = document.getElementById("main-content");
+    if (main) {
+      main.innerHTML = `
+        <div style="padding:18px">
+          <div style="background:#fff0f0;border:1px solid #f3c2c2;color:#8e0c2f;border-radius:8px;padding:14px">
+            <strong>Error al cargar el panel:</strong><br>
+            <code>${(err && err.message) || err}</code>
+          </div>
+        </div>
+      `;
+    }
+  } finally {
+    if (myReqId === _panelLoader.reqId) _panelLoader.abort = null;
+  }
+}
+
 
     // ---------- Auxiliares
     function setActiveMenu(btn) {
