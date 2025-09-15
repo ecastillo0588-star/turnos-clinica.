@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -59,7 +58,6 @@
     .main { padding:32px 20px; min-height:100vh; background:#f7f9fb; }
     .card { background:#fff; padding:28px 22px; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.10); max-width:700px; margin:0 auto; }
     .card h2 { margin-top:0; }
-    .hidden { display:none; }
   </style>
 </head>
 <body>
@@ -78,11 +76,8 @@
         <button id="btn-inicio" class="active">Inicio</button>
         <button id="btn-turnos">Turnos</button>
         <button id="btn-pacientes">Pacientes</button>
+        <button id="btn-config">Configuración</button>
       </nav>
-
-      <div class="settings-slot">
-        <button class="settings-btn btn" id="btn-config">Configuración</button>
-      </div>
 
       <div class="logout-slot">
         <button class="power-btn" id="btn-logout" tabindex="0">
@@ -97,7 +92,6 @@
 
     <main class="main">
       <div id="main-content" class="card"></div>
-      <div id="configuracion-panel" class="hidden"></div>
       <div id="modal-root"></div>
     </main>
   </div>
@@ -113,7 +107,7 @@
       amc: "Asistente de Centro Médico",
     };
 
-    // ---------- Utils (compatibles: sin \p{...} ni elipsis)
+    // ---------- Utils
     const strip = (s = "") => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const norm  = (s = "") => strip(s).toLowerCase().trim();
 
@@ -135,8 +129,6 @@
 
         if (isRoleLikeName(badStored)) {
           const profId = localStorage.getItem("profesional_id");
-
-          // 1) profesionales
           if (profId) {
             const { data: p } = await supabase
               .from("profesionales")
@@ -148,7 +140,6 @@
             if (p?.email) return p.email;
           }
 
-          // 2) profiles
           const { data: userResp } = await supabase.auth.getUser();
           const uid = userResp?.user?.id;
           if (uid) {
@@ -161,10 +152,8 @@
             if (prof?.email) return prof.email;
           }
 
-          // 3) fallback
           return email || "Usuario";
         }
-
         return badStored || "Usuario";
       } catch {
         return localStorage.getItem("email") || "Usuario";
@@ -182,11 +171,6 @@
     document.getElementById("user-name").textContent = safeName;
     document.getElementById("user-rol").textContent  = userRolLabel;
     localStorage.setItem("user_name", safeName);
-
-    // Permisos config
-    const btnConfig   = document.getElementById("btn-config");
-    const puedeConfig = ["medico","propietario","amp"].includes(userRolRaw);
-    if (!puedeConfig) btnConfig.style.display = "none";
 
     // ---------- Centros (sidebar)
     async function cargarCentroDashboard() {
@@ -249,18 +233,13 @@
       const main = document.getElementById("main-content");
       if (!main) throw new Error("#main-content no encontrado");
 
-      // cancelar si había uno en vuelo
       _panelLoader.abort?.abort();
       const abort = new AbortController();
       _panelLoader.abort = abort;
 
       const myReqId = ++_panelLoader.reqId;
 
-      main.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;height:180px;color:#6b6480">
-          Cargando...
-        </div>
-      `;
+      main.innerHTML = `<div style="text-align:center;padding:50px;">Cargando...</div>`;
 
       try {
         const resp = await fetch(url, { signal: abort.signal });
@@ -272,87 +251,58 @@
         main.innerHTML = html;
         main.scrollTop = 0;
 
-        const file = url.split("#")[0].split("?")[0].split("/").pop() || "";
-
+        const file = url.split("/").pop() || "";
         if (file === "inicio.html") {
           const mod = await import("./inicio.js");
           if (typeof mod.initInicio === "function") await mod.initInicio(main);
         } else if (file === "turnos.html") {
           const mod = await import("./turnos.js");
           if (typeof mod.initTurnos === "function") await mod.initTurnos(main);
-        } else if (file === "pacientes.html") {
+        } else if (file === "configuracion.html") {
           try {
-            const mod = await import("./pacientes.js");
-            if (typeof mod.initPacientes === "function") await mod.initPacientes(main);
+            const mod = await import("./configuracion.js");
+            if (typeof mod.initConfiguracion === "function") await mod.initConfiguracion(main);
           } catch (e) {
-            console.warn("pacientes.js no disponible:", e);
+            console.warn("configuracion.js no disponible:", e);
           }
         }
       } catch (err) {
         if (err.name === "AbortError") return;
         console.error(err);
-        main.innerHTML = `
-          <div style="padding:18px">
-            <div style="background:#fff0f0;border:1px solid #f3c2c2;color:#8e0c2f;border-radius:8px;padding:14px">
-              <strong>Error al cargar el panel:</strong><br>
-              <code>${(err && err.message) || err}</code>
-            </div>
-          </div>
-        `;
+        main.innerHTML = `<div style="color:#b00020;">Error al cargar: ${err.message}</div>`;
       } finally {
         if (myReqId === _panelLoader.reqId) _panelLoader.abort = null;
       }
     }
 
-    // ---------- Auxiliares
+    // ---------- Aux
     function setActiveMenu(btn) {
       document.querySelectorAll(".menu button").forEach(b => b.classList.remove("active"));
       if (btn) btn.classList.add("active");
     }
 
-    async function cargarPanelConfiguracion() {
-      const panel = document.getElementById("configuracion-panel");
-      panel.innerHTML = `
-        <div class="card">
-          <h2>Configuracion</h2>
-          <p>Proximamente...</p>
-        </div>
-      `;
-    }
-
-    // ---------- Carga inicial + Navegacion
+    // ---------- Navegación
     await cargarPanelHtml("inicio.html");
-
-    const mainEl = document.getElementById("main-content");
-    const cfgEl  = document.getElementById("configuracion-panel");
 
     document.getElementById("btn-inicio").addEventListener("click", async function () {
       setActiveMenu(this);
-      mainEl.classList.remove("hidden");
-      cfgEl.classList.add("hidden");
       await cargarPanelHtml("inicio.html");
     });
 
     document.getElementById("btn-turnos").addEventListener("click", async function () {
       setActiveMenu(this);
-      mainEl.classList.remove("hidden");
-      cfgEl.classList.add("hidden");
       await cargarPanelHtml("turnos.html");
     });
 
     document.getElementById("btn-pacientes").addEventListener("click", async function () {
       setActiveMenu(this);
-      mainEl.classList.remove("hidden");
-      cfgEl.classList.add("hidden");
       await cargarPanelHtml("pacientes.html");
     });
 
     document.getElementById("btn-config").addEventListener("click", async function () {
       if (!["medico","propietario","amp"].includes((localStorage.getItem("user_role") || "").toLowerCase())) return;
-      setActiveMenu(null);
-      mainEl.classList.add("hidden");
-      cfgEl.classList.remove("hidden");
-      await cargarPanelConfiguracion();
+      setActiveMenu(this);
+      await cargarPanelHtml("configuracion.html");
     });
 
     document.getElementById("btn-logout").addEventListener("click", () => {
