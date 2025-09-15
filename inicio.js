@@ -1,50 +1,46 @@
-// inicio.js — versión limpia
+// inicio.js — estable
 // -------------------------------------------------
 import supabase from './supabaseClient.js';
 import { applyRoleClasses, loadProfesionalesIntoSelect, roleAllows } from './global.js';
-
-'use strict';
 
 /* =======================
    Constantes / utilidades
    ======================= */
 const EST = {
-  ASIGNADO:     'asignado',
-  EN_ESPERA:    'en_espera',
-  EN_ATENCION:  'en_atencion',
-  CANCELADO:    'cancelado',
-  CONFIRMADO:   'confirmado',
-  ATENDIDO:     'atendido',
+  ASIGNADO:    'asignado',
+  EN_ESPERA:   'en_espera',
+  EN_ATENCION: 'en_atencion',
+  CANCELADO:   'cancelado',
+  CONFIRMADO:  'confirmado',
+  ATENDIDO:    'atendido',
 };
 
-const FONT = { key:'ui_fs_px', def:14, min:12, max:18, step:1 };
-const LAYOUT = { rowsKey:'boards_rows_v1', expandKey:'board_expanded_v1', baseH:420, big:1.6, small:0.6 };
+const FONT = { key: 'ui_fs_px', def: 14, min: 12, max: 18, step: 1 };
 
-const pad2 = n => (n<10?'0'+n:''+n);
-const todayISO = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
-const toHM = t => (t??'').toString().slice(0,5);
-const strip = s => (s??'').toString().normalize('NFD').replace(/\p{Diacritic}/gu,'');
-const norm  = s => strip(s).toLowerCase().trim();
-const safeSet = (el, text) => { if (el) el.textContent = text; };
-const money = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0));
-const titleCase = s => (s||'').split(' ').filter(Boolean).map(w=> w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ');
+const pad2   = n => (n < 10 ? '0' + n : '' + n);
+const toHM   = t => (t ?? '').toString().slice(0, 5);
+const strip  = s => (s ?? '').toString().normalize('NFD').replace(/\p{Diacritic}/gu, '');
+const norm   = s => strip(s).toLowerCase().trim();
+const money  = n => new Intl.NumberFormat('es-AR', { style:'currency', currency:'ARS', maximumFractionDigits:0 }).format(Number(n || 0));
+const title  = s => (s || '').split(' ').filter(Boolean).map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
+const nowHHMMSS = () => { const d=new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
 const minutesDiff = (start, end) => {
   const [h1,m1]=start.split(':').map(Number);
   const [h2,m2]=end.split(':').map(Number);
   return (h2*60+m2)-(h1*60+m1);
 };
-const nowHHMMSS = () => { const d=new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
+const safeSetText = (el, text) => { if (el) el.textContent = text; };
 
 /* =======================
    Estado de módulo
    ======================= */
 let UI = {};
-let H  = {};
 let Drawer = {};
 let boardsEl, zDec, zInc, zReset;
 let rootEl = null;
-let fsPx;
 
+let fsPx;
 let currentCentroId       = null;
 let currentCentroNombre   = '';
 let currentFechaISO       = null;
@@ -53,17 +49,87 @@ let filterText            = '';
 
 let centroWatchTimer = null;
 let waitTimer        = null;
-let PROF_NAME = new Map();
-let _refresh = { reqId: 0 };
 
-const userRole            = String(localStorage.getItem('user_role')||'').toLowerCase();
-const loggedProfesionalId = localStorage.getItem('profesional_id');
+const PROF_NAME = new Map();
+const _refresh = { reqId: 0 };
 
 /* =======================
-   Overlay (CSS + DOM + control)
+   Bind de referencias
    ======================= */
-function ensureOverlay(root) {
-  if (!document.getElementById('inicio-overlay-css')) {
+function bindUI(root=document){
+  UI = {
+    profSelect: root.querySelector('#prof-select'),
+    fecha:      root.querySelector('#fecha'),
+    btnHoy:     root.querySelector('#btn-hoy'),
+    tblPend:    root.querySelector('#tbl-pend'),
+    tblEsp:     root.querySelector('#tbl-esp'),
+    tblAtencion:root.querySelector('#tbl-atencion'),
+    tblDone:    root.querySelector('#tbl-done'),
+    kpiFree:    root.querySelector('#kpi-free'),
+    kpiSub:     root.querySelector('#kpi-sub'), // (no está en la toolbar compacta; es opcional)
+    massSearch: root.querySelector('#mass-search'),
+    massClear:  root.querySelector('#mass-clear'),
+    hlPend:     root.querySelector('#hl-pend'),
+    hlEsp:      root.querySelector('#hl-esp'),
+    hlAtenc:    root.querySelector('#hl-atencion'),
+    hlDone:     root.querySelector('#hl-done'),
+  };
+
+  Drawer = {
+    el:        root.querySelector('#fichaDrawer'),
+    close:     root.querySelector('#fd-close'),
+    status:    root.querySelector('#fd-status'),
+    msg:       root.querySelector('#fd-msg'),
+    title:     root.querySelector('#fd-title'),
+    sub:       root.querySelector('#fd-sub'),
+    hc:        root.querySelector('#fd-hc'),
+    hora:      root.querySelector('#fd-hora'),
+    copago:    root.querySelector('#fd-copago'),
+
+    dni:       root.querySelector('#fd-dni'),
+    ape:       root.querySelector('#fd-apellido'),
+    nom:       root.querySelector('#fd-nombre'),
+    nac:       root.querySelector('#fd-nac'),
+    tel:       root.querySelector('#fd-tel'),
+    mail:      root.querySelector('#fd-mail'),
+
+    obra:      root.querySelector('#fd-obra'),
+    afiliado:  root.querySelector('#fd-afiliado'),
+    cred:      root.querySelector('#fd-cred'),
+    credLink:  root.querySelector('#fd-cred-link'),
+
+    ecNom:     root.querySelector('#fd-ec-nom'),
+    ecApe:     root.querySelector('#fd-ec-ape'),
+    ecCel:     root.querySelector('#fd-ec-cel'),
+    ecVin:     root.querySelector('#fd-ec-vin'),
+
+    prox:      root.querySelector('#fd-prox'),
+    renov:     root.querySelector('#fd-renov'),
+    activo:    root.querySelector('#fd-activo'),
+    notas:     root.querySelector('#fd-notas'),
+
+    btnCerrar:    root.querySelector('#fd-cerrar'),
+    btnGuardar:   root.querySelector('#fd-guardar'),
+    btnFinalizar: root.querySelector('#fd-finalizar'),
+  };
+
+  boardsEl = root.querySelector('#boards');
+  zDec   = root.querySelector('#zoom-dec');
+  zInc   = root.querySelector('#zoom-inc');
+  zReset = root.querySelector('#zoom-reset');
+
+  // drawer: cierres
+  Drawer.close  && (Drawer.close.onclick  = hideDrawer);
+  Drawer.btnCerrar && (Drawer.btnCerrar.onclick = hideDrawer);
+}
+
+/* =======================
+   Overlay (opc.) + boot-mask
+   ======================= */
+function ensureOverlay(root){
+  if (root.querySelector('#inicio-overlay')) return;
+
+  if (!document.getElementById('inicio-overlay-css')){
     const style = document.createElement('style');
     style.id = 'inicio-overlay-css';
     style.textContent = `
@@ -82,97 +148,23 @@ function ensureOverlay(root) {
     `;
     document.head.appendChild(style);
   }
+
   const cs = getComputedStyle(root);
   if (cs.position === 'static') root.style.position = 'relative';
 
-  if (!root.querySelector('#inicio-overlay')) {
-    const overlay = document.createElement('div');
-    overlay.id = 'inicio-overlay';
-    overlay.className = 'ioverlay';
-    overlay.innerHTML = `<div class="box"><div class="spin"></div><div>Cargando…</div></div>`;
-    root.appendChild(overlay);
-  }
+  const overlay = document.createElement('div');
+  overlay.id = 'inicio-overlay';
+  overlay.className = 'ioverlay';
+  overlay.innerHTML = `<div class="box"><div class="spin"></div><div>Cargando…</div></div>`;
+  root.appendChild(overlay);
 }
-// control del overlay (respeta la máscara de boot)
-function setLoading(on) {
+function setLoading(on){
   const root = rootEl || document.getElementById('inicio-root');
-  if (!root || root.hasAttribute('data-boot')) return;
+  if (!root) return;
+  // mientras exista la boot-mask, no mostramos overlay
+  if (root.hasAttribute('data-boot')) return;
   const cont = root.querySelector('#inicio-overlay');
   if (cont) cont.classList.toggle('show', !!on);
-}
-
-/* =======================
-   Binder de referencias
-   ======================= */
-function bindUI(root = document) {
-  UI = {
-    centroChip: root.querySelector('#centro-chip'),
-    profSelect: root.querySelector('#prof-select'),
-    fecha:      root.querySelector('#fecha'),
-    btnHoy:     root.querySelector('#btn-hoy'),
-    tblPend:    root.querySelector('#tbl-pend'),
-    tblEsp:     root.querySelector('#tbl-esp'),
-    tblAtencion:root.querySelector('#tbl-atencion'),
-    tblDone:    root.querySelector('#tbl-done'),
-    kpiFree:    root.querySelector('#kpi-free'),
-    kpiSub:     root.querySelector('#kpi-sub'), // opcional en este HTML
-    massSearch: root.querySelector('#mass-search'),
-    massClear:  root.querySelector('#mass-clear'),
-  };
-
-  H = {
-    pend:  root.querySelector('#hl-pend'),
-    esp:   root.querySelector('#hl-esp'),
-    atenc: root.querySelector('#hl-atencion'),
-    done:  root.querySelector('#hl-done'),
-  };
-
-  Drawer = {
-    el:        root.querySelector('#fichaDrawer'),
-    close:     root.querySelector('#fd-close'),
-    status:    root.querySelector('#fd-status'),
-    msg:       root.querySelector('#fd-msg'),
-    title:     root.querySelector('#fd-title'),
-    sub:       root.querySelector('#fd-sub'),
-    osYear:    root.querySelector('#fd-os-year'),
-    hc:        root.querySelector('#fd-hc'),
-    prof:      root.querySelector('#fd-prof'),
-    centro:    root.querySelector('#fd-centro'),
-    fecha:     root.querySelector('#fd-fecha'),
-    hora:      root.querySelector('#fd-hora'),
-    estado:    root.querySelector('#fd-estado'),
-    copago:    root.querySelector('#fd-copago'),
-    dni:       root.querySelector('#fd-dni'),
-    ape:       root.querySelector('#fd-apellido'),
-    nom:       root.querySelector('#fd-nombre'),
-    nac:       root.querySelector('#fd-nac'),
-    tel:       root.querySelector('#fd-tel'),
-    mail:      root.querySelector('#fd-mail'),
-    obra:      root.querySelector('#fd-obra'),
-    afiliado:  root.querySelector('#fd-afiliado'),
-    cred:      root.querySelector('#fd-cred'),
-    credLink:  root.querySelector('#fd-cred-link'),
-    ecNom:     root.querySelector('#fd-ec-nom'),
-    ecApe:     root.querySelector('#fd-ec-ape'),
-    ecCel:     root.querySelector('#fd-ec-cel'),
-    ecVin:     root.querySelector('#fd-ec-vin'),
-    prox:      root.querySelector('#fd-prox'),
-    renov:     root.querySelector('#fd-renov'),
-    activo:    root.querySelector('#fd-activo'),
-    notas:     root.querySelector('#fd-notas'),
-    btnCerrar: root.querySelector('#fd-cerrar'),
-    btnGuardar:root.querySelector('#fd-guardar'),
-    btnFinalizar:root.querySelector('#fd-finalizar'),
-  };
-
-  boardsEl = root.querySelector('#boards');
-  zDec   = root.querySelector('#zoom-dec');
-  zInc   = root.querySelector('#zoom-inc');
-  zReset = root.querySelector('#zoom-reset');
-
-  // drawer: cierres
-  Drawer.close     && (Drawer.close.onclick     = hideDrawer);
-  Drawer.btnCerrar && (Drawer.btnCerrar.onclick = hideDrawer);
 }
 
 /* =======================
@@ -184,31 +176,39 @@ function loadFs(){
   const px = Number.isFinite(v) ? Math.min(FONT.max, Math.max(FONT.min, v)) : FONT.def;
   applyFs(px); fsPx = px;
 }
-function setFs(px){ fsPx = Math.min(FONT.max, Math.max(FONT.min, px)); localStorage.setItem(FONT.key, String(fsPx)); applyFs(fsPx); }
+function setFs(px){
+  fsPx = Math.min(FONT.max, Math.max(FONT.min, px));
+  localStorage.setItem(FONT.key, String(fsPx));
+  applyFs(fsPx);
+}
 
-// per-centro
 function profSelKey(){ return `inicio_prof_sel_${currentCentroId||'any'}`; }
 function getSavedProfIds(){
-  try{ const s=localStorage.getItem(profSelKey()); if(!s) return null; const a=JSON.parse(s); return Array.isArray(a)?a.map(String):null; }catch{ return null; }
+  try{
+    const s = localStorage.getItem(profSelKey());
+    if (!s) return null;
+    const a = JSON.parse(s);
+    return Array.isArray(a) ? a.map(String) : null;
+  }catch{ return null; }
 }
 function saveProfSelection(){
-  const sel = UI.profSelect; if(!sel) return;
+  const sel = UI.profSelect; if (!sel) return;
   const ids = sel.multiple
     ? Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean)
     : (sel.value ? [sel.value] : []);
   try{ localStorage.setItem(profSelKey(), JSON.stringify(ids)); }catch{}
 }
 function restoreProfSelection(){
-  const sel=UI.profSelect; if(!sel) return false;
+  const sel = UI.profSelect; if (!sel) return false;
   const saved = getSavedProfIds(); if(!saved || !saved.length) return false;
   const values = new Set(saved.map(String));
-  let firstSelected=null;
+  let first=null;
   Array.from(sel.options).forEach(o=>{
     if(!o.value) return;
-    if(values.has(String(o.value))){ o.selected=true; if(!firstSelected) firstSelected=o.value; }
-    else if(sel.multiple){ o.selected=false; }
+    if (values.has(String(o.value))){ o.selected=true; if(!first) first=o.value; }
+    else if (sel.multiple){ o.selected=false; }
   });
-  if(!sel.multiple) sel.value = firstSelected || '';
+  if (!sel.multiple) sel.value = first || '';
   selectedProfesionales = sel.multiple
     ? Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean)
     : (sel.value ? [sel.value] : []);
@@ -220,7 +220,6 @@ async function fetchCentroById(id){
   const { data } = await supabase.from('centros_medicos').select('nombre').eq('id', id).maybeSingle();
   return data?.nombre || '';
 }
-function renderCentroChip(){ if (UI.centroChip) UI.centroChip.textContent = currentCentroNombre || '—'; }
 
 async function syncCentroFromStorage(force=false){
   const id  = localStorage.getItem('centro_medico_id');
@@ -229,38 +228,38 @@ async function syncCentroFromStorage(force=false){
     currentCentroId     = id;
     currentCentroNombre = nom || await fetchCentroById(id);
     localStorage.setItem('centro_medico_nombre', currentCentroNombre);
-    renderCentroChip();
     await loadProfesionales();
     if (!restoreProfSelection()) saveProfSelection();
-    await refreshAll(); // recarga dataset
+    await refreshAll({ showOverlayIfSlow:true });
   }
 }
-function startCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=setInterval(()=>syncCentroFromStorage(false), 1000); }
+function startCentroWatcher(){
+  if (centroWatchTimer) clearInterval(centroWatchTimer);
+  centroWatchTimer = setInterval(()=>syncCentroFromStorage(false), 1000);
+}
 function stopCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=null; }
 window.addEventListener('beforeunload', stopCentroWatcher);
 
 /* =======================
    Profesionales
    ======================= */
+const userRole            = String(localStorage.getItem('user_role')||'').toLowerCase();
+const loggedProfesionalId = localStorage.getItem('profesional_id');
+
 function rebuildProfMap(){
   PROF_NAME.clear();
   Array.from(UI.profSelect?.options || []).forEach(o=>{
-    if(o.value) PROF_NAME.set(String(o.value), (o.textContent||'').trim());
+    if (o.value) PROF_NAME.set(String(o.value), (o.textContent||'').trim());
   });
 }
 const profNameById = id => PROF_NAME.get(String(id)) || '—';
 
 async function loadProfesionales(){
-  const sel = UI.profSelect;
-  if (!sel) return;
+  const sel = UI.profSelect; if (!sel) return;
 
-  // AMC: multiselección
-  if (userRole === 'amc') {
-    sel.multiple = true;
-    sel.classList.remove('compact');
-  } else {
-    sel.multiple = false;
-  }
+  // AMC puede multiseleccionar
+  if (userRole === 'amc'){ sel.multiple = true; sel.classList.remove('compact'); }
+  else                   { sel.multiple = false; }
 
   await loadProfesionalesIntoSelect(sel, {
     role: userRole,
@@ -270,45 +269,53 @@ async function loadProfesionales(){
 
   rebuildProfMap();
 
-  // Intentar restaurar selección previa; si no, default razonable
   if (!restoreProfSelection()){
-    if (sel.multiple) {
+    if (sel.multiple){
       selectedProfesionales = Array.from(sel.options)
         .filter(o=>o.value)
-        .map(o => { o.selected=true; return o.value; });
+        .map(o => { o.selected = true; return o.value; });
       sel.size = Math.min(10, Math.max(4, selectedProfesionales.length || 6));
-    } else {
+    }else{
       const preferred = Array.from(sel.options).find(o=> o.value && String(o.value)===String(loggedProfesionalId));
       const first = preferred || Array.from(sel.options).find(o=>o.value);
       if (first){ sel.value = first.value; selectedProfesionales = [first.value]; }
-      else       { selectedProfesionales = []; }
+      else      { selectedProfesionales = []; }
     }
     saveProfSelection();
   }
 }
-async function onProfChange() {
-  const sel = UI.profSelect;
-  if (!sel) return;
+
+async function onProfChange(){
+  const sel = UI.profSelect; if (!sel) return;
   selectedProfesionales = sel.multiple
-    ? Array.from(sel.selectedOptions).map(o => o.value).filter(Boolean)
+    ? Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean)
     : (sel.value ? [sel.value] : []);
   saveProfSelection();
-  await refreshAll({ showOverlayIfSlow: true });
+  await refreshAll({ showOverlayIfSlow:true });
 }
 
 /* =======================
    Filtro global + Zoom
    ======================= */
 let searchTimer=null;
-function applySearch(value){ filterText = norm((value||'').trim()); refreshAll(); }
+function applySearch(v){ filterText = norm((v||'').trim()); refreshAll(); }
 
-function applyFsFromStorage(){
-  const raw = localStorage.getItem(LAYOUT.rowsKey); // no confundir, solo reutilizo helper de storage existente
-}
-function loadRowsFromStorage(){
+/* =======================
+   Layout (grow/expand)
+   ======================= */
+const LAYOUT = {
+  rowsKey:   'boards_rows_v1',
+  expandKey: 'board_expanded_v1',
+  baseH:     420,
+  big:       1.6,
+  small:     0.6,
+};
+function applyRowsFromStorage(){
   const raw = localStorage.getItem(LAYOUT.rowsKey);
   let r1 = LAYOUT.baseH, r2 = LAYOUT.baseH;
-  try{ if (raw){ const o=JSON.parse(raw); if (o.row1>0) r1=o.row1; if (o.row2>0) r2=o.row2; } }catch{}
+  try{
+    if(raw){ const o=JSON.parse(raw); if(o.row1>0) r1=o.row1; if(o.row2>0) r2=o.row2; }
+  }catch{}
   document.documentElement.style.setProperty('--row-1', r1+'px');
   document.documentElement.style.setProperty('--row-2', r2+'px');
 }
@@ -323,45 +330,10 @@ function resetSplit(){
   document.documentElement.style.setProperty('--row-2', LAYOUT.baseH+'px');
   saveRows(LAYOUT.baseH, LAYOUT.baseH);
 }
-function isTop(board){ const order=['pend','esp','atencion','done']; const idx=order.indexOf(board.dataset.board); return idx===0 || idx===1; }
-
-/* =======================
-   Controles de boards (SVG + listeners)
-   ======================= */
-const ICONS = {
-  grow: `
-    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 3l4 4h-3v10h3l-4 4-4-4h3V7H8l4-4z" fill="currentColor"/>
-    </svg>`,
-  expand: `
-    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M3 9V3h6M3 3l7 7M21 9V3h-6M21 3l-7 7M3 15v6h6M3 21l7-7M21 15v6h-6M21 21l-7-7"/>
-    </svg>`,
-  close: `
-    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2">
-      <path d="M6 6l12 12M18 6l-12 12"/>
-    </svg>`
-};
-
-function decorateBoardControls(){
-  if (!boardsEl) return;
-  boardsEl.querySelectorAll('.b-ctrl--grow').forEach(b => { b.type='button'; b.innerHTML = ICONS.grow; });
-  boardsEl.querySelectorAll('.b-ctrl--expand').forEach(b => { b.type='button'; b.innerHTML = ICONS.expand; });
-  boardsEl.querySelectorAll('.b-ctrl--collapse').forEach(b => { b.type='button'; b.innerHTML = ICONS.close; });
-}
-
-function expandBoard(board){
-  if (!boardsEl) return;
-  boardsEl.classList.add('fullmode');
-  boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
-  board.classList.add('expanded');
-  localStorage.setItem(LAYOUT.expandKey, board.dataset.board || '');
-}
-function collapseBoards(){
-  if (!boardsEl) return;
-  boardsEl.classList.remove('fullmode');
-  boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
-  localStorage.removeItem(LAYOUT.expandKey);
+function isTop(board){
+  const order=['pend','esp','atencion','done'];
+  const idx=order.indexOf(board.dataset.board);
+  return idx===0 || idx===1;
 }
 function toggleGrowFor(board){
   if (!boardsEl || boardsEl.classList.contains('fullmode')) return;
@@ -383,12 +355,22 @@ function toggleGrowFor(board){
     saveRows(nextR1, nextR2);
   }
 }
-
-function setupBoardControls(){
-  loadRowsFromStorage();
+function expandBoard(board){
   if (!boardsEl) return;
-
-  decorateBoardControls();
+  boardsEl.classList.add('fullmode');
+  boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
+  board.classList.add('expanded');
+  localStorage.setItem(LAYOUT.expandKey, board.dataset.board || '');
+}
+function collapseBoards(){
+  if (!boardsEl) return;
+  boardsEl.classList.remove('fullmode');
+  boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
+  localStorage.removeItem(LAYOUT.expandKey);
+}
+function setupBoardControls(){
+  applyRowsFromStorage();
+  if (!boardsEl) return;
 
   const prev = localStorage.getItem(LAYOUT.expandKey);
   if (prev){
@@ -410,24 +392,24 @@ function setupBoardControls(){
 }
 
 /* =======================
-   Datos del día (Supabase)
+   Datos del día
    ======================= */
 async function fetchDiaData(){
   if(!selectedProfesionales.length) return { pendientes:[], presentes:[], atencion:[], atendidos:[], agenda:[], turnos:[] };
 
   const profIds = selectedProfesionales.map(String);
-  const selectCols = `
+  const selCols = `
     id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, profesional_id,
     pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)
   `;
 
   const [pend, pres, atenc, done, agenda, turnos] = await Promise.all([
-    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.ASIGNADO ).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.EN_ESPERA ).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.EN_ATENCION).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.ATENDIDO ).order('hora_inicio',{ascending:true}),
+    supabase.from('turnos').select(selCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.ASIGNADO ).order('hora_inicio',{ascending:true}),
+    supabase.from('turnos').select(selCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.EN_ESPERA ).order('hora_inicio',{ascending:true}),
+    supabase.from('turnos').select(selCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.EN_ATENCION).order('hora_inicio',{ascending:true}),
+    supabase.from('turnos').select(selCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.ATENDIDO ).order('hora_inicio',{ascending:true}),
     supabase.from('agenda') .select('id, fecha, hora_inicio, hora_fin, profesional_id').eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos') .select('id, hora_inicio, hora_fin, estado, profesional_id').eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds)
+    supabase.from('turnos') .select('id, hora_inicio, hora_fin, estado, profesional_id').eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds),
   ]);
 
   return {
@@ -467,35 +449,34 @@ function renderPendientes(list){
     ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
     : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
 
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Hora</th><th class="cell">DNI</th>
-      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf?'<th class="cell">Profesional</th>':''}
-      <th class="cell right">Acciones</th></tr></thead>`;
+  const head = `<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
+    <th class="cell">Hora</th><th class="cell">DNI</th>
+    <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
+    ${withProf?'<th class="cell">Profesional</th>':''}
+    <th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeCancelar = roleAllows('cancelar', userRole);
   const puedeArribo   = roleAllows('arribo', userRole);
 
-  const rows=(list||[]).map(t=>{
+  const rows = (list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    const acciones = `
-      <div class="actions">
-        ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
-        ${puedeArribo   ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : ''}
-      </div>`;
+    const acc = `<div class="actions">
+      ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
+      ${puedeArribo   ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : ''}
+    </div>`;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${title(p.nombre)||'—'}</td>
+      <td class="cell truncate">${title(p.apellido)||'—'}</td>
       <td class="cell truncate">${p.obra_social||'—'}</td>
       ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
-      <td class="cell right">${acciones}</td>
+      <td class="cell right">${acc}</td>
     </tr>`;
   }).join('');
 
-  UI.tblPend.innerHTML=head+'<tbody>'+rows+'</tbody>';
+  UI.tblPend.innerHTML = head + '<tbody>' + rows + '</tbody>';
 
   UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
@@ -517,16 +498,18 @@ function updateWaitBadges(){
     n.textContent = hh? `${hh}h ${mm}m` : `${mm}m`;
   });
 }
+
 function renderPresentes(list){
   const withProf = showProfColumn();
   const grid = withProf
     ? `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-copago) var(--w-acc)`
     : `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-copago) var(--w-acc)`;
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
-      <th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf?'<th class="cell">Profesional</th>':''}
-      <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
+
+  const head = `<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
+    <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
+    <th class="cell">Apellido</th><th class="cell">Obra social</th>
+    ${withProf?'<th class="cell">Profesional</th>':''}
+    <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeVolver   = roleAllows('volver', userRole);
   const puedeCancelar = roleAllows('cancelar', userRole);
@@ -544,8 +527,8 @@ function renderPresentes(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell"><span class="wait" data-arribo-ts="${arriboISO}">—</span></td>
       <td class="cell nowrap">${hora}</td>
-      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${title(p.nombre)||'—'}</td>
+      <td class="cell truncate">${title(p.apellido)||'—'}</td>
       <td class="cell truncate">${p.obra_social||'—'}</td>
       ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell">${copBadge}</td>
@@ -570,11 +553,12 @@ function renderAtencion(list){
   const grid = withProf
     ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
     : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
+
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Hora</th><th class="cell">DNI</th>
-      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf?'<th class="cell">Profesional</th>':''}
-      <th class="cell right">Acciones</th></tr></thead>`;
+    <th class="cell">Hora</th><th class="cell">DNI</th>
+    <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
+    ${withProf?'<th class="cell">Profesional</th>':''}
+    <th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeAbrir   = roleAllows('abrir_ficha', userRole);
   const puedeVolverE = roleAllows('atender', userRole);
@@ -590,15 +574,15 @@ function renderAtencion(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${title(p.nombre)||'—'}</td>
+      <td class="cell truncate">${title(p.apellido)||'—'}</td>
       <td class="cell truncate">${p.obra_social||'—'}</td>
       ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
   }).join('');
-  UI.tblAtencion.innerHTML = head + '<tbody>' + rows + '</tbody>';
 
+  UI.tblAtencion.innerHTML = head + '<tbody>' + rows + '</tbody>';
   UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='abrir-ficha')    btn.onclick=()=> openFicha(id);
@@ -612,11 +596,12 @@ function renderAtendidos(list){
   const grid = withProf
     ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-copago) var(--w-acc)`
     : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-copago) var(--w-acc)`;
+
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Hora</th><th class="cell">DNI</th>
-      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf?'<th class="cell">Profesional</th>':''}
-      <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
+    <th class="cell">Hora</th><th class="cell">DNI</th>
+    <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
+    ${withProf?'<th class="cell">Profesional</th>':''}
+    <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeAbrir = roleAllows('abrir_ficha', userRole);
 
@@ -629,8 +614,8 @@ function renderAtendidos(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
+      <td class="cell truncate">${title(p.nombre)||'—'}</td>
+      <td class="cell truncate">${title(p.apellido)||'—'}</td>
       <td class="cell truncate">${p.obra_social||'—'}</td>
       ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell">${cop}</td>
@@ -655,12 +640,12 @@ function computeHorasDisponibles(agenda, turnos){
   const libresMin=Math.max(0,totalAgendaMin-ocupadosMin);
   return { libresMin, totalAgendaMin };
 }
-const formatFreeTime = mins => {
+function formatFreeTime(mins){
   mins = Math.max(0, Math.round(Number(mins||0)));
   if (mins < 60) return `${mins} min`;
   const h = Math.floor(mins / 60); const m = mins % 60;
   return `${h} h ${m} min`;
-};
+}
 function profsLabel(){
   const sel = UI.profSelect; if (!sel) return '—';
   if (!sel.multiple) return sel.options[sel.selectedIndex]?.textContent || '—';
@@ -671,15 +656,15 @@ function profsLabel(){
   return `${names.length} profesionales`;
 }
 function renderKPIs({agenda, turnos}){
-  const free=computeHorasDisponibles(agenda, turnos);
-  UI.kpiFree && (UI.kpiFree.textContent = `${formatFreeTime(free.libresMin)} disponibles`);
-  safeSet(UI.kpiSub, `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO||''}`);
+  const free = computeHorasDisponibles(agenda, turnos);
+  UI.kpiFree && (UI.kpiFree.textContent = `${formatFreeTime(free.libresMin)}`);
+  safeSetText(UI.kpiSub, `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO}`);
 }
 function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
-  H.pend  && (H.pend.textContent  = `Por llegar (${(pendientes||[]).length})`);
-  H.esp   && (H.esp.textContent   = `En sala de espera (${(presentes||[]).length})`);
-  H.atenc && (H.atenc.textContent = `En atención (${(atencion||[]).length})`);
-  H.done  && (H.done.textContent  = `Atendidos (${(atendidos||[]).length})`);
+  safeSetText(UI.hlPend,  `Por llegar (${(pendientes||[]).length})`);
+  safeSetText(UI.hlEsp,   `En sala de espera (${(presentes||[]).length})`);
+  safeSetText(UI.hlAtenc, `En atención (${(atencion||[]).length})`);
+  safeSetText(UI.hlDone,  `Atendidos (${(atendidos||[]).length})`);
 }
 
 /* =======================
@@ -708,7 +693,7 @@ async function loadObrasSociales(currentLabel){
 }
 
 function renderHeaderPaciente(p){
-  const ape = titleCase(p?.apellido||''); const nom = titleCase(p?.nombre||''); const dni = (p?.dni || '—');
+  const ape = title(p?.apellido||''); const nom = title(p?.nombre||''); const dni = (p?.dni || '—');
   const edad = (()=>{ if(!p?.fecha_nacimiento) return null; const d=new Date(p.fecha_nacimiento); if(isNaN(d)) return null;
     const t=new Date(); let a=t.getFullYear()-d.getFullYear(); const m=t.getMonth()-d.getMonth(); if(m<0||(m===0&&t.getDate()<d.getDate())) a--; return Math.max(a,0); })();
   Drawer.title && (Drawer.title.textContent = `Ficha paciente: ${[nom, ape].filter(Boolean).join(' ') || '—'}`);
@@ -738,9 +723,8 @@ async function openFicha(turnoId){
     .select('id,dni,apellido,nombre,fecha_nacimiento,telefono,email,obra_social,numero_afiliado,credencial,contacto_nombre,contacto_apellido,contacto_celular,vinculo,historia_clinica,proximo_control,renovacion_receta,activo')
     .eq('id', t.paciente_id).maybeSingle();
 
-  Drawer.hora && (Drawer.hora.textContent   = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`);
-  Drawer.copago && (Drawer.copago.textContent = `Copago: ${t.copago!=null ? money(t.copago) : '—'}`);
-
+  Drawer.hora  && (Drawer.hora.textContent   = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`);
+  Drawer.copago&& (Drawer.copago.textContent = `Copago: ${t.copago!=null ? money(t.copago) : '—'}`);
   renderHeaderPaciente(p||{});
 
   if (Drawer.dni) Drawer.dni.value = p?.dni || '';
@@ -821,7 +805,7 @@ async function volverASalaEspera(turnoId){
   await supabase.from('turnos').update({estado:EST.EN_ESPERA}).eq('id', turnoId);
   await refreshAll();
 }
-async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
+async function finalizarAtencion(turnoId, { closeDrawer = false } = {}){
   if (!roleAllows('finalizar', userRole)) { alert('No tenés permisos.'); return; }
   const id = turnoId ?? drawerTurnoId; if (!id) return;
   if (!confirm('¿Marcar este turno como ATENDIDO?')) return;
@@ -862,34 +846,26 @@ async function anularTurno(turnoId){
 /* =======================
    Refresh principal
    ======================= */
-async function refreshAll(opts = {}) {
+async function refreshAll(opts = {}){
   const { showOverlay = false, showOverlayIfSlow = false } = opts;
   const myReqId = ++_refresh.reqId;
 
-  let timer = null;
-  if (showOverlay) {
-    setLoading(true);
-  } else if (showOverlayIfSlow) {
-    timer = setTimeout(() => setLoading(true), 220);
-  }
+  let timer=null;
+  if (showOverlay) setLoading(true);
+  else if (showOverlayIfSlow) timer = setTimeout(()=>setLoading(true), 220);
 
-  // sin profesionales seleccionados => limpiar
-  if (!selectedProfesionales.length) {
-    UI.tblPend && (UI.tblPend.innerHTML = '');
-    UI.tblEsp && (UI.tblEsp.innerHTML = '');
-    UI.tblAtencion && (UI.tblAtencion.innerHTML = '');
-    UI.tblDone && (UI.tblDone.innerHTML = '');
-    safeSet(UI.kpiSub, `${currentCentroNombre || ''} · ${currentFechaISO || todayISO()}`);
-    renderBoardTitles({ pendientes: [], presentes: [], atencion: [], atendidos: [] });
-
-    if (timer) clearTimeout(timer);
-    setLoading(false);
+  // sin profesionales: limpiar
+  if (!selectedProfesionales.length){
+    UI.tblPend.innerHTML = UI.tblEsp.innerHTML = UI.tblAtencion.innerHTML = UI.tblDone.innerHTML = '';
+    safeSetText(UI.kpiSub, `${currentCentroNombre || ''} · ${currentFechaISO || todayISO()}`);
+    renderBoardTitles({ pendientes:[], presentes:[], atencion:[], atendidos:[] });
+    if (timer) clearTimeout(timer); setLoading(false);
     return;
   }
 
-  try {
+  try{
     const raw = await fetchDiaData();
-    if (myReqId !== _refresh.reqId) return; // respuesta vieja
+    if (myReqId !== _refresh.reqId) return; // respuesta vieja, se descarta
 
     const filtered = applyFilter(raw);
     renderPendientes(filtered.pendientes);
@@ -907,73 +883,59 @@ async function refreshAll(opts = {}) {
 /* =======================
    INIT (export)
    ======================= */
-export async function initInicio(root) {
+export async function initInicio(root){
   rootEl = root || document.getElementById('inicio-root') || document;
 
-  // Bind + overlay + drawer oculto
   bindUI(rootEl);
   ensureOverlay(rootEl);
-  hideDrawer();
 
-  // Estado base (centro / nombre)
   currentCentroId     = localStorage.getItem('centro_medico_id');
   currentCentroNombre = localStorage.getItem('centro_medico_nombre') || await fetchCentroById(currentCentroId);
-  renderCentroChip();
 
-  // Tipografía (A− / A / A+)
+  // Zoom
   loadFs();
   zDec   && (zDec.onclick   = () => setFs(fsPx - FONT.step));
   zInc   && (zInc.onclick   = () => setFs(fsPx + FONT.step));
   zReset && (zReset.onclick = () => setFs(FONT.def));
 
-  // Fecha + “Hoy”
+  // Fecha + Hoy
   if (UI.fecha && !UI.fecha.value) UI.fecha.value = todayISO();
   currentFechaISO = UI.fecha?.value || todayISO();
-  UI.fecha && (UI.fecha.onchange = () => {
-    currentFechaISO = UI.fecha.value || todayISO();
-    refreshAll({ showOverlayIfSlow: true });
-  });
-  UI.btnHoy && (UI.btnHoy.onclick = () => {
-    const h = todayISO();
-    UI.fecha.value = h;
-    currentFechaISO = h;
-    refreshAll({ showOverlayIfSlow: true });
-  });
+  UI.fecha && (UI.fecha.onchange = () => { currentFechaISO = UI.fecha.value || todayISO(); refreshAll({ showOverlayIfSlow:true }); });
+  UI.btnHoy && (UI.btnHoy.onclick = () => { const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll({ showOverlayIfSlow:true }); });
 
-  // Buscador masivo
-  if (UI.massSearch) {
-    UI.massSearch.oninput = () => {
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(() => applySearch(UI.massSearch.value), 160);
-    };
+  // Buscador
+  if (UI.massSearch){
+    UI.massSearch.oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(()=> applySearch(UI.massSearch.value), 160); };
   }
-  if (UI.massClear) {
-    UI.massClear.onclick = () => { UI.massSearch.value = ''; applySearch(''); };
-  }
+  if (UI.massClear){ UI.massClear.onclick = () => { UI.massSearch.value=''; applySearch(''); }; }
 
   // Rol + layout (controles de boards)
   applyRoleClasses(userRole);
   setupBoardControls();
 
-  // Eventos de selección de profesional
+  // Select de profesional
   UI.profSelect && UI.profSelect.addEventListener('change', onProfChange);
 
-  // PRIMERA CARGA (sin overlay: la boot mask tapa todo)
+  // Carga inicial (sin overlay; está la boot mask)
   await loadProfesionales();
   if (!restoreProfSelection()) saveProfSelection();
-  await refreshAll({ showOverlayIfSlow: false });
+  await refreshAll({ showOverlayIfSlow:false });
 
-  // Fin de boot: saco la máscara
+  // Fin boot: saco máscara
   const rootNode = document.getElementById('inicio-root');
   if (rootNode) rootNode.removeAttribute('data-boot');
 
-  // Watcher de centro (si cambia desde el sidebar)
+  // Watcher centro
   startCentroWatcher();
 }
 
-// auto-init opcional si se importa como <script type="module">
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => initInicio().catch(console.error));
-} else {
-  initInicio().catch(console.error);
+/* auto-init si se importa directo como módulo en la página */
+if (document.currentScript?.type === 'module'){
+  // init cuando el DOM está listo
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', ()=> initInicio());
+  } else {
+    initInicio();
+  }
 }
