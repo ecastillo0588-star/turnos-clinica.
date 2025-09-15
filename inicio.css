@@ -159,3 +159,84 @@
 @media (min-height:900px){
   #inicio-root{ --row-1:500px; --row-2:500px; }
 }
+
+/* =========================================================
+   FIX SCOPED — que inicio.css gane a app.css y use el viewport
+   ========================================================= */
+
+/* 1) Tokens y anchos (más legibles y “anchos”) */
+#inicio-root{
+  --fs: 14px;                 /* fuente un poquito más grande */
+  --fg: #3B3665;              /* texto principal */
+  --muted: #6f6a86;           /* texto secundario */
+
+  --header-bg: #F5F2FF;       /* encabezados suaves lavanda */
+  --border-clr: #E6E2F6;
+  --subborder-clr: #F0EDFF;
+  --shadow: 0 6px 28px rgba(90,70,170,.07);
+
+  /* columnas (más anchas para que “se vea todo”) */
+  --w-hora:   140px;
+  --w-dni:    140px;
+  --w-prof:   220px;
+  --w-copago: 120px;
+  --w-espera: 104px;
+  --w-acc:    180px;
+
+  --minch-nombre:   16ch;
+  --minch-apellido: 16ch;
+  --minch-obra:     14ch;
+
+  /* offset alto usado para calcular la altura del grid 2×2 */
+  --h-offset: 152px; /* toolbar + padding; ajustá si lo ves corto/largo */
+}
+
+/* 2) Aprovechar el alto del viewport */
+#inicio-root .boards{
+  height: calc(100vh - var(--h-offset)) !important;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+#inicio-root .boards.fullmode{ height: calc(100vh - var(--h-offset)) !important; }
+#inicio-root .boards.fullmode .board.expanded{ height: calc(100vh - var(--h-offset)) !important; }
+
+/* 3) Neutralizar reglas globales de app.css sobre tablas */
+#inicio-root table{ width:100% !important; border-collapse:separate !important; border-spacing:0 !important; }
+#inicio-root thead th{
+  position: static !important;
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  text-align: left !important;
+  font-size: inherit !important;
+}
+#inicio-root tbody td{
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+/* 4) Encabezados de board/tabla con el look lavanda y texto correcto */
+#inicio-root .board{ border:1px solid var(--border-clr) !important; box-shadow: var(--shadow) !important; }
+#inicio-root .board>h3{
+  background: var(--header-bg) !important;
+  border-bottom: 1px solid var(--subborder-clr) !important;
+  color: var(--fg) !important;
+  font-weight: 700 !important;
+}
+#inicio-root .thead .hrow{
+  background: var(--header-bg) !important;
+  border-bottom: 1px solid var(--subborder-clr) !important;
+}
+#inicio-root .thead .hrow .cell{ color:#5a418d !important; }
+
+/* 5) Asegurar que nada limite el ancho */
+#inicio-root, #inicio-root .panel, #inicio-root .boards, #inicio-root .board{ max-width: none !important; }
+
+/* (Opcional) si tu dashboard envuelve el panel con una .card de ancho fijo: */
+#main-content.card{
+  max-width: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
