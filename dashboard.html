@@ -4,7 +4,13 @@
   <meta charset="UTF-8">
   <title>Panel - EG Health Solutions</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
+
+  <!-- CSS global -->
   <link rel="stylesheet" href="app.css">
+
+  <!-- CSS de inicio (🔥 agregado para que se aplique) -->
+  <link rel="stylesheet" href="inicio.css">
+
   <style>
     body { background: #f7f9fb; }
     .app { display: flex; min-height: 100vh; }
@@ -124,7 +130,7 @@
         'medico',
         'asistente medico personal',
         'asistente de centro medico',
-        'asistente medico pers',      // detecta truncados
+        'asistente medico pers',
         'asistente de centro me'
       ];
       return tokens.some(t => n === t || n.startsWith(t));
@@ -134,10 +140,8 @@
       const email = localStorage.getItem('email') || '';
       const badStored = localStorage.getItem('user_name') || '';
 
-      // si lo que hay guardado parece un rol => intentamos reconstruir
       if (isRoleLikeName(badStored)) {
         const profId = localStorage.getItem('profesional_id');
-        // 1) profesionales.nombre + apellido
         if (profId) {
           const { data: p } = await supabase
             .from('profesionales')
@@ -149,7 +153,6 @@
           if (p?.email) return p.email;
         }
 
-        // 2) profiles.display_name
         const { data: userResp } = await supabase.auth.getUser();
         const uid = userResp?.user?.id;
         if (uid) {
@@ -162,35 +165,31 @@
           if (prof?.email) return prof.email;
         }
 
-        // 3) fallback: email
         return email || 'Usuario';
       }
 
-      // si lo guardado no parece un rol, úsalo
       return badStored;
     }
 
     // --- Estado base
-    const userRolRaw = (localStorage.getItem('user_role') || '').toLowerCase(); // medico|propietario|amp|amc
+    const userRolRaw = (localStorage.getItem('user_role') || '').toLowerCase();
     const userRolLabel = roleLabels[userRolRaw] || userRolRaw || '—';
     const centroId      = localStorage.getItem('centro_medico_id');
     const profesionalId = localStorage.getItem('profesional_id');
 
-    // Pinta header (nombre corregido + rol)
     const safeName = await getSafeDisplayName();
     document.getElementById('user-name').textContent = safeName;
     document.getElementById('user-rol').textContent  = userRolLabel;
-    localStorage.setItem('user_name', safeName); // persistimos el bueno
+    localStorage.setItem('user_name', safeName);
 
-    // --- Permisos de Configuración: médico, propietario y AMP sí; AMC no.
+    // --- Permisos de Configuración
     const btnConfig   = document.getElementById('btn-config');
     const puedeConfig = ['medico','propietario','amp'].includes(userRolRaw);
     if (!puedeConfig) {
       btnConfig.style.display = 'none';
-      // o: btnConfig.disabled = true;
     }
 
-    // --- Cargar centros del profesional
+    // --- Cargar centros
     async function cargarCentroDashboard() {
       const centroSelect = document.getElementById('centro-select');
       centroSelect.innerHTML = '<option disabled selected>Cargando...</option>';
@@ -241,7 +240,6 @@
       const html = await resp.text();
       document.getElementById('main-content').innerHTML = html;
 
-      // Ejecutar <script type="module"> embebidos si los hubiera
       const scripts = document.getElementById('main-content').querySelectorAll('script[type="module"]');
       for (const oldScript of scripts) {
         const s = document.createElement('script');
