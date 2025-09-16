@@ -265,3 +265,16 @@ body.role-amc [data-act="finalizar"]{ display:none !important; }
   .search-wrap{ width:100%; }
   .search-wrap .inp{ width:100%; max-width:100%; }
 }
+
+/* --- Fix visibilidad controles por tablero --- */
+.board { position: relative; }
+.board > h3 { position: relative; padding-right: 96px; } /* espacio p/ los botones */
+.board > h3 .b-ctrls {
+  position: absolute !important;
+  top: 6px;
+  right: 8px;
+  display: inline-flex !important;
+  gap: 6px;
+  z-index: 20; /* por encima del thead sticky */
+}
+
