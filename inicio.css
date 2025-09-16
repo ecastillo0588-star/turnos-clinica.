@@ -293,4 +293,13 @@ body.role-amc [data-act="finalizar"]{ display:none !important; }
 /* (opcional) asegurar el thead por debajo de los botones */
 .thead { z-index: 2; }
 
+/* Scope para que el sticky global no pise la vista Inicio */
+#inicio-root table thead th { position: static !important; top: auto !important; z-index: auto !important; }
+
+/* Tu sticky controlado por clase .thead */
+#inicio-root .thead { position: sticky !important; top: 0; z-index: 2 !important; }
+
+/* Asegurar controles por encima */
+#inicio-root .board > h3 { position: relative; z-index: 12; padding-right: 96px !important; }
+#inicio-root .board > h3 .b-ctrls { position: absolute !important; right: 8px; top: 6px; z-index: 40 !important; }
 
