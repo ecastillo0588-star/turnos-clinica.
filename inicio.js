@@ -516,8 +516,9 @@ function renderPendientes(list){
 
   UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='arribo') btn.onclick()=> marcarLlegadaYCopago(id);
-    if(act==='cancel') btn.onclick()=> anularTurno(id);
+   if (act === 'arribo') btn.onclick = () => marcarLlegadaYCopago(id);
+   if (act === 'cancel') btn.onclick = () => anularTurno(id);
+
   });
 }
 
@@ -574,9 +575,10 @@ function renderPresentes(list){
 
   UI.tblEsp.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='volver') btn.onclick=async()=>{ if(!roleAllows('volver', userRole)) return; await supabase.from('turnos').update({estado:EST.ASIGNADO, hora_arribo:null}).eq('id',id); await refreshAll(); };
-    if(act==='cancel') btn.onclick()=> anularTurno(id);
-    if(act==='atender') btn.onclick=(ev)=> pasarAEnAtencion(id, ev);
+if (act === 'volver') btn.onclick = async () => { if (!roleAllows('volver', userRole)) return; await supabase.from('turnos').update({ estado: EST.ASIGNADO, hora_arribo: null }).eq('id', id); await refreshAll(); };
+if (act === 'cancel') btn.onclick = () => anularTurno(id);
+if (act === 'atender') btn.onclick = (ev) => pasarAEnAtencion(id, ev);
+
   });
 
   updateWaitBadges(); startWaitTicker();
@@ -619,9 +621,10 @@ function renderAtencion(list){
 
   UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='abrir-ficha')    btn.onclick()=> openFicha(id);
-    if(act==='volver-espera')  btn.onclick()=> volverASalaEspera(id);
-    if(act==='finalizar')      btn.onclick()=> finalizarAtencion(id);
+if (act === 'abrir-ficha')   btn.onclick = () => openFicha(id);
+if (act === 'volver-espera') btn.onclick = () => volverASalaEspera(id);
+if (act === 'finalizar')     btn.onclick = () => finalizarAtencion(id);
+
   });
 }
 
