@@ -42,6 +42,22 @@
     .power-btn:hover .tooltip { display:block; }
     .main { padding:32px 20px; flex:1; background:#f7f9fb; }
     .card { background:#fff; padding:28px 22px; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.10); max-width:900px; margin:0 auto; }
+    /* Empuja Configuración y Cerrar sesión hacia abajo */
+    .menu {
+      flex: 1;                  /* ocupa el espacio vertical disponible */
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #btn-config {
+      margin-top: auto;         /* se va al fondo del menú */
+    }
+    
+    .logout-slot {
+      margin-top: 12px;         /* separa de Configuración */
+      margin-bottom: 16px;      /* respirito al borde inferior */
+    }
+
   </style>
 </head>
 <body>
