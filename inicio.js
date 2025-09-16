@@ -618,6 +618,7 @@ function renderAtencion(list){
 }
 
 /* Atendidos */
+/* Atendidos */
 function renderAtendidos(list){
   const withProf = showProfColumn();
   const grid = withProf
@@ -629,14 +630,11 @@ function renderAtendidos(list){
       ${withProf?'<th class="cell">Profesional</th>':''}
       <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
 
-  const puedeAbrir = roleAllows('abrir_ficha', userRole);
-
   const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
     const cop = (t.copago && Number(t.copago)>0)? money(t.copago) : '—';
-    const hcBtn = p.historia_clinica ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>` : '';
-    const acciones = `${puedeAbrir ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>` : ''}${hcBtn}`;
+    const acciones = accionesFichaBtn(t, p);   // 👈 usamos la nueva función
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
