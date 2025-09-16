@@ -130,7 +130,20 @@ function bindUI(root = document) {
   // drawer: cierres
   Drawer.close     && (Drawer.close.onclick     = hideDrawer);
   Drawer.btnCerrar && (Drawer.btnCerrar.onclick = hideDrawer);
+
+  // Listener del select de profesionales (aquí, no afuera)
+  if (UI.profSelect){
+    UI.profSelect.addEventListener('change', async ()=>{
+      const sel = UI.profSelect;
+      selectedProfesionales = sel.multiple
+        ? Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean)
+        : (sel.value ? [sel.value] : []);
+      saveProfSelection();
+      await refreshAll();
+    });
+  }
 }
+
 
 /* =======================
    Overlay de “Cargando…”
@@ -226,9 +239,25 @@ async function syncCentroFromStorage(force=false){
     await refreshAll(); // recarga dataset
   }
 }
-function startCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=setInterval(()=>syncCentroFromStorage(false), 1000); }
-function stopCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=null; }
-window.addEventListener('beforeunload', stopCentroWatcher);
+let _centroStorageHandler = null;
+function startCentroWatcher(){
+  // primera sync inmediata
+  syncCentroFromStorage(true);
+  // limpiar anterior
+  stopCentroWatcher();
+  _centroStorageHandler = (e)=>{
+    if (e.key==='centro_medico_id' || e.key==='centro_medico_nombre'){
+      syncCentroFromStorage(true);
+    }
+  };
+  window.addEventListener('storage', _centroStorageHandler);
+}
+function stopCentroWatcher(){
+  if (_centroStorageHandler){
+    window.removeEventListener('storage', _centroStorageHandler);
+    _centroStorageHandler = null;
+  }
+}
 
 /* =======================
    Profesionales
@@ -384,7 +413,7 @@ function setupBoardControls(){
   applyRowsFromStorage();
   if (!boardsEl) return;
 
-  // Asegura que existan los botones en cada board
+  // Asegura markup de controles una vez
   ensureBoardCtrlMarkup();
 
   // Restaura expansión previa (si existía)
@@ -394,25 +423,18 @@ function setupBoardControls(){
     if (b) expandBoard(b);
   }
 
-  // Enlaza handlers de forma idempotente (no duplica listeners)
+  // Cableado idempotente (una vez)
   const wire = () => {
     boardsEl.querySelectorAll('.board').forEach(board=>{
       const grow     = board.querySelector('.b-ctrl--grow');
       const expand   = board.querySelector('.b-ctrl--expand');
       const collapse = board.querySelector('.b-ctrl--collapse');
-      if (grow)     grow.onclick     = () => toggleGrowFor(board);
-      if (expand)   expand.onclick   = () => expandBoard(board);
-      if (collapse) collapse.onclick = () => collapseBoards();
+      if (grow && !grow._wired){       grow._wired = true;       grow.onclick     = () => toggleGrowFor(board); }
+      if (expand && !expand._wired){   expand._wired = true;     expand.onclick   = () => expandBoard(board); }
+      if (collapse && !collapse._wired){ collapse._wired = true; collapse.onclick = () => collapseBoards(); }
     });
   };
   wire();
-
-  // Si el router re-renderiza (childList/subtree), re-crea botones y re-engancha
-  const obs = new MutationObserver(() => {
-    ensureBoardCtrlMarkup();
-    wire();
-  });
-  obs.observe(boardsEl, { childList: true, subtree: true });
 
   // Escape cierra la expansión
   document.addEventListener('keydown', (ev)=>{
@@ -430,33 +452,42 @@ function setupBoardControls(){
    Datos del día (con abort)
    ======================= */
 async function fetchDiaData(signal){
-  if(!selectedProfesionales.length) return { pendientes:[], presentes:[], atencion:[], atendidos:[], agenda:[], turnos:[] };
+  if(!selectedProfesionales.length){
+    return { pendientes:[], presentes:[], atencion:[], atendidos:[], agenda:[], turnos:[] };
+  }
 
   const profIds = selectedProfesionales.map(String);
   const selectCols = `
     id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, profesional_id,
     pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)
   `;
+  const byHora = (a,b) => (toHM(a.hora_inicio) || '').localeCompare(toHM(b.hora_inicio) || '');
 
-  const [pend, pres, atenc, done, agenda, turnos] = await Promise.all([
-    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.ASIGNADO ).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.EN_ESPERA ).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.EN_ATENCION).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.ATENDIDO ).order('hora_inicio',{ascending:true}),
-    supabase.from('agenda') .select('id, fecha, hora_inicio, hora_fin, profesional_id').eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos') .select('id, hora_inicio, hora_fin, estado, profesional_id').eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds)
-  ]);
+  // 1) Todos los turnos del día
+  const { data: allTurnosRaw = [] } = await supabase
+    .from('turnos')
+    .select(selectCols)
+    .eq('centro_id', currentCentroId)
+    .eq('fecha', currentFechaISO)
+    .in('profesional_id', profIds);
+  const allTurnos = (allTurnosRaw || []).slice().sort(byHora);
 
-  // `signal` está para la interfaz, pero supabase-js no soporta abort; igual usamos nuestro reqId
-  return {
-    pendientes: pend.data||[],
-    presentes:  pres.data||[],
-    atencion:   atenc.data||[],
-    atendidos:  done.data||[],
-    agenda:     agenda.data||[],
-    turnos:     turnos.data||[],
-  };
+  // 2) Agenda del día (para KPIs)
+  const { data: agenda = [] } = await supabase
+    .from('agenda')
+    .select('id, fecha, hora_inicio, hora_fin, profesional_id')
+    .eq('centro_id', currentCentroId)
+    .eq('fecha', currentFechaISO)
+    .in('profesional_id', profIds);
+
+  const pendientes = allTurnos.filter(t=>t.estado===EST.ASIGNADO );
+  const presentes  = allTurnos.filter(t=>t.estado===EST.EN_ESPERA );
+  const atencion   = allTurnos.filter(t=>t.estado===EST.EN_ATENCION);
+  const atendidos  = allTurnos.filter(t=>t.estado===EST.ATENDIDO );
+
+  return { pendientes, presentes, atencion, atendidos, agenda, turnos: allTurnos };
 }
+
 
 function applyFilter(data){
   if (!filterText) return data;
@@ -525,16 +556,18 @@ function renderPendientes(list){
 /* En sala de espera */
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
-  const nodes=document.querySelectorAll('[data-arribo-ts]');
-  const now=new Date();
+  const now = new Date();
+  const scope = UI.tblEsp || document;
+  const nodes = scope.querySelectorAll('[data-arribo-ts]');
   nodes.forEach(n=>{
     const ts=n.getAttribute('data-arribo-ts'); if(!ts) return;
-    const ms= now - new Date(ts);
-    const mins=Math.max(0, Math.round(ms/60000));
-    const hh=Math.floor(mins/60), mm=mins%60;
-    n.textContent = hh? `${hh}h ${mm}m` : `${mm}m`;
+    const ms = now - new Date(ts);
+    const mins = Math.max(0, Math.round(ms/60000));
+    const hh = Math.floor(mins/60), mm = mins%60;
+    n.textContent = hh ? `${hh}h ${mm}m` : `${mm}m`;
   });
 }
+
 function renderPresentes(list){
   const withProf = showProfColumn();
   const grid = withProf
@@ -754,18 +787,33 @@ let drawerTurnoId = null;
 
 async function loadObrasSociales(currentLabel){
   if (!Drawer.obra) return;
+
+  // cache simple como propiedad de la función
+  if (!loadObrasSociales._cache) {
+    const { data } = await supabase
+      .from('obras_sociales')
+      .select('obra_social')
+      .order('obra_social',{ascending:true});
+    loadObrasSociales._cache = (data||[]).map(r=>r.obra_social);
+  }
+
+  const labels = loadObrasSociales._cache;
+
   Drawer.obra.innerHTML = '<option value="">(Sin obra social)</option>';
-  const { data } = await supabase.from('obras_sociales').select('obra_social').order('obra_social',{ascending:true});
-  const labels = (data||[]).map(r=>r.obra_social);
   labels.forEach(lbl => {
     const opt=document.createElement('option');
-    opt.value=lbl; opt.textContent=lbl; Drawer.obra.appendChild(opt);
+    opt.value=lbl; opt.textContent=lbl;
+    Drawer.obra.appendChild(opt);
   });
+
   if (currentLabel && !labels.includes(currentLabel)) {
-    const opt=document.createElement('option'); opt.value=currentLabel; opt.textContent=currentLabel; Drawer.obra.appendChild(opt);
+    const opt=document.createElement('option');
+    opt.value=currentLabel; opt.textContent=currentLabel;
+    Drawer.obra.appendChild(opt);
   }
   Drawer.obra.value = currentLabel || '';
 }
+
 
 function renderHeaderPaciente(p){
   const ape = titleCase(p?.apellido||''); const nom = titleCase(p?.nombre||''); const dni = (p?.dni || '—');
@@ -985,13 +1033,18 @@ export async function initInicio(root){
   UI.fecha && (UI.fecha.onchange = ()=>{ currentFechaISO = UI.fecha.value || todayISO(); refreshAll({ showOverlayIfSlow:false }); });
   UI.btnHoy && (UI.btnHoy.onclick = ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll({ showOverlayIfSlow:false }); });
 
-  // buscador
-  if (UI.massSearch){
-    UI.massSearch.oninput = ()=>{
-      clearTimeout(searchTimer);
-      searchTimer=setTimeout(()=> applySearch(UI.massSearch.value), 160);
-    };
-  }
+  
+ // buscador
+if (UI.massSearch){
+  UI.massSearch.oninput = ()=>{
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(()=> applySearch(UI.massSearch.value), 320);
+  };
+}
+if (UI.massClear){
+  UI.massClear.onclick = ()=>{ UI.massSearch.value=''; applySearch(''); };
+}
+
   if (UI.massClear){
     UI.massClear.onclick = ()=>{ UI.massSearch.value=''; applySearch(''); };
   }
