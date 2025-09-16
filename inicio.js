@@ -619,40 +619,82 @@ function renderAtencion(list){
 
 /* Atendidos */
 /* Atendidos */
-function renderAtendidos(list){
+function renderAtendidos(list) {
   const withProf = showProfColumn();
-  const grid = withProf
-    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-copago) var(--w-acc)`
-    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-copago) var(--w-acc)`;
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Hora</th><th class="cell">DNI</th>
-      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf?'<th class="cell">Profesional</th>':''}
-      <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
 
-  const rows=(list||[]).map(t=>{
-    const p=t.pacientes||{};
-    const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    const cop = (t.copago && Number(t.copago)>0)? money(t.copago) : '—';
-    const acciones = accionesFichaBtn(t, p);   // 👈 usamos la nueva función
-    return `<tr class="row" style="grid-template-columns:${grid}">
-      <td class="cell nowrap">${hora}</td>
-      <td class="cell">${p.dni||'—'}</td>
-      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
-      <td class="cell">${cop}</td>
-      <td class="cell right"><div class="actions">${acciones}</div></td>
-    </tr>`;
+  const grid = withProf
+    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) 
+       minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) 
+       var(--w-prof) var(--w-copago) var(--w-acc)`
+    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) 
+       minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) 
+       var(--w-copago) var(--w-acc)`;
+
+  const head = `
+    <thead class="thead">
+      <tr class="hrow" style="grid-template-columns:${grid}">
+        <th class="cell">Hora</th>
+        <th class="cell">DNI</th>
+        <th class="cell">Nombre</th>
+        <th class="cell">Apellido</th>
+        <th class="cell">Obra social</th>
+        ${withProf ? '<th class="cell">Profesional</th>' : ''}
+        <th class="cell">Copago</th>
+        <th class="cell right">Acciones</th>
+      </tr>
+    </thead>`;
+
+  const puedeAbrir = roleAllows('abrir_ficha', userRole);
+
+  const rows = (list || []).map(t => {
+    const p = t.pacientes || {};
+
+    const hora = `<b>${toHM(t.hora_inicio)}</b>${
+      t.hora_fin ? ' — ' + toHM(t.hora_fin) : ''
+    }`;
+
+    const cop = (t.copago && Number(t.copago) > 0)
+      ? money(t.copago)
+      : '—';
+
+    const hcBtn = p.historia_clinica
+      ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>`
+      : '';
+
+    const acciones = `
+      ${puedeAbrir
+        ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`
+        : ''
+      }
+      ${hcBtn}
+    `;
+
+    return `
+      <tr class="row" style="grid-template-columns:${grid}">
+        <td class="cell nowrap">${hora}</td>
+        <td class="cell">${p.dni || '—'}</td>
+        <td class="cell truncate">${titleCase(p.nombre) || '—'}</td>
+        <td class="cell truncate">${titleCase(p.apellido) || '—'}</td>
+        <td class="cell truncate">${p.obra_social || '—'}</td>
+        ${withProf ? `<td class="cell truncate">${profNameById(t.profesional_id)}</td>` : ''}
+        <td class="cell">${cop}</td>
+        <td class="cell right">
+          <div class="actions">${acciones}</div>
+        </td>
+      </tr>`;
   }).join('');
+
   UI.tblDone.innerHTML = head + '<tbody>' + rows + '</tbody>';
 
-  UI.tblDone.querySelectorAll('.icon').forEach(btn=>{
-    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
+  UI.tblDone.querySelectorAll('.icon').forEach(btn => {
+    const id = btn.getAttribute('data-id');
+    const act = btn.getAttribute('data-act');
+    if (act === 'abrir-ficha') {
+      btn.onclick = () => openFicha(id);
+    }
   });
 }
+
 
 /* =======================
    KPIs / títulos
