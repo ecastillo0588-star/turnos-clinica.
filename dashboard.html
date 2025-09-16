@@ -82,6 +82,71 @@
       margin-bottom: 16px;      /* respirito al borde inferior */
     }
 
+/* ===== Estética mejorada sidebar ===== */
+
+/* Colores base (opcional, no rompen nada si ya existen) */
+:root{
+  --p900:#381e60; --p700:#7656b0; --p500:#8b6bd9;
+  --ring: rgba(139,107,217,.35);
+}
+
+/* Botones del menú: hover suave + focus accesible sin borde negro */
+.menu button{
+  border: 1px solid #eee;
+  transition: background .18s ease, transform .08s ease, box-shadow .18s ease;
+  outline: none;                       /* quita borde negro */
+}
+.menu button:hover{
+  background:#efeafd;
+  transform: translateX(2px);
+}
+.menu button:focus-visible{
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Estado activo: acento a la izquierda + sombra interior */
+.menu button.active{
+  background:#ece5fc;
+  color:#5b3ea8;
+  box-shadow: inset 0 0 0 1.5px #d7c8fb, 0 3px 10px rgba(62,50,110,.08);
+  position: relative;
+}
+.menu button.active::before{
+  content:"";
+  position:absolute;
+  left:-8px; top:8px; bottom:8px;
+  width:4px; border-radius:3px;
+  background: var(--p500);
+}
+
+/* Separador suave por encima de “Configuración” */
+#btn-config{
+  position: relative;
+  margin-top: auto;
+}
+#btn-config::before{
+  content:"";
+  position:absolute;
+  left:0; right:0; top:-16px; height:1px;
+  background: linear-gradient(90deg, transparent, #ece5fc, transparent);
+}
+
+/* Select: foco consistente */
+.custom-select select:focus{
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Botón de cerrar sesión: micro-animación */
+.power-btn{
+  transition: background .18s ease, transform .12s ease;
+}
+.power-btn:hover{
+  background:rgba(220,0,40,.08);
+  transform: translateY(-1px);
+}
+
+
   </style>
 </head>
 <body>
