@@ -384,23 +384,42 @@ function setupBoardControls(){
   applyRowsFromStorage();
   if (!boardsEl) return;
 
-  // CREA los botones si faltan
+  // Asegura que existan los botones en cada board
   ensureBoardCtrlMarkup();
 
+  // Restaura expansión previa (si existía)
   const prev = localStorage.getItem(LAYOUT.expandKey);
   if (prev){
     const b = boardsEl.querySelector(`.board[data-board="${prev}"]`);
     if (b) expandBoard(b);
   }
 
-  boardsEl.querySelectorAll('.board').forEach(board=>{
-    board.querySelector('.b-ctrl--grow')     ?.addEventListener('click', ()=> toggleGrowFor(board));
-    board.querySelector('.b-ctrl--expand')   ?.addEventListener('click', ()=> expandBoard(board));
-    board.querySelector('.b-ctrl--collapse') ?.addEventListener('click', ()=> collapseBoards());
+  // Enlaza handlers de forma idempotente (no duplica listeners)
+  const wire = () => {
+    boardsEl.querySelectorAll('.board').forEach(board=>{
+      const grow     = board.querySelector('.b-ctrl--grow');
+      const expand   = board.querySelector('.b-ctrl--expand');
+      const collapse = board.querySelector('.b-ctrl--collapse');
+      if (grow)     grow.onclick     = () => toggleGrowFor(board);
+      if (expand)   expand.onclick   = () => expandBoard(board);
+      if (collapse) collapse.onclick = () => collapseBoards();
+    });
+  };
+  wire();
+
+  // Si el router re-renderiza (childList/subtree), re-crea botones y re-engancha
+  const obs = new MutationObserver(() => {
+    ensureBoardCtrlMarkup();
+    wire();
+  });
+  obs.observe(boardsEl, { childList: true, subtree: true });
+
+  // Escape cierra la expansión
+  document.addEventListener('keydown', (ev)=>{
+    if (ev.key === 'Escape' && boardsEl.classList.contains('fullmode')) collapseBoards();
   });
 
-  document.addEventListener('keydown', (ev)=>{ if (ev.key==='Escape' && boardsEl.classList.contains('fullmode')) collapseBoards(); });
-
+  // En pantallas chicas resetea el split
   const mq = window.matchMedia('(max-width:1100px)');
   const onChange = ()=>{ if (mq.matches) resetSplit(); };
   mq.addEventListener('change', onChange); onChange();
