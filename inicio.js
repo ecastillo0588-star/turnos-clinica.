@@ -75,12 +75,12 @@ function bindUI(root = document) {
     massClear:  root.querySelector('#mass-clear'),
   };
 
-  H = {
-    pend:  root.querySelector('#hl-pend, #h-pend'),
-    esp:   root.querySelector('#hl-esp, #h-esp'),
-    atenc: root.querySelector('#hl-atencion, #h-atencion'),
-    done:  root.querySelector('#hl-done, #h-done'),
-  };
+     H = {
+      pend:  root.querySelector('#hl-pend'),
+      esp:   root.querySelector('#hl-esp'),
+      atenc: root.querySelector('#hl-atencion'),
+      done:  root.querySelector('#hl-done'),
+    };
 
   Drawer = {
     el:        root.querySelector('#fichaDrawer'),
