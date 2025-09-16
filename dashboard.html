@@ -146,6 +146,39 @@
   transform: translateY(-1px);
 }
 
+/* ---- Separador visual antes de “Configuración” ---- */
+#btn-config{
+  position: relative;
+  margin-top: auto;                 /* ya lo empuja abajo */
+}
+#btn-config::before{
+  content:"";
+  position:absolute;
+  left:-10px; right:-10px;
+  top:-20px;
+  height:1px;
+  background: linear-gradient(90deg, transparent, #e6e1f7, transparent);
+}
+
+/* ---- Flecha del select (robusta, sin data-URI) ---- */
+.custom-select select{
+  appearance:none; -webkit-appearance:none; -moz-appearance:none;
+  padding-right:34px;               /* espacio para la flecha */
+  cursor:pointer;
+}
+.custom-select::after{
+  content:"";
+  position:absolute;
+  right:12px;
+  top:50%;
+  width:9px; height:9px;
+  background:none;                  /* anula el fondo anterior */
+  border-right:2px solid #a490d7;   /* dibuja el chevron */
+  border-bottom:2px solid #a490d7;
+  transform:translateY(-60%) rotate(45deg);
+  pointer-events:none;
+}
+
 
   </style>
 </head>
