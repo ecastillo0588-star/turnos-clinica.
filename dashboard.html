@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -36,13 +35,151 @@
     .settings-slot { margin-top:auto; margin-bottom:16px; }
     .settings-btn { background:#7656b0; color:#fff; border:none; border-radius:7px; padding:11px 0; font-size:16px; cursor:pointer; width:92%; }
     .logout-slot { margin:12px 0; display:flex; justify-content:center; }
-    .power-btn { background:none; border:none; cursor:pointer; width:44px; height:44px; border-radius:50%; }
+        .power-btn {
+      position: relative;       /* ancla el tooltip */
+      background: none;
+      border: none;
+      cursor: pointer;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+    }
     .power-btn svg { width:30px; height:30px; stroke:#b00020; }
     .power-btn:hover { background:rgba(220,0,40,.08); }
-    .power-btn .tooltip { display:none; position:absolute; left:44px; top:50%; transform:translateY(-50%); background:#381e60; color:#fff; padding:4px 12px; border-radius:6px; font-size:14px; }
+    /* Reemplaza tu bloque del tooltip por este */
+    .power-btn .tooltip {
+      display: none;
+      position: absolute;
+      left: calc(100% + 8px);    /* a la derecha del botón */
+      top: 50%;
+      transform: translateY(-50%);
+      background:#381e60;
+      color:#fff;
+      padding:4px 12px;
+      border-radius:6px;
+      font-size:14px;
+      white-space: nowrap;
+      pointer-events: none;      /* evita parpadeos al pasar el mouse */
+      z-index: 1000;
+    }
+
     .power-btn:hover .tooltip { display:block; }
     .main { padding:32px 20px; flex:1; background:#f7f9fb; }
     .card { background:#fff; padding:28px 22px; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.10); max-width:900px; margin:0 auto; }
+    /* Empuja Configuración y Cerrar sesión hacia abajo */
+    .menu {
+      flex: 1;                  /* ocupa el espacio vertical disponible */
+      display: flex;
+      flex-direction: column;
+    }
+    
+    #btn-config {
+      margin-top: auto;         /* se va al fondo del menú */
+    }
+    
+    .logout-slot {
+      margin-top: 12px;         /* separa de Configuración */
+      margin-bottom: 16px;      /* respirito al borde inferior */
+    }
+
+/* ===== Estética mejorada sidebar ===== */
+
+/* Colores base (opcional, no rompen nada si ya existen) */
+:root{
+  --p900:#381e60; --p700:#7656b0; --p500:#8b6bd9;
+  --ring: rgba(139,107,217,.35);
+}
+
+/* Botones del menú: hover suave + focus accesible sin borde negro */
+.menu button{
+  border: 1px solid #eee;
+  transition: background .18s ease, transform .08s ease, box-shadow .18s ease;
+  outline: none;                       /* quita borde negro */
+}
+.menu button:hover{
+  background:#efeafd;
+  transform: translateX(2px);
+}
+.menu button:focus-visible{
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Estado activo: acento a la izquierda + sombra interior */
+.menu button.active{
+  background:#ece5fc;
+  color:#5b3ea8;
+  box-shadow: inset 0 0 0 1.5px #d7c8fb, 0 3px 10px rgba(62,50,110,.08);
+  position: relative;
+}
+.menu button.active::before{
+  content:"";
+  position:absolute;
+  left:-8px; top:8px; bottom:8px;
+  width:4px; border-radius:3px;
+  background: var(--p500);
+}
+
+/* Separador suave por encima de “Configuración” */
+#btn-config{
+  position: relative;
+  margin-top: auto;
+}
+#btn-config::before{
+  content:"";
+  position:absolute;
+  left:0; right:0; top:-16px; height:1px;
+  background: linear-gradient(90deg, transparent, #ece5fc, transparent);
+}
+
+/* Select: foco consistente */
+.custom-select select:focus{
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* Botón de cerrar sesión: micro-animación */
+.power-btn{
+  transition: background .18s ease, transform .12s ease;
+}
+.power-btn:hover{
+  background:rgba(220,0,40,.08);
+  transform: translateY(-1px);
+}
+
+/* ---- Separador visual antes de “Configuración” ---- */
+#btn-config{
+  position: relative;
+  margin-top: auto;                 /* ya lo empuja abajo */
+}
+#btn-config::before{
+  content:"";
+  position:absolute;
+  left:-10px; right:-10px;
+  top:-20px;
+  height:1px;
+  background: linear-gradient(90deg, transparent, #e6e1f7, transparent);
+}
+
+/* ---- Flecha del select (robusta, sin data-URI) ---- */
+.custom-select select{
+  appearance:none; -webkit-appearance:none; -moz-appearance:none;
+  padding-right:34px;               /* espacio para la flecha */
+  cursor:pointer;
+}
+.custom-select::after{
+  content:"";
+  position:absolute;
+  right:12px;
+  top:50%;
+  width:9px; height:9px;
+  background:none;                  /* anula el fondo anterior */
+  border-right:2px solid #a490d7;   /* dibuja el chevron */
+  border-bottom:2px solid #a490d7;
+  transform:translateY(-60%) rotate(45deg);
+  pointer-events:none;
+}
+
+
   </style>
 </head>
 <body>
