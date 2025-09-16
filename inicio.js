@@ -1,5 +1,6 @@
-// inicio.js — estable
-// -------------------------------------------------
+
+// inicio.js
+// -----------------------------------------------
 import supabase from './supabaseClient.js';
 import { applyRoleClasses, loadProfesionalesIntoSelect, roleAllows } from './global.js';
 
@@ -7,40 +8,41 @@ import { applyRoleClasses, loadProfesionalesIntoSelect, roleAllows } from './glo
    Constantes / utilidades
    ======================= */
 const EST = {
-  ASIGNADO:    'asignado',
-  EN_ESPERA:   'en_espera',
-  EN_ATENCION: 'en_atencion',
-  CANCELADO:   'cancelado',
-  CONFIRMADO:  'confirmado',
-  ATENDIDO:    'atendido',
+  ASIGNADO:     'asignado',
+  EN_ESPERA:    'en_espera',
+  EN_ATENCION:  'en_atencion',
+  CANCELADO:    'cancelado',
+  CONFIRMADO:   'confirmado',
+  ATENDIDO:     'atendido',
 };
 
-const FONT = { key: 'ui_fs_px', def: 14, min: 12, max: 18, step: 1 };
+const FONT = { key:'ui_fs_px', def:14, min:12, max:18, step:1 };
 
-const pad2   = n => (n < 10 ? '0' + n : '' + n);
-const toHM   = t => (t ?? '').toString().slice(0, 5);
-const strip  = s => (s ?? '').toString().normalize('NFD').replace(/\p{Diacritic}/gu, '');
-const norm   = s => strip(s).toLowerCase().trim();
-const money  = n => new Intl.NumberFormat('es-AR', { style:'currency', currency:'ARS', maximumFractionDigits:0 }).format(Number(n || 0));
-const title  = s => (s || '').split(' ').filter(Boolean).map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
-const nowHHMMSS = () => { const d=new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
+const pad2 = n => (n<10?'0'+n:''+n);
+const todayISO = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
+const toHM = t => (t??'').toString().slice(0,5);
+const strip = s => (s??'').toString().normalize('NFD').replace(/\p{Diacritic}/gu,'');
+const norm  = s => strip(s).toLowerCase().trim();
+const safeSet = (el, text) => { if (el) el.textContent = text; };
+const money = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0));
+const titleCase = s => (s||'').split(' ').filter(Boolean).map(w=> w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ');
 const minutesDiff = (start, end) => {
   const [h1,m1]=start.split(':').map(Number);
   const [h2,m2]=end.split(':').map(Number);
   return (h2*60+m2)-(h1*60+m1);
 };
-const safeSetText = (el, text) => { if (el) el.textContent = text; };
+const nowHHMMSS = () => { const d=new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
 
 /* =======================
    Estado de módulo
    ======================= */
 let UI = {};
+let H  = {};
 let Drawer = {};
 let boardsEl, zDec, zInc, zReset;
-let rootEl = null;
 
 let fsPx;
+
 let currentCentroId       = null;
 let currentCentroNombre   = '';
 let currentFechaISO       = null;
@@ -50,14 +52,18 @@ let filterText            = '';
 let centroWatchTimer = null;
 let waitTimer        = null;
 
-const PROF_NAME = new Map();
-const _refresh = { reqId: 0 };
+// mapa id -> nombre profesional
+let PROF_NAME = new Map();
+
+// control de carga y de carrera
+let _refresh = { reqId: 0, abort: null };
 
 /* =======================
-   Bind de referencias
+   Binder de referencias
    ======================= */
-function bindUI(root=document){
+function bindUI(root = document) {
   UI = {
+    centroChip: root.querySelector('#centro-chip'),
     profSelect: root.querySelector('#prof-select'),
     fecha:      root.querySelector('#fecha'),
     btnHoy:     root.querySelector('#btn-hoy'),
@@ -66,13 +72,16 @@ function bindUI(root=document){
     tblAtencion:root.querySelector('#tbl-atencion'),
     tblDone:    root.querySelector('#tbl-done'),
     kpiFree:    root.querySelector('#kpi-free'),
-    kpiSub:     root.querySelector('#kpi-sub'), // (no está en la toolbar compacta; es opcional)
+    kpiSub:     root.querySelector('#kpi-sub'),
     massSearch: root.querySelector('#mass-search'),
     massClear:  root.querySelector('#mass-clear'),
-    hlPend:     root.querySelector('#hl-pend'),
-    hlEsp:      root.querySelector('#hl-esp'),
-    hlAtenc:    root.querySelector('#hl-atencion'),
-    hlDone:     root.querySelector('#hl-done'),
+  };
+
+  H = {
+    pend:  root.querySelector('#hl-pend, #h-pend'),
+    esp:   root.querySelector('#hl-esp, #h-esp'),
+    atenc: root.querySelector('#hl-atencion, #h-atencion'),
+    done:  root.querySelector('#hl-done, #h-done'),
   };
 
   Drawer = {
@@ -82,35 +91,35 @@ function bindUI(root=document){
     msg:       root.querySelector('#fd-msg'),
     title:     root.querySelector('#fd-title'),
     sub:       root.querySelector('#fd-sub'),
+    osYear:    root.querySelector('#fd-os-year'),
     hc:        root.querySelector('#fd-hc'),
+    prof:      root.querySelector('#fd-prof'),
+    centro:    root.querySelector('#fd-centro'),
+    fecha:     root.querySelector('#fd-fecha'),
     hora:      root.querySelector('#fd-hora'),
+    estado:    root.querySelector('#fd-estado'),
     copago:    root.querySelector('#fd-copago'),
-
     dni:       root.querySelector('#fd-dni'),
     ape:       root.querySelector('#fd-apellido'),
     nom:       root.querySelector('#fd-nombre'),
     nac:       root.querySelector('#fd-nac'),
     tel:       root.querySelector('#fd-tel'),
     mail:      root.querySelector('#fd-mail'),
-
     obra:      root.querySelector('#fd-obra'),
     afiliado:  root.querySelector('#fd-afiliado'),
     cred:      root.querySelector('#fd-cred'),
     credLink:  root.querySelector('#fd-cred-link'),
-
     ecNom:     root.querySelector('#fd-ec-nom'),
     ecApe:     root.querySelector('#fd-ec-ape'),
     ecCel:     root.querySelector('#fd-ec-cel'),
     ecVin:     root.querySelector('#fd-ec-vin'),
-
     prox:      root.querySelector('#fd-prox'),
     renov:     root.querySelector('#fd-renov'),
     activo:    root.querySelector('#fd-activo'),
     notas:     root.querySelector('#fd-notas'),
-
-    btnCerrar:    root.querySelector('#fd-cerrar'),
-    btnGuardar:   root.querySelector('#fd-guardar'),
-    btnFinalizar: root.querySelector('#fd-finalizar'),
+    btnCerrar: root.querySelector('#fd-cerrar'),
+    btnGuardar:root.querySelector('#fd-guardar'),
+    btnFinalizar:root.querySelector('#fd-finalizar'),
   };
 
   boardsEl = root.querySelector('#boards');
@@ -119,52 +128,42 @@ function bindUI(root=document){
   zReset = root.querySelector('#zoom-reset');
 
   // drawer: cierres
-  Drawer.close  && (Drawer.close.onclick  = hideDrawer);
+  Drawer.close     && (Drawer.close.onclick     = hideDrawer);
   Drawer.btnCerrar && (Drawer.btnCerrar.onclick = hideDrawer);
 }
 
 /* =======================
-   Overlay (opc.) + boot-mask
+   Overlay de “Cargando…”
    ======================= */
-function ensureOverlay(root){
-  if (root.querySelector('#inicio-overlay')) return;
+function ensureOverlay(root) {
+  if (root.querySelector('#inicio-loading')) return;
 
-  if (!document.getElementById('inicio-overlay-css')){
-    const style = document.createElement('style');
-    style.id = 'inicio-overlay-css';
-    style.textContent = `
-      .ioverlay{
-        position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-        background:rgba(255,255,255,.92); opacity:0; pointer-events:none; transition:opacity .18s ease; z-index:200;
-      }
-      .ioverlay.show{ opacity:1; pointer-events:all; }
-      .ioverlay .box{
-        display:flex; align-items:center; gap:12px; padding:16px 18px; border-radius:12px;
-        background:#ffffff; border:1px solid #e8def8; box-shadow:0 6px 28px rgba(0,0,0,.08);
-        color:#4f3b7a; font-weight:600;
-      }
-      .ioverlay .spin{ width:34px; height:34px; border-radius:50%; border:3px solid #d9d1f3; border-top-color:#7656b0; animation:rr .8s linear infinite; }
-      @keyframes rr{ to{ transform:rotate(360deg) } }
-    `;
-    document.head.appendChild(style);
+  const style = document.createElement('style');
+  style.textContent = `
+  #inicio-loading{position:relative}
+  #inicio-loading.show .mask{opacity:1;pointer-events:all}
+  #inicio-loading .mask{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,.85); transition:opacity .18s ease; opacity:0; pointer-events:none; z-index:50;
+    border-radius:12px;
   }
+  .spin{width:34px;height:34px;border-radius:50%;border:3px solid #d9d1f3;border-top-color:#7656b0;animation:rr .8s linear infinite;margin-right:10px}
+  @keyframes rr{to{transform:rotate(360deg)}}
+  `;
+  document.head.appendChild(style);
 
-  const cs = getComputedStyle(root);
-  if (cs.position === 'static') root.style.position = 'relative';
-
-  const overlay = document.createElement('div');
-  overlay.id = 'inicio-overlay';
-  overlay.className = 'ioverlay';
-  overlay.innerHTML = `<div class="box"><div class="spin"></div><div>Cargando…</div></div>`;
-  root.appendChild(overlay);
+  const wrap = document.createElement('div');
+  wrap.id = 'inicio-loading';
+  wrap.innerHTML = `<div class="mask"><div class="spin"></div><div style="color:#4f3b7a;font-weight:600">Cargando…</div></div>`;
+  // envolvemos el contenedor de la vista (root) con el overlay
+  root.style.position = 'relative';
+  root.appendChild(wrap);
 }
-function setLoading(on){
-  const root = rootEl || document.getElementById('inicio-root');
-  if (!root) return;
-  // mientras exista la boot-mask, no mostramos overlay
-  if (root.hasAttribute('data-boot')) return;
-  const cont = root.querySelector('#inicio-overlay');
-  if (cont) cont.classList.toggle('show', !!on);
+
+function setLoading(root, on) {
+  const cont = root.querySelector('#inicio-loading');
+  if (!cont) return;
+  cont.classList.toggle('show', !!on);
 }
 
 /* =======================
@@ -176,39 +175,31 @@ function loadFs(){
   const px = Number.isFinite(v) ? Math.min(FONT.max, Math.max(FONT.min, v)) : FONT.def;
   applyFs(px); fsPx = px;
 }
-function setFs(px){
-  fsPx = Math.min(FONT.max, Math.max(FONT.min, px));
-  localStorage.setItem(FONT.key, String(fsPx));
-  applyFs(fsPx);
-}
+function setFs(px){ fsPx = Math.min(FONT.max, Math.max(FONT.min, px)); localStorage.setItem(FONT.key, String(fsPx)); applyFs(fsPx); }
 
+// per-centro
 function profSelKey(){ return `inicio_prof_sel_${currentCentroId||'any'}`; }
 function getSavedProfIds(){
-  try{
-    const s = localStorage.getItem(profSelKey());
-    if (!s) return null;
-    const a = JSON.parse(s);
-    return Array.isArray(a) ? a.map(String) : null;
-  }catch{ return null; }
+  try{ const s=localStorage.getItem(profSelKey()); if(!s) return null; const a=JSON.parse(s); return Array.isArray(a)?a.map(String):null; }catch{ return null; }
 }
 function saveProfSelection(){
-  const sel = UI.profSelect; if (!sel) return;
+  const sel = UI.profSelect; if(!sel) return;
   const ids = sel.multiple
     ? Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean)
     : (sel.value ? [sel.value] : []);
   try{ localStorage.setItem(profSelKey(), JSON.stringify(ids)); }catch{}
 }
 function restoreProfSelection(){
-  const sel = UI.profSelect; if (!sel) return false;
+  const sel=UI.profSelect; if(!sel) return false;
   const saved = getSavedProfIds(); if(!saved || !saved.length) return false;
   const values = new Set(saved.map(String));
-  let first=null;
+  let firstSelected=null;
   Array.from(sel.options).forEach(o=>{
     if(!o.value) return;
-    if (values.has(String(o.value))){ o.selected=true; if(!first) first=o.value; }
-    else if (sel.multiple){ o.selected=false; }
+    if(values.has(String(o.value))){ o.selected=true; if(!firstSelected) firstSelected=o.value; }
+    else if(sel.multiple){ o.selected=false; }
   });
-  if (!sel.multiple) sel.value = first || '';
+  if(!sel.multiple) sel.value = firstSelected || '';
   selectedProfesionales = sel.multiple
     ? Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean)
     : (sel.value ? [sel.value] : []);
@@ -220,6 +211,7 @@ async function fetchCentroById(id){
   const { data } = await supabase.from('centros_medicos').select('nombre').eq('id', id).maybeSingle();
   return data?.nombre || '';
 }
+function renderCentroChip(){ if (UI.centroChip) UI.centroChip.textContent = currentCentroNombre || '—'; }
 
 async function syncCentroFromStorage(force=false){
   const id  = localStorage.getItem('centro_medico_id');
@@ -228,38 +220,41 @@ async function syncCentroFromStorage(force=false){
     currentCentroId     = id;
     currentCentroNombre = nom || await fetchCentroById(id);
     localStorage.setItem('centro_medico_nombre', currentCentroNombre);
+    renderCentroChip();
     await loadProfesionales();
     if (!restoreProfSelection()) saveProfSelection();
-    await refreshAll({ showOverlayIfSlow:true });
+    await refreshAll(); // recarga dataset
   }
 }
-function startCentroWatcher(){
-  if (centroWatchTimer) clearInterval(centroWatchTimer);
-  centroWatchTimer = setInterval(()=>syncCentroFromStorage(false), 1000);
-}
+function startCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=setInterval(()=>syncCentroFromStorage(false), 1000); }
 function stopCentroWatcher(){ if (centroWatchTimer) clearInterval(centroWatchTimer); centroWatchTimer=null; }
 window.addEventListener('beforeunload', stopCentroWatcher);
 
 /* =======================
    Profesionales
    ======================= */
-const userRole            = String(localStorage.getItem('user_role')||'').toLowerCase();
-const loggedProfesionalId = localStorage.getItem('profesional_id');
+const userRole             = String(localStorage.getItem('user_role')||'').toLowerCase();
+const loggedProfesionalId  = localStorage.getItem('profesional_id');
 
 function rebuildProfMap(){
   PROF_NAME.clear();
   Array.from(UI.profSelect?.options || []).forEach(o=>{
-    if (o.value) PROF_NAME.set(String(o.value), (o.textContent||'').trim());
+    if(o.value) PROF_NAME.set(String(o.value), (o.textContent||'').trim());
   });
 }
 const profNameById = id => PROF_NAME.get(String(id)) || '—';
 
 async function loadProfesionales(){
-  const sel = UI.profSelect; if (!sel) return;
+  const sel = UI.profSelect;
+  if (!sel) return;
 
-  // AMC puede multiseleccionar
-  if (userRole === 'amc'){ sel.multiple = true; sel.classList.remove('compact'); }
-  else                   { sel.multiple = false; }
+  // AMC: multiselección
+  if (userRole === 'amc') {
+    sel.multiple = true;
+    sel.classList.remove('compact');
+  } else {
+    sel.multiple = false;
+  }
 
   await loadProfesionalesIntoSelect(sel, {
     role: userRole,
@@ -269,36 +264,36 @@ async function loadProfesionales(){
 
   rebuildProfMap();
 
+  // Intentar restaurar selección previa; si no, default razonable
   if (!restoreProfSelection()){
-    if (sel.multiple){
+    if (sel.multiple) {
       selectedProfesionales = Array.from(sel.options)
         .filter(o=>o.value)
-        .map(o => { o.selected = true; return o.value; });
+        .map(o => { o.selected=true; return o.value; });
       sel.size = Math.min(10, Math.max(4, selectedProfesionales.length || 6));
-    }else{
+    } else {
       const preferred = Array.from(sel.options).find(o=> o.value && String(o.value)===String(loggedProfesionalId));
       const first = preferred || Array.from(sel.options).find(o=>o.value);
       if (first){ sel.value = first.value; selectedProfesionales = [first.value]; }
-      else      { selectedProfesionales = []; }
+      else       { selectedProfesionales = []; }
     }
     saveProfSelection();
   }
 }
-
-async function onProfChange(){
-  const sel = UI.profSelect; if (!sel) return;
+UI.profSelect?.addEventListener?.('change', async ()=>{
+  const sel=UI.profSelect;
   selectedProfesionales = sel.multiple
     ? Array.from(sel.selectedOptions).map(o=>o.value).filter(Boolean)
     : (sel.value ? [sel.value] : []);
   saveProfSelection();
-  await refreshAll({ showOverlayIfSlow:true });
-}
+  await refreshAll();
+});
 
 /* =======================
    Filtro global + Zoom
    ======================= */
 let searchTimer=null;
-function applySearch(v){ filterText = norm((v||'').trim()); refreshAll(); }
+function applySearch(value){ filterText = norm((value||'').trim()); refreshAll(); }
 
 /* =======================
    Layout (grow/expand)
@@ -313,9 +308,7 @@ const LAYOUT = {
 function applyRowsFromStorage(){
   const raw = localStorage.getItem(LAYOUT.rowsKey);
   let r1 = LAYOUT.baseH, r2 = LAYOUT.baseH;
-  try{
-    if(raw){ const o=JSON.parse(raw); if(o.row1>0) r1=o.row1; if(o.row2>0) r2=o.row2; }
-  }catch{}
+  try{ if (raw){ const o=JSON.parse(raw); if (o.row1>0) r1=o.row1; if (o.row2>0) r2=o.row2; } }catch{}
   document.documentElement.style.setProperty('--row-1', r1+'px');
   document.documentElement.style.setProperty('--row-2', r2+'px');
 }
@@ -330,11 +323,7 @@ function resetSplit(){
   document.documentElement.style.setProperty('--row-2', LAYOUT.baseH+'px');
   saveRows(LAYOUT.baseH, LAYOUT.baseH);
 }
-function isTop(board){
-  const order=['pend','esp','atencion','done'];
-  const idx=order.indexOf(board.dataset.board);
-  return idx===0 || idx===1;
-}
+function isTop(board){ const order=['pend','esp','atencion','done']; const idx=order.indexOf(board.dataset.board); return idx===0 || idx===1; }
 function toggleGrowFor(board){
   if (!boardsEl || boardsEl.classList.contains('fullmode')) return;
   const {r1,r2} = getRows();
@@ -368,9 +357,46 @@ function collapseBoards(){
   boardsEl.querySelectorAll('.board').forEach(b=> b.classList.remove('expanded'));
   localStorage.removeItem(LAYOUT.expandKey);
 }
+
+function ensureBoardCtrlMarkup(){
+  if (!boardsEl) return;
+
+  // CSS mínimo para que se vean los controles
+  if (!document.getElementById('boards-ctrls-css')) {
+    const st = document.createElement('style');
+    st.id = 'boards-ctrls-css';
+    st.textContent = `
+      .board { position: relative; }
+      .b-ctrls{ position:absolute; top:8px; right:8px; display:flex; gap:6px; z-index:5; }
+      .b-ctrl{ border:1px solid #ddd; background:#fff; padding:4px 6px; border-radius:8px; cursor:pointer; }
+      .b-ctrl:hover{ box-shadow:0 1px 6px rgba(0,0,0,.08); }
+    `;
+    document.head.appendChild(st);
+  }
+
+  boardsEl.querySelectorAll('.board').forEach(board=>{
+    // Asegurate de tener data-board="pend|esp|atencion|done" en cada .board
+    let ctrls = board.querySelector('.b-ctrls');
+    if (!ctrls) {
+      ctrls = document.createElement('div');
+      ctrls.className = 'b-ctrls';
+      ctrls.innerHTML = `
+        <button class="b-ctrl b-ctrl--grow"     title="Agrandar fila">↕︎</button>
+        <button class="b-ctrl b-ctrl--expand"   title="Expandir">⤢</button>
+        <button class="b-ctrl b-ctrl--collapse" title="Restaurar">⤡</button>
+      `;
+      (board.querySelector('.b-head') || board).appendChild(ctrls);
+    }
+  });
+}
+
+
 function setupBoardControls(){
   applyRowsFromStorage();
   if (!boardsEl) return;
+
+  // CREA los botones si faltan
+  ensureBoardCtrlMarkup();
 
   const prev = localStorage.getItem(LAYOUT.expandKey);
   if (prev){
@@ -391,27 +417,29 @@ function setupBoardControls(){
   mq.addEventListener('change', onChange); onChange();
 }
 
+
 /* =======================
-   Datos del día
+   Datos del día (con abort)
    ======================= */
-async function fetchDiaData(){
+async function fetchDiaData(signal){
   if(!selectedProfesionales.length) return { pendientes:[], presentes:[], atencion:[], atendidos:[], agenda:[], turnos:[] };
 
   const profIds = selectedProfesionales.map(String);
-  const selCols = `
+  const selectCols = `
     id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, paciente_id, profesional_id,
     pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)
   `;
 
   const [pend, pres, atenc, done, agenda, turnos] = await Promise.all([
-    supabase.from('turnos').select(selCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.ASIGNADO ).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos').select(selCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.EN_ESPERA ).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos').select(selCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.EN_ATENCION).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos').select(selCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.ATENDIDO ).order('hora_inicio',{ascending:true}),
+    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.ASIGNADO ).order('hora_inicio',{ascending:true}),
+    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.EN_ESPERA ).order('hora_inicio',{ascending:true}),
+    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.EN_ATENCION).order('hora_inicio',{ascending:true}),
+    supabase.from('turnos').select(selectCols).eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).eq('estado', EST.ATENDIDO ).order('hora_inicio',{ascending:true}),
     supabase.from('agenda') .select('id, fecha, hora_inicio, hora_fin, profesional_id').eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds).order('hora_inicio',{ascending:true}),
-    supabase.from('turnos') .select('id, hora_inicio, hora_fin, estado, profesional_id').eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds),
+    supabase.from('turnos') .select('id, hora_inicio, hora_fin, estado, profesional_id').eq('centro_id', currentCentroId).eq('fecha', currentFechaISO).in('profesional_id', profIds)
   ]);
 
+  // `signal` está para la interfaz, pero supabase-js no soporta abort; igual usamos nuestro reqId
   return {
     pendientes: pend.data||[],
     presentes:  pres.data||[],
@@ -449,34 +477,35 @@ function renderPendientes(list){
     ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
     : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
 
-  const head = `<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-    <th class="cell">Hora</th><th class="cell">DNI</th>
-    <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-    ${withProf?'<th class="cell">Profesional</th>':''}
-    <th class="cell right">Acciones</th></tr></thead>`;
+  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
+      <th class="cell">Hora</th><th class="cell">DNI</th>
+      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
+      ${withProf?'<th class="cell">Profesional</th>':''}
+      <th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeCancelar = roleAllows('cancelar', userRole);
   const puedeArribo   = roleAllows('arribo', userRole);
 
-  const rows = (list||[]).map(t=>{
+  const rows=(list||[]).map(t=>{
     const p=t.pacientes||{};
     const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    const acc = `<div class="actions">
-      ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
-      ${puedeArribo   ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : ''}
-    </div>`;
+    const acciones = `
+      <div class="actions">
+        ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
+        ${puedeArribo   ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : ''}
+      </div>`;
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell truncate">${title(p.nombre)||'—'}</td>
-      <td class="cell truncate">${title(p.apellido)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
       <td class="cell truncate">${p.obra_social||'—'}</td>
       ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
-      <td class="cell right">${acc}</td>
+      <td class="cell right">${acciones}</td>
     </tr>`;
   }).join('');
 
-  UI.tblPend.innerHTML = head + '<tbody>' + rows + '</tbody>';
+  UI.tblPend.innerHTML=head+'<tbody>'+rows+'</tbody>';
 
   UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
@@ -485,10 +514,10 @@ function renderPendientes(list){
   });
 }
 
+/* En sala de espera */
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
 function updateWaitBadges(){
-  if (!boardsEl) return;
-  const nodes=boardsEl.querySelectorAll('[data-arribo-ts]');
+  const nodes=document.querySelectorAll('[data-arribo-ts]');
   const now=new Date();
   nodes.forEach(n=>{
     const ts=n.getAttribute('data-arribo-ts'); if(!ts) return;
@@ -498,18 +527,16 @@ function updateWaitBadges(){
     n.textContent = hh? `${hh}h ${mm}m` : `${mm}m`;
   });
 }
-
 function renderPresentes(list){
   const withProf = showProfColumn();
   const grid = withProf
     ? `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-copago) var(--w-acc)`
     : `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-copago) var(--w-acc)`;
-
-  const head = `<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-    <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
-    <th class="cell">Apellido</th><th class="cell">Obra social</th>
-    ${withProf?'<th class="cell">Profesional</th>':''}
-    <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
+  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
+      <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
+      <th class="cell">Apellido</th><th class="cell">Obra social</th>
+      ${withProf?'<th class="cell">Profesional</th>':''}
+      <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeVolver   = roleAllows('volver', userRole);
   const puedeCancelar = roleAllows('cancelar', userRole);
@@ -527,8 +554,8 @@ function renderPresentes(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell"><span class="wait" data-arribo-ts="${arriboISO}">—</span></td>
       <td class="cell nowrap">${hora}</td>
-      <td class="cell truncate">${title(p.nombre)||'—'}</td>
-      <td class="cell truncate">${title(p.apellido)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
       <td class="cell truncate">${p.obra_social||'—'}</td>
       ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell">${copBadge}</td>
@@ -548,17 +575,17 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
+/* En atención */
 function renderAtencion(list){
   const withProf = showProfColumn();
   const grid = withProf
     ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
     : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
-
   const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-    <th class="cell">Hora</th><th class="cell">DNI</th>
-    <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-    ${withProf?'<th class="cell">Profesional</th>':''}
-    <th class="cell right">Acciones</th></tr></thead>`;
+      <th class="cell">Hora</th><th class="cell">DNI</th>
+      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
+      ${withProf?'<th class="cell">Profesional</th>':''}
+      <th class="cell right">Acciones</th></tr></thead>`;
 
   const puedeAbrir   = roleAllows('abrir_ficha', userRole);
   const puedeVolverE = roleAllows('atender', userRole);
@@ -574,15 +601,15 @@ function renderAtencion(list){
     return `<tr class="row" style="grid-template-columns:${grid}">
       <td class="cell nowrap">${hora}</td>
       <td class="cell">${p.dni||'—'}</td>
-      <td class="cell truncate">${title(p.nombre)||'—'}</td>
-      <td class="cell truncate">${title(p.apellido)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
+      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
       <td class="cell truncate">${p.obra_social||'—'}</td>
       ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
       <td class="cell right"><div class="actions">${acciones}</div></td>
     </tr>`;
   }).join('');
-
   UI.tblAtencion.innerHTML = head + '<tbody>' + rows + '</tbody>';
+
   UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='abrir-ficha')    btn.onclick=()=> openFicha(id);
@@ -591,44 +618,84 @@ function renderAtencion(list){
   });
 }
 
-function renderAtendidos(list){
+/* Atendidos */
+/* Atendidos */
+function renderAtendidos(list) {
   const withProf = showProfColumn();
-  const grid = withProf
-    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-copago) var(--w-acc)`
-    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-copago) var(--w-acc)`;
 
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-    <th class="cell">Hora</th><th class="cell">DNI</th>
-    <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-    ${withProf?'<th class="cell">Profesional</th>':''}
-    <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
+  const grid = withProf
+    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) 
+       minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) 
+       var(--w-prof) var(--w-copago) var(--w-acc)`
+    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) 
+       minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) 
+       var(--w-copago) var(--w-acc)`;
+
+  const head = `
+    <thead class="thead">
+      <tr class="hrow" style="grid-template-columns:${grid}">
+        <th class="cell">Hora</th>
+        <th class="cell">DNI</th>
+        <th class="cell">Nombre</th>
+        <th class="cell">Apellido</th>
+        <th class="cell">Obra social</th>
+        ${withProf ? '<th class="cell">Profesional</th>' : ''}
+        <th class="cell">Copago</th>
+        <th class="cell right">Acciones</th>
+      </tr>
+    </thead>`;
 
   const puedeAbrir = roleAllows('abrir_ficha', userRole);
 
-  const rows=(list||[]).map(t=>{
-    const p=t.pacientes||{};
-    const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    const cop = (t.copago && Number(t.copago)>0)? money(t.copago) : '—';
-    const hcBtn = p.historia_clinica ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>` : '';
-    const acciones = `${puedeAbrir ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>` : ''}${hcBtn}`;
-    return `<tr class="row" style="grid-template-columns:${grid}">
-      <td class="cell nowrap">${hora}</td>
-      <td class="cell">${p.dni||'—'}</td>
-      <td class="cell truncate">${title(p.nombre)||'—'}</td>
-      <td class="cell truncate">${title(p.apellido)||'—'}</td>
-      <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
-      <td class="cell">${cop}</td>
-      <td class="cell right"><div class="actions">${acciones}</div></td>
-    </tr>`;
+  const rows = (list || []).map(t => {
+    const p = t.pacientes || {};
+
+    const hora = `<b>${toHM(t.hora_inicio)}</b>${
+      t.hora_fin ? ' — ' + toHM(t.hora_fin) : ''
+    }`;
+
+    const cop = (t.copago && Number(t.copago) > 0)
+      ? money(t.copago)
+      : '—';
+
+    const hcBtn = p.historia_clinica
+      ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>`
+      : '';
+
+    const acciones = `
+      ${puedeAbrir
+        ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`
+        : ''
+      }
+      ${hcBtn}
+    `;
+
+    return `
+      <tr class="row" style="grid-template-columns:${grid}">
+        <td class="cell nowrap">${hora}</td>
+        <td class="cell">${p.dni || '—'}</td>
+        <td class="cell truncate">${titleCase(p.nombre) || '—'}</td>
+        <td class="cell truncate">${titleCase(p.apellido) || '—'}</td>
+        <td class="cell truncate">${p.obra_social || '—'}</td>
+        ${withProf ? `<td class="cell truncate">${profNameById(t.profesional_id)}</td>` : ''}
+        <td class="cell">${cop}</td>
+        <td class="cell right">
+          <div class="actions">${acciones}</div>
+        </td>
+      </tr>`;
   }).join('');
+
   UI.tblDone.innerHTML = head + '<tbody>' + rows + '</tbody>';
 
-  UI.tblDone.querySelectorAll('.icon').forEach(btn=>{
-    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
+  UI.tblDone.querySelectorAll('.icon').forEach(btn => {
+    const id = btn.getAttribute('data-id');
+    const act = btn.getAttribute('data-act');
+    if (act === 'abrir-ficha') {
+      btn.onclick = () => openFicha(id);
+    }
   });
 }
+
 
 /* =======================
    KPIs / títulos
@@ -640,12 +707,12 @@ function computeHorasDisponibles(agenda, turnos){
   const libresMin=Math.max(0,totalAgendaMin-ocupadosMin);
   return { libresMin, totalAgendaMin };
 }
-function formatFreeTime(mins){
+const formatFreeTime = mins => {
   mins = Math.max(0, Math.round(Number(mins||0)));
   if (mins < 60) return `${mins} min`;
   const h = Math.floor(mins / 60); const m = mins % 60;
   return `${h} h ${m} min`;
-}
+};
 function profsLabel(){
   const sel = UI.profSelect; if (!sel) return '—';
   if (!sel.multiple) return sel.options[sel.selectedIndex]?.textContent || '—';
@@ -656,19 +723,19 @@ function profsLabel(){
   return `${names.length} profesionales`;
 }
 function renderKPIs({agenda, turnos}){
-  const free = computeHorasDisponibles(agenda, turnos);
-  UI.kpiFree && (UI.kpiFree.textContent = `${formatFreeTime(free.libresMin)}`);
-  safeSetText(UI.kpiSub, `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO}`);
+  const free=computeHorasDisponibles(agenda, turnos);
+  UI.kpiFree && (UI.kpiFree.textContent = `${formatFreeTime(free.libresMin)} disponibles`);
+  safeSet(UI.kpiSub, `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO}`);
 }
 function renderBoardTitles({pendientes, presentes, atencion, atendidos}){
-  safeSetText(UI.hlPend,  `Por llegar (${(pendientes||[]).length})`);
-  safeSetText(UI.hlEsp,   `En sala de espera (${(presentes||[]).length})`);
-  safeSetText(UI.hlAtenc, `En atención (${(atencion||[]).length})`);
-  safeSetText(UI.hlDone,  `Atendidos (${(atendidos||[]).length})`);
+  H.pend  && (H.pend.textContent  = `Por llegar (${(pendientes||[]).length})`);
+  H.esp   && (H.esp.textContent   = `En sala de espera (${(presentes||[]).length})`);
+  H.atenc && (H.atenc.textContent = `En atención (${(atencion||[]).length})`);
+  H.done  && (H.done.textContent  = `Atendidos (${(atendidos||[]).length})`);
 }
 
 /* =======================
-   Drawer
+   Drawer (abrir/guardar/finalizar)
    ======================= */
 function showDrawer(){ Drawer.el?.classList.add('open'); Drawer.el?.setAttribute('aria-hidden','false'); }
 function hideDrawer(){ Drawer.el?.classList.remove('open'); Drawer.el?.setAttribute('aria-hidden','true'); }
@@ -693,7 +760,7 @@ async function loadObrasSociales(currentLabel){
 }
 
 function renderHeaderPaciente(p){
-  const ape = title(p?.apellido||''); const nom = title(p?.nombre||''); const dni = (p?.dni || '—');
+  const ape = titleCase(p?.apellido||''); const nom = titleCase(p?.nombre||''); const dni = (p?.dni || '—');
   const edad = (()=>{ if(!p?.fecha_nacimiento) return null; const d=new Date(p.fecha_nacimiento); if(isNaN(d)) return null;
     const t=new Date(); let a=t.getFullYear()-d.getFullYear(); const m=t.getMonth()-d.getMonth(); if(m<0||(m===0&&t.getDate()<d.getDate())) a--; return Math.max(a,0); })();
   Drawer.title && (Drawer.title.textContent = `Ficha paciente: ${[nom, ape].filter(Boolean).join(' ') || '—'}`);
@@ -723,8 +790,9 @@ async function openFicha(turnoId){
     .select('id,dni,apellido,nombre,fecha_nacimiento,telefono,email,obra_social,numero_afiliado,credencial,contacto_nombre,contacto_apellido,contacto_celular,vinculo,historia_clinica,proximo_control,renovacion_receta,activo')
     .eq('id', t.paciente_id).maybeSingle();
 
-  Drawer.hora  && (Drawer.hora.textContent   = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`);
-  Drawer.copago&& (Drawer.copago.textContent = `Copago: ${t.copago!=null ? money(t.copago) : '—'}`);
+  Drawer.hora && (Drawer.hora.textContent   = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`);
+  Drawer.copago && (Drawer.copago.textContent = `Copago: ${t.copago!=null ? money(t.copago) : '—'}`);
+
   renderHeaderPaciente(p||{});
 
   if (Drawer.dni) Drawer.dni.value = p?.dni || '';
@@ -747,7 +815,8 @@ async function openFicha(turnoId){
 
   setDrawerStatus('');
 
-  if (Drawer.btnGuardar)   Drawer.btnGuardar.onclick   = guardarFicha;
+  // acciones
+  if (Drawer.btnGuardar) Drawer.btnGuardar.onclick = guardarFicha;
   if (Drawer.btnFinalizar){
     Drawer.btnFinalizar.style.display = roleAllows('finalizar', userRole) ? '' : 'none';
     Drawer.btnFinalizar.onclick = () => finalizarAtencion(drawerTurnoId, { closeDrawer: true });
@@ -805,7 +874,7 @@ async function volverASalaEspera(turnoId){
   await supabase.from('turnos').update({estado:EST.EN_ESPERA}).eq('id', turnoId);
   await refreshAll();
 }
-async function finalizarAtencion(turnoId, { closeDrawer = false } = {}){
+async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
   if (!roleAllows('finalizar', userRole)) { alert('No tenés permisos.'); return; }
   const id = turnoId ?? drawerTurnoId; if (!id) return;
   if (!confirm('¿Marcar este turno como ATENDIDO?')) return;
@@ -844,28 +913,31 @@ async function anularTurno(turnoId){
 }
 
 /* =======================
-   Refresh principal
+   Refresh principal (con abort + overlay suave)
    ======================= */
-async function refreshAll(opts = {}){
-  const { showOverlay = false, showOverlayIfSlow = false } = opts;
-  const myReqId = ++_refresh.reqId;
-
-  let timer=null;
-  if (showOverlay) setLoading(true);
-  else if (showOverlayIfSlow) timer = setTimeout(()=>setLoading(true), 220);
-
-  // sin profesionales: limpiar
-  if (!selectedProfesionales.length){
-    UI.tblPend.innerHTML = UI.tblEsp.innerHTML = UI.tblAtencion.innerHTML = UI.tblDone.innerHTML = '';
-    safeSetText(UI.kpiSub, `${currentCentroNombre || ''} · ${currentFechaISO || todayISO()}`);
-    renderBoardTitles({ pendientes:[], presentes:[], atencion:[], atendidos:[] });
-    if (timer) clearTimeout(timer); setLoading(false);
+async function refreshAll({ showOverlayIfSlow = false } = {}){
+  // si no hay profesionales seleccionados => limpiar
+  if(!selectedProfesionales.length){
+    UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML=''; UI.tblDone.innerHTML='';
+    safeSet(UI.kpiSub, `${currentCentroNombre||''} · ${currentFechaISO||todayISO()}`); renderBoardTitles({pendientes:[],presentes:[],atencion:[],atendidos:[]});
     return;
   }
 
+  // cancelar refresh previo
+  _refresh.abort?.abort();
+  const abort = new AbortController();
+  _refresh.abort = abort;
+  const myReqId = ++_refresh.reqId;
+
+  // overlay si tarda (pequeño grace)
+  let overlayTimer;
+  if (showOverlayIfSlow) {
+    overlayTimer = setTimeout(()=> setLoading(document, true), 220);
+  }
+
   try{
-    const raw = await fetchDiaData();
-    if (myReqId !== _refresh.reqId) return; // respuesta vieja, se descarta
+    const raw = await fetchDiaData(abort.signal);
+    if (myReqId !== _refresh.reqId) return; // respuesta vieja
 
     const filtered = applyFilter(raw);
     renderPendientes(filtered.pendientes);
@@ -875,8 +947,9 @@ async function refreshAll(opts = {}){
     renderKPIs(raw);
     renderBoardTitles(filtered);
   } finally {
-    if (timer) clearTimeout(timer);
-    setLoading(false);
+    if (overlayTimer) clearTimeout(overlayTimer);
+    setLoading(document, false);
+    if (myReqId === _refresh.reqId) _refresh.abort = null;
   }
 }
 
@@ -884,58 +957,52 @@ async function refreshAll(opts = {}){
    INIT (export)
    ======================= */
 export async function initInicio(root){
-  rootEl = root || document.getElementById('inicio-root') || document;
+  bindUI(root);
+  ensureOverlay(root);
 
-  bindUI(rootEl);
-  ensureOverlay(rootEl);
-
+  // estado base (centro/fecha)
   currentCentroId     = localStorage.getItem('centro_medico_id');
   currentCentroNombre = localStorage.getItem('centro_medico_nombre') || await fetchCentroById(currentCentroId);
+  renderCentroChip();
 
-  // Zoom
+  // tipografía
   loadFs();
-  zDec   && (zDec.onclick   = () => setFs(fsPx - FONT.step));
-  zInc   && (zInc.onclick   = () => setFs(fsPx + FONT.step));
-  zReset && (zReset.onclick = () => setFs(FONT.def));
+  zDec   && (zDec.onclick   = ()=> setFs(fsPx - FONT.step));
+  zInc   && (zInc.onclick   = ()=> setFs(fsPx + FONT.step));
+  zReset && (zReset.onclick = ()=> setFs(FONT.def));
 
-  // Fecha + Hoy
+  // fecha + hoy
   if (UI.fecha && !UI.fecha.value) UI.fecha.value = todayISO();
   currentFechaISO = UI.fecha?.value || todayISO();
-  UI.fecha && (UI.fecha.onchange = () => { currentFechaISO = UI.fecha.value || todayISO(); refreshAll({ showOverlayIfSlow:true }); });
-  UI.btnHoy && (UI.btnHoy.onclick = () => { const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll({ showOverlayIfSlow:true }); });
+  UI.fecha && (UI.fecha.onchange = ()=>{ currentFechaISO = UI.fecha.value || todayISO(); refreshAll({ showOverlayIfSlow:false }); });
+  UI.btnHoy && (UI.btnHoy.onclick = ()=>{ const h=todayISO(); UI.fecha.value=h; currentFechaISO=h; refreshAll({ showOverlayIfSlow:false }); });
 
-  // Buscador
+  // buscador
   if (UI.massSearch){
-    UI.massSearch.oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(()=> applySearch(UI.massSearch.value), 160); };
+    UI.massSearch.oninput = ()=>{
+      clearTimeout(searchTimer);
+      searchTimer=setTimeout(()=> applySearch(UI.massSearch.value), 160);
+    };
   }
-  if (UI.massClear){ UI.massClear.onclick = () => { UI.massSearch.value=''; applySearch(''); }; }
+  if (UI.massClear){
+    UI.massClear.onclick = ()=>{ UI.massSearch.value=''; applySearch(''); };
+  }
 
-  // Rol + layout (controles de boards)
+  // aplicar clases por rol
   applyRoleClasses(userRole);
+
+  // layout boards
   setupBoardControls();
 
-  // Select de profesional
-  UI.profSelect && UI.profSelect.addEventListener('change', onProfChange);
-
-  // Carga inicial (sin overlay; está la boot mask)
+  // profesionales
   await loadProfesionales();
   if (!restoreProfSelection()) saveProfSelection();
+
+  // primera carga con overlay visible
+  setLoading(root, true);
   await refreshAll({ showOverlayIfSlow:false });
+  setLoading(root, false);
 
-  // Fin boot: saco máscara
-  const rootNode = document.getElementById('inicio-root');
-  if (rootNode) rootNode.removeAttribute('data-boot');
-
-  // Watcher centro
+  // watcher de centro (si cambia en el sidebar, re-carga todo)
   startCentroWatcher();
-}
-
-/* auto-init si se importa directo como módulo en la página */
-if (document.currentScript?.type === 'module'){
-  // init cuando el DOM está listo
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', ()=> initInicio());
-  } else {
-    initInicio();
-  }
 }
