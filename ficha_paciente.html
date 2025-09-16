@@ -1,483 +1,179 @@
 
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <title>Ficha Paciente — EG Health Solutions</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="UTF-8">
+  <title>Panel - EG Health Solutions</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <link rel="stylesheet" href="app.css">
   <style>
-    :root{
-      --brand:#7656b0; --brand2:#a490d7; --ink:#381e60; --muted:#6b6480;
-      --bg:#f7f9fb; --card:#fff; --line:#ece5fc; --ok:#0a7d38; --warn:#8a5800;
+    body { background: #f7f9fb; }
+    .app { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 270px; background:#fff; box-shadow:0 2px 18px rgba(60,40,140,.07);
+      display:flex; flex-direction:column; padding:22px 18px 0 24px; min-width:240px;
     }
-    *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);font-family:'Segoe UI',Arial,sans-serif;color:var(--ink)}
-    .shell{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:18px}
-    .modal{
-      width:min(1100px,96vw); max-height:92vh; background:var(--card);
-      border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 40px rgba(0,0,0,.20);
-      display:flex; flex-direction:column; overflow:hidden;
+    .sidebar .user-mini { display:flex; flex-direction:column; margin-bottom:7px; gap:2px; }
+    .user-name { font-size:14px; color:#6b6480; font-weight:500; }
+    .user-rol { font-size:12px; background:#a490d7; color:#fff; border-radius:5px; padding:2px 8px; }
+    .brand-title { font-weight:bold; font-size:21px; color:#381e60; margin-bottom:8px; }
+    .centro-row { display:flex; align-items:center; gap:6px; margin-bottom:14px; }
+    .centro-label { font-size:15px; color:#6b6480; }
+    .custom-select { position:relative; width:130px; }
+    .custom-select select {
+      appearance:none; background:#f7f9fb; border:1.5px solid #ece5fc; border-radius:7px;
+      padding:5px 28px 5px 10px; font-size:14px; color:#4f3b7a; width:100%;
     }
-    .head{display:flex;align-items:center;gap:12px;padding:12px;background:#e8def8;border-bottom:1px solid var(--line)}
-    .head h2{margin:0;color:#4b3a78;display:flex;gap:6px;align-items:flex-start}
-    .h-title{display:flex;flex-direction:column;gap:2px}
-    .h-title .t1{font-size:16px;font-weight:800}
-    .h-title .t2{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:58vw}
-    .h-title .t3{font-size:14px;color:#584c77}
-    .h-title #hdrName{font-weight:800}
-    .iconbtn{border:none;background:transparent;cursor:pointer;font-size:18px;padding:6px 8px;border-radius:8px}
-    .iconbtn:hover{background:rgba(0,0,0,.06)}
-    .spacer{flex:1}
-    .content{padding:14px;overflow:auto}
-
-    /* ===== Resumen en UNA sola línea ===== */
-    .summarybar{
-      display:flex; align-items:center; gap:10px;
-      white-space:nowrap; overflow-x:auto; scrollbar-gutter:stable both-edges;
-      background:#efeafb; border:1px solid var(--line); border-radius:10px;
-      padding:8px 10px; margin-bottom:12px;
+    .custom-select::after {
+      content:''; position:absolute; top:50%; right:11px; width:11px; height:11px;
+      background:url('data:image/svg+xml;utf8,<svg fill="none" stroke="rgb(164,144,215)" stroke-width="2" viewBox="0 0 14 14"><path d="M3 6l4 4 4-4"/></svg>') no-repeat center/contain;
+      transform:translateY(-50%);
     }
-    .summarybar .item{ display:inline; padding:0; margin:0; color:#3b2b66; font-weight:600; }
-    .summarybar .item + .item::before{ content:"·"; color:#a490d7; margin:0 8px; }
-    .summarybar.sticky{ position:sticky; top:0; z-index:4; }
-
-    .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;min-width:820px}
-    .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px}
-    h3{margin:0 0 10px 0;font-size:15px;color:#4b3a78}
-    .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-    .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
-    .field{display:flex;flex-direction:column;gap:6px}
-    .field label{font-size:12px;color:var(--muted)}
-    .inp,.sel,textarea{
-      background:#f7f9fb;border:1px solid var(--line);border-radius:8px;padding:9px 10px;font-size:14px;outline:none;color:#333;width:100%;
-    }
-    .inp:focus,.sel:focus,textarea:focus{border-color:var(--brand2)}
-    textarea{resize:vertical;min-height:70px}
-    .req::after{content:' *';color:#b00020}
-    .age{display:inline-flex;align-items:center;gap:6px;background:#eef7ff;border:1px solid #cfe6ff;color:#0b4c8a;border-radius:999px;padding:2px 8px;font-size:12px}
-    .foot{padding:10px 12px;border-top:1px solid var(--line);background:#faf7ff;display:flex;gap:10px;align-items:center}
-    .right{margin-left:auto}
-    .btn{appearance:none;border:none;border-radius:8px;padding:8px 12px;font-weight:600;cursor:pointer}
-    .btn.primary{background:var(--brand);color:#fff}
-    .btn.ghost{background:#f2effc;border:1px solid var(--line);color:#4b3a78}
-    .btn.success{background:#0f9960;color:#fff}
-    .btn[disabled]{opacity:.6;cursor:not-allowed}
-    .msg{font-size:13px}
-    .ok{color:var(--ok)} .warn{color:var(--warn)}
-
-    /* Botón "Finalizar turno" en rojo */
-    #btnTerminar{ background:#d32f2f; color:#fff; }
-    #btnTerminar:hover{ background:#b71c1c; }
-    #btnTerminar:focus-visible{ outline:2px solid #7f1d1d; outline-offset:2px; }
-
-    /* ===== Botón grande de Historia clínica en header ===== */
-    .btn.hc{ background:#ffffff; color:#3b2b66; border:1px solid #cbbbe8; }
-    .btn.hc:hover{ background:#fff; border-color:#b6a3ea; box-shadow:0 2px 6px rgba(0,0,0,.08); }
-    .btn.big{ padding:10px 14px; font-size:14px; }
-    .btn.hc[aria-disabled="true"]{ opacity:.5; pointer-events:none; }
-
-    @media (max-width:980px){ .grid{grid-template-columns:1fr} }
+    .menu { display:flex; flex-direction:column; gap:6px; margin-top:20px; }
+    .menu button { background:#f7f9fb; border:none; padding:10px 16px; border-radius:6px;
+      font-size:15px; color:#381e60; cursor:pointer; text-align:left; }
+    .menu button.active { background:#e7e2fa; color:#7656b0; }
+    .settings-slot { margin-top:auto; margin-bottom:16px; }
+    .settings-btn { background:#7656b0; color:#fff; border:none; border-radius:7px; padding:11px 0; font-size:16px; cursor:pointer; width:92%; }
+    .logout-slot { margin:12px 0; display:flex; justify-content:center; }
+    .power-btn { background:none; border:none; cursor:pointer; width:44px; height:44px; border-radius:50%; }
+    .power-btn svg { width:30px; height:30px; stroke:#b00020; }
+    .power-btn:hover { background:rgba(220,0,40,.08); }
+    .power-btn .tooltip { display:none; position:absolute; left:44px; top:50%; transform:translateY(-50%); background:#381e60; color:#fff; padding:4px 12px; border-radius:6px; font-size:14px; }
+    .power-btn:hover .tooltip { display:block; }
+    .main { padding:32px 20px; flex:1; background:#f7f9fb; }
+    .card { background:#fff; padding:28px 22px; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.10); max-width:900px; margin:0 auto; }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <section class="modal" id="root">
-      <header class="head">
-        <button id="btnBack" class="iconbtn" title="Volver">⬅️</button>
-        <h2 class="h-title">
-          <span class="t1">Ficha paciente: <span id="hdrName">—</span></span>
-          <span class="t2">DNI <span id="hdrDNIValue">—</span> / <span id="hdrAge">— años</span></span>
-          <span class="t3" id="hdrOSCount">Turnos con OS en el año: —</span>
-        </h2>
-        <span class="spacer"></span>
-        <a id="hdrHC" class="btn hc big" href="#" target="_blank" rel="noopener" aria-disabled="true">📄 Ver historia clínica</a>
-        <button id="btnReload" class="iconbtn" title="Actualizar ficha">🔄</button>
-      </header>
-
-      <div class="content">
-        <!-- ===== Resumen horizontal (UNA línea) ===== -->
-        <div class="summarybar sticky" id="resumen">
-          <span class="item" id="p_hora">Hora turno: —</span>
-          <span class="item" id="p_copago">Copago: —</span>
-        </div>
-
-        <div class="grid">
-          <!-- Datos del paciente -->
-          <div class="card">
-            <h3>Datos del paciente</h3>
-
-            <div class="row3">
-              <div class="field"><label class="req">DNI</label><input id="dni" class="inp" required/></div>
-              <div class="field"><label class="req">Apellido</label><input id="apellido" class="inp" required/></div>
-              <div class="field"><label class="req">Nombre</label><input id="nombre" class="inp" required/></div>
-            </div>
-
-            <div class="row3">
-              <div class="field"><label>Fecha de nacimiento</label><input id="fecha_nacimiento" type="date" class="inp" /></div>
-              <div class="field"><label>Edad</label><div id="edad" class="age">—</div></div>
-              <div class="field"><label>Activo</label>
-                <label style="display:inline-flex;align-items:center;gap:8px">
-                  <input id="activo" type="checkbox"> Activo en el sistema
-                </label>
-              </div>
-            </div>
-
-            <div class="row2">
-              <div class="field"><label>Teléfono</label><input id="telefono" class="inp" /></div>
-              <div class="field"><label>Email</label><input id="email" class="inp" placeholder="correo@dominio.com" /></div>
-            </div>
-
-            <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
-
-            <h3>Historia clínica</h3>
-            <div class="field">
-              <label>URL (GDrive, PDF, etc.)</label>
-              <div style="display:flex;gap:8px;align-items:center">
-                <input id="historia_clinica" class="inp" placeholder="https://..." />
-                <a id="btnHC" class="btn ghost" href="#" target="_blank" rel="noopener">Abrir</a>
-              </div>
-            </div>
-
-            <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
-
-            <h3>Seguimiento</h3>
-            <div class="row2">
-              <div class="field"><label>Próximo control</label><input id="proximo_control" type="date" class="inp" /></div>
-              <div class="field"><label>Renovación de receta</label><input id="renovacion_receta" type="date" class="inp" /></div>
-            </div>
-          </div>
-
-          <!-- Obra social + contacto de emergencia + notas del turno -->
-          <div class="card">
-            <h3>Obra social</h3>
-            <div class="row3">
-              <div class="field">
-                <label>Obra social</label>
-                <select id="obra_social" class="sel"></select>
-              </div>
-              <div class="field"><label>N° afiliado</label><input id="numero_afiliado" class="inp" /></div>
-              <div class="field">
-                <label>Credencial (URL imagen)</label>
-                <div style="display:flex;gap:8px;align-items:center">
-                  <input id="credencial" class="inp" placeholder="https://..." />
-                  <a id="btnCred" class="btn ghost" href="#" target="_blank" rel="noopener">Ver</a>
-                </div>
-              </div>
-            </div>
-
-            <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
-
-            <h3>Contacto de emergencia</h3>
-            <div class="row2">
-              <div class="field"><label>Nombre</label><input id="contacto_nombre" class="inp" /></div>
-              <div class="field"><label>Apellido</label><input id="contacto_apellido" class="inp" /></div>
-            </div>
-            <div class="row2">
-              <div class="field"><label>Celular</label><input id="contacto_celular" class="inp" /></div>
-              <div class="field"><label>Vínculo</label><input id="vinculo" class="inp" /></div>
-            </div>
-
-            <hr style="border:none;border-top:1px solid var(--line);margin:12px 0">
-
-            <h3>Notas del turno</h3>
-            <div class="field"><textarea id="notas" class="inp" placeholder="Observaciones internas..."></textarea></div>
-          </div>
-        </div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="user-mini">
+        <span id="user-name" class="user-name"></span>
+        <span id="user-rol" class="user-rol"></span>
       </div>
+      <div class="brand-title">EG Health</div>
+      <div class="centro-row">
+        <span class="centro-label">Centro:</span>
+        <span class="custom-select"><select id="centro-select"></select></span>
+      </div>
+      <nav class="menu">
+        <button id="btn-inicio" class="active">Inicio</button>
+        <button id="btn-turnos">Turnos</button>
+        <button id="btn-pacientes">Pacientes</button>
+        <button id="btn-config">Configuración</button>
+      </nav>
+      <div class="logout-slot">
+        <button class="power-btn" id="btn-logout">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 2v10" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke-width="2"/></svg>
+          <span class="tooltip">Cerrar sesión</span>
+        </button>
+      </div>
+    </aside>
 
-      <footer class="foot" id="foot">
-        <span id="status" class="msg"></span>
-        <div class="right">
-          <button id="btnGuardar"  class="btn primary">Guardar cambios</button>
-          <button id="btnTerminar" class="btn">Finalizar turno</button>
-          <button id="btnCerrar"   class="btn ghost">Volver</button>
-        </div>
-      </footer>
-    </section>
+    <main class="main">
+      <div id="main-content" class="card"></div>
+      <div id="modal-root"></div>
+    </main>
   </div>
 
   <script type="module">
-    import supabase from './supabaseClient.js';
+    import supabase from "./supabaseClient.js";
+    import { normalizeRole, applyRoleClasses } from "./global.js";
 
-    /* ============== helpers UI ============== */
-    const qs = (id) => document.getElementById(id);
-    const UI = {
-      // header
-      hdrName: qs('hdrName'), hdrHC: qs('hdrHC'), hdrDNIValue: qs('hdrDNIValue'), hdrAge: qs('hdrAge'), hdrOSCount: qs('hdrOSCount'),
-      // resumen (una sola línea)
-      p_hora: qs('p_hora'), p_copago: qs('p_copago'),
-      // patient form
-      dni: qs('dni'), apellido: qs('apellido'), nombre: qs('nombre'),
-      fecha_nacimiento: qs('fecha_nacimiento'), edad: qs('edad'), activo: qs('activo'),
-      telefono: qs('telefono'), email: qs('email'),
-      historia_clinica: qs('historia_clinica'), btnHC: qs('btnHC'),
-      proximo_control: qs('proximo_control'), renovacion_receta: qs('renovacion_receta'),
-      obra_social: qs('obra_social'), numero_afiliado: qs('numero_afiliado'),
-      credencial: qs('credencial'), btnCred: qs('btnCred'),
-      contacto_nombre: qs('contacto_nombre'), contacto_apellido: qs('contacto_apellido'),
-      contacto_celular: qs('contacto_celular'), vinculo: qs('vinculo'),
-      // acciones
-      notas: qs('notas'),
-      // footer
-      status: qs('status'),
-      btnBack: qs('btnBack'), btnReload: qs('btnReload'), btnCerrar: qs('btnCerrar'),
-      btnGuardar: qs('btnGuardar'), btnTerminar: qs('btnTerminar'),
+    // --- Estado base
+    const rawRole = localStorage.getItem("user_role") || "";
+    const userRolRaw = normalizeRole(rawRole);
+    const userRolLabel = {
+      propietario:"Propietario", medico:"Médico",
+      amp:"Asistente Médico Personal", amc:"Asistente de Centro Médico"
+    }[userRolRaw] || rawRole || "—";
+
+    document.getElementById("user-name").textContent = localStorage.getItem("user_name") || "Usuario";
+    document.getElementById("user-rol").textContent = userRolLabel;
+    applyRoleClasses(userRolRaw);
+
+    // --- Configuración botón según rol
+    const btnConfig = document.getElementById("btn-config");
+    if (!["medico","propietario","amp"].includes(userRolRaw)) btnConfig.style.display = "none";
+
+    // --- Selector de centros
+    const centroSelect = document.getElementById("centro-select");
+    const profesionalId = localStorage.getItem("profesional_id");
+    async function cargarCentros() {
+      centroSelect.innerHTML = "<option>Cargando...</option>";
+      let centros = [];
+      if (profesionalId) {
+        const { data } = await supabase
+          .from("profesional_centro")
+          .select("centros_medicos(id,nombre)")
+          .eq("profesional_id", profesionalId)
+          .eq("activo", true);
+        centros = (data||[]).map(r=>r.centros_medicos).filter(Boolean);
+      }
+      if (!centros.length) {
+        centroSelect.innerHTML = "<option>No hay centros</option>";
+        return;
+      }
+      centroSelect.innerHTML = centros.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
+      centroSelect.value = localStorage.getItem("centro_medico_id") || centros[0].id;
+      localStorage.setItem("centro_medico_id", centroSelect.value);
+      localStorage.setItem("centro_medico_nombre", centros.find(c=>String(c.id)===String(centroSelect.value))?.nombre || "");
+    }
+    await cargarCentros();
+    centroSelect.onchange = ()=> {
+      localStorage.setItem("centro_medico_id", centroSelect.value);
+      localStorage.setItem("centro_medico_nombre", centroSelect.options[centroSelect.selectedIndex]?.text || "");
     };
 
-    // helpers
-    function pad(n){return n<10?'0'+n:''+n}
-    function toHM(t){ return (t??'').toString().slice(0,5); }
-    function nowHHMMSS(){ const d=new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` }
-    function calcEdad(f){ if(!f) return null; const d=new Date(f); if(isNaN(d)) return null; const t=new Date();
-      let a=t.getFullYear()-d.getFullYear(); const m=t.getMonth()-d.getMonth();
-      if (m<0 || (m===0 && t.getDate()<d.getDate())) a--; return Math.max(a,0);
-    }
-    function money(n){ return new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0)); }
-    function setStatus(msg, tone=''){ UI.status.textContent=msg||''; UI.status.className='msg '+(tone||''); }
-    function setBusy(b){ UI.btnGuardar.disabled=b; UI.btnTerminar.disabled=b; UI.btnReload.disabled=b; }
-
-    // roles
-    const userRole = (localStorage.getItem('user_role') || '').toLowerCase();
-    const isMedico = userRole === 'medico';
-    if (!isMedico) UI.btnTerminar.style.display = 'none';
-
-    /* ============== obtener TURNO_ID ============== */
-    let TURNO_ID = new URLSearchParams(location.search).get('turno_id') || null;
-    if (!TURNO_ID) { try { TURNO_ID = localStorage.getItem('current_turno_id') || null; } catch {} }
-    if (!TURNO_ID) { setStatus('Falta parámetro turno_id', 'warn'); }
-
-    /* ============== catálogos ============== */
-    async function loadObrasSociales(currentLabel){
-      UI.obra_social.innerHTML = '<option value="">(Sin obra social)</option>';
-      const { data, error } = await supabase.from('obras_sociales').select('obra_social').order('obra_social',{ascending:true});
-      if (error) console.warn('Error obras_sociales:', error);
-      const labels = (data||[]).map(r=>r.obra_social);
-      labels.forEach(lbl => {
-        const opt=document.createElement('option'); opt.value=lbl; opt.textContent=lbl; UI.obra_social.appendChild(opt);
-      });
-      if (currentLabel && !labels.includes(currentLabel)) {
-        const opt=document.createElement('option'); opt.value=currentLabel; opt.textContent=currentLabel; UI.obra_social.appendChild(opt);
-      }
-      UI.obra_social.value = currentLabel || '';
+    // --- Loader dinámico
+    let _panelLoader = { reqId:0, abort:null };
+    async function cargarPanelHtml(url) {
+      const main = document.getElementById("main-content");
+      _panelLoader.abort?.abort();
+      const abort = new AbortController();
+      _panelLoader.abort = abort;
+      const myReqId = ++_panelLoader.reqId;
+      main.innerHTML = "<div style='text-align:center;padding:50px;'>Cargando...</div>";
+      try {
+        const resp = await fetch(url, { signal: abort.signal });
+        if (!resp.ok) throw new Error("HTTP "+resp.status);
+        const html = await resp.text();
+        if (myReqId !== _panelLoader.reqId) return;
+        main.innerHTML = html;
+        const file = url.split("/").pop();
+        if (file==="inicio.html") {
+          const mod = await import("./inicio.js"); mod.initInicio?.(main);
+        } else if (file==="turnos.html") {
+          const mod = await import("./turnos.js"); mod.initTurnos?.(main);
+        } else if (file==="configuracion.html" || file==="pacientes.html") {
+          // reinyección de scripts internos
+          main.querySelectorAll("script").forEach(old=>{
+            const s=document.createElement("script");
+            s.type = old.type || "text/javascript";
+            if (old.src) s.src = old.src;
+            else s.textContent = old.textContent;
+            document.body.appendChild(s);
+          });
+        }
+      } catch(e){ main.innerHTML=`<div style="color:#b00020;">Error: ${e.message}</div>`; }
+      finally { if(myReqId===_panelLoader.reqId) _panelLoader.abort=null; }
     }
 
-    /* ============== cargar turno + paciente ============== */
-    let turno=null, pacienteId=null;
-
-    async function load(){
-      if (!TURNO_ID){ setStatus('Falta parámetro turno_id', 'warn'); return; }
-      setStatus('Cargando...'); setBusy(true);
-
-      // turno base
-      const { data: t, error: terr } = await supabase
-        .from('turnos')
-        .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, notas, paciente_id, profesional_id, centro_id')
-        .eq('id', TURNO_ID)
-        .maybeSingle();
-
-      if (terr || !t){
-        console.error('Error cargando turno:', terr);
-        setStatus('No se pudo cargar el turno', 'warn'); setBusy(false);
-        return;
-      }
-      turno = t; pacienteId = t.paciente_id;
-
-      // relacionado: paciente
-      const { data: p, error: perr } = await supabase
-        .from('pacientes')
-        .select('id, dni, apellido, nombre, fecha_nacimiento, telefono, email, obra_social, numero_afiliado, credencial, contacto_nombre, contacto_apellido, contacto_celular, vinculo, historia_clinica, proximo_control, renovacion_receta, activo')
-        .eq('id', t.paciente_id)
-        .maybeSingle();
-
-      if (perr) console.warn('Error cargando paciente:', perr);
-
-      // encabezado
-      const nombreCab = p ? ([p.nombre, p.apellido].filter(Boolean).join(' ') || '—') : '—';
-      UI.hdrName.textContent = nombreCab;
-      const edadCab = calcEdad(p?.fecha_nacimiento);
-      UI.hdrAge.textContent = (edadCab==null ? '— años' : `${edadCab} años`);
-      UI.hdrDNIValue.textContent = p?.dni || '—';
-      const hc = (p?.historia_clinica||'').trim();
-      UI.hdrHC.href = hc || '#';
-      UI.hdrHC.target = hc ? '_blank' : '_self';
-      UI.hdrHC.setAttribute('aria-disabled', hc ? 'false' : 'true');
-      UI.hdrOSCount.textContent = 'Turnos con OS en el año: —';
-
-      // resumen (una línea)
-      UI.p_hora.textContent   = `Hora turno: ${turno.hora_inicio ? toHM(turno.hora_inicio) : '—'}`;
-      UI.p_copago.textContent = `Copago: ${turno.copago!=null ? money(turno.copago) : '—'}`;
-      UI.notas.value          = turno.notas || '';
-
-      // paciente
-      if (p){
-        UI.dni.value = p.dni || ''; UI.apellido.value = p.apellido || ''; UI.nombre.value = p.nombre || '';
-        UI.fecha_nacimiento.value = p.fecha_nacimiento || ''; renderEdad();
-        UI.activo.checked = !!p.activo;
-        UI.telefono.value = p.telefono || ''; UI.email.value = p.email || '';
-        UI.historia_clinica.value = p.historia_clinica || '';
-        UI.btnHC.href  = p.historia_clinica ? p.historia_clinica : '#';
-        UI.btnHC.target = p.historia_clinica ? '_blank' : '_self';
-
-        await loadObrasSociales(p.obra_social || '');
-        UI.numero_afiliado.value = p.numero_afiliado || '';
-        UI.credencial.value = p.credencial || '';
-        UI.btnCred.href  = p.credencial ? p.credencial : '#';
-        UI.btnCred.target = p.credencial ? '_blank' : '_self';
-
-        UI.contacto_nombre.value = p.contacto_nombre || '';
-        UI.contacto_apellido.value = p.contacto_apellido || '';
-        UI.contacto_celular.value = p.contacto_celular || '';
-        UI.vinculo.value = p.vinculo || '';
-
-        UI.proximo_control.value = p.proximo_control || '';
-        UI.renovacion_receta.value = p.renovacion_receta || '';
-
-        // contador OS año
-        await updateOSCount(p.id);
-      } else {
-        await loadObrasSociales('');
-      }
-
-      setStatus(''); setBusy(false);
+    // --- Navegación
+    await cargarPanelHtml("inicio.html");
+    document.getElementById("btn-inicio").onclick=()=>{setActive("btn-inicio");cargarPanelHtml("inicio.html");};
+    document.getElementById("btn-turnos").onclick=()=>{setActive("btn-turnos");cargarPanelHtml("turnos.html");};
+    document.getElementById("btn-pacientes").onclick=()=>{setActive("btn-pacientes");cargarPanelHtml("pacientes.html");};
+    document.getElementById("btn-config").onclick=()=>{setActive("btn-config");cargarPanelHtml("configuracion.html");};
+    function setActive(id){
+      document.querySelectorAll(".menu button").forEach(b=>b.classList.remove("active"));
+      document.getElementById(id).classList.add("active");
     }
 
-    function renderEdad(){
-      const a = calcEdad(UI.fecha_nacimiento.value);
-      UI.edad.textContent = (a==null) ? '—' : `${a} años`;
-      UI.hdrAge.textContent = (a==null) ? '— años' : `${a} años`;
-    }
-
-    /* ============== contador de turnos OS (año actual) ============== */
-    async function updateOSCount(pacienteId){
-      if (!pacienteId) { UI.hdrOSCount.textContent = 'Turnos con OS en el año: —'; return; }
-      try{
-        const y = new Date().getFullYear();
-        const from = `${y}-01-01`;
-        const to   = `${y}-12-31`;
-        const { data, error } = await supabase
-          .from('turnos')
-          .select('id, fecha, estado, paciente_id, pacientes(obra_social)')
-          .eq('paciente_id', pacienteId)
-          .eq('estado', 'atendido')
-          .gte('fecha', from)
-          .lte('fecha', to);
-        if (error) { console.warn(error); UI.hdrOSCount.textContent = 'Turnos con OS en el año: —'; return; }
-        const count = (data || []).filter(r => String(r?.pacientes?.obra_social || '').toLowerCase() !== 'particular').length;
-        UI.hdrOSCount.textContent = `Turnos con OS en el año: ${count}`;
-      } catch(e){ console.warn(e); UI.hdrOSCount.textContent = 'Turnos con OS en el año: —'; }
-    }
-
-    /* ============== guardar paciente + notas ============== */
-    function validate(){
-      const req = [UI.dni.value.trim(), UI.apellido.value.trim(), UI.nombre.value.trim()];
-      if (req.some(v=>!v)) { setStatus('Faltan DNI/Apellido/Nombre', 'warn'); return false; }
-      return true;
-    }
-
-    async function guardar(){
-      if (!validate()) return;
-      setStatus('Guardando...'); setBusy(true);
-
-      const payloadP = {
-        dni: UI.dni.value.trim(),
-        apellido: UI.apellido.value.trim(),
-        nombre: UI.nombre.value.trim(),
-        fecha_nacimiento: UI.fecha_nacimiento.value || null,
-        activo: !!UI.activo.checked,
-        telefono: UI.telefono.value.trim() || null,
-        email: UI.email.value.trim() || null,
-        obra_social: UI.obra_social.value || null,
-        numero_afiliado: UI.numero_afiliado.value.trim() || null,
-        credencial: UI.credencial.value.trim() || null,
-        contacto_nombre: UI.contacto_nombre.value.trim() || null,
-        contacto_apellido: UI.contacto_apellido.value.trim() || null,
-        contacto_celular: UI.contacto_celular.value.trim() || null,
-        vinculo: UI.vinculo.value.trim() || null,
-        historia_clinica: UI.historia_clinica.value.trim() || null,
-        proximo_control: UI.proximo_control.value || null,
-        renovacion_receta: UI.renovacion_receta.value || null,
-      };
-
-      const [r1, r2] = await Promise.all([
-        supabase.from('pacientes').update(payloadP).eq('id', pacienteId),
-        supabase.from('turnos').update({ notas: UI.notas.value || null }).eq('id', TURNO_ID),
-      ]);
-
-      if (r1.error){ setStatus('Error guardando paciente: '+r1.error.message, 'warn'); setBusy(false); return; }
-      if (r2.error){ setStatus('Error guardando notas: '+r2.error.message, 'warn'); setBusy(false); return; }
-      setStatus('Cambios guardados.', 'ok');
-      setTimeout(()=>setStatus(''), 1800);
-      setBusy(false);
-    }
-
-    /* ============== terminar consulta (solo médico) ============== */
-    async function terminarConsulta(){
-      if (!isMedico){ alert('Solo los médicos pueden terminar la consulta.'); return; }
-      if (!confirm('¿Marcar este turno como ATENDIDO?')) return;
-      setStatus('Finalizando...'); setBusy(true);
-
-      const { error } = await supabase
-        .from('turnos')
-        .update({ estado: 'atendido', hora_fin: nowHHMMSS() })
-        .eq('id', TURNO_ID);
-
-      if (error){
-        alert('No se pudo marcar ATENDIDO.');
-        setStatus('No se pudo finalizar.', 'warn'); setBusy(false);
-        return;
-      }
-
-      setStatus('Consulta finalizada (ATENDIDO).', 'ok');
-      setTimeout(()=>{
-        try { if (window.opener) window.opener.postMessage({type:'turno_atendido', id:TURNO_ID}, '*'); } catch {}
-        const backTo = localStorage.getItem('inicio_url');
-        if (backTo) location.href = backTo; else window.close();
-      }, 700);
-    }
-
-    /* ============== navegación ============== */
-    function goBack(){
-      const backTo = (localStorage.getItem('inicio_url') || '');
-      if (backTo) { window.location.href = backTo; return; }
-      if (history.length > 1) { history.back(); return; }
-      window.location.href = 'index.html';
-    }
-
-    /* ============== bindings ============== */
-    UI.btnBack.onclick = ()=> goBack();
-    UI.btnCerrar.onclick = ()=> goBack();
-    UI.btnReload.onclick = ()=> load();
-    UI.btnGuardar.onclick = ()=> guardar();
-    UI.btnTerminar.onclick = ()=> terminarConsulta();
-
-    UI.fecha_nacimiento.addEventListener('change', ()=>{
-      renderEdad();
-    });
-    UI.historia_clinica.addEventListener('input', ()=>{
-      UI.btnHC.href = UI.historia_clinica.value || '#';
-      UI.btnHC.target = UI.historia_clinica.value ? '_blank' : '_self';
-      UI.hdrHC.href = UI.historia_clinica.value || '#';
-      UI.hdrHC.target = UI.historia_clinica.value ? '_blank' : '_self';
-      UI.hdrHC.setAttribute('aria-disabled', UI.historia_clinica.value ? 'false' : 'true');
-    });
-    UI.credencial.addEventListener('input', ()=>{
-      UI.btnCred.href = UI.credencial.value || '#';
-      UI.btnCred.target = UI.credencial.value ? '_blank' : '_self';
-    });
-
-    // ===== Mini self-tests (no rompen la UI) =====
-    (function selfTests(){
-      try{
-        const a = calcEdad('2000-01-01');
-        console.assert(typeof a === 'number' && a >= 0 && a <= 200, 'calcEdad devuelve un número razonable');
-        console.assert(toHM('14:30:00') === '14:30', 'toHM recorta HH:MM');
-        console.assert(toHM('') === '', 'toHM vacío devuelve string vacío');
-        console.log('[Ficha Paciente] self-tests OK');
-      }catch(e){ console.warn('[Ficha Paciente] self-tests fallaron', e); }
-    })();
-
-    // init
-    await load();
+    // --- Logout
+    document.getElementById("btn-logout").onclick=()=>{ localStorage.clear(); location.href="index.html"; };
   </script>
 </body>
 </html>
