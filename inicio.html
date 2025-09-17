@@ -50,13 +50,14 @@
     <!-- Boards -->
     <div class="boards" id="boards">
       <div class="board" data-board="pend">
-        <h3 id="h-pend"><span id="hl-pend">Por llegar</span>
-          <span class="b-ctrls">
-            <button class="b-ctrl b-ctrl--grow" title="Ampliar/Restaurar fila">⬍</button>
-            <button class="b-ctrl b-ctrl--expand" title="Expandir">⛶</button>
-            <button class="b-ctrl b-ctrl--collapse" title="Cerrar">✖️</button>
-          </span>
-        </h3>
+      <h3 id="h-pend">
+        <span id="hl-pend">Por llegar</span>
+        <span class="b-ctrls">
+          <button class="b-ctrl b-ctrl--grow" title="Ampliar/Restaurar fila" aria-label="Ampliar o restaurar fila">⬍</button>
+          <button class="b-ctrl b-ctrl--expand" title="Expandir" aria-label="Expandir tablero">⛶</button>
+          <button class="b-ctrl b-ctrl--collapse" title="Cerrar" aria-label="Cerrar expansión">✖️</button>
+        </span>
+      </h3>
         <div class="board-body"><table class="table" id="tbl-pend"></table></div>
       </div>
       <div class="board" data-board="esp">
