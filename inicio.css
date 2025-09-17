@@ -17,18 +17,21 @@
   --row-2:var(--board-h);
 
   /* Columnas y canal de Acciones */
-  --w-acc:100px;       /* ancho fijo de Acciones */
+  --w-acc:100px;       /* ancho fijo Acciones */
   --w-hora:110px; --w-dni:120px; --w-espera:90px; --w-copago:110px; --w-prof:220px;
   --minch-nombre:12ch; --minch-apellido:12ch; --minch-obra:10ch;
-  --gap-acc:2px;       /* separación antes del canal derecho */
+  --gap-acc:2px;
 }
 
 /* ----- Scope suave para no pelear con app.css ----- */
 #inicio-root, #inicio-root *{ box-sizing:border-box; }
 #inicio-root{ color:var(--ink); font-family:'Segoe UI', system-ui, Arial, sans-serif; font-size:var(--fs); }
 
-/* Si el shell global usa .card contenedora, la neutralizamos acá */
-:where(#main-content.card){ max-width:none!important; width:100%!important; padding:0!important; background:transparent!important; box-shadow:none!important; border-radius:0!important; }
+/* Neutralizar card contenedora del shell */
+:where(#main-content.card){
+  max-width:none!important; width:100%!important; padding:0!important;
+  background:transparent!important; box-shadow:none!important; border-radius:0!important;
+}
 
 /* ---------- Contenedor ---------- */
 .shell{ padding:10px; }
@@ -37,7 +40,7 @@
   padding:10px; display:flex; flex-direction:column; gap:8px; min-height:calc(100vh - 20px);
 }
 
-/* ---------- Inputs básicos ---------- */
+/* ---------- Inputs / botones ---------- */
 #inicio-root .field{ display:flex; flex-direction:column; gap:3px; min-width:0; }
 #inicio-root .field label{ font-size:.85em; color:var(--muted); }
 #inicio-root .inp, #inicio-root .sel{
@@ -63,7 +66,6 @@
   gap:10px 12px; align-items:end;
 }
 #inicio-root .toolbar-aux{ margin-left:auto; display:flex; align-items:end; gap:8px; flex-wrap:wrap; }
-
 #inicio-root .search-wrap{ display:flex; align-items:center; gap:8px; width:fit-content; }
 #inicio-root .search-wrap .inp{ height:36px; width:26ch; max-width:28ch; }
 #inicio-root .search-clear{ border:none; background:#efeafb; border:1px solid var(--line); border-radius:8px; padding:6px 10px; cursor:pointer; }
@@ -80,9 +82,9 @@
 #inicio-root .zoom-btn:hover{ background:#f4f1ff; }
 #inicio-root .zoom-btn:focus-visible{ outline:2px solid var(--brand-2); outline-offset:2px; }
 
-/* ---------- Boards grid (2x2) ---------- */
+/* ---------- Boards grid ---------- */
 #inicio-root .boards{
-  display:grid; gap:12px; grid-template-columns:1fr 1fr;
+  display:grid; gap:12px; grid-template-columns:1fr 1fr;   /* 2×2 por defecto */
   grid-template-rows: var(--row-1) var(--row-2);
   min-height:0; position:relative;
 }
@@ -92,10 +94,10 @@
 }
 #inicio-root .board h3{
   margin:2px 2px 8px; font-size:1.05rem; line-height:1.2; display:flex; align-items:center; gap:8px; color:#3b2b66;
-  position:relative; padding-right:96px; min-height:34px;   /* reserva para controles + alto homogéneo */
+  position:relative; padding-right:96px; min-height:34px;
 }
 
-/* Controles por tablero (centrados verticalmente) */
+/* Controles del board (centrados) */
 #inicio-root .b-ctrls{ position:absolute; right:8px; top:50%; transform:translateY(-50%); display:inline-flex; gap:6px; z-index:40; }
 #inicio-root .b-ctrl{
   border:none; background:#f4f1ff; border:1px solid var(--line);
@@ -112,11 +114,11 @@
 #inicio-root .b-ctrl--collapse{ display:none; }
 #inicio-root .board.expanded .b-ctrl--collapse{ display:flex; }
 
-/* ---------- Tabla + sticky headers + Acciones a la derecha ---------- */
+/* ---------- Tabla + encabezado + Acciones ---------- */
 #inicio-root .board-body{
   position:relative; flex:1 1 auto; min-height:0;
   overflow-y:auto; overflow-x:auto;
-  padding:0 calc(var(--w-acc) + var(--gap-acc)) 6px 2px;  /* reserva canal de Acciones */
+  padding:0 calc(var(--w-acc) + var(--gap-acc)) 6px 2px;  /* reserva canal Acciones */
   overscroll-behavior:contain; -webkit-overflow-scrolling:touch;
   scrollbar-gutter:stable both-edges;
 }
@@ -140,12 +142,17 @@
 #inicio-root .truncate{ overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 #inicio-root .thead .hrow .cell{ white-space:nowrap; }
 
-/* Columna de acciones SIEMPRE visible al borde derecho */
+/* Acciones SIEMPRE visibles (anclaje robusto) */
 #inicio-root .hrow .cell:last-child,
 #inicio-root .row  .cell:last-child{
-  position:sticky; right:0; left:auto; z-index:3;
+  position:sticky;
+  left: calc(100% - var(--w-acc));   /* pegado al borde derecho del scrollport */
+  right: auto !important;
+  z-index:3;
   min-width:var(--w-acc); max-width:var(--w-acc); width:var(--w-acc);
   border-left:1px solid var(--line);
+  will-change:left;
+  contain:layout paint;
 }
 #inicio-root .row .cell:last-child{
   background:
@@ -170,11 +177,7 @@
 #inicio-root .copago{ display:inline-block; font-size:.85em; padding:2px 7px; border-radius:999px; background:#e8fff0; border:1px solid #b9f0cb; color:#0a7d38; }
 #inicio-root .copago.none{ background:#f1f1f1; border-color:#e0e0e0; color:#666; }
 
-/* Scrollbar (WebKit) */
-#inicio-root .board-body::-webkit-scrollbar{ height:8px; width:8px; }
-#inicio-root .board-body::-webkit-scrollbar-thumb{ background:#d8cfff; border-radius:8px; }
-
-/* ---------- Ocultaciones por rol (AMC) ---------- */
+/* ---------- Ocultaciones por rol ---------- */
 body.role-amc [data-act="cancel"],
 body.role-amc [data-act="atender"],
 body.role-amc [data-act="abrir-ficha"],
@@ -215,10 +218,13 @@ body.role-amc [data-act="finalizar"]{ display:none !important; }
 #fd-prof, #fd-centro, #fd-fecha, #fd-estado{ display:none !important; }
 
 /* ---------- Responsive ---------- */
-@media (max-width:1100px){
+
+/* Objetivo: a zoom 100% no haya scroll horizontal → 1 columna <=1500px */
+@media (max-width:1500px){
   #inicio-root .boards{ grid-template-columns:1fr; grid-template-rows:auto auto auto auto; }
-  #inicio-root .b-ctrl--grow{ opacity:.5; pointer-events:none; }
 }
+
+/* Toolbar a 2 filas en móviles */
 @media (max-width:700px){
   #inicio-root .toolbar{ grid-template-columns:1fr 1fr; }
   #inicio-root .toolbar-aux{ grid-column:1 / -1; justify-content:flex-start; }
@@ -226,10 +232,18 @@ body.role-amc [data-act="finalizar"]{ display:none !important; }
   #inicio-root .search-wrap .inp{ width:100%; max-width:100%; }
 }
 
-/* ---------- Afinado en pantallas medianas (mejor encastre sin scroll) ---------- */
-@media (max-width:1280px){
+/* Afinado cuando hay 2×2 (>1500px): compactar sutilmente para que todo entre sin scroll */
+@media (min-width:1500px){
   :root{
+    --w-acc:96px; --w-hora:100px; --w-dni:112px; --w-espera:84px; --w-copago:104px; --w-prof:200px;
     --minch-nombre:10ch; --minch-apellido:10ch; --minch-obra:9ch;
-    --w-prof:190px;
   }
+  #inicio-root .board{ padding:8px; }
+  #inicio-root .hrow, #inicio-root .row{ padding:4px 6px; }
+  #inicio-root .cell{ padding:0 3px; }
+}
+
+/* Deshabilitar "grow" en 1 columna */
+@media (max-width:1500px){
+  #inicio-root .b-ctrl--grow{ opacity:.5; pointer-events:none; }
 }
