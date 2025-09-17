@@ -1,4 +1,3 @@
-
 // inicio.js
 // -----------------------------------------------
 import supabase from './supabaseClient.js';
