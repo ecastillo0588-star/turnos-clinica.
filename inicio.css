@@ -1,3 +1,4 @@
+
 /* ====== Variables ====== */
 :root{
   --brand:#7656b0; --brand-2:#a490d7; --ink:#381e60; --muted:#6b6480;
@@ -264,3 +265,40 @@ body.role-amc [data-act="finalizar"]{ display:none !important; }
   .search-wrap{ width:100%; }
   .search-wrap .inp{ width:100%; max-width:100%; }
 }
+
+/* --- Fix visibilidad controles por tablero --- */
+.board { position: relative; }
+.board > h3 { position: relative; padding-right: 96px; } /* espacio p/ los botones */
+.board > h3 .b-ctrls {
+  position: absolute !important;
+  top: 6px;
+  right: 8px;
+  display: inline-flex !important;
+  gap: 6px;
+  z-index: 20; /* por encima del thead sticky */
+}
+
+/* Elevar los controles del header por encima del thead sticky */
+.board { position: relative; }
+.board > h3 { position: relative; z-index: 12; padding-right: 96px; }
+.board > h3 .b-ctrls{
+  position: absolute !important;
+  top: 6px;
+  right: 8px;
+  display: inline-flex !important;
+  gap: 6px;
+  z-index: 40;            /* por encima del .thead (z-index:2) */
+  pointer-events: auto;
+}
+/* (opcional) asegurar el thead por debajo de los botones */
+.thead { z-index: 2; }
+
+/* Scope para que el sticky global no pise la vista Inicio */
+#inicio-root table thead th { position: static !important; top: auto !important; z-index: auto !important; }
+
+/* Tu sticky controlado por clase .thead */
+#inicio-root .thead { position: sticky !important; top: 0; z-index: 2 !important; }
+
+/* Asegurar controles por encima */
+#inicio-root .board > h3 { position: relative; z-index: 12; padding-right: 96px !important; }
+#inicio-root .board > h3 .b-ctrls { position: absolute !important; right: 8px; top: 6px; z-index: 40 !important; }
