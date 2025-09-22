@@ -55,6 +55,8 @@ let PROF_NAME = new Map();
 
 // control de carga y de carrera
 let _refresh = { reqId: 0, abort: null };
+let _centroStorageHandler = null;
+
 
 /* =======================
    Binder de referencias
