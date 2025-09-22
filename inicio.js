@@ -23,7 +23,6 @@ const toHM = t => (t??'').toString().slice(0,5);
 const strip = s => (s??'').toString().normalize('NFD').replace(/\p{Diacritic}/gu,'');
 const norm  = s => strip(s).toLowerCase().trim();
 const safeSet = (el, text) => { if (el) el.textContent = text; };
-const money = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0));
 const titleCase = s => (s||'').split(' ').filter(Boolean).map(w=> w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ');
 const minutesDiff = (start, end) => {
   const [h1,m1]=start.split(':').map(Number);
