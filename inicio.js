@@ -492,6 +492,44 @@ function applyFilter(data){
   };
 }
 
+// Calcula el ancho óptimo (en ch) por columna según el contenido del DÍA
+function computeColumnWidthsForDay({ turnos }) {
+  // Abarcamos todos los turnos del día (sin importar estado) para tener un ancho consistente
+  const rows = turnos || [];
+
+  // helpers para longitudes
+  const len = s => String(s ?? '').trim().length;
+
+  let maxDNI = 0, maxNom = 0, maxApe = 0, maxObra = 0, maxCop = 0;
+
+  for (const t of rows) {
+    const p = t.pacientes || {};
+    maxDNI = Math.max(maxDNI, len(p.dni));
+    maxNom = Math.max(maxNom, len(titleCase(p.nombre)));
+    maxApe = Math.max(maxApe, len(titleCase(p.apellido)));
+    maxObra = Math.max(maxObra, len(p.obra_social));
+    // Copago: medimos la moneda renderizada para aproximar
+    const cop = (t.copago && Number(t.copago)>0) ? money(t.copago) : 'Sin copago';
+    maxCop = Math.max(maxCop, len(cop));
+  }
+
+  // mínimos razonables para que no “salte” demasiado
+  maxDNI  = Math.max(maxDNI, 8);   // DNI típico
+  maxNom  = Math.max(maxNom, 12);  // coincide con --minch-nombre
+  maxApe  = Math.max(maxApe, 12);
+  maxObra = Math.max(maxObra, 10);
+  maxCop  = Math.max(maxCop, 10);
+
+  // seteamos variables CSS que usa COLS
+  const root = document.documentElement.style;
+  root.setProperty('--col-dni',      `fit-content(${maxDNI}ch)`);
+  root.setProperty('--col-nombre',   `fit-content(${maxNom}ch)`);
+  root.setProperty('--col-apellido', `fit-content(${maxApe}ch)`);
+  root.setProperty('--col-obra',     `fit-content(${maxObra}ch)`);
+  root.setProperty('--col-copago',   `fit-content(${maxCop}ch)`);
+}
+
+
 /* =======================
    Esquema GLOBAL de columnas unificadas (sin Profesional)
    ======================= */
@@ -527,12 +565,10 @@ const esperaBadge = (t, fechaISO) => {
   return `<span class="wait" data-arribo-ts="${iso}">—</span>`;
 };
 
-// celdas estándar por clave de columna
 function buildCell(key, t, ctx){
   const p = t.pacientes || {};
   switch (key) {
     case 'espera':
-      // Solo “vive” visualmente para EN_ESPERA; en otros estados mostramos —
       return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
     case 'hora':
       return horaRango(t);
@@ -544,19 +580,17 @@ function buildCell(key, t, ctx){
       return titleCase(p.apellido) || '—';
     case 'obra':
       return p.obra_social || '—';
-    case 'prof':
-      return profNameById(t.profesional_id);
     case 'copago':
-      // En Presentes y Atendidos mostramos; en otros estados dejamos “—”.
-      if (ctx.type === 'esp') return copagoChip(t.copago);
+      if (ctx.type === 'esp')  return copagoChip(t.copago);
       if (ctx.type === 'done') return t.copago ? money(t.copago) : '—';
       return '—';
     case 'acciones':
-      return ctx.actionsHTML(t); // la función por board arma los botones
+      return ctx.actionsHTML(t);
     default:
       return '—';
   }
 }
+
 
 // head único
 function renderHeadHTML(){
@@ -962,7 +996,7 @@ async function refreshAll({ showOverlayIfSlow = false } = {}){
   try{
     const raw = await fetchDiaData(abort.signal);
     if (myReqId !== _refresh.reqId) return;
-
+    computeColumnWidthsForDay(raw);
     const filtered = applyFilter(raw);
     renderPendientes(filtered.pendientes);
     renderPresentes(filtered.presentes);
