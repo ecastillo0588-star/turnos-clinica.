@@ -98,6 +98,9 @@ function bindUI(root = document) {
     hora:      root.querySelector('#fd-hora'),
     estado:    root.querySelector('#fd-estado'),
     copago:    root.querySelector('#fd-copago'),
+    importe:   root.querySelector('#fd-importe'),
+    medio:     root.querySelector('#fd-medio'),
+    estadoPago:root.querySelector('#fd-estado-pago'),
     dni:       root.querySelector('#fd-dni'),
     ape:       root.querySelector('#fd-apellido'),
     nom:       root.querySelector('#fd-nombre'),
@@ -856,57 +859,107 @@ function renderHeaderPaciente(p){
   }
 }
 
+
 async function openFicha(turnoId){
-  if (!roleAllows('abrir_ficha', userRole)) { alert('No tenés permisos para abrir la ficha.'); return; }
+  if (!roleAllows('abrir_ficha', userRole)) {
+    alert('No tenés permisos para abrir la ficha.');
+    return;
+  }
+
   drawerTurnoId = turnoId;
   try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
-  setDrawerStatus('Cargando...'); setDrawerMsg(''); showDrawer();
+  setDrawerStatus('Cargando…'); 
+  setDrawerMsg('');
+  showDrawer();
 
-  const { data:t, error:terr } = await supabase
+  // 1) Traer turno (incluye copago / pago)
+  const { data: t, error: terr } = await supabase
     .from('turnos')
-    .select('id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, notas, paciente_id, profesional_id, centro_id')
+    .select(`
+      id, fecha, hora_inicio, hora_fin, estado, hora_arribo,
+      copago, importe, medio_pago, estado_pago,
+      paciente_id, profesional_id, centro_id
+    `)
     .eq('id', turnoId)
     .maybeSingle();
 
-  if (terr || !t){ setDrawerStatus('No se pudo cargar el turno','warn'); console.error(terr); return; }
+  if (terr || !t){
+    setDrawerStatus('No se pudo cargar el turno', 'warn');
+    console.error('[openFicha] turnos error:', terr);
+    return;
+  }
 
-  const { data:p } = await supabase
+  // 2) Traer paciente
+  const { data: p, error: perr } = await supabase
     .from('pacientes')
-    .select('id,dni,apellido,nombre,fecha_nacimiento,telefono,email,obra_social,numero_afiliado,credencial,contacto_nombre,contacto_apellido,contacto_celular,vinculo,historia_clinica,proximo_control,renovacion_receta,activo')
-    .eq('id', t.paciente_id).maybeSingle();
+    .select(`
+      id, dni, apellido, nombre, fecha_nacimiento, telefono, email,
+      obra_social, numero_afiliado, credencial,
+      contacto_nombre, contacto_apellido, contacto_celular, vinculo,
+      historia_clinica, proximo_control, renovacion_receta, activo
+    `)
+    .eq('id', t.paciente_id)
+    .maybeSingle();
 
+  if (perr){
+    console.warn('[openFicha] pacientes warn:', perr);
+  }
+
+  // 3) Encabezado/resumen
   if (Drawer.hora)   Drawer.hora.textContent   = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
-  if (Drawer.copago) Drawer.copago.textContent = `Copago: ${t.copago!=null ? money(t.copago) : '—'}`;
 
-  renderHeaderPaciente(p||{});
+  // Copago/importe/medio/estado pago (chipeado)
+  const copVal = toPesoInt(t.copago);
+  const copTxt = (copVal && copVal > 0) ? money(copVal) : 'Sin copago';
+  if (Drawer.copago)    Drawer.copago.textContent    = `Copago: ${copTxt}`;
+  if (Drawer.importe)   Drawer.importe.textContent   = `Importe pagado: ${t.importe != null ? money(t.importe) : '—'}`;
+  if (Drawer.medio)     Drawer.medio.textContent     = `Medio: ${t.medio_pago || '—'}`;
+  if (Drawer.estadoPago)Drawer.estadoPago.textContent= `Estado pago: ${t.estado_pago ? String(t.estado_pago).toUpperCase() : '—'}`;
 
-  if (Drawer.dni) Drawer.dni.value = p?.dni || '';
-  if (Drawer.ape) Drawer.ape.value = p?.apellido || '';
-  if (Drawer.nom) Drawer.nom.value = p?.nombre || '';
-  if (Drawer.nac) Drawer.nac.value = p?.fecha_nacimiento || '';
-  if (Drawer.tel) Drawer.tel.value = p?.telefono || '';
-  if (Drawer.mail)Drawer.mail.value= p?.email || '';
+  // Título y sub
+  renderHeaderPaciente(p || {});
+
+  // 4) Campos editables del paciente
+  if (Drawer.dni)   Drawer.dni.value   = p?.dni || '';
+  if (Drawer.ape)   Drawer.ape.value   = p?.apellido || '';
+  if (Drawer.nom)   Drawer.nom.value   = p?.nombre || '';
+  if (Drawer.nac)   Drawer.nac.value   = p?.fecha_nacimiento || '';
+  if (Drawer.tel)   Drawer.tel.value   = p?.telefono || '';
+  if (Drawer.mail)  Drawer.mail.value  = p?.email || '';
   await loadObrasSociales(p?.obra_social || '');
   if (Drawer.afiliado) Drawer.afiliado.value = p?.numero_afiliado || '';
-  if (Drawer.cred){ Drawer.cred.value = p?.credencial || ''; if (Drawer.credLink) Drawer.credLink.href = p?.credencial || '#'; }
-  if (Drawer.ecNom) Drawer.ecNom.value = p?.contacto_nombre || '';
-  if (Drawer.ecApe) Drawer.ecApe.value = p?.contacto_apellido || '';
-  if (Drawer.ecCel) Drawer.ecCel.value = p?.contacto_celular || '';
-  if (Drawer.ecVin) Drawer.ecVin.value = p?.vinculo || '';
-  if (Drawer.prox)  Drawer.prox.value = p?.proximo_control || '';
-  if (Drawer.renov) Drawer.renov.value = p?.renovacion_receta || '';
-  if (Drawer.activo)Drawer.activo.checked = !!p?.activo;
+  if (Drawer.cred){
+    Drawer.cred.value = p?.credencial || '';
+    if (Drawer.credLink) Drawer.credLink.href = p?.credencial || '#';
+  }
+  if (Drawer.ecNom)  Drawer.ecNom.value  = p?.contacto_nombre || '';
+  if (Drawer.ecApe)  Drawer.ecApe.value  = p?.contacto_apellido || '';
+  if (Drawer.ecCel)  Drawer.ecCel.value  = p?.contacto_celular || '';
+  if (Drawer.ecVin)  Drawer.ecVin.value  = p?.vinculo || '';
+  if (Drawer.prox)   Drawer.prox.value   = p?.proximo_control || '';
+  if (Drawer.renov)  Drawer.renov.value  = p?.renovacion_receta || '';
+  if (Drawer.activo) Drawer.activo.checked = !!p?.activo;
+
+  // Notas del turno
   if (Drawer.notas) Drawer.notas.value = t?.notas || '';
 
   setDrawerStatus('');
 
+  // 5) Acciones del drawer
   if (Drawer.btnGuardar)  Drawer.btnGuardar.onclick = guardarFicha;
   if (Drawer.btnFinalizar){
     Drawer.btnFinalizar.style.display = roleAllows('finalizar', userRole) ? '' : 'none';
     Drawer.btnFinalizar.onclick = () => finalizarAtencion(drawerTurnoId, { closeDrawer: true });
   }
-  if (Drawer.cred) Drawer.cred.oninput = ()=>{ if (Drawer.credLink) Drawer.credLink.href = Drawer.cred.value || '#'; };
+
+  if (Drawer.cred) {
+    Drawer.cred.oninput = () => {
+      if (Drawer.credLink) Drawer.credLink.href = Drawer.cred.value || '#';
+    };
+  }
 }
+
+
 async function guardarFicha(){
   if (!drawerTurnoId) return;
   if (!roleAllows('abrir_ficha', userRole)) { alert('No tenés permisos para guardar.'); return; }
