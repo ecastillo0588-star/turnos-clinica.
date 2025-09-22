@@ -237,17 +237,29 @@ async function syncCentroFromStorage(force=false){
     await refreshAll();
   }
 }
-let _centroStorageHandler = null;
+
 function startCentroWatcher(){
   syncCentroFromStorage(true);
   stopCentroWatcher();
+
+  // Cambios en otras pestañas
   _centroStorageHandler = (e)=>{
     if (e.key==='centro_medico_id' || e.key==='centro_medico_nombre'){
       syncCentroFromStorage(true);
     }
   };
   window.addEventListener('storage', _centroStorageHandler);
+
+  // Cambios en esta misma SPA
+  window.addEventListener("centro-cambiado", e => {
+    const { id, nombre } = e.detail;
+    currentCentroId     = id;
+    currentCentroNombre = nombre;
+    renderCentroChip();
+    loadProfesionales().then(()=> refreshAll());
+  });
 }
+
 function stopCentroWatcher(){
   if (_centroStorageHandler){
     window.removeEventListener('storage', _centroStorageHandler);
