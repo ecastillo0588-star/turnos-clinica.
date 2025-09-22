@@ -844,7 +844,6 @@ function abrirPagoModal(turnoId, { afterPay } = {}) {
   (async () => {
     const { data: t, error } = await supabase
       .from('turnos')
-      .select('copago, importe, estado_pago')
       .eq('id', turnoId).maybeSingle();
 
     if (error) {
@@ -1012,8 +1011,7 @@ async function openFicha(turnoId){
     .from('turnos')
     .select(`
       id, fecha, hora_inicio, hora_fin, estado, hora_arribo,
-      copago, importe, medio_pago, estado_pago,
-      paciente_id, profesional_id, centro_id
+      copago, importe, medio_pago, paciente_id, profesional_id, centro_id
     `)
     .eq('id', turnoId)
     .maybeSingle();
