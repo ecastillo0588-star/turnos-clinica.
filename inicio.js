@@ -497,16 +497,24 @@ function applyFilter(data){
    ======================= */
 // Orden y ancho ÚNICOS para las 4 tablas
 const COLS = [
-  { key: "espera",   label: "Espera",      width: "var(--w-espera)" },
-  { key: "hora",     label: "Hora",        width: "var(--w-hora)" },
-  { key: "dni",      label: "DNI",         width: "var(--w-dni)" },
+  // Las que son cortas: que se ajusten al texto
+  { key: "espera",   label: "Espera",      width: "max-content" },
+  { key: "hora",     label: "Hora",        width: "max-content" },
+  { key: "dni",      label: "DNI",         width: "max-content" },
+
+  // Las que pueden crecer (se reparten el espacio disponible, con mínimos sensatos)
   { key: "nombre",   label: "Nombre",      width: "minmax(var(--minch-nombre),1fr)" },
   { key: "apellido", label: "Apellido",    width: "minmax(var(--minch-apellido),1fr)" },
   { key: "obra",     label: "Obra social", width: "minmax(var(--minch-obra),1fr)" },
-  { key: "prof",     label: "Profesional", width: "var(--w-prof)" },
-  { key: "copago",   label: "Copago",      width: "var(--w-copago)" },
+  { key: "prof",     label: "Profesional", width: "minmax(16ch,1fr)" },
+
+  // Copago es corto → a contenido
+  { key: "copago",   label: "Copago",      width: "max-content" },
+
+  // Acciones pegadas a la derecha (fijo; mantiene el sticky)
   { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },
 ];
+
 
 // grid-template-columns único para todas
 const GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
