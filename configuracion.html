@@ -37,6 +37,7 @@
     <button class="tab-btn" data-tab="centros">Centros Médicos</button>
     <button class="tab-btn" data-tab="asistentes">Asistentes</button>
     <button class="tab-btn" data-tab="obras-sociales">Obras Sociales</button>
+    <button class="tab-btn" data-tab="cuenta">Cuenta</button>
   </nav>
   <div class="config-tab-content">
     <!-- Agenda -->
@@ -72,6 +73,14 @@
   </div>
 </div>
 
+<!-- Cuenta -->
+<section id="tab-cuenta" class="tab-panel">
+  <div id="cuenta-html">
+    <div class="muted">Cargando configuración de cuenta...</div>
+  </div>
+</section>
+
+
 <script type="module">
 // Tabs interactividad
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -89,6 +98,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if(tab==='centros') cargarCentrosMedicos();
     if(tab==='asistentes') cargarAsistentes();
     if(tab==='obras-sociales') cargarObrasSociales();
+    if(tab==='cuenta') cargarCuenta();
   });
 });
 
@@ -150,6 +160,13 @@ async function cargarObrasSociales() {
   if (obrasSocialesCargado) return;
   await loadExternalHtml('obras-sociales.html', 'obras-sociales-html', 'Error al cargar obras-sociales.html');
   obrasSocialesCargado = true;
+}
+
+let cuentaCargada = false;
+async function cargarCuenta() {
+  if (cuentaCargada) return;
+  await loadExternalHtml('cuenta.html', 'cuenta-html', 'Error al cargar cuenta.html');
+  cuentaCargada = true;
 }
 
 // Cargar agenda por defecto al inicio
