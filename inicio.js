@@ -649,9 +649,13 @@ const showProfColumn = ()=> {
 };
 
 /* PENDIENTES */
+/* PENDIENTES */
 function renderPendientes(list){
   const puedeCancelar = roleAllows('cancelar', userRole);
   const puedeArribo   = roleAllows('arribo', userRole);
+
+  // ← nuevo: sólo hoy
+  const isHoy = (currentFechaISO === todayISO());
 
   const ctx = {
     type: 'pend',
@@ -659,19 +663,21 @@ function renderPendientes(list){
     actionsHTML: (t) => `
       <div class="actions">
         ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
-        ${puedeArribo   ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : ''}
+        <button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">💵</button>
+        ${ (puedeArribo && isHoy) ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : '' }
       </div>`
   };
 
   renderTable(UI.tblPend, list, ctx);
 
-  // eventos
   UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
+    if(act==='pago')   btn.onclick=()=> abrirPagoModal(id);
     if(act==='arribo') btn.onclick=()=> marcarLlegadaYCopago(id);
     if(act==='cancel') btn.onclick=()=> anularTurno(id);
   });
 }
+
 
 
 /* En sala de espera */
@@ -772,6 +778,119 @@ function renderAtendidos(list){
     if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
   });
 }
+
+function abrirPagoModal(turnoId, { afterPay } = {}) {
+  const root = document.getElementById('modal-root') || document.body;
+  const wrap = document.createElement('div');
+  wrap.className = 'modal-backdrop';
+
+  wrap.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" style="max-width:520px">
+      <button class="modal-close" aria-label="Cerrar">&times;</button>
+      <div class="modal-header"><h3>Registrar pago</h3></div>
+      <div class="modal-body">
+        <div id="pago-info" style="color:#6b6480;margin-bottom:10px;"></div>
+        <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group">
+            <label>Importe a registrar</label>
+            <input id="reg-importe" class="inp" inputmode="decimal" placeholder="0" />
+          </div>
+          <div class="form-group">
+            <label>Medio de pago</label>
+            <select id="reg-medio" class="sel">
+              <option value="efectivo" selected>Efectivo</option>
+              <option value="transferencia">Transferencia</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:10px;">
+          <label>Nota (opcional)</label>
+          <input id="reg-nota" class="inp" placeholder="Observaciones del pago..." />
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="btn-cancel" class="btn secondary">Cancelar</button>
+        <button id="btn-add" class="btn">Registrar pago</button>
+      </div>
+    </div>`;
+
+  root.appendChild(wrap);
+
+  const close = () => { wrap.remove(); const b = document.querySelector('.modal-backdrop'); if (b) b.remove(); };
+  wrap.querySelector('.modal-close').onclick = close;
+  wrap.addEventListener('click', e => { if (e.target === wrap) close(); });
+  wrap.querySelector('#btn-cancel').onclick = close;
+
+  const inpImporte = () => wrap.querySelector('#reg-importe');
+  const btnAdd = () => wrap.querySelector('#btn-add');
+
+  // Carga info y prefill
+  (async () => {
+    const { data: t, error } = await supabase
+      .from('turnos')
+      .select('copago, importe, estado_pago')
+      .eq('id', turnoId).maybeSingle();
+
+    if (error) {
+      wrap.querySelector('#pago-info').textContent = 'No se pudo leer el turno.';
+      return;
+    }
+
+    const total  = Number(t?.copago || 0);
+    const pagado = Number(t?.importe || 0);
+    const pend   = Math.max(0, total - pagado);
+
+    const el = wrap.querySelector('#pago-info');
+    if (total > 0) {
+      el.innerHTML = `Total copago: <b>${money(total)}</b> · Pagado: <b>${money(pagado)}</b> · Pendiente: <b>${money(pend)}</b>`;
+    } else {
+      el.textContent = 'Sin copago asignado al turno.';
+    }
+
+    // Prefill sugerido con "pendiente" (si hay)
+    if (pend > 0) inpImporte().value = String(pend);
+  })();
+
+  // Confirmar con Enter
+  inpImporte().addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') btnAdd().click();
+  });
+
+  btnAdd().onclick = async () => {
+    if (btnAdd().disabled) return;
+    const raw   = inpImporte().value;
+    const medio = wrap.querySelector('#reg-medio').value || 'efectivo';
+    const nota  = (wrap.querySelector('#reg-nota').value || '').trim();
+
+    // Acepta "500", "500.00" o "500,00"
+    const toPesoIntLocal = (v) => {
+      if (v == null) return null;
+      const s = String(v).replace(/\./g, '').replace(',', '.'); // normaliza coma
+      const n = Number(s);
+      if (!isFinite(n) || n <= 0) return null;
+      return Math.round(n); // entero en ARS
+    };
+    const imp = toPesoIntLocal(raw);
+
+    if (!imp || imp <= 0) { alert('Ingresá un importe válido (> 0).'); return; }
+
+    btnAdd().disabled = true; btnAdd().textContent = 'Guardando…';
+    const { error } = await supabase
+      .from('turnos_pagos')
+      .insert([{ turno_id: turnoId, importe: imp, medio_pago: medio, nota }]);
+
+    if (error) {
+      btnAdd().disabled = false; btnAdd().textContent = 'Registrar pago';
+      alert('No se pudo registrar el pago.\n' + (error.message || ''));
+      return;
+    }
+
+    close();
+    await refreshAll();
+    if (typeof afterPay === 'function') afterPay();
+  };
+}
+
 /* =======================
    KPIs / títulos
    ======================= */
