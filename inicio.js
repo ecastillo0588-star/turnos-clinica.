@@ -493,31 +493,24 @@ function applyFilter(data){
 }
 
 /* =======================
-   Esquema GLOBAL de columnas unificadas
+   Esquema GLOBAL de columnas unificadas (sin Profesional)
    ======================= */
-// Orden y ancho ÚNICOS para las 4 tablas
+// NOTA: los widths usan variables CSS que vamos a calcular en runtime para
+// que todas las tablas compartan el mismo ancho por columna (según el contenido del día).
 const COLS = [
-  // Las que son cortas: que se ajusten al texto
-  { key: "espera",   label: "Espera",      width: "max-content" },
-  { key: "hora",     label: "Hora",        width: "max-content" },
-  { key: "dni",      label: "DNI",         width: "max-content" },
-
-  // Las que pueden crecer (se reparten el espacio disponible, con mínimos sensatos)
-  { key: "nombre",   label: "Nombre",      width: "minmax(var(--minch-nombre),1fr)" },
-  { key: "apellido", label: "Apellido",    width: "minmax(var(--minch-apellido),1fr)" },
-  { key: "obra",     label: "Obra social", width: "minmax(var(--minch-obra),1fr)" },
-  { key: "prof",     label: "Profesional", width: "minmax(16ch,1fr)" },
-
-  // Copago es corto → a contenido
-  { key: "copago",   label: "Copago",      width: "max-content" },
-
-  // Acciones pegadas a la derecha (fijo; mantiene el sticky)
-  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },
+  { key: "espera",   label: "Espera",      width: "fit-content(8ch)" },           // badge corto
+  { key: "hora",     label: "Hora",        width: "fit-content(16ch)" },          // "HH:MM — HH:MM"
+  { key: "dni",      label: "DNI",         width: "var(--col-dni, fit-content(10ch))" },
+  { key: "nombre",   label: "Nombre",      width: "var(--col-nombre, minmax(var(--minch-nombre),1fr))" },
+  { key: "apellido", label: "Apellido",    width: "var(--col-apellido, minmax(var(--minch-apellido),1fr))" },
+  { key: "obra",     label: "Obra social", width: "var(--col-obra, minmax(var(--minch-obra),1fr))" },
+  { key: "copago",   label: "Copago",      width: "var(--col-copago, fit-content(12ch))" },
+  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },               // fijo para sticky
 ];
 
-
 // grid-template-columns único para todas
-const GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
+let GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
+
 
 // helpers visuales reutilizables
 const horaRango = t => `<b>${toHM(t.hora_inicio)}</b>${t.hora_fin ? ' — ' + toHM(t.hora_fin) : ''}`;
