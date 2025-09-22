@@ -217,6 +217,23 @@ body.role-amc [data-act="finalizar"]{ display:none !important; }
 /* Resumen del drawer: mostrar solo Hora turno y Copago */
 #fd-prof, #fd-centro, #fd-fecha, #fd-estado{ display:none !important; }
 
+/* ----- Resumen (chips) en una sola línea ----- */
+#inicio-root #fd-summary{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:nowrap;          /* no se parte de línea */
+  overflow-x:auto;           /* si no entra, scroll horizontal suave */
+  scrollbar-gutter:stable;   /* evita “saltitos” al aparecer el scroll */
+  padding-bottom:2px;        /* un pelín de aire para el scroll */
+}
+#inicio-root #fd-summary .chip{
+  display:inline-flex;       /* no ocupar ancho completo */
+  flex:0 0 auto;             /* no crecer, no encoger */
+  white-space:nowrap;        /* todo el contenido en una línea */
+}
+
+
 /* ---------- Responsive ---------- */
 
 /* Objetivo: a zoom 100% no haya scroll horizontal → 1 columna <=1500px */
