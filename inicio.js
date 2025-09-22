@@ -493,6 +493,94 @@ function applyFilter(data){
 }
 
 /* =======================
+   Esquema GLOBAL de columnas unificadas
+   ======================= */
+// Orden y ancho ÚNICOS para las 4 tablas
+const COLS = [
+  { key: "espera",   label: "Espera",      width: "var(--w-espera)" },
+  { key: "hora",     label: "Hora",        width: "var(--w-hora)" },
+  { key: "dni",      label: "DNI",         width: "var(--w-dni)" },
+  { key: "nombre",   label: "Nombre",      width: "minmax(var(--minch-nombre),1fr)" },
+  { key: "apellido", label: "Apellido",    width: "minmax(var(--minch-apellido),1fr)" },
+  { key: "obra",     label: "Obra social", width: "minmax(var(--minch-obra),1fr)" },
+  { key: "prof",     label: "Profesional", width: "var(--w-prof)" },
+  { key: "copago",   label: "Copago",      width: "var(--w-copago)" },
+  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },
+];
+
+// grid-template-columns único para todas
+const GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
+
+// helpers visuales reutilizables
+const horaRango = t => `<b>${toHM(t.hora_inicio)}</b>${t.hora_fin ? ' — ' + toHM(t.hora_fin) : ''}`;
+
+const copagoChip = (v) => {
+  if (v && Number(v) > 0) return `<span class="copago">${money(v)}</span>`;
+  return `<span class="copago none">Sin copago</span>`;
+};
+
+// Espera (badge) solo se llena si el turno está EN_ESPERA
+const esperaBadge = (t, fechaISO) => {
+  if (!t.hora_arribo) return '—';
+  const iso = `${fechaISO}T${toHM(t.hora_arribo)||'00:00'}:00`;
+  return `<span class="wait" data-arribo-ts="${iso}">—</span>`;
+};
+
+// celdas estándar por clave de columna
+function buildCell(key, t, ctx){
+  const p = t.pacientes || {};
+  switch (key) {
+    case 'espera':
+      // Solo “vive” visualmente para EN_ESPERA; en otros estados mostramos —
+      return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
+    case 'hora':
+      return horaRango(t);
+    case 'dni':
+      return p.dni || '—';
+    case 'nombre':
+      return titleCase(p.nombre) || '—';
+    case 'apellido':
+      return titleCase(p.apellido) || '—';
+    case 'obra':
+      return p.obra_social || '—';
+    case 'prof':
+      return profNameById(t.profesional_id);
+    case 'copago':
+      // En Presentes y Atendidos mostramos; en otros estados dejamos “—”.
+      if (ctx.type === 'esp') return copagoChip(t.copago);
+      if (ctx.type === 'done') return t.copago ? money(t.copago) : '—';
+      return '—';
+    case 'acciones':
+      return ctx.actionsHTML(t); // la función por board arma los botones
+    default:
+      return '—';
+  }
+}
+
+// head único
+function renderHeadHTML(){
+  const ths = COLS.map(c => `<th class="cell">${c.label}</th>`).join('');
+  return `
+    <thead class="thead">
+      <tr class="hrow" style="grid-template-columns:${GRID_TEMPLATE}">${ths}</tr>
+    </thead>`;
+}
+
+// fila única
+function renderRowHTML(t, ctx){
+  const tds = COLS.map(c => `<td class="cell">${buildCell(c.key, t, ctx)}</td>`).join('');
+  return `<tr class="row" style="grid-template-columns:${GRID_TEMPLATE}">${tds}</tr>`;
+}
+
+// tabla genérica
+function renderTable(el, list, ctx){
+  const head = renderHeadHTML();
+  const rows = (list || []).map(t => renderRowHTML(t, ctx)).join('');
+  el.innerHTML = head + '<tbody>' + rows + '</tbody>';
+}
+
+
+/* =======================
    Render de tablas
    ======================= */
 const showProfColumn = ()=> {
@@ -500,48 +588,31 @@ const showProfColumn = ()=> {
   return sel?.multiple || selectedProfesionales.length > 1;
 };
 
+/* PENDIENTES */
 function renderPendientes(list){
-  const withProf = showProfColumn();
-  const grid = withProf
-    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
-    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
-
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Hora</th><th class="cell">DNI</th>
-      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf?'<th class="cell">Profesional</th>':''}
-      <th class="cell right">Acciones</th></tr></thead>`;
-
   const puedeCancelar = roleAllows('cancelar', userRole);
   const puedeArribo   = roleAllows('arribo', userRole);
 
-  const rows=(list||[]).map(t=>{
-    const p=t.pacientes||{};
-    const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    const acciones = `
+  const ctx = {
+    type: 'pend',
+    fechaISO: currentFechaISO,
+    actionsHTML: (t) => `
       <div class="actions">
         ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
         ${puedeArribo   ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : ''}
-      </div>`;
-    return `<tr class="row" style="grid-template-columns:${grid}">
-      <td class="cell nowrap">${hora}</td>
-      <td class="cell">${p.dni||'—'}</td>
-      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
-      <td class="cell right">${acciones}</td>
-    </tr>`;
-  }).join('');
+      </div>`
+  };
 
-  UI.tblPend.innerHTML=head+'<tbody>'+rows+'</tbody>';
+  renderTable(UI.tblPend, list, ctx);
 
+  // eventos
   UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='arribo') btn.onclick=()=> marcarLlegadaYCopago(id);
     if(act==='cancel') btn.onclick=()=> anularTurno(id);
   });
 }
+
 
 /* En sala de espera */
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
@@ -557,43 +628,25 @@ function updateWaitBadges(){
     n.textContent = hh ? `${hh}h ${mm}m` : `${mm}m`;
   });
 }
-function renderPresentes(list){
-  const withProf = showProfColumn();
-  const grid = withProf
-    ? `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-copago) var(--w-acc)`
-    : `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-copago) var(--w-acc)`;
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
-      <th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf?'<th class="cell">Profesional</th>':''}
-      <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
 
+/* PRESENTES (EN ESPERA) */
+function renderPresentes(list){
   const puedeVolver   = roleAllows('volver', userRole);
   const puedeCancelar = roleAllows('cancelar', userRole);
   const puedeAtender  = roleAllows('atender', userRole);
 
-  const rows=(list||[]).map(t=>{
-    const p=t.pacientes||{};
-    const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    const arriboISO=`${currentFechaISO}T${toHM(t.hora_arribo)||'00:00'}:00`;
-    const copBadge=(t.copago && Number(t.copago)>0)?`<span class="copago">${money(t.copago)}</span>`:`<span class="copago none">Sin copago</span>`;
-    const acciones = `
-      ${puedeVolver   ? `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>` : ''}
-      ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
-      ${puedeAtender  ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}`;
-    return `<tr class="row" style="grid-template-columns:${grid}">
-      <td class="cell"><span class="wait" data-arribo-ts="${arriboISO}">—</span></td>
-      <td class="cell nowrap">${hora}</td>
-      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
-      <td class="cell">${copBadge}</td>
-      <td class="cell right"><div class="actions">${acciones}</div></td>
-    </tr>`;
-  }).join('');
+  const ctx = {
+    type: 'esp',
+    fechaISO: currentFechaISO,
+    actionsHTML: (t) => `
+      <div class="actions">
+        ${puedeVolver   ? `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>` : ''}
+        ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
+        ${puedeAtender  ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}
+      </div>`
+  };
 
-  UI.tblEsp.innerHTML=head+'<tbody>'+rows+'</tbody>';
+  renderTable(UI.tblEsp, list, ctx);
 
   UI.tblEsp.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
@@ -605,40 +658,24 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
-/* En atención */
+/* EN ATENCIÓN */
 function renderAtencion(list){
-  const withProf = showProfColumn();
-  const grid = withProf
-    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
-    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Hora</th><th class="cell">DNI</th>
-      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf?'<th class="cell">Profesional</th>':''}
-      <th class="cell right">Acciones</th></tr></thead>`;
-
   const puedeAbrir   = roleAllows('abrir_ficha', userRole);
   const puedeVolverE = roleAllows('atender', userRole);
   const puedeFin     = roleAllows('finalizar', userRole);
 
-  const rows=(list||[]).map(t=>{
-    const p=t.pacientes||{};
-    const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    const acciones = `
-      ${puedeAbrir   ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha"   title="Abrir ficha">📄</button>` : ''}
-      ${puedeVolverE ? `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a espera">⏪</button>` : ''}
-      ${puedeFin     ? `<button class="icon" data-id="${t.id}" data-act="finalizar"     title="Marcar ATENDIDO">✅</button>` : ''}`;
-    return `<tr class="row" style="grid-template-columns:${grid}">
-      <td class="cell nowrap">${hora}</td>
-      <td class="cell">${p.dni||'—'}</td>
-      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
-      <td class="cell right"><div class="actions">${acciones}</div></td>
-    </tr>`;
-  }).join('');
-  UI.tblAtencion.innerHTML = head + '<tbody>' + rows + '</tbody>';
+  const ctx = {
+    type: 'atencion',
+    fechaISO: currentFechaISO,
+    actionsHTML: (t) => `
+      <div class="actions">
+        ${puedeAbrir   ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha"   title="Abrir ficha">📄</button>` : ''}
+        ${puedeVolverE ? `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a espera">⏪</button>` : ''}
+        ${puedeFin     ? `<button class="icon" data-id="${t.id}" data-act="finalizar"     title="Marcar ATENDIDO">✅</button>` : ''}
+      </div>`
+  };
+
+  renderTable(UI.tblAtencion, list, ctx);
 
   UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
@@ -648,76 +685,33 @@ function renderAtencion(list){
   });
 }
 
-/* Atendidos */
-function renderAtendidos(list) {
-  const withProf = showProfColumn();
-
-  const grid = withProf
-    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) 
-       minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) 
-       var(--w-prof) var(--w-copago) var(--w-acc)`
-    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) 
-       minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) 
-       var(--w-copago) var(--w-acc)`;
-
-  const head = `
-    <thead class="thead">
-      <tr class="hrow" style="grid-template-columns:${grid}">
-        <th class="cell">Hora</th>
-        <th class="cell">DNI</th>
-        <th class="cell">Nombre</th>
-        <th class="cell">Apellido</th>
-        <th class="cell">Obra social</th>
-        ${withProf ? '<th class="cell">Profesional</th>' : ''}
-        <th class="cell">Copago</th>
-        <th class="cell right">Acciones</th>
-      </tr>
-    </thead>`;
-
+/* ATENDIDOS */
+function renderAtendidos(list){
   const puedeAbrir = roleAllows('abrir_ficha', userRole);
 
-  const rows = (list || []).map(t => {
-    const p = t.pacientes || {};
-
-    const hora = `<b>${toHM(t.hora_inicio)}</b>${t.hora_fin ? ' — ' + toHM(t.hora_fin) : ''}`;
-
-    const cop = (t.copago && Number(t.copago) > 0) ? money(t.copago) : '—';
-
-    const hcBtn = p.historia_clinica
-      ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>`
-      : '';
-
-    const acciones = `
-      ${puedeAbrir ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>` : ''}
-      ${hcBtn}
-    `;
-
-    return `
-      <tr class="row" style="grid-template-columns:${grid}">
-        <td class="cell nowrap">${hora}</td>
-        <td class="cell">${p.dni || '—'}</td>
-        <td class="cell truncate">${titleCase(p.nombre) || '—'}</td>
-        <td class="cell truncate">${titleCase(p.apellido) || '—'}</td>
-        <td class="cell truncate">${p.obra_social || '—'}</td>
-        ${withProf ? `<td class="cell truncate">${profNameById(t.profesional_id)}</td>` : ''}
-        <td class="cell">${cop}</td>
-        <td class="cell right">
-          <div class="actions">${acciones}</div>
-        </td>
-      </tr>`;
-  }).join('');
-
-  UI.tblDone.innerHTML = head + '<tbody>' + rows + '</tbody>';
-
-  UI.tblDone.querySelectorAll('.icon').forEach(btn => {
-    const id = btn.getAttribute('data-id');
-    const act = btn.getAttribute('data-act');
-    if (act === 'abrir-ficha') {
-      btn.onclick = () => openFicha(id);
+  const ctx = {
+    type: 'done',
+    fechaISO: currentFechaISO,
+    actionsHTML: (t) => {
+      const p = t.pacientes || {};
+      const hcBtn = p.historia_clinica
+        ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>`
+        : '';
+      return `
+        <div class="actions">
+          ${puedeAbrir ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>` : ''}
+          ${hcBtn}
+        </div>`;
     }
+  };
+
+  renderTable(UI.tblDone, list, ctx);
+
+  UI.tblDone.querySelectorAll('.icon').forEach(btn=>{
+    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
+    if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
   });
 }
-
 /* =======================
    KPIs / títulos
    ======================= */
