@@ -448,7 +448,7 @@ async function fetchDiaData(/*signal*/){
 
   const profIds = selectedProfesionales.map(String);
   const selectCols = `
-    id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, importe, medio_pago, estado_pago,  paciente_id, profesional_id,
+    id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, importe, medio_pago, paciente_id, profesional_id,
     pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)
   `;
   const byHora = (a,b) => (toHM(a.hora_inicio) || '').localeCompare(toHM(b.hora_inicio) || '');
@@ -650,22 +650,24 @@ const showProfColumn = ()=> {
 
 /* PENDIENTES */
 /* PENDIENTES */
+/* PENDIENTES */
 function renderPendientes(list){
   const puedeCancelar = roleAllows('cancelar', userRole);
   const puedeArribo   = roleAllows('arribo', userRole);
-
-  // ← nuevo: sólo hoy
-  const isHoy = (currentFechaISO === todayISO());
+  const isHoy         = (currentFechaISO === todayISO());
 
   const ctx = {
     type: 'pend',
     fechaISO: currentFechaISO,
-    actionsHTML: (t) => `
-      <div class="actions">
-        ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
-        <button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">💵</button>
-        ${ (puedeArribo && isHoy) ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : '' }
-      </div>`
+    actionsHTML: (t) => {
+      const tieneCopago = (toPesoInt(t.copago) ?? 0) > 0; // ← sólo si copago > 0
+      return `
+        <div class="actions">
+          ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
+          ${tieneCopago ? `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>` : ''}
+          ${(puedeArribo && isHoy) ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : ''}
+        </div>`;
+    }
   };
 
   renderTable(UI.tblPend, list, ctx);
@@ -678,6 +680,20 @@ function renderPendientes(list){
   });
 }
 
+
+async function getPagoResumen(turnoId){
+  const { data: pagos = [] } = await supabase
+    .from('turnos_pagos')
+    .select('importe, medio_pago, creado_en')
+    .eq('turno_id', turnoId);
+
+  const totalPagado = (pagos || []).reduce((a,p)=> a + Number(p.importe||0), 0);
+  // último medio sólo para mostrar en ficha si querés
+  const ultimoMedio = (pagos || [])
+    .sort((a,b)=> new Date(b.creado_en||0) - new Date(a.creado_en||0))[0]?.medio_pago || null;
+
+  return { totalPagado, ultimoMedio };
+}
 
 
 /* En sala de espera */
@@ -1143,18 +1159,18 @@ async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
 async function marcarLlegadaYCopago(turnoId){
   if (!roleAllows('arribo', userRole)) { alert('No tenés permisos.'); return; }
 
-  // leer copago y estado_pago del turno
   const { data: t, error: terr } = await supabase
     .from('turnos')
-    .select('id, copago, estado_pago')
+    .select('id, copago')
     .eq('id', turnoId)
     .maybeSingle();
-
   if (terr || !t) { alert('No se pudo leer el turno.'); return; }
 
-  const debeCobrar = (toPesoInt(t.copago) ?? 0) > 0 && String(t.estado_pago||'').toLowerCase() !== 'pagado';
+  const cop = toPesoInt(t.copago) ?? 0;
+  const { totalPagado } = await getPagoResumen(turnoId);
+  const debeCobrar = cop > (totalPagado || 0);
 
-  // si no debe cobrar → En espera directo
+  // Si no hay nada que cobrar → registrar arribo y listo
   if (!debeCobrar){
     const { error } = await supabase
       .from('turnos')
@@ -1165,31 +1181,27 @@ async function marcarLlegadaYCopago(turnoId){
     return;
   }
 
-  // debe cobrar → modal
+  // Hay saldo pendiente → pedimos un pago y luego pasamos a EN_ESPERA
   openCobroModal({
-    turno: t,
+    turno: { copago: cop },
     confirmLabel: 'Cobrar y pasar a En espera',
     skipLabel: 'Solo pasar a En espera',
     onCobrar: async ({ importe, medio }) => {
-      // registramos cobro + pasamos de estado
-      let { error } = await supabase.from('turnos').update({
-        estado: EST.EN_ESPERA,
-        hora_arribo: nowHHMMSS(),
-        importe: importe,
+      // 1) registrar pago
+      const { error: e1 } = await supabase.from('turnos_pagos').insert([{
+        turno_id: turnoId,
+        importe: toPesoInt(importe),
         medio_pago: medio,
-        estado_pago: 'pagado'
-      }).eq('id', turnoId);
+        nota: 'Pago al arribo'
+      }]);
+      if (e1){ alert('No se pudo registrar el pago.'); return; }
 
-      // fallback si enum no permite 'pagado'
-      if (error && /estado_pago/i.test(error.message||'')){
-        const { error: e2 } = await supabase.from('turnos').update({
-          estado: EST.EN_ESPERA,
-          hora_arribo: nowHHMMSS(),
-          importe: importe,
-          medio_pago: medio
-        }).eq('id', turnoId);
-        if (e2) { alert('No se pudo registrar el cobro.'); return; }
-      } else if (error){ alert('No se pudo registrar el cobro.'); return; }
+      // 2) pasar a EN_ESPERA + hora de arribo
+      const { error: e2 } = await supabase
+        .from('turnos')
+        .update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS() })
+        .eq('id', turnoId);
+      if (e2){ alert('No se pudo actualizar el estado.'); return; }
 
       await refreshAll();
     },
@@ -1204,22 +1216,22 @@ async function marcarLlegadaYCopago(turnoId){
   });
 }
 
+
 async function pasarAEnAtencion(turnoId, ev){
   if (ev) ev.preventDefault();
   if (!roleAllows('atender', userRole)) { alert('Solo AMP/Médico pueden atender.'); return; }
 
-  // leer copago y estado_pago
   const { data: t, error: terr } = await supabase
     .from('turnos')
-    .select('id, copago, estado_pago')
+    .select('id, copago')
     .eq('id', turnoId)
     .maybeSingle();
-
   if (terr || !t) { alert('No se pudo leer el turno.'); return; }
 
-  const debeCobrar = (toPesoInt(t.copago) ?? 0) > 0 && String(t.estado_pago||'').toLowerCase() !== 'pagado';
+  const cop = toPesoInt(t.copago) ?? 0;
+  const { totalPagado } = await getPagoResumen(turnoId);
+  const debeCobrar = cop > (totalPagado || 0);
 
-  // Si no debe cobrar → En atención directo
   if (!debeCobrar){
     const { error } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
     if (error) { alert('No se pudo pasar a "En atención".'); return; }
@@ -1228,29 +1240,21 @@ async function pasarAEnAtencion(turnoId, ev){
     return;
   }
 
-  // Debe cobrar → mostrar modal al médico
   openCobroModal({
-    turno: t,
+    turno: { copago: cop },
     confirmLabel: 'Cobrar y pasar a En atención',
     skipLabel: 'Continuar sin cobrar',
     onCobrar: async ({ importe, medio }) => {
-      // registramos cobro y pasamos a EN_ATENCION
-      let { error } = await supabase.from('turnos').update({
-        estado: EST.EN_ATENCION,
-        importe: importe,
+      const { error: e1 } = await supabase.from('turnos_pagos').insert([{
+        turno_id: turnoId,
+        importe: toPesoInt(importe),
         medio_pago: medio,
-        estado_pago: 'pagado'
-      }).eq('id', turnoId);
+        nota: 'Pago antes de atención'
+      }]);
+      if (e1){ alert('No se pudo registrar el pago.'); return; }
 
-      if (error && /estado_pago/i.test(error.message||'')){
-        const { error: e2 } = await supabase.from('turnos').update({
-          estado: EST.EN_ATENCION,
-          importe: importe,
-          medio_pago: medio
-        }).eq('id', turnoId);
-        if (e2) { alert('No se pudo registrar el cobro.'); return; }
-      } else if (error){ alert('No se pudo registrar el cobro.'); return; }
-
+      const { error: e2 } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
+      if (e2) { alert('No se pudo pasar a "En atención".'); return; }
       await refreshAll();
       await openFicha(turnoId);
     },
@@ -1262,6 +1266,7 @@ async function pasarAEnAtencion(turnoId, ev){
     }
   });
 }
+
 
 async function anularTurno(turnoId){
   if (!roleAllows('cancelar', userRole)) { alert('No tenés permisos para anular.'); return; }
