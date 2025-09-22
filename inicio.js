@@ -55,6 +55,8 @@ let PROF_NAME = new Map();
 
 // control de carga y de carrera
 let _refresh = { reqId: 0, abort: null };
+let _centroStorageHandler = null;
+
 
 /* =======================
    Binder de referencias
@@ -237,23 +239,36 @@ async function syncCentroFromStorage(force=false){
     await refreshAll();
   }
 }
-let _centroStorageHandler = null;
+
 function startCentroWatcher(){
   syncCentroFromStorage(true);
   stopCentroWatcher();
+
+  // Cambios en otras pestañas
   _centroStorageHandler = (e)=>{
     if (e.key==='centro_medico_id' || e.key==='centro_medico_nombre'){
       syncCentroFromStorage(true);
     }
   };
   window.addEventListener('storage', _centroStorageHandler);
+
+  // Cambios en esta misma SPA
+  window.addEventListener("centro-cambiado", e => {
+    const { id, nombre } = e.detail;
+    currentCentroId     = id;
+    currentCentroNombre = nombre;
+    renderCentroChip();
+    loadProfesionales().then(()=> refreshAll());
+  });
 }
+
 function stopCentroWatcher(){
   if (_centroStorageHandler){
     window.removeEventListener('storage', _centroStorageHandler);
     _centroStorageHandler = null;
   }
 }
+
 
 /* =======================
    Profesionales
@@ -477,6 +492,133 @@ function applyFilter(data){
   };
 }
 
+// Calcula el ancho óptimo (en ch) por columna según el contenido del DÍA
+function computeColumnWidthsForDay({ turnos }) {
+  // Defaults estables para columnas cortas
+  const root = document.documentElement.style;
+  root.setProperty('--col-espera', '8ch');     // badge
+  root.setProperty('--col-hora',   '16ch');    // "HH:MM — HH:MM"
+
+  const rows = turnos || [];
+  const len = s => String(s ?? '').trim().length;
+
+  let maxDNI = 8, maxNom = 12, maxApe = 12, maxObra = 10, maxCop = 10;
+
+  for (const t of rows) {
+    const p = t.pacientes || {};
+    maxDNI  = Math.max(maxDNI,  len(p.dni));
+    maxNom  = Math.max(maxNom,  len(titleCase(p.nombre)));
+    maxApe  = Math.max(maxApe,  len(titleCase(p.apellido)));
+    maxObra = Math.max(maxObra, len(p.obra_social));
+    const copTxt = (t.copago && Number(t.copago) > 0) ? money(t.copago) : 'Sin copago';
+    maxCop  = Math.max(maxCop,  len(copTxt));
+  }
+
+  // un pelín de aire (+2ch) y topes sanos
+  const clamp = (v, min, max) => Math.max(min, Math.min(v, max));
+  const pad   = v => v + 2;
+
+  maxDNI  = clamp(pad(maxDNI),  8,  16);
+  maxNom  = clamp(pad(maxNom), 12,  32);
+  maxApe  = clamp(pad(maxApe), 12,  32);
+  maxObra = clamp(pad(maxObra), 10,  24);
+  maxCop  = clamp(pad(maxCop),  10,  18);
+
+  root.setProperty('--col-dni',      `${maxDNI}ch`);
+  root.setProperty('--col-nombre',   `${maxNom}ch`);
+  root.setProperty('--col-apellido', `${maxApe}ch`);
+  root.setProperty('--col-obra',     `${maxObra}ch`);
+  root.setProperty('--col-copago',   `${maxCop}ch`);
+}
+
+
+
+/* =======================
+   Esquema GLOBAL de columnas unificadas (sin Profesional)
+   ======================= */
+// NOTA: los widths usan variables CSS que vamos a calcular en runtime para
+// que todas las tablas compartan el mismo ancho por columna (según el contenido del día).
+// Rejilla única basada 100% en variables CSS (mismo ancho en header y filas)
+const COLS = [
+  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },                      // fijo para sticky
+  { key: "hora",     label: "Hora",        width: "var(--col-hora)" },                   // p.ej. 16ch
+  { key: "dni",      label: "DNI",         width: "var(--col-dni)" },                    // calculado
+  { key: "nombre",   label: "Nombre",      width: "minmax(var(--col-nombre),1fr)" },     // calculado + elástico
+  { key: "apellido", label: "Apellido",    width: "minmax(var(--col-apellido),1fr)" },   // calculado + elástico
+  { key: "obra",     label: "Obra social", width: "minmax(var(--col-obra),1fr)" },       // calculado + elástico
+  { key: "copago",   label: "Copago",      width: "var(--col-copago)" },                 // calculado
+  { key: "espera",   label: "Espera",      width: "var(--col-espera)" },                 // p.ej. 8ch
+];
+
+let GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
+
+
+
+// helpers visuales reutilizables
+const horaRango = t => `<b>${toHM(t.hora_inicio)}</b>${t.hora_fin ? ' — ' + toHM(t.hora_fin) : ''}`;
+
+const copagoChip = (v) => {
+  if (v && Number(v) > 0) return `<span class="copago">${money(v)}</span>`;
+  return `<span class="copago none">Sin copago</span>`;
+};
+
+// Espera (badge) solo se llena si el turno está EN_ESPERA
+const esperaBadge = (t, fechaISO) => {
+  if (!t.hora_arribo) return '—';
+  const iso = `${fechaISO}T${toHM(t.hora_arribo)||'00:00'}:00`;
+  return `<span class="wait" data-arribo-ts="${iso}">—</span>`;
+};
+
+function buildCell(key, t, ctx){
+  const p = t.pacientes || {};
+  switch (key) {
+    case 'espera':
+      return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
+    case 'hora':
+      return horaRango(t);
+    case 'dni':
+      return p.dni || '—';
+    case 'nombre':
+      return titleCase(p.nombre) || '—';
+    case 'apellido':
+      return titleCase(p.apellido) || '—';
+    case 'obra':
+      return p.obra_social || '—';
+    case 'copago':
+      if (ctx.type === 'esp')  return copagoChip(t.copago);
+      if (ctx.type === 'done') return t.copago ? money(t.copago) : '—';
+      return '—';
+    case 'acciones':
+      return ctx.actionsHTML(t);
+    default:
+      return '—';
+  }
+}
+
+
+// head único
+function renderHeadHTML(){
+  const ths = COLS.map(c => `<th class="cell">${c.label}</th>`).join('');
+  return `
+    <thead class="thead">
+      <tr class="hrow" style="grid-template-columns:${GRID_TEMPLATE}">${ths}</tr>
+    </thead>`;
+}
+
+// fila única
+function renderRowHTML(t, ctx){
+  const tds = COLS.map(c => `<td class="cell">${buildCell(c.key, t, ctx)}</td>`).join('');
+  return `<tr class="row" style="grid-template-columns:${GRID_TEMPLATE}">${tds}</tr>`;
+}
+
+// tabla genérica
+function renderTable(el, list, ctx){
+  const head = renderHeadHTML();
+  const rows = (list || []).map(t => renderRowHTML(t, ctx)).join('');
+  el.innerHTML = head + '<tbody>' + rows + '</tbody>';
+}
+
+
 /* =======================
    Render de tablas
    ======================= */
@@ -485,48 +627,31 @@ const showProfColumn = ()=> {
   return sel?.multiple || selectedProfesionales.length > 1;
 };
 
+/* PENDIENTES */
 function renderPendientes(list){
-  const withProf = showProfColumn();
-  const grid = withProf
-    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
-    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
-
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Hora</th><th class="cell">DNI</th>
-      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf?'<th class="cell">Profesional</th>':''}
-      <th class="cell right">Acciones</th></tr></thead>`;
-
   const puedeCancelar = roleAllows('cancelar', userRole);
   const puedeArribo   = roleAllows('arribo', userRole);
 
-  const rows=(list||[]).map(t=>{
-    const p=t.pacientes||{};
-    const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    const acciones = `
+  const ctx = {
+    type: 'pend',
+    fechaISO: currentFechaISO,
+    actionsHTML: (t) => `
       <div class="actions">
         ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
         ${puedeArribo   ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : ''}
-      </div>`;
-    return `<tr class="row" style="grid-template-columns:${grid}">
-      <td class="cell nowrap">${hora}</td>
-      <td class="cell">${p.dni||'—'}</td>
-      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
-      <td class="cell right">${acciones}</td>
-    </tr>`;
-  }).join('');
+      </div>`
+  };
 
-  UI.tblPend.innerHTML=head+'<tbody>'+rows+'</tbody>';
+  renderTable(UI.tblPend, list, ctx);
 
+  // eventos
   UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
     if(act==='arribo') btn.onclick=()=> marcarLlegadaYCopago(id);
     if(act==='cancel') btn.onclick=()=> anularTurno(id);
   });
 }
+
 
 /* En sala de espera */
 function startWaitTicker(){ if(waitTimer) clearInterval(waitTimer); waitTimer=setInterval(updateWaitBadges, 30000); }
@@ -542,43 +667,25 @@ function updateWaitBadges(){
     n.textContent = hh ? `${hh}h ${mm}m` : `${mm}m`;
   });
 }
-function renderPresentes(list){
-  const withProf = showProfColumn();
-  const grid = withProf
-    ? `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-copago) var(--w-acc)`
-    : `var(--w-espera) var(--w-hora) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-copago) var(--w-acc)`;
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Espera</th><th class="cell">Hora</th><th class="cell">Nombre</th>
-      <th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf?'<th class="cell">Profesional</th>':''}
-      <th class="cell">Copago</th><th class="cell right">Acciones</th></tr></thead>`;
 
+/* PRESENTES (EN ESPERA) */
+function renderPresentes(list){
   const puedeVolver   = roleAllows('volver', userRole);
   const puedeCancelar = roleAllows('cancelar', userRole);
   const puedeAtender  = roleAllows('atender', userRole);
 
-  const rows=(list||[]).map(t=>{
-    const p=t.pacientes||{};
-    const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    const arriboISO=`${currentFechaISO}T${toHM(t.hora_arribo)||'00:00'}:00`;
-    const copBadge=(t.copago && Number(t.copago)>0)?`<span class="copago">${money(t.copago)}</span>`:`<span class="copago none">Sin copago</span>`;
-    const acciones = `
-      ${puedeVolver   ? `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>` : ''}
-      ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
-      ${puedeAtender  ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}`;
-    return `<tr class="row" style="grid-template-columns:${grid}">
-      <td class="cell"><span class="wait" data-arribo-ts="${arriboISO}">—</span></td>
-      <td class="cell nowrap">${hora}</td>
-      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
-      <td class="cell">${copBadge}</td>
-      <td class="cell right"><div class="actions">${acciones}</div></td>
-    </tr>`;
-  }).join('');
+  const ctx = {
+    type: 'esp',
+    fechaISO: currentFechaISO,
+    actionsHTML: (t) => `
+      <div class="actions">
+        ${puedeVolver   ? `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>` : ''}
+        ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
+        ${puedeAtender  ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}
+      </div>`
+  };
 
-  UI.tblEsp.innerHTML=head+'<tbody>'+rows+'</tbody>';
+  renderTable(UI.tblEsp, list, ctx);
 
   UI.tblEsp.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
@@ -590,40 +697,24 @@ function renderPresentes(list){
   updateWaitBadges(); startWaitTicker();
 }
 
-/* En atención */
+/* EN ATENCIÓN */
 function renderAtencion(list){
-  const withProf = showProfColumn();
-  const grid = withProf
-    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-prof) var(--w-acc)`
-    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) var(--w-acc)`;
-  const head=`<thead class="thead"><tr class="hrow" style="grid-template-columns:${grid}">
-      <th class="cell">Hora</th><th class="cell">DNI</th>
-      <th class="cell">Nombre</th><th class="cell">Apellido</th><th class="cell">Obra social</th>
-      ${withProf?'<th class="cell">Profesional</th>':''}
-      <th class="cell right">Acciones</th></tr></thead>`;
-
   const puedeAbrir   = roleAllows('abrir_ficha', userRole);
   const puedeVolverE = roleAllows('atender', userRole);
   const puedeFin     = roleAllows('finalizar', userRole);
 
-  const rows=(list||[]).map(t=>{
-    const p=t.pacientes||{};
-    const hora=`<b>${toHM(t.hora_inicio)}</b>${t.hora_fin?' — '+toHM(t.hora_fin):''}`;
-    const acciones = `
-      ${puedeAbrir   ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha"   title="Abrir ficha">📄</button>` : ''}
-      ${puedeVolverE ? `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a espera">⏪</button>` : ''}
-      ${puedeFin     ? `<button class="icon" data-id="${t.id}" data-act="finalizar"     title="Marcar ATENDIDO">✅</button>` : ''}`;
-    return `<tr class="row" style="grid-template-columns:${grid}">
-      <td class="cell nowrap">${hora}</td>
-      <td class="cell">${p.dni||'—'}</td>
-      <td class="cell truncate">${titleCase(p.nombre)||'—'}</td>
-      <td class="cell truncate">${titleCase(p.apellido)||'—'}</td>
-      <td class="cell truncate">${p.obra_social||'—'}</td>
-      ${withProf?`<td class="cell truncate">${profNameById(t.profesional_id)}</td>`:''}
-      <td class="cell right"><div class="actions">${acciones}</div></td>
-    </tr>`;
-  }).join('');
-  UI.tblAtencion.innerHTML = head + '<tbody>' + rows + '</tbody>';
+  const ctx = {
+    type: 'atencion',
+    fechaISO: currentFechaISO,
+    actionsHTML: (t) => `
+      <div class="actions">
+        ${puedeAbrir   ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha"   title="Abrir ficha">📄</button>` : ''}
+        ${puedeVolverE ? `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a espera">⏪</button>` : ''}
+        ${puedeFin     ? `<button class="icon" data-id="${t.id}" data-act="finalizar"     title="Marcar ATENDIDO">✅</button>` : ''}
+      </div>`
+  };
+
+  renderTable(UI.tblAtencion, list, ctx);
 
   UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
     const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
@@ -633,76 +724,33 @@ function renderAtencion(list){
   });
 }
 
-/* Atendidos */
-function renderAtendidos(list) {
-  const withProf = showProfColumn();
-
-  const grid = withProf
-    ? `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) 
-       minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) 
-       var(--w-prof) var(--w-copago) var(--w-acc)`
-    : `var(--w-hora) var(--w-dni) minmax(var(--minch-nombre),1fr) 
-       minmax(var(--minch-apellido),1fr) minmax(var(--minch-obra),1fr) 
-       var(--w-copago) var(--w-acc)`;
-
-  const head = `
-    <thead class="thead">
-      <tr class="hrow" style="grid-template-columns:${grid}">
-        <th class="cell">Hora</th>
-        <th class="cell">DNI</th>
-        <th class="cell">Nombre</th>
-        <th class="cell">Apellido</th>
-        <th class="cell">Obra social</th>
-        ${withProf ? '<th class="cell">Profesional</th>' : ''}
-        <th class="cell">Copago</th>
-        <th class="cell right">Acciones</th>
-      </tr>
-    </thead>`;
-
+/* ATENDIDOS */
+function renderAtendidos(list){
   const puedeAbrir = roleAllows('abrir_ficha', userRole);
 
-  const rows = (list || []).map(t => {
-    const p = t.pacientes || {};
-
-    const hora = `<b>${toHM(t.hora_inicio)}</b>${t.hora_fin ? ' — ' + toHM(t.hora_fin) : ''}`;
-
-    const cop = (t.copago && Number(t.copago) > 0) ? money(t.copago) : '—';
-
-    const hcBtn = p.historia_clinica
-      ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>`
-      : '';
-
-    const acciones = `
-      ${puedeAbrir ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>` : ''}
-      ${hcBtn}
-    `;
-
-    return `
-      <tr class="row" style="grid-template-columns:${grid}">
-        <td class="cell nowrap">${hora}</td>
-        <td class="cell">${p.dni || '—'}</td>
-        <td class="cell truncate">${titleCase(p.nombre) || '—'}</td>
-        <td class="cell truncate">${titleCase(p.apellido) || '—'}</td>
-        <td class="cell truncate">${p.obra_social || '—'}</td>
-        ${withProf ? `<td class="cell truncate">${profNameById(t.profesional_id)}</td>` : ''}
-        <td class="cell">${cop}</td>
-        <td class="cell right">
-          <div class="actions">${acciones}</div>
-        </td>
-      </tr>`;
-  }).join('');
-
-  UI.tblDone.innerHTML = head + '<tbody>' + rows + '</tbody>';
-
-  UI.tblDone.querySelectorAll('.icon').forEach(btn => {
-    const id = btn.getAttribute('data-id');
-    const act = btn.getAttribute('data-act');
-    if (act === 'abrir-ficha') {
-      btn.onclick = () => openFicha(id);
+  const ctx = {
+    type: 'done',
+    fechaISO: currentFechaISO,
+    actionsHTML: (t) => {
+      const p = t.pacientes || {};
+      const hcBtn = p.historia_clinica
+        ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>`
+        : '';
+      return `
+        <div class="actions">
+          ${puedeAbrir ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>` : ''}
+          ${hcBtn}
+        </div>`;
     }
+  };
+
+  renderTable(UI.tblDone, list, ctx);
+
+  UI.tblDone.querySelectorAll('.icon').forEach(btn=>{
+    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
+    if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
   });
 }
-
 /* =======================
    KPIs / títulos
    ======================= */
@@ -952,7 +1000,7 @@ async function refreshAll({ showOverlayIfSlow = false } = {}){
   try{
     const raw = await fetchDiaData(abort.signal);
     if (myReqId !== _refresh.reqId) return;
-
+    computeColumnWidthsForDay(raw);
     const filtered = applyFilter(raw);
     renderPendientes(filtered.pendientes);
     renderPresentes(filtered.presentes);

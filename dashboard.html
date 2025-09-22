@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -259,10 +258,18 @@
       localStorage.setItem("centro_medico_nombre", centros.find(c=>String(c.id)===String(centroSelect.value))?.nombre || "");
     }
     await cargarCentros();
-    centroSelect.onchange = ()=> {
-      localStorage.setItem("centro_medico_id", centroSelect.value);
-      localStorage.setItem("centro_medico_nombre", centroSelect.options[centroSelect.selectedIndex]?.text || "");
-    };
+centroSelect.onchange = ()=> {
+  const id = centroSelect.value;
+  const nombre = centroSelect.options[centroSelect.selectedIndex]?.text || "";
+
+  // guardo en localStorage
+  localStorage.setItem("centro_medico_id", id);
+  localStorage.setItem("centro_medico_nombre", nombre);
+
+  // aviso al resto de la SPA
+  window.dispatchEvent(new CustomEvent("centro-cambiado", { detail: { id, nombre } }));
+};
+
 
     // --- Loader dinámico
     let _panelLoader = { reqId:0, abort:null };

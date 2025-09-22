@@ -1,0 +1,233 @@
+<!-- cuenta.html -->
+<section class="card">
+  <h3 style="margin-top:0;">Mi cuenta</h3>
+  <div id="cuenta-alert" class="muted" style="min-height:20px;"></div>
+
+  <div id="cuenta-cargando" class="muted">Cargando datos de tu cuenta...</div>
+  <div id="cuenta-contenido" class="hidden">
+    <!-- Datos del usuario (Auth) -->
+    <fieldset class="fieldset" style="margin-top:12px;">
+      <legend>Usuario (Autenticación)</legend>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Email (Auth)</label>
+          <input id="auth-email" type="email" disabled>
+        </div>
+        <div class="form-group">
+          <label>ID de usuario</label>
+          <input id="auth-user-id" disabled>
+        </div>
+      </div>
+    </fieldset>
+
+    <!-- Perfil profesional (tabla profesionales) -->
+    <form id="form-perfil" class="fieldset" style="margin-top:14px;">
+      <legend>Datos personales / profesionales</legend>
+      <div id="perfil-alerts" style="margin-bottom:10px;"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Apellido *</label>
+          <input name="apellido" required>
+        </div>
+        <div class="form-group">
+          <label>Nombre *</label>
+          <input name="nombre" required>
+        </div>
+        <div class="form-group">
+          <label>Especialidad</label>
+          <input name="especialidad" placeholder="Ej: Clínica, Pediatría">
+        </div>
+        <div class="form-group">
+          <label>Matrícula</label>
+          <input name="matricula">
+        </div>
+        <div class="form-group">
+          <label>Teléfono</label>
+          <input name="telefono">
+        </div>
+        <div class="form-group">
+          <label>Rol</label>
+          <input name="rol" disabled>
+        </div>
+        <div class="form-group">
+          <label>Activo</label>
+          <select name="activo" disabled>
+            <option value="true">Sí</option>
+            <option value="false">No</option>
+          </select>
+        </div>
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn primary">Guardar cambios</button>
+      </div>
+    </form>
+
+    <!-- Cambiar contraseña (Auth) -->
+    <form id="form-password" class="fieldset" style="margin-top:14px;">
+      <legend>Seguridad</legend>
+      <div id="password-alerts" style="margin-bottom:10px;"></div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Nueva contraseña *</label>
+          <input name="new_password" type="password" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label>Repetir contraseña *</label>
+          <input name="repeat_password" type="password" required minlength="6">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn danger">Cambiar contraseña</button>
+      </div>
+    </form>
+  </div>
+</section>
+
+<script type="module">
+  import supabase from './supabaseClient.js';
+
+  const $ = (sel) => document.querySelector(sel);
+  const show = (el) => el.classList.remove('hidden');
+  const hide = (el) => el.classList.add('hidden');
+
+  const cuentaAlert = $('#cuenta-alert');
+  const carga = $('#cuenta-cargando');
+  const contenido = $('#cuenta-contenido');
+
+  const authEmail = $('#auth-email');
+  const authUserId = $('#auth-user-id');
+
+  const formPerfil = $('#form-perfil');
+  const perfilAlerts = $('#perfil-alerts');
+
+  const formPassword = $('#form-password');
+  const passwordAlerts = $('#password-alerts');
+
+  let profesionalRow = null; // fila de profesionales del usuario
+
+  function msg(container, type, text) {
+    if (!container) return;
+    container.innerHTML = `
+      <div class="${type === 'error' ? 'error-box' : 'success-box'}">
+        <span style="font-size:18px;">${type === 'error' ? '⚠️' : '✅'}</span>
+        <div>${text}</div>
+      </div>`;
+  }
+
+  async function init() {
+    try {
+      const { data: { user }, error: authErr } = await supabase.auth.getUser();
+      if (authErr) throw authErr;
+      if (!user) throw new Error('No hay sesión activa. Volvé a iniciar sesión.');
+
+      authEmail.value = user.email || '';
+      authUserId.value = user.id || '';
+
+      // Buscar el profesional vinculado a este usuario por profile_id
+      const { data: prof, error: profErr } = await supabase
+        .from('profesionales')
+        .select('id, apellido, nombre, especialidad, matricula, telefono, email, activo, rol, profile_id')
+        .eq('profile_id', user.id)
+        .maybeSingle();
+
+      if (profErr) throw profErr;
+      if (!prof) {
+        msg(cuentaAlert, 'error', 'No se encontró tu perfil en "profesionales". Contactá al administrador.');
+        hide(carga); show(contenido);
+        return;
+      }
+
+      profesionalRow = prof;
+
+      // Poblar formulario perfil
+      formPerfil.apellido.value = prof.apellido ?? '';
+      formPerfil.nombre.value = prof.nombre ?? '';
+      formPerfil.especialidad.value = prof.especialidad ?? '';
+      formPerfil.matricula.value = prof.matricula ?? '';
+      formPerfil.telefono.value = prof.telefono ?? '';
+      formPerfil.rol.value = prof.rol ?? '';
+      formPerfil.activo.value = String(prof.activo !== false);
+
+      hide(carga);
+      show(contenido);
+    } catch (e) {
+      msg(cuentaAlert, 'error', e.message || e);
+      hide(carga);
+      show(contenido);
+    }
+  }
+
+  // Guardar perfil (tabla profesionales)
+  formPerfil.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    perfilAlerts.innerHTML = '';
+    if (!profesionalRow?.id) return;
+
+    const payload = {
+      apellido: formPerfil.apellido.value.trim(),
+      nombre: formPerfil.nombre.value.trim(),
+      especialidad: formPerfil.especialidad.value.trim() || null,
+      matricula: formPerfil.matricula.value.trim() || null,
+      telefono: formPerfil.telefono.value.trim() || null,
+      updated_at: new Date().toISOString()
+    };
+
+    if (!payload.apellido || !payload.nombre) {
+      msg(perfilAlerts, 'error', 'Apellido y Nombre son obligatorios.');
+      return;
+    }
+
+    const btn = formPerfil.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Guardando...';
+    try {
+      const { error } = await supabase
+        .from('profesionales')
+        .update(payload)
+        .eq('id', profesionalRow.id);
+
+      if (error) throw error;
+      msg(perfilAlerts, 'success', 'Datos actualizados.');
+    } catch (e) {
+      msg(perfilAlerts, 'error', 'Error al actualizar: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = 'Guardar cambios';
+    }
+  });
+
+  // Cambiar contraseña (Auth)
+  formPassword.addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    passwordAlerts.innerHTML = '';
+
+    const p1 = formPassword.new_password.value.trim();
+    const p2 = formPassword.repeat_password.value.trim();
+    if (!p1 || !p2) {
+      msg(passwordAlerts, 'error', 'Completá ambos campos.');
+      return;
+    }
+    if (p1 !== p2) {
+      msg(passwordAlerts, 'error', 'Las contraseñas no coinciden.');
+      return;
+    }
+    if (p1.length < 6) {
+      msg(passwordAlerts, 'error', 'La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    const btn = formPassword.querySelector('button[type="submit"]');
+    btn.disabled = true; btn.textContent = 'Cambiando...';
+    try {
+      const { error } = await supabase.auth.updateUser({ password: p1 });
+      if (error) throw error;
+
+      msg(passwordAlerts, 'success', 'Contraseña actualizada correctamente.');
+      formPassword.reset();
+    } catch (e) {
+      msg(passwordAlerts, 'error', 'No se pudo cambiar la contraseña: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = 'Cambiar contraseña';
+    }
+  });
+
+  init();
+</script>
