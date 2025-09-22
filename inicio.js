@@ -540,14 +540,14 @@ function computeColumnWidthsForDay({ turnos }) {
 // que todas las tablas compartan el mismo ancho por columna (según el contenido del día).
 // Rejilla única basada 100% en variables CSS (mismo ancho en header y filas)
 const COLS = [
-  { key: "espera",   label: "Espera",      width: "var(--col-espera)" },                 // p.ej. 8ch
+  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },                      // fijo para sticky
   { key: "hora",     label: "Hora",        width: "var(--col-hora)" },                   // p.ej. 16ch
   { key: "dni",      label: "DNI",         width: "var(--col-dni)" },                    // calculado
   { key: "nombre",   label: "Nombre",      width: "minmax(var(--col-nombre),1fr)" },     // calculado + elástico
   { key: "apellido", label: "Apellido",    width: "minmax(var(--col-apellido),1fr)" },   // calculado + elástico
   { key: "obra",     label: "Obra social", width: "minmax(var(--col-obra),1fr)" },       // calculado + elástico
   { key: "copago",   label: "Copago",      width: "var(--col-copago)" },                 // calculado
-  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },                      // fijo para sticky
+  { key: "espera",   label: "Espera",      width: "var(--col-espera)" },                 // p.ej. 8ch
 ];
 
 let GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
