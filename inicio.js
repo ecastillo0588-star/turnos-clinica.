@@ -682,10 +682,10 @@ function renderPendientes(list){
 
 
 async function getPagoResumen(turnoId){
-  const { data: pagos = [] } = await supabase
-    .from('turnos_pagos')
-    .select('importe, medio_pago, creado_en')
-    .eq('turno_id', turnoId);
+ const { data: pagos = [] } = await supabase
+   .from('turnos_pagos')
+   .select('importe, medio_pago, creado_en')
+   .eq('turno_id', turnoId);
 
   const totalPagado = (pagos || []).reduce((a,p)=> a + Number(p.importe||0), 0);
   // último medio sólo para mostrar en ficha si querés
@@ -841,10 +841,11 @@ function abrirPagoModal(turnoId, { afterPay } = {}) {
   const btnAdd = () => wrap.querySelector('#btn-add');
 
   // Carga info y prefill
-  (async () => {
-    const { data: t, error } = await supabase
-      .from('turnos')
-      .eq('id', turnoId).maybeSingle();
+  const { data: t, error } = await supabase
+   .from('turnos')
+   .select('copago, importe, estado_pago')
+   .eq('id', turnoId)
+   .single();
 
     if (error) {
       wrap.querySelector('#pago-info').textContent = 'No se pudo leer el turno.';
