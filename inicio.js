@@ -494,40 +494,43 @@ function applyFilter(data){
 
 // Calcula el ancho óptimo (en ch) por columna según el contenido del DÍA
 function computeColumnWidthsForDay({ turnos }) {
-  // Abarcamos todos los turnos del día (sin importar estado) para tener un ancho consistente
-  const rows = turnos || [];
+  // Defaults estables para columnas cortas
+  const root = document.documentElement.style;
+  root.setProperty('--col-espera', '8ch');     // badge
+  root.setProperty('--col-hora',   '16ch');    // "HH:MM — HH:MM"
 
-  // helpers para longitudes
+  const rows = turnos || [];
   const len = s => String(s ?? '').trim().length;
 
-  let maxDNI = 0, maxNom = 0, maxApe = 0, maxObra = 0, maxCop = 0;
+  let maxDNI = 8, maxNom = 12, maxApe = 12, maxObra = 10, maxCop = 10;
 
   for (const t of rows) {
     const p = t.pacientes || {};
-    maxDNI = Math.max(maxDNI, len(p.dni));
-    maxNom = Math.max(maxNom, len(titleCase(p.nombre)));
-    maxApe = Math.max(maxApe, len(titleCase(p.apellido)));
+    maxDNI  = Math.max(maxDNI,  len(p.dni));
+    maxNom  = Math.max(maxNom,  len(titleCase(p.nombre)));
+    maxApe  = Math.max(maxApe,  len(titleCase(p.apellido)));
     maxObra = Math.max(maxObra, len(p.obra_social));
-    // Copago: medimos la moneda renderizada para aproximar
-    const cop = (t.copago && Number(t.copago)>0) ? money(t.copago) : 'Sin copago';
-    maxCop = Math.max(maxCop, len(cop));
+    const copTxt = (t.copago && Number(t.copago) > 0) ? money(t.copago) : 'Sin copago';
+    maxCop  = Math.max(maxCop,  len(copTxt));
   }
 
-  // mínimos razonables para que no “salte” demasiado
-  maxDNI  = Math.max(maxDNI, 8);   // DNI típico
-  maxNom  = Math.max(maxNom, 12);  // coincide con --minch-nombre
-  maxApe  = Math.max(maxApe, 12);
-  maxObra = Math.max(maxObra, 10);
-  maxCop  = Math.max(maxCop, 10);
+  // un pelín de aire (+2ch) y topes sanos
+  const clamp = (v, min, max) => Math.max(min, Math.min(v, max));
+  const pad   = v => v + 2;
 
-  // seteamos variables CSS que usa COLS
-  const root = document.documentElement.style;
-  root.setProperty('--col-dni',      `fit-content(${maxDNI}ch)`);
-  root.setProperty('--col-nombre',   `fit-content(${maxNom}ch)`);
-  root.setProperty('--col-apellido', `fit-content(${maxApe}ch)`);
-  root.setProperty('--col-obra',     `fit-content(${maxObra}ch)`);
-  root.setProperty('--col-copago',   `fit-content(${maxCop}ch)`);
+  maxDNI  = clamp(pad(maxDNI),  8,  16);
+  maxNom  = clamp(pad(maxNom), 12,  32);
+  maxApe  = clamp(pad(maxApe), 12,  32);
+  maxObra = clamp(pad(maxObra), 10,  24);
+  maxCop  = clamp(pad(maxCop),  10,  18);
+
+  root.setProperty('--col-dni',      `${maxDNI}ch`);
+  root.setProperty('--col-nombre',   `${maxNom}ch`);
+  root.setProperty('--col-apellido', `${maxApe}ch`);
+  root.setProperty('--col-obra',     `${maxObra}ch`);
+  root.setProperty('--col-copago',   `${maxCop}ch`);
 }
+
 
 
 /* =======================
@@ -535,19 +538,20 @@ function computeColumnWidthsForDay({ turnos }) {
    ======================= */
 // NOTA: los widths usan variables CSS que vamos a calcular en runtime para
 // que todas las tablas compartan el mismo ancho por columna (según el contenido del día).
+// Rejilla única basada 100% en variables CSS (mismo ancho en header y filas)
 const COLS = [
-  { key: "espera",   label: "Espera",      width: "fit-content(8ch)" },           // badge corto
-  { key: "hora",     label: "Hora",        width: "fit-content(16ch)" },          // "HH:MM — HH:MM"
-  { key: "dni",      label: "DNI",         width: "var(--col-dni, fit-content(10ch))" },
-  { key: "nombre",   label: "Nombre",      width: "var(--col-nombre, minmax(var(--minch-nombre),1fr))" },
-  { key: "apellido", label: "Apellido",    width: "var(--col-apellido, minmax(var(--minch-apellido),1fr))" },
-  { key: "obra",     label: "Obra social", width: "var(--col-obra, minmax(var(--minch-obra),1fr))" },
-  { key: "copago",   label: "Copago",      width: "var(--col-copago, fit-content(12ch))" },
-  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },               // fijo para sticky
+  { key: "espera",   label: "Espera",      width: "var(--col-espera)" },                 // p.ej. 8ch
+  { key: "hora",     label: "Hora",        width: "var(--col-hora)" },                   // p.ej. 16ch
+  { key: "dni",      label: "DNI",         width: "var(--col-dni)" },                    // calculado
+  { key: "nombre",   label: "Nombre",      width: "minmax(var(--col-nombre),1fr)" },     // calculado + elástico
+  { key: "apellido", label: "Apellido",    width: "minmax(var(--col-apellido),1fr)" },   // calculado + elástico
+  { key: "obra",     label: "Obra social", width: "minmax(var(--col-obra),1fr)" },       // calculado + elástico
+  { key: "copago",   label: "Copago",      width: "var(--col-copago)" },                 // calculado
+  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },                      // fijo para sticky
 ];
 
-// grid-template-columns único para todas
 let GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
+
 
 
 // helpers visuales reutilizables
