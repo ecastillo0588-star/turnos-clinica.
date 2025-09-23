@@ -795,7 +795,7 @@ function renderAtendidos(list){
   });
 }
 
-function abrirPagoModal(turnoId, { afterPay } = {}) {
+async function abrirPagoModal(turnoId, { afterPay } = {}) {
   const root = document.getElementById('modal-root') || document.body;
   const wrap = document.createElement('div');
   wrap.className = 'modal-backdrop';
@@ -838,66 +838,62 @@ function abrirPagoModal(turnoId, { afterPay } = {}) {
   wrap.querySelector('#btn-cancel').onclick = close;
 
   const inpImporte = () => wrap.querySelector('#reg-importe');
-  const btnAdd = () => wrap.querySelector('#btn-add');
+  const btnAdd     = () => wrap.querySelector('#btn-add');
 
-  // Carga info y prefill
+  // --- Cargar info del turno (sin estado_pago) ---
   const { data: t, error } = await supabase
-   .from('turnos')
-   .select('copago, importe, estado_pago')
-   .eq('id', turnoId)
-   .single();
+    .from('turnos')
+    .select('copago, importe')
+    .eq('id', turnoId)
+    .single();
 
-    if (error) {
-      wrap.querySelector('#pago-info').textContent = 'No se pudo leer el turno.';
-      return;
-    }
+  if (error) {
+    wrap.querySelector('#pago-info').textContent = 'No se pudo leer el turno.';
+    return;
+  }
 
-    const total  = Number(t?.copago || 0);
-    const pagado = Number(t?.importe || 0);
-    const pend   = Math.max(0, total - pagado);
+  const total  = Number(t?.copago || 0);
+  const pagado = Number(t?.importe || 0);
+  const pend   = Math.max(0, total - pagado);
 
-    const el = wrap.querySelector('#pago-info');
-    if (total > 0) {
-      el.innerHTML = `Total copago: <b>${money(total)}</b> · Pagado: <b>${money(pagado)}</b> · Pendiente: <b>${money(pend)}</b>`;
-    } else {
-      el.textContent = 'Sin copago asignado al turno.';
-    }
+  const el = wrap.querySelector('#pago-info');
+  if (total > 0) {
+    el.innerHTML = `Total copago: <b>${money(total)}</b> · Pagado: <b>${money(pagado)}</b> · Pendiente: <b>${money(pend)}</b>`;
+  } else {
+    el.textContent = 'Sin copago asignado al turno.';
+  }
+  if (pend > 0) inpImporte().value = String(pend);
 
-    // Prefill sugerido con "pendiente" (si hay)
-    if (pend > 0) inpImporte().value = String(pend);
-  })();
+  // Enter confirma
+  inpImporte().addEventListener('keydown', (e) => { if (e.key === 'Enter') btnAdd().click(); });
 
-  // Confirmar con Enter
-  inpImporte().addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') btnAdd().click();
-  });
-
+  // --- Guardar pago ---
   btnAdd().onclick = async () => {
     if (btnAdd().disabled) return;
+
     const raw   = inpImporte().value;
     const medio = wrap.querySelector('#reg-medio').value || 'efectivo';
     const nota  = (wrap.querySelector('#reg-nota').value || '').trim();
 
-    // Acepta "500", "500.00" o "500,00"
     const toPesoIntLocal = (v) => {
       if (v == null) return null;
-      const s = String(v).replace(/\./g, '').replace(',', '.'); // normaliza coma
+      const s = String(v).replace(/\./g, '').replace(',', '.');
       const n = Number(s);
       if (!isFinite(n) || n <= 0) return null;
-      return Math.round(n); // entero en ARS
+      return Math.round(n);
     };
     const imp = toPesoIntLocal(raw);
-
     if (!imp || imp <= 0) { alert('Ingresá un importe válido (> 0).'); return; }
 
     btnAdd().disabled = true; btnAdd().textContent = 'Guardando…';
-    const { error } = await supabase
+
+    const { error: insErr } = await supabase
       .from('turnos_pagos')
       .insert([{ turno_id: turnoId, importe: imp, medio_pago: medio, nota }]);
 
-    if (error) {
+    if (insErr) {
       btnAdd().disabled = false; btnAdd().textContent = 'Registrar pago';
-      alert('No se pudo registrar el pago.\n' + (error.message || ''));
+      alert('No se pudo registrar el pago.\n' + (insErr.message || ''));
       return;
     }
 
@@ -906,6 +902,7 @@ function abrirPagoModal(turnoId, { afterPay } = {}) {
     if (typeof afterPay === 'function') afterPay();
   };
 }
+
 
 /* =======================
    KPIs / títulos
