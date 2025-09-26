@@ -174,12 +174,13 @@ export function roleAllows(action, role) {
   const full  = (R === 'medico' || R === 'amp');
   const recep = (R === 'amc' || R === 'propietario');
   const map = {
-    arribo:      full || recep,
-    volver:      full || recep,
-    cancelar:    full,
-    atender:     full,
-    abrir_ficha: full,
-    finalizar:   full,
+    arribo:       full || recep,
+    volver:       full || recep,
+    cancelar:     full,
+    atender:      full,    // SOLO medico y amp pueden pasar a "en atención"
+    reprogramar:  true,    // TODOS los roles pueden reprogramar
+    abrir_ficha:  full,
+    finalizar:    full,
   };
   return !!map[action];
 }
