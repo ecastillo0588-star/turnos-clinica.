@@ -122,6 +122,7 @@ function bindUI(root = document) {
     btnCerrar: root.querySelector('#fd-cerrar'),
     btnGuardar:root.querySelector('#fd-guardar'),
     btnFinalizar:root.querySelector('#fd-finalizar'),
+     hcLink: root.querySelector('#fd-hc-link'),
   };
 
   boardsEl = root.querySelector('#boards');
@@ -940,6 +941,30 @@ async function openFicha(turnoId){
   if (Drawer.renov)  Drawer.renov.value  = p?.renovacion_receta || '';
   if (Drawer.activo) Drawer.activo.checked = !!p?.activo;
 
+   // Link historia clínica (input editable y botón)
+if (Drawer.hcLink) Drawer.hcLink.value = p?.historia_clinica || '';
+
+if (Drawer.hc) {
+  if (p?.historia_clinica) {
+    Drawer.hc.style.display = 'inline-flex';
+    Drawer.hc.href = p.historia_clinica;
+  } else {
+    Drawer.hc.style.display = 'none';
+    Drawer.hc.removeAttribute('href');
+  }
+}
+if (Drawer.hcLink && Drawer.hc) {
+  Drawer.hcLink.oninput = () => {
+    if (Drawer.hcLink.value.trim()) {
+      Drawer.hc.style.display = 'inline-flex';
+      Drawer.hc.href = Drawer.hcLink.value.trim();
+    } else {
+      Drawer.hc.style.display = 'none';
+      Drawer.hc.removeAttribute('href');
+    }
+  };
+}
+
   // Notas del turno
   if (Drawer.notas) Drawer.notas.value = t?.notas || '';
 
@@ -981,7 +1006,7 @@ async function guardarFicha(){
     contacto_apellido: Drawer.ecApe?.value.trim() || null,
     contacto_celular: Drawer.ecCel?.value.trim() || null,
     vinculo: Drawer.ecVin?.value.trim() || null,
-    historia_clinica: Drawer.hc?.href || null,
+    historia_clinica: Drawer.hcLink?.value.trim() || null,
     proximo_control: Drawer.prox?.value || null,
     renovacion_receta: Drawer.renov?.value || null,
     activo: !!Drawer.activo?.checked,
