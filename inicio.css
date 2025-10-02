@@ -264,7 +264,7 @@ body.role-amc [data-act="finalizar"]{ display:none !important; }
 @media (max-width:1500px){
   #inicio-root .b-ctrl--grow{ opacity:.5; pointer-events:none; }
 }
-+/* === Panel lateral de turno (off-canvas) === */
+/* === Panel lateral de turno (off-canvas) === */
 .turno-panel{
   position: fixed;
   right: 0;
