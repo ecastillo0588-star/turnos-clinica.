@@ -110,6 +110,7 @@ function bindUI(root = document) {
     obra:      root.querySelector('#fd-obra'),
     afiliado:  root.querySelector('#fd-afiliado'),
     cred:      root.querySelector('#fd-cred'),
+    hcLink:    root.querySelector('#fd-hc-link'),
     credLink:  root.querySelector('#fd-cred-link'),
     ecNom:     root.querySelector('#fd-ec-nom'),
     ecApe:     root.querySelector('#fd-ec-ape'),
@@ -122,6 +123,7 @@ function bindUI(root = document) {
     btnCerrar: root.querySelector('#fd-cerrar'),
     btnGuardar:root.querySelector('#fd-guardar'),
     btnFinalizar:root.querySelector('#fd-finalizar'),
+    
   };
 
   boardsEl = root.querySelector('#boards');
@@ -1024,16 +1026,17 @@ async function openFicha(turnoId){
 
   drawerTurnoId = turnoId;
   try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
-  setDrawerStatus('Cargando…'); 
+  setDrawerStatus('Cargando…');
   setDrawerMsg('');
   showDrawer();
 
-  // 1) Traer turno (incluye copago / pago)
+  // 1) Turno (incluye estado_pago para el chip)
   const { data: t, error: terr } = await supabase
     .from('turnos')
     .select(`
       id, fecha, hora_inicio, hora_fin, estado, hora_arribo,
-      copago, importe, medio_pago, paciente_id, profesional_id, centro_id
+      copago, importe, medio_pago, estado_pago,
+      paciente_id, profesional_id, centro_id
     `)
     .eq('id', turnoId)
     .maybeSingle();
@@ -1044,7 +1047,7 @@ async function openFicha(turnoId){
     return;
   }
 
-  // 2) Traer paciente
+  // 2) Paciente
   const { data: p, error: perr } = await supabase
     .from('pacientes')
     .select(`
@@ -1060,18 +1063,16 @@ async function openFicha(turnoId){
     console.warn('[openFicha] pacientes warn:', perr);
   }
 
-  // 3) Encabezado/resumen
+  // 3) Encabezado / resumen
   if (Drawer.hora)   Drawer.hora.textContent   = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
 
-  // Copago/importe/medio/estado pago (chipeado)
   const copVal = toPesoInt(t.copago);
   const copTxt = (copVal && copVal > 0) ? money(copVal) : 'Sin copago';
-  if (Drawer.copago)    Drawer.copago.textContent    = `Copago: ${copTxt}`;
-  if (Drawer.importe)   Drawer.importe.textContent   = `Importe pagado: ${t.importe != null ? money(t.importe) : '—'}`;
-  if (Drawer.medio)     Drawer.medio.textContent     = `Medio: ${t.medio_pago || '—'}`;
-  if (Drawer.estadoPago)Drawer.estadoPago.textContent= `Estado pago: ${t.estado_pago ? String(t.estado_pago).toUpperCase() : '—'}`;
+  if (Drawer.copago)      Drawer.copago.textContent      = `Copago: ${copTxt}`;
+  if (Drawer.importe)     Drawer.importe.textContent     = `Importe pagado: ${t.importe != null ? money(t.importe) : '—'}`;
+  if (Drawer.medio)       Drawer.medio.textContent       = `Medio: ${t.medio_pago || '—'}`;
+  if (Drawer.estadoPago)  Drawer.estadoPago.textContent  = `Estado pago: ${t.estado_pago ? String(t.estado_pago).toUpperCase() : '—'}`;
 
-  // Título y sub
   renderHeaderPaciente(p || {});
 
   // 4) Campos editables del paciente
@@ -1095,12 +1096,37 @@ async function openFicha(turnoId){
   if (Drawer.renov)  Drawer.renov.value  = p?.renovacion_receta || '';
   if (Drawer.activo) Drawer.activo.checked = !!p?.activo;
 
-  // Notas del turno
+  // 4.b) Historia clínica: input siempre visible (#fd-hc-link) y botón header (#fd-hc)
+  if (Drawer.hcLink) Drawer.hcLink.value = p?.historia_clinica || '';
+  if (Drawer.hc) {
+    const url = Drawer.hcLink?.value?.trim();
+    if (url) {
+      Drawer.hc.style.display = 'inline-flex';
+      Drawer.hc.href = url;
+    } else {
+      Drawer.hc.style.display = 'none';
+      Drawer.hc.removeAttribute('href');
+    }
+  }
+  if (Drawer.hcLink && Drawer.hc) {
+    Drawer.hcLink.oninput = () => {
+      const v = Drawer.hcLink.value.trim();
+      if (v) {
+        Drawer.hc.style.display = 'inline-flex';
+        Drawer.hc.href = v;
+      } else {
+        Drawer.hc.style.display = 'none';
+        Drawer.hc.removeAttribute('href');
+      }
+    };
+  }
+
+  // 5) Notas del turno
   if (Drawer.notas) Drawer.notas.value = t?.notas || '';
 
   setDrawerStatus('');
 
-  // 5) Acciones del drawer
+  // 6) Acciones del drawer
   if (Drawer.btnGuardar)  Drawer.btnGuardar.onclick = guardarFicha;
   if (Drawer.btnFinalizar){
     Drawer.btnFinalizar.style.display = roleAllows('finalizar', userRole) ? '' : 'none';
@@ -1118,31 +1144,53 @@ async function openFicha(turnoId){
 async function guardarFicha(){
   if (!drawerTurnoId) return;
   if (!roleAllows('abrir_ficha', userRole)) { alert('No tenés permisos para guardar.'); return; }
-  const { data: t } = await supabase.from('turnos').select('paciente_id').eq('id', drawerTurnoId).maybeSingle();
-  const pacienteId = t?.paciente_id; if (!pacienteId){ setDrawerMsg('No se encontró paciente del turno','warn'); return; }
+
+  // traer el paciente_id del turno
+  const { data: t } = await supabase
+    .from('turnos')
+    .select('paciente_id')
+    .eq('id', drawerTurnoId)
+    .maybeSingle();
+
+  const pacienteId = t?.paciente_id;
+  if (!pacienteId){
+    setDrawerMsg('No se encontró paciente del turno','warn');
+    return;
+  }
 
   setDrawerMsg('Guardando...');
+
+  // leer valores del form
+  const historiaClinicaURL = (Drawer.hcLink?.value || '').trim();
+
   const payloadP = {
-    dni: Drawer.dni?.value.trim() || null,
-    apellido: Drawer.ape?.value.trim() || null,
-    nombre: Drawer.nom?.value.trim() || null,
+    dni: (Drawer.dni?.value || '').trim() || null,
+    apellido: (Drawer.ape?.value || '').trim() || null,
+    nombre: (Drawer.nom?.value || '').trim() || null,
     fecha_nacimiento: Drawer.nac?.value || null,
-    telefono: Drawer.tel?.value.trim() || null,
-    email: Drawer.mail?.value.trim() || null,
+    telefono: (Drawer.tel?.value || '').trim() || null,
+    email: (Drawer.mail?.value || '').trim() || null,
     obra_social: Drawer.obra?.value || null,
-    numero_afiliado: Drawer.afiliado?.value.trim() || null,
-    credencial: Drawer.cred?.value.trim() || null,
-    contacto_nombre: Drawer.ecNom?.value.trim() || null,
-    contacto_apellido: Drawer.ecApe?.value.trim() || null,
-    contacto_celular: Drawer.ecCel?.value.trim() || null,
-    vinculo: Drawer.ecVin?.value.trim() || null,
-    historia_clinica: Drawer.hc?.href || null,
+    numero_afiliado: (Drawer.afiliado?.value || '').trim() || null,
+    credencial: (Drawer.cred?.value || '').trim() || null,
+
+    // 👇 persistimos el link de historia clínica
+    historia_clinica: historiaClinicaURL || null,
+
+    contacto_nombre: (Drawer.ecNom?.value || '').trim() || null,
+    contacto_apellido: (Drawer.ecApe?.value || '').trim() || null,
+    contacto_celular: (Drawer.ecCel?.value || '').trim() || null,
+    vinculo: (Drawer.ecVin?.value || '').trim() || null,
     proximo_control: Drawer.prox?.value || null,
     renovacion_receta: Drawer.renov?.value || null,
     activo: !!Drawer.activo?.checked,
   };
-  const payloadTurno = { notas: Drawer.notas?.value || null };
 
+  const payloadTurno = {
+    notas: (Drawer.notas?.value || '').trim() || null,
+  };
+
+  // guardar
   const [r1, r2] = await Promise.all([
     supabase.from('pacientes').update(payloadP).eq('id', pacienteId),
     supabase.from('turnos').update(payloadTurno).eq('id', drawerTurnoId),
@@ -1151,11 +1199,28 @@ async function guardarFicha(){
   if (r1.error){ setDrawerMsg('Error guardando paciente: '+r1.error.message,'warn'); return; }
   if (r2.error){ setDrawerMsg('Error guardando notas: '+r2.error.message,'warn'); return; }
 
+  // actualizar encabezado/links en UI post-guardado
   renderHeaderPaciente({
-    dni: payloadP.dni, apellido: payloadP.apellido, nombre: payloadP.nombre,
-    fecha_nacimiento: payloadP.fecha_nacimiento, historia_clinica: payloadP.historia_clinica
+    dni: payloadP.dni,
+    apellido: payloadP.apellido,
+    nombre: payloadP.nombre,
+    fecha_nacimiento: payloadP.fecha_nacimiento,
+    historia_clinica: payloadP.historia_clinica
   });
-  setDrawerMsg('Cambios guardados.','ok'); setTimeout(()=> setDrawerMsg(''), 1200);
+
+  // sincronizar botón del header "Ver historia clínica"
+  if (Drawer.hc){
+    if (payloadP.historia_clinica){
+      Drawer.hc.style.display = 'inline-flex';
+      Drawer.hc.href = payloadP.historia_clinica;
+    } else {
+      Drawer.hc.style.display = 'none';
+      Drawer.hc.removeAttribute('href');
+    }
+  }
+
+  setDrawerMsg('Cambios guardados.','ok');
+  setTimeout(()=> setDrawerMsg(''), 1200);
 }
 
 /* =======================
