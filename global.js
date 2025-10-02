@@ -177,16 +177,16 @@ export function roleAllows(action, role) {
   const map = {
     arribo:       full || recep,
     volver:       full || recep,
-    cancelar:     full || recep,          // AMC + propietario también pueden anular
-    atender:      full,                   // solo médico/AMP
-    reprogramar:  true,                   // todos
+    cancelar:     full || recep,                 // AMC y propietario pueden anular
+    atender:      full,                          // solo médico/AMP
+    reprogramar:  true,                          // todos
     abrir_ficha:  full,
     finalizar:    full,
 
     // Turnos/slots
-    bloquear:     full || (R === 'propietario')  // AMC NO puede bloquear
+    bloquear:     full || (R === 'propietario'), // AMC NO puede bloquear
     desbloquear:  full || (R === 'propietario'), // AMC NO puede desbloquear
-    reenviar_wa:  full || recep,          // AMC puede reenviar WhatsApp
+    reenviar_wa:  full || recep,                 // AMC sí puede reenviar WhatsApp
   };
 
   return !!map[action];
