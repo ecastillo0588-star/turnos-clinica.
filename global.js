@@ -184,7 +184,7 @@ export function roleAllows(action, role) {
     finalizar:    full,
 
     // Turnos/slots
-    bloquear:     full || recep,          // AMC sí puede bloquear
+    bloquear:     full || (R === 'propietario')  // AMC NO puede bloquear
     desbloquear:  full || (R === 'propietario'), // AMC NO puede desbloquear
     reenviar_wa:  full || recep,          // AMC puede reenviar WhatsApp
   };
