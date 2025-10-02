@@ -604,7 +604,8 @@ let GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
 
 
 // helpers visuales reutilizables
-const horaRango = t => `<b>${toHM(t.hora_inicio)}</b>${t.hora_fin ? ' — ' + toHM(t.hora_fin) : ''}`;
+UI.tp.hora.textContent = `Turno: ${toHM(t.hora_inicio)}${t.hora_fin ? ' — ' + toHM(t.hora_fin) : ''}`;
+
 
 const copagoChip = (v) => {
   if (v && Number(v) > 0) return `<span class="copago">${money(v)}</span>`;
