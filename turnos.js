@@ -725,7 +725,7 @@ function renderSlotsGroup(slots, profId){
   }
 
   const canCancel   = roleAllows('cancelar', userRole);      // AMP / Médico
-  const canRepro    = roleAllows('atender', userRole);       // usamos "atender" como proxy de privilegio completo
+  const canRepro = roleAllows('reprogramar', userRole);      // usamos "atender" como proxy de privilegio completo
 
   filtered.forEach(slot => {
     const wrap = document.createElement('div');
