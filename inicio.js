@@ -840,10 +840,10 @@ async function abrirPagoModal(turnoId, { afterPay } = {}) {
   const inpImporte = () => wrap.querySelector('#reg-importe');
   const btnAdd     = () => wrap.querySelector('#btn-add');
 
-  // --- Cargar info del turno (sin estado_pago) ---
+  // --- Consultar info del turno y pagos ya hechos ---
   const { data: t, error } = await supabase
     .from('turnos')
-    .select('copago, importe')
+    .select('copago')
     .eq('id', turnoId)
     .single();
 
@@ -852,8 +852,11 @@ async function abrirPagoModal(turnoId, { afterPay } = {}) {
     return;
   }
 
+  // Obtener la suma real de pagos hechos
+  const { totalPagado } = await getPagoResumen(turnoId);
+
   const total  = Number(t?.copago || 0);
-  const pagado = Number(t?.importe || 0);
+  const pagado = Number(totalPagado || 0);
   const pend   = Math.max(0, total - pagado);
 
   const el = wrap.querySelector('#pago-info');
