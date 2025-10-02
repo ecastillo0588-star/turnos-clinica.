@@ -814,76 +814,112 @@ function renderAtendidos(list, mapPagos) {
 }
 
 async function abrirPagoModal(turnoId, { afterPay } = {}) {
-  const root = document.getElementById('modal-root') || document.body;
-  const wrap = document.createElement('div');
-  wrap.className = 'modal-backdrop';
+  const tpl = document.getElementById('tpl-modal-pago');
+  const mountPoint = document.getElementById('modal-root') || document.body;
+  if (!tpl) { console.error('tpl-modal-pago no encontrado'); return; }
 
-  wrap.innerHTML = `
-    <div class="modal" role="dialog" aria-modal="true" style="max-width:520px">
-      <button class="modal-close" aria-label="Cerrar">&times;</button>
-      <div class="modal-header"><h3>Registrar pago</h3></div>
-      <div class="modal-body">
-        <div id="pago-info" style="color:#6b6480;margin-bottom:10px;"></div>
-        <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div class="form-group">
-            <label>Importe a registrar</label>
-            <input id="reg-importe" class="inp" inputmode="decimal" placeholder="0" />
-          </div>
-          <div class="form-group">
-            <label>Medio de pago</label>
-            <select id="reg-medio" class="sel">
-              <option value="efectivo" selected>Efectivo</option>
-              <option value="transferencia">Transferencia</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group" style="margin-top:10px;">
-          <label>Nota (opcional)</label>
-          <input id="reg-nota" class="inp" placeholder="Observaciones del pago..." />
-        </div>
-      </div>
-      <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
-        <button id="btn-cancel" class="btn secondary">Cancelar</button>
-        <button id="btn-add" class="btn">Registrar pago</button>
-      </div>
-    </div>`;
+  // Clonar e insertar el modal
+  const frag = tpl.content.cloneNode(true);
+  const backdrop = frag.querySelector('.modal-backdrop');
+  const modal    = frag.querySelector('.modal');
 
-  root.appendChild(wrap);
+  // Referencias a campos
+  const elInfo   = frag.querySelector('#pay-info');
+  const inpImp   = frag.querySelector('#pay-importe');
+  const selMedio = frag.querySelector('#pay-medio');
+  const inpNota  = frag.querySelector('#pay-nota');
+  const btnSkip  = frag.querySelector('#btn-skip');     // lo dejamos oculto para este flujo
+  const btnOk    = frag.querySelector('#btn-confirm');
+  const btnClose = frag.querySelector('.modal-close');
 
-  const close = () => { wrap.remove(); const b = document.querySelector('.modal-backdrop'); if (b) b.remove(); };
-  wrap.querySelector('.modal-close').onclick = close;
-  wrap.addEventListener('click', e => { if (e.target === wrap) close(); });
-  wrap.querySelector('#btn-cancel').onclick = close;
+  // Helpers de cierre
+  const close = () => {
+    try {
+      // si lo montamos en #modal-root, limpiamos el contenedor
+      if (mountPoint.id === 'modal-root') mountPoint.innerHTML = '';
+      else backdrop?.remove();
+    } catch {}
+  };
 
-  const inpImporte = () => wrap.querySelector('#reg-importe');
-  const btnAdd     = () => wrap.querySelector('#btn-add');
+  // Cerrar por X o por click afuera
+  btnClose?.addEventListener('click', close);
+  backdrop?.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
 
-  // --- Consultar info del turno y pagos ya hechos ---
-  const { data: t, error } = await supabase
+  // Traer turno + pagos
+  const { data: t, error: terr } = await supabase
     .from('turnos')
     .select('copago')
     .eq('id', turnoId)
-    .single();
+    .maybeSingle();
 
-  if (error) {
-    wrap.querySelector('#pago-info').textContent = 'No se pudo leer el turno.';
-    return;
-  }
-
-  // Obtener la suma real de pagos hechos
-  const { totalPagado } = await getPagoResumen(turnoId);
-
-  const total  = Number(t?.copago || 0);
-  const pagado = Number(totalPagado || 0);
-  const pend   = Math.max(0, total - pagado);
-
-  const el = wrap.querySelector('#pago-info');
-  if (total > 0) {
-    el.innerHTML = `Total copago: <b>${money(total)}</b> · Pagado: <b>${money(pagado)}</b> · Pendiente: <b>${money(pend)}</b>`;
+  if (terr || !t) {
+    // Mostrar un mensaje de error simple en el modal
+    if (elInfo) {
+      elInfo.classList.remove('success-box');
+      elInfo.classList.add('error-box');
+      elInfo.style.display = '';
+      elInfo.textContent = 'No se pudo leer el turno.';
+    }
   } else {
-    el.textContent = 'Sin copago asignado al turno.';
+    const { totalPagado } = await getPagoResumen(turnoId);
+    const total  = Number(t.copago || 0);
+    const pagado = Number(totalPagado || 0);
+    const pend   = Math.max(0, total - pagado);
+
+    // Llenar info y valor por defecto
+    if (elInfo) {
+      elInfo.classList.remove('error-box');
+      elInfo.classList.add('success-box');
+      elInfo.style.display = '';
+      elInfo.innerHTML = `Total copago: <b>${money(total)}</b> · Pagado: <b>${money(pagado)}</b> · Pendiente: <b>${money(pend)}</b>`;
+    }
+    if (pend > 0 && inpImp) inpImp.value = String(pend);
   }
-  if (pend > 0) inpImporte().value = String(pend);
+
+  // Enter confirma
+  inpImp?.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnOk?.click(); });
+
+  // Confirmar (insertar pago)
+  btnOk?.addEventListener('click', async () => {
+    if (!btnOk || btnOk.disabled) return;
+
+    const raw   = inpImp?.value ?? '';
+    const medio = selMedio?.value || 'efectivo';
+    const nota  = (inpNota?.value || '').trim();
+
+    // Permite "1.234", "1234", "1,234.50" → se redondea a entero
+    const toPesoIntLocal = (v) => {
+      if (v == null) return null;
+      const s = String(v).replace(/\./g, '').replace(',', '.');
+      const n = Number(s);
+      if (!isFinite(n) || n <= 0) return null;
+      return Math.round(n);
+    };
+
+    const imp = toPesoIntLocal(raw);
+    if (!imp || imp <= 0) { alert('Ingresá un importe válido (> 0).'); return; }
+
+    btnOk.disabled = true; const prev = btnOk.textContent; btnOk.textContent = 'Guardando…';
+
+    const { error: insErr } = await supabase
+      .from('turnos_pagos')
+      .insert([{ turno_id: turnoId, importe: imp, medio_pago: medio, nota }]);
+
+    if (insErr) {
+      btnOk.disabled = false; btnOk.textContent = prev;
+      alert('No se pudo registrar el pago.\n' + (insErr.message || ''));
+      return;
+    }
+
+    close();
+    await refreshAll();
+    if (typeof afterPay === 'function') afterPay();
+  });
+
+  // Montar al DOM
+  mountPoint.appendChild(frag);
+}
+
 
   // Enter confirma
   inpImporte().addEventListener('keydown', (e) => { if (e.key === 'Enter') btnAdd().click(); });
@@ -1176,18 +1212,22 @@ async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
 async function marcarLlegadaYCopago(turnoId){
   if (!roleAllows('arribo', userRole)) { alert('No tenés permisos.'); return; }
 
+  // Leer copago del turno
   const { data: t, error: terr } = await supabase
     .from('turnos')
     .select('id, copago')
     .eq('id', turnoId)
     .maybeSingle();
+
   if (terr || !t) { alert('No se pudo leer el turno.'); return; }
 
   const cop = toPesoInt(t.copago) ?? 0;
+
+  // Total pagado hasta ahora
   const { totalPagado } = await getPagoResumen(turnoId);
   const debeCobrar = cop > (totalPagado || 0);
 
-  // Si no hay nada que cobrar → registrar arribo y listo
+  // Si no hay nada que cobrar → registrar arribo directo
   if (!debeCobrar){
     const { error } = await supabase
       .from('turnos')
@@ -1198,13 +1238,13 @@ async function marcarLlegadaYCopago(turnoId){
     return;
   }
 
-  // Hay saldo pendiente → pedimos un pago y luego pasamos a EN_ESPERA
+  // Hay saldo pendiente → pedir pago con el template unificado
   openCobroModal({
     turno: { copago: cop },
     confirmLabel: 'Cobrar y pasar a En espera',
     skipLabel: 'Solo pasar a En espera',
     onCobrar: async ({ importe, medio }) => {
-      // 1) registrar pago
+      // 1) Registrar pago
       const { error: e1 } = await supabase.from('turnos_pagos').insert([{
         turno_id: turnoId,
         importe: toPesoInt(importe),
@@ -1213,7 +1253,7 @@ async function marcarLlegadaYCopago(turnoId){
       }]);
       if (e1){ alert('No se pudo registrar el pago.'); return; }
 
-      // 2) pasar a EN_ESPERA + hora de arribo
+      // 2) Pasar a EN_ESPERA + hora de arribo
       const { error: e2 } = await supabase
         .from('turnos')
         .update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS() })
@@ -1233,11 +1273,90 @@ async function marcarLlegadaYCopago(turnoId){
   });
 }
 
+  // Hay saldo pendiente → pedimos un pago y luego pasamos a EN_ESPERA
+ function openCobroModal(opts){
+  const { turno, confirmLabel, skipLabel, onCobrar, onSkip } = opts;
+  const tpl = document.getElementById('tpl-modal-pago');
+  const mountPoint = document.getElementById('modal-root') || document.body;
+  if (!tpl) { console.error('tpl-modal-pago no encontrado'); return; }
+
+  // Clonar el template
+  const frag = tpl.content.cloneNode(true);
+  const backdrop = frag.querySelector('.modal-backdrop');
+  const elInfo   = frag.querySelector('#pay-info');
+  const inpImp   = frag.querySelector('#pay-importe');
+  const selMedio = frag.querySelector('#pay-medio');
+  const btnSkip  = frag.querySelector('#btn-skip');
+  const btnOk    = frag.querySelector('#btn-confirm');
+  const btnClose = frag.querySelector('.modal-close');
+
+  // Mostrar botón "Continuar sin cobrar" y setear labels
+  if (btnSkip) {
+    btnSkip.hidden = false;
+    if (skipLabel) btnSkip.textContent = skipLabel;
+  }
+  if (btnOk && confirmLabel) btnOk.textContent = confirmLabel;
+
+  // Info de copago y valor por defecto
+  const cop = toPesoInt(turno?.copago) ?? 0;
+  if (elInfo) {
+    elInfo.classList.remove('error-box');
+    elInfo.classList.add('success-box');
+    elInfo.style.display = '';
+    elInfo.innerHTML = `Importe de copago informado: <b>${money(cop)}</b>`;
+  }
+  if (inpImp) inpImp.value = cop > 0 ? String(cop) : '';
+
+  // Helpers de cierre
+  const close = () => {
+    try {
+      if (mountPoint.id === 'modal-root') mountPoint.innerHTML = '';
+      else backdrop?.remove();
+    } catch {}
+  };
+
+  // Cierres por X y click afuera
+  btnClose?.addEventListener('click', close);
+  backdrop?.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+
+  // Enter confirma
+  inpImp?.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnOk?.click(); });
+
+  // Normalizador AR → entero
+  const toPesoIntLocal = (v) => {
+    if (v == null) return null;
+    const s = String(v).replace(/\./g, '').replace(',', '.');
+    const n = Number(s);
+    if (!isFinite(n) || n <= 0) return null;
+    return Math.round(n);
+  };
+
+  // Acciones
+  btnSkip?.addEventListener('click', async () => {
+    try { await onSkip?.(); } finally { close(); }
+  });
+
+  btnOk?.addEventListener('click', async () => {
+    if (!btnOk || btnOk.disabled) return;
+    const imp = toPesoIntLocal(inpImp?.value ?? '');
+    const medio = selMedio?.value || 'efectivo';
+    if (!imp || imp <= 0) { alert('Ingresá un importe válido.'); return; }
+
+    try { await onCobrar?.({ importe: imp, medio }); }
+    finally { close(); }
+  });
+
+  // Montar al DOM
+  mountPoint.appendChild(frag);
+}
+
+
 
 async function pasarAEnAtencion(turnoId, ev){
   if (ev) ev.preventDefault();
   if (!roleAllows('atender', userRole)) { alert('Solo AMP/Médico pueden atender.'); return; }
 
+  // Leer copago del turno
   const { data: t, error: terr } = await supabase
     .from('turnos')
     .select('id, copago')
@@ -1246,9 +1365,12 @@ async function pasarAEnAtencion(turnoId, ev){
   if (terr || !t) { alert('No se pudo leer el turno.'); return; }
 
   const cop = toPesoInt(t.copago) ?? 0;
+
+  // Total pagado hasta ahora
   const { totalPagado } = await getPagoResumen(turnoId);
   const debeCobrar = cop > (totalPagado || 0);
 
+  // Si no hay nada que cobrar → pasar directo a EN_ATENCION
   if (!debeCobrar){
     const { error } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
     if (error) { alert('No se pudo pasar a "En atención".'); return; }
@@ -1257,11 +1379,13 @@ async function pasarAEnAtencion(turnoId, ev){
     return;
   }
 
+  // Hay saldo pendiente → pedir pago con el template unificado
   openCobroModal({
     turno: { copago: cop },
     confirmLabel: 'Cobrar y pasar a En atención',
     skipLabel: 'Continuar sin cobrar',
     onCobrar: async ({ importe, medio }) => {
+      // 1) Registrar pago
       const { error: e1 } = await supabase.from('turnos_pagos').insert([{
         turno_id: turnoId,
         importe: toPesoInt(importe),
@@ -1270,6 +1394,7 @@ async function pasarAEnAtencion(turnoId, ev){
       }]);
       if (e1){ alert('No se pudo registrar el pago.'); return; }
 
+      // 2) Pasar a EN_ATENCION
       const { error: e2 } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
       if (e2) { alert('No se pudo pasar a "En atención".'); return; }
       await refreshAll();
