@@ -295,3 +295,12 @@ body.role-amc [data-act="finalizar"]{ display:none !important; }
 /* opcional: bloquear scroll del fondo cuando está abierto */
 body.tp-open{ overflow: hidden; }
 
+/* Fuerzo el panel de turno a salir desde la derecha */
+#inicio-root aside.turno-panel{
+  left: auto !important;
+  right: 0 !important;
+  transform: translateX(110%) !important;
+}
+#inicio-root aside.turno-panel.open{
+  transform: translateX(0) !important;
+}
