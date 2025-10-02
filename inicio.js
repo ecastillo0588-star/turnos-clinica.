@@ -603,18 +603,20 @@ function buildCell(key, t, ctx) {
       }
       return `<span class="copago">${totalStr} / ${pagadoStr} <span style="color:#f57c00;">(${money(pendiente)} pendiente)</span></span>`;
     }
-    case 'acciones': {
-      // Solo mostrar el botón de pago si hay pendiente
-      let html = `<div class="actions">`;
-      if (ctx.puedeCancelar) html += `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>`;
-      if (copago > 0 && pendiente > 0 && ctx.puedePagar) html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
-      if (ctx.puedeArribo && ctx.isHoy) html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
-      if (ctx.puedeAtender) html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>`;
-      if (ctx.puedeFinalizar) html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;
-      if (ctx.puedeAbrirFicha) html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
-      html += `</div>`;
-      return html;
-    }
+   case 'acciones': {
+     let html = `<div class="actions">`;
+     if (ctx.puedeCancelar) html += `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>`;
+     if (copago > 0 && pendiente > 0 && ctx.puedePagar) html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
+     if (ctx.puedeArribo && ctx.isHoy) html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
+     if (ctx.puedeAtender) html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">▶️</button>`;
+     if (ctx.puedeFinalizar) html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;
+     if (ctx.puedeAbrirFicha) html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
+     if (ctx.type === 'esp' && ctx.puedeVolver) html += `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a 'Por llegar'">↩︎</button>`;
+     if (ctx.type === 'atencion' && ctx.puedeVolverE) html += `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">↩︎</button>`;
+     html += `</div>`;
+     return html;
+   }
+
     // Puedes seguir agregando otros casos según tu diseño...
     default:
       // fallback al anterior
@@ -876,9 +878,7 @@ async function abrirPagoModal(turnoId, { afterPay } = {}) {
     if (pend > 0 && inpImp) inpImp.value = String(pend);
   }
 
-  // Enter confirma
-  inpImp?.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnOk?.click(); });
-
+  
   // Confirmar (insertar pago)
   btnOk?.addEventListener('click', async () => {
     if (!btnOk || btnOk.disabled) return;
@@ -921,44 +921,6 @@ async function abrirPagoModal(turnoId, { afterPay } = {}) {
 }
 
 
-  // Enter confirma
-  inpImporte().addEventListener('keydown', (e) => { if (e.key === 'Enter') btnAdd().click(); });
-
-  // --- Guardar pago ---
-  btnAdd().onclick = async () => {
-    if (btnAdd().disabled) return;
-
-    const raw   = inpImporte().value;
-    const medio = wrap.querySelector('#reg-medio').value || 'efectivo';
-    const nota  = (wrap.querySelector('#reg-nota').value || '').trim();
-
-    const toPesoIntLocal = (v) => {
-      if (v == null) return null;
-      const s = String(v).replace(/\./g, '').replace(',', '.');
-      const n = Number(s);
-      if (!isFinite(n) || n <= 0) return null;
-      return Math.round(n);
-    };
-    const imp = toPesoIntLocal(raw);
-    if (!imp || imp <= 0) { alert('Ingresá un importe válido (> 0).'); return; }
-
-    btnAdd().disabled = true; btnAdd().textContent = 'Guardando…';
-
-    const { error: insErr } = await supabase
-      .from('turnos_pagos')
-      .insert([{ turno_id: turnoId, importe: imp, medio_pago: medio, nota }]);
-
-    if (insErr) {
-      btnAdd().disabled = false; btnAdd().textContent = 'Registrar pago';
-      alert('No se pudo registrar el pago.\n' + (insErr.message || ''));
-      return;
-    }
-
-    close();
-    await refreshAll();
-    if (typeof afterPay === 'function') afterPay();
-  };
-}
 
 
 /* =======================
@@ -1209,6 +1171,8 @@ async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
   if (closeDrawer) hideDrawer();
   await refreshAll();
 }
+
+
 async function marcarLlegadaYCopago(turnoId){
   if (!roleAllows('arribo', userRole)) { alert('No tenés permisos.'); return; }
 
@@ -1238,31 +1202,32 @@ async function marcarLlegadaYCopago(turnoId){
     return;
   }
 
-  // Hay saldo pendiente → pedir pago con el template unificado
+  // Hay saldo pendiente → pedir pago con el modal GLOBAL y luego pasar a EN_ESPERA
   openCobroModal({
     turno: { copago: cop },
     confirmLabel: 'Cobrar y pasar a En espera',
-    skipLabel: 'Solo pasar a En espera',
+    skipLabel: 'Continuar sin cobrar',
     onCobrar: async ({ importe, medio }) => {
       // 1) Registrar pago
       const { error: e1 } = await supabase.from('turnos_pagos').insert([{
         turno_id: turnoId,
         importe: toPesoInt(importe),
         medio_pago: medio,
-        nota: 'Pago al arribo'
+        nota: 'Pago en arribo'
       }]);
       if (e1){ alert('No se pudo registrar el pago.'); return; }
 
-      // 2) Pasar a EN_ESPERA + hora de arribo
+      // 2) Pasar a EN_ESPERA con hora de arribo
       const { error: e2 } = await supabase
         .from('turnos')
         .update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS() })
         .eq('id', turnoId);
-      if (e2){ alert('No se pudo actualizar el estado.'); return; }
+      if (e2) { alert('No se pudo registrar la llegada.'); return; }
 
       await refreshAll();
     },
     onSkip: async () => {
+      // Continuar sin cobrar: solo marcar EN_ESPERA con arribo
       const { error } = await supabase
         .from('turnos')
         .update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS() })
@@ -1271,83 +1236,6 @@ async function marcarLlegadaYCopago(turnoId){
       await refreshAll();
     }
   });
-}
-
-  // Hay saldo pendiente → pedimos un pago y luego pasamos a EN_ESPERA
- function openCobroModal(opts){
-  const { turno, confirmLabel, skipLabel, onCobrar, onSkip } = opts;
-  const tpl = document.getElementById('tpl-modal-pago');
-  const mountPoint = document.getElementById('modal-root') || document.body;
-  if (!tpl) { console.error('tpl-modal-pago no encontrado'); return; }
-
-  // Clonar el template
-  const frag = tpl.content.cloneNode(true);
-  const backdrop = frag.querySelector('.modal-backdrop');
-  const elInfo   = frag.querySelector('#pay-info');
-  const inpImp   = frag.querySelector('#pay-importe');
-  const selMedio = frag.querySelector('#pay-medio');
-  const btnSkip  = frag.querySelector('#btn-skip');
-  const btnOk    = frag.querySelector('#btn-confirm');
-  const btnClose = frag.querySelector('.modal-close');
-
-  // Mostrar botón "Continuar sin cobrar" y setear labels
-  if (btnSkip) {
-    btnSkip.hidden = false;
-    if (skipLabel) btnSkip.textContent = skipLabel;
-  }
-  if (btnOk && confirmLabel) btnOk.textContent = confirmLabel;
-
-  // Info de copago y valor por defecto
-  const cop = toPesoInt(turno?.copago) ?? 0;
-  if (elInfo) {
-    elInfo.classList.remove('error-box');
-    elInfo.classList.add('success-box');
-    elInfo.style.display = '';
-    elInfo.innerHTML = `Importe de copago informado: <b>${money(cop)}</b>`;
-  }
-  if (inpImp) inpImp.value = cop > 0 ? String(cop) : '';
-
-  // Helpers de cierre
-  const close = () => {
-    try {
-      if (mountPoint.id === 'modal-root') mountPoint.innerHTML = '';
-      else backdrop?.remove();
-    } catch {}
-  };
-
-  // Cierres por X y click afuera
-  btnClose?.addEventListener('click', close);
-  backdrop?.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
-
-  // Enter confirma
-  inpImp?.addEventListener('keydown', (e) => { if (e.key === 'Enter') btnOk?.click(); });
-
-  // Normalizador AR → entero
-  const toPesoIntLocal = (v) => {
-    if (v == null) return null;
-    const s = String(v).replace(/\./g, '').replace(',', '.');
-    const n = Number(s);
-    if (!isFinite(n) || n <= 0) return null;
-    return Math.round(n);
-  };
-
-  // Acciones
-  btnSkip?.addEventListener('click', async () => {
-    try { await onSkip?.(); } finally { close(); }
-  });
-
-  btnOk?.addEventListener('click', async () => {
-    if (!btnOk || btnOk.disabled) return;
-    const imp = toPesoIntLocal(inpImp?.value ?? '');
-    const medio = selMedio?.value || 'efectivo';
-    if (!imp || imp <= 0) { alert('Ingresá un importe válido.'); return; }
-
-    try { await onCobrar?.({ importe: imp, medio }); }
-    finally { close(); }
-  });
-
-  // Montar al DOM
-  mountPoint.appendChild(frag);
 }
 
 
@@ -1425,83 +1313,30 @@ async function anularTurno(turnoId){
 // Refresh principal (con abort + overlay suave) y auto-refresh cada 2 minutos
 // =======================
 let autoRefreshInterval = null;
+let visListenerAttached = false;
 
-async function refreshAll({ showOverlayIfSlow = false } = {}) {
-  if (!selectedProfesionales.length) {
-    UI.tblPend.innerHTML = '';
-    UI.tblEsp.innerHTML = '';
-    UI.tblAtencion.innerHTML = '';
-    UI.tblDone.innerHTML = '';
-    safeSet(UI.kpiSub, `${currentCentroNombre || ''} · ${currentFechaISO || todayISO()}`);
-    renderBoardTitles({ pendientes: [], presentes: [], atencion: [], atendidos: [] });
-    return;
-  }
-
-  _refresh.abort?.abort();
-  const abort = new AbortController();
-  _refresh.abort = abort;
-  const myReqId = ++_refresh.reqId;
-
-  let overlayTimer;
-  if (showOverlayIfSlow) overlayTimer = setTimeout(() => setLoading(document, true), 220);
-
-  try {
-    const raw = await fetchDiaData(abort.signal);
-    if (myReqId !== _refresh.reqId) return;
-    computeColumnWidthsForDay(raw);
-    const filtered = applyFilter(raw);
-
-    // --- Calcular mapPagos para todos los turnos del día ---
-    const turnosIds = raw.turnos.map(t => t.id);
-    let mapPagos = {};
-    if (turnosIds.length > 0) {
-      const { data: pagos = [] } = await supabase
-        .from('turnos_pagos')
-        .select('turno_id, importe')
-        .in('turno_id', turnosIds);
-
-      for (const p of pagos) {
-        mapPagos[p.turno_id] = (mapPagos[p.turno_id] || 0) + Number(p.importe || 0);
-      }
-    }
-
-    // --- Pasar mapPagos a cada render de tabla ---
-    await renderPendientes(filtered.pendientes, mapPagos);
-    await renderPresentes(filtered.presentes, mapPagos);
-    await renderAtencion(filtered.atencion, mapPagos);
-    await renderAtendidos(filtered.atendidos, mapPagos);
-
-    renderKPIs(raw);
-    renderBoardTitles(filtered);
-  } finally {
-    if (overlayTimer) clearTimeout(overlayTimer);
-    setLoading(document, false);
-    if (myReqId === _refresh.reqId) _refresh.abort = null;
-  }
-}
-
-// =======================
-// Inicialización de auto-refresh cada 2 minutos
-// =======================
 function startAutoRefresh() {
+  // (re)inicia el intervalo
   if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-  autoRefreshInterval = setInterval(() => {
-    refreshAll();
-  }, 120000); // 2 minutos
-  // También refresca cuando el usuario vuelve a la pestaña
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      refreshAll();
-      startAutoRefresh();
-    } else {
-      if (autoRefreshInterval) clearInterval(autoRefreshInterval);
-    }
-  });
+  autoRefreshInterval = setInterval(() => { refreshAll(); }, 120000); // 2 min
+
+  // agrega el listener de visibilidad una sola vez
+  if (!visListenerAttached) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        refreshAll(); // refresh inmediato al volver
+        // reinicia el intervalo
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        autoRefreshInterval = setInterval(() => { refreshAll(); }, 120000);
+      } else {
+        // pausa el intervalo cuando la pestaña no está visible
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+      }
+    });
+    visListenerAttached = true;
+  }
 }
 
-// Llama a startAutoRefresh después del primer render/initInicio
-// Ejemplo: en initInicio al final
-// startAutoRefresh();
 
 function closeAnyModal() {
   const modalRoot = document.getElementById('modal-root');
