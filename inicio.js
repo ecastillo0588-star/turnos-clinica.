@@ -110,6 +110,7 @@ function bindUI(root = document) {
     obra:      root.querySelector('#fd-obra'),
     afiliado:  root.querySelector('#fd-afiliado'),
     cred:      root.querySelector('#fd-cred'),
+    hcLink:    root.querySelector('#fd-hc-link'),
     credLink:  root.querySelector('#fd-cred-link'),
     ecNom:     root.querySelector('#fd-ec-nom'),
     ecApe:     root.querySelector('#fd-ec-ape'),
@@ -122,7 +123,7 @@ function bindUI(root = document) {
     btnCerrar: root.querySelector('#fd-cerrar'),
     btnGuardar:root.querySelector('#fd-guardar'),
     btnFinalizar:root.querySelector('#fd-finalizar'),
-     hcLink: root.querySelector('#fd-hc-link'),
+    
   };
 
   boardsEl = root.querySelector('#boards');
@@ -449,7 +450,7 @@ async function fetchDiaData(/*signal*/){
 
   const profIds = selectedProfesionales.map(String);
   const selectCols = `
-    id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, importe, medio_pago, estado_pago,  paciente_id, profesional_id,
+    id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, importe, medio_pago, paciente_id, profesional_id,
     pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)
   `;
   const byHora = (a,b) => (toHM(a.hora_inicio) || '').localeCompare(toHM(b.hora_inicio) || '');
@@ -543,14 +544,14 @@ function computeColumnWidthsForDay({ turnos }) {
 // que todas las tablas compartan el mismo ancho por columna (según el contenido del día).
 // Rejilla única basada 100% en variables CSS (mismo ancho en header y filas)
 const COLS = [
-  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },                      // fijo para sticky
-  { key: "hora",     label: "Hora",        width: "var(--col-hora)" },                   // p.ej. 16ch
-  { key: "dni",      label: "DNI",         width: "var(--col-dni)" },                    // calculado
-  { key: "nombre",   label: "Nombre",      width: "minmax(var(--col-nombre),1fr)" },     // calculado + elástico
-  { key: "apellido", label: "Apellido",    width: "minmax(var(--col-apellido),1fr)" },   // calculado + elástico
-  { key: "obra",     label: "Obra social", width: "minmax(var(--col-obra),1fr)" },       // calculado + elástico
-  { key: "copago",   label: "Copago",      width: "var(--col-copago)" },                 // calculado
-  { key: "espera",   label: "Espera",      width: "var(--col-espera)" },                 // p.ej. 8ch
+  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },
+  { key: "hora",     label: "Hora",        width: "var(--col-hora)" },
+  { key: "dni",      label: "DNI",         width: "var(--col-dni)" },
+  { key: "nombre",   label: "Nombre",      width: "minmax(var(--col-nombre),1fr)" },
+  { key: "apellido", label: "Apellido",    width: "minmax(var(--col-apellido),1fr)" },
+  { key: "obra",     label: "Obra social", width: "minmax(var(--col-obra),1fr)" },
+  { key: "copago",   label: "Copago (Tt / p)", width: "var(--col-copago)" }, // <- Cambiado el encabezado
+  { key: "espera",   label: "Espera",      width: "var(--col-espera)" },
 ];
 
 let GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
@@ -587,35 +588,51 @@ const money = (n) => {
 };
 
 
-function buildCell(key, t, ctx){
+function buildCell(key, t, ctx) {
   const p = t.pacientes || {};
+  const pagado = ctx.pagos?.[t.id] || 0;
+  const copago = toPesoInt(t.copago) ?? 0;
+  const pendiente = Math.max(0, copago - pagado);
+
   switch (key) {
-    case 'espera':
-      return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
-    case 'hora':
-      return horaRango(t);
-    case 'dni':
-      return p.dni || '—';
-    case 'nombre':
-      return titleCase(p.nombre) || '—';
-    case 'apellido':
-      return titleCase(p.apellido) || '—';
-    case 'obra':
-      return p.obra_social || '—';
     case 'copago': {
-  const val = toPesoInt(t.copago);
-  return (val && val > 0)
-    ? `<span class="copago">${money(val)}</span>`
-    : `<span class="copago none">Sin copago</span>`;
-}
-    case 'acciones':
-      return ctx.actionsHTML(t);
+      if (copago === 0) return `<span class="copago none">Sin copago</span>`;
+      const totalStr = money(copago);
+      const pagadoStr = money(pagado);
+      if (pendiente === 0) {
+        // TODO: puedes resaltar con un color especial si quieres
+        return `<span class="copago ok">${totalStr} / ${pagadoStr} <span title="Abonado" style="color:#2e7d32;font-weight:bold;">✅ Abonado</span></span>`;
+      }
+      return `<span class="copago">${totalStr} / ${pagadoStr} <span style="color:#f57c00;">(${money(pendiente)} pendiente)</span></span>`;
+    }
+   case 'acciones': {
+     let html = `<div class="actions">`;
+     if (ctx.puedeCancelar) html += `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>`;
+     if (copago > 0 && pendiente > 0 && ctx.puedePagar) html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
+     if (ctx.puedeArribo && ctx.isHoy) html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
+     if (ctx.puedeAtender) html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">▶️</button>`;
+     if (ctx.puedeFinalizar) html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;
+     if (ctx.puedeAbrirFicha) html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
+     if (ctx.type === 'esp' && ctx.puedeVolver) html += `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a 'Por llegar'">↩︎</button>`;
+     if (ctx.type === 'atencion' && ctx.puedeVolverE) html += `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">↩︎</button>`;
+     html += `</div>`;
+     return html;
+   }
+
+    // Puedes seguir agregando otros casos según tu diseño...
     default:
-      return '—';
+      // fallback al anterior
+      switch (key) {
+        case 'espera': return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
+        case 'hora': return horaRango(t);
+        case 'dni': return p.dni || '—';
+        case 'nombre': return titleCase(p.nombre) || '—';
+        case 'apellido': return titleCase(p.apellido) || '—';
+        case 'obra': return p.obra_social || '—';
+        default: return '—';
+      }
   }
 }
-
-
 
 
 // head único
@@ -650,29 +667,62 @@ const showProfColumn = ()=> {
 };
 
 /* PENDIENTES */
-function renderPendientes(list){
-  const puedeCancelar = roleAllows('cancelar', userRole);
-  const puedeArribo   = roleAllows('arribo', userRole);
+/* PENDIENTES */
+/* PENDIENTES */
+// Render de pendientes - versión completa: copago detallado, botón pagar solo si corresponde, integración con buildCell global
 
+async function renderPendientes(list, mapPagos) {
+  // Permisos y flags para acciones
   const ctx = {
     type: 'pend',
     fechaISO: currentFechaISO,
-    actionsHTML: (t) => `
-      <div class="actions">
-        ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
-        ${puedeArribo   ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : ''}
-      </div>`
+    pagos: mapPagos,
+    puedeCancelar: roleAllows('cancelar', userRole),
+    puedeArribo: roleAllows('arribo', userRole),
+    puedePagar: true, // Si quieres filtrar por rol, cámbialo
+    isHoy: (currentFechaISO === todayISO()),
+    // Puedes agregar flags adicionales para otras acciones si tu tabla lo requiere
   };
 
-  renderTable(UI.tblPend, list, ctx);
+  // Renderizado de la tabla
+  const head = renderHeadHTML();
+  const rows = (list || []).map(t =>
+    `<tr class="row" style="grid-template-columns:${GRID_TEMPLATE}">` +
+    COLS.map(c =>
+      `<td class="cell">${buildCell(c.key, t, ctx)}</td>`
+    ).join('') +
+    `</tr>`
+  ).join('');
+  UI.tblPend.innerHTML = head + '<tbody>' + rows + '</tbody>';
 
-  // eventos
-  UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
-    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='arribo') btn.onclick=()=> marcarLlegadaYCopago(id);
-    if(act==='cancel') btn.onclick=()=> anularTurno(id);
+  // Asignar eventos a los botones de acciones de la tabla
+  UI.tblPend.querySelectorAll('.icon').forEach(btn => {
+    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
+    if (act === 'pago')   btn.onclick = () => abrirPagoModal(id);
+    if (act === 'arribo') btn.onclick = () => marcarLlegadaYCopago(id);
+    if (act === 'cancel') btn.onclick = () => anularTurno(id);
   });
 }
+
+
+async function getPagoResumen(turnoId){
+  const { data: pagos = [], error } = await supabase
+    .from('turnos_pagos')
+    .select('importe, medio_pago, fecha')      // ← usar 'fecha'
+    .eq('turno_id', turnoId)
+    .order('fecha', { ascending: false });     // ← último pago primero
+
+  if (error) {
+    console.warn('[getPagoResumen] error:', error);
+    return { totalPagado: 0, ultimoMedio: null };
+  }
+
+  const totalPagado = pagos.reduce((a,p)=> a + Number(p.importe || 0), 0);
+  const ultimoMedio = pagos[0]?.medio_pago || null;  // por fecha desc
+
+  return { totalPagado, ultimoMedio };
+}
+
 
 
 /* En sala de espera */
@@ -691,7 +741,7 @@ function updateWaitBadges(){
 }
 
 /* PRESENTES (EN ESPERA) */
-function renderPresentes(list){
+function renderPresentes(list, mapPagos) {
   const puedeVolver   = roleAllows('volver', userRole);
   const puedeCancelar = roleAllows('cancelar', userRole);
   const puedeAtender  = roleAllows('atender', userRole);
@@ -699,28 +749,34 @@ function renderPresentes(list){
   const ctx = {
     type: 'esp',
     fechaISO: currentFechaISO,
-    actionsHTML: (t) => `
-      <div class="actions">
-        ${puedeVolver   ? `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>` : ''}
-        ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
-        ${puedeAtender  ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}
-      </div>`
+    pagos: mapPagos, // <-- esto es lo importante!
+    puedeVolver,
+    puedeCancelar,
+    puedeAtender,
+    puedePagar: true, // si quieres mostrar botón de pago aquí
+    // otros flags según tu lógica...
   };
 
+  // renderTable debe usar buildCell global, que ya compara copago/pagado/etc.
   renderTable(UI.tblEsp, list, ctx);
 
-  UI.tblEsp.querySelectorAll('.icon').forEach(btn=>{
-    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='volver') btn.onclick=async()=>{ if(!roleAllows('volver', userRole)) return; await supabase.from('turnos').update({estado:EST.ASIGNADO, hora_arribo:null}).eq('id',id); await refreshAll(); };
-    if(act==='cancel') btn.onclick=()=> anularTurno(id);
-    if(act==='atender') btn.onclick=(ev)=> pasarAEnAtencion(id, ev);
+  UI.tblEsp.querySelectorAll('.icon').forEach(btn => {
+    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
+    if (act === 'volver') btn.onclick = async () => {
+      if (!roleAllows('volver', userRole)) return;
+      await supabase.from('turnos').update({ estado: EST.ASIGNADO, hora_arribo: null }).eq('id', id);
+      await refreshAll();
+    };
+    if (act === 'cancel') btn.onclick = () => anularTurno(id);
+    if (act === 'atender') btn.onclick = (ev) => pasarAEnAtencion(id, ev);
+    if (act === 'pago') btn.onclick = () => abrirPagoModal(id); // si usas pagos aquí
   });
 
   updateWaitBadges(); startWaitTicker();
 }
 
 /* EN ATENCIÓN */
-function renderAtencion(list){
+function renderAtencion(list, mapPagos) {
   const puedeAbrir   = roleAllows('abrir_ficha', userRole);
   const puedeVolverE = roleAllows('atender', userRole);
   const puedeFin     = roleAllows('finalizar', userRole);
@@ -728,51 +784,152 @@ function renderAtencion(list){
   const ctx = {
     type: 'atencion',
     fechaISO: currentFechaISO,
-    actionsHTML: (t) => `
-      <div class="actions">
-        ${puedeAbrir   ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha"   title="Abrir ficha">📄</button>` : ''}
-        ${puedeVolverE ? `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a espera">⏪</button>` : ''}
-        ${puedeFin     ? `<button class="icon" data-id="${t.id}" data-act="finalizar"     title="Marcar ATENDIDO">✅</button>` : ''}
-      </div>`
+    pagos: mapPagos,         // <-- ¡mapPagos aquí!
+    puedeAbrirFicha: puedeAbrir,
+    puedeVolverE,
+    puedeFinalizar: puedeFin,
+    puedePagar: true,        // <-- Si quieres botón de pago aquí, si no, pon false
   };
 
   renderTable(UI.tblAtencion, list, ctx);
 
-  UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
-    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='abrir-ficha')    btn.onclick=()=> openFicha(id);
-    if(act==='volver-espera')  btn.onclick=()=> volverASalaEspera(id);
-    if(act==='finalizar')      btn.onclick=()=> finalizarAtencion(id);
+  UI.tblAtencion.querySelectorAll('.icon').forEach(btn => {
+    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
+    if (act === 'abrir-ficha')    btn.onclick = () => openFicha(id);
+    if (act === 'volver-espera')  btn.onclick = () => volverASalaEspera(id);
+    if (act === 'finalizar')      btn.onclick = () => finalizarAtencion(id);
+    if (act === 'pago')           btn.onclick = () => abrirPagoModal(id); // si quieres permitir pagos aquí
   });
 }
 
-/* ATENDIDOS */
-function renderAtendidos(list){
+function renderAtendidos(list, mapPagos) {
   const puedeAbrir = roleAllows('abrir_ficha', userRole);
 
   const ctx = {
     type: 'done',
     fechaISO: currentFechaISO,
-    actionsHTML: (t) => {
-      const p = t.pacientes || {};
-      const hcBtn = p.historia_clinica
-        ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>`
-        : '';
-      return `
-        <div class="actions">
-          ${puedeAbrir ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>` : ''}
-          ${hcBtn}
-        </div>`;
-    }
+    pagos: mapPagos,         // <-- ¡mapPagos aquí!
+    puedeAbrirFicha: puedeAbrir,
+    puedePagar: false,       // Generalmente no se permite pagar en atendidos, pero puedes cambiarlo
   };
 
   renderTable(UI.tblDone, list, ctx);
 
-  UI.tblDone.querySelectorAll('.icon').forEach(btn=>{
-    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
+  UI.tblDone.querySelectorAll('.icon').forEach(btn => {
+    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
+    if (act === 'abrir-ficha') btn.onclick = () => openFicha(id);
+    if (act === 'pago')        btn.onclick = () => abrirPagoModal(id); // solo si activás pagos aquí
   });
 }
+
+async function abrirPagoModal(turnoId, { afterPay } = {}) {
+  const tpl = document.getElementById('tpl-modal-pago');
+  const mountPoint = document.getElementById('modal-root') || document.body;
+  if (!tpl) { console.error('tpl-modal-pago no encontrado'); return; }
+
+  // Clonar e insertar el modal
+  const frag = tpl.content.cloneNode(true);
+  const backdrop = frag.querySelector('.modal-backdrop');
+  const modal    = frag.querySelector('.modal');
+
+  // Referencias a campos
+  const elInfo   = frag.querySelector('#pay-info');
+  const inpImp   = frag.querySelector('#pay-importe');
+  const selMedio = frag.querySelector('#pay-medio');
+  const inpNota  = frag.querySelector('#pay-nota');
+  const btnSkip  = frag.querySelector('#btn-skip');     // lo dejamos oculto para este flujo
+  const btnOk    = frag.querySelector('#btn-confirm');
+  const btnClose = frag.querySelector('.modal-close');
+
+  // Helpers de cierre
+  const close = () => {
+    try {
+      // si lo montamos en #modal-root, limpiamos el contenedor
+      if (mountPoint.id === 'modal-root') mountPoint.innerHTML = '';
+      else backdrop?.remove();
+    } catch {}
+  };
+
+  // Cerrar por X o por click afuera
+  btnClose?.addEventListener('click', close);
+  backdrop?.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
+
+  // Traer turno + pagos
+  const { data: t, error: terr } = await supabase
+    .from('turnos')
+    .select('copago')
+    .eq('id', turnoId)
+    .maybeSingle();
+
+  if (terr || !t) {
+    // Mostrar un mensaje de error simple en el modal
+    if (elInfo) {
+      elInfo.classList.remove('success-box');
+      elInfo.classList.add('error-box');
+      elInfo.style.display = '';
+      elInfo.textContent = 'No se pudo leer el turno.';
+    }
+  } else {
+    const { totalPagado } = await getPagoResumen(turnoId);
+    const total  = Number(t.copago || 0);
+    const pagado = Number(totalPagado || 0);
+    const pend   = Math.max(0, total - pagado);
+
+    // Llenar info y valor por defecto
+    if (elInfo) {
+      elInfo.classList.remove('error-box');
+      elInfo.classList.add('success-box');
+      elInfo.style.display = '';
+      elInfo.innerHTML = `Total copago: <b>${money(total)}</b> · Pagado: <b>${money(pagado)}</b> · Pendiente: <b>${money(pend)}</b>`;
+    }
+    if (pend > 0 && inpImp) inpImp.value = String(pend);
+  }
+
+  
+  // Confirmar (insertar pago)
+  btnOk?.addEventListener('click', async () => {
+    if (!btnOk || btnOk.disabled) return;
+
+    const raw   = inpImp?.value ?? '';
+    const medio = selMedio?.value || 'efectivo';
+    const nota  = (inpNota?.value || '').trim();
+
+    // Permite "1.234", "1234", "1,234.50" → se redondea a entero
+    const toPesoIntLocal = (v) => {
+      if (v == null) return null;
+      const s = String(v).replace(/\./g, '').replace(',', '.');
+      const n = Number(s);
+      if (!isFinite(n) || n <= 0) return null;
+      return Math.round(n);
+    };
+
+    const imp = toPesoIntLocal(raw);
+    if (!imp || imp <= 0) { alert('Ingresá un importe válido (> 0).'); return; }
+
+    btnOk.disabled = true; const prev = btnOk.textContent; btnOk.textContent = 'Guardando…';
+
+    const { error: insErr } = await supabase
+      .from('turnos_pagos')
+      .insert([{ turno_id: turnoId, importe: imp, medio_pago: medio, nota }]);
+
+    if (insErr) {
+      btnOk.disabled = false; btnOk.textContent = prev;
+      alert('No se pudo registrar el pago.\n' + (insErr.message || ''));
+      return;
+    }
+
+    close();
+    await refreshAll();
+    if (typeof afterPay === 'function') afterPay();
+  });
+
+  // Montar al DOM
+  mountPoint.appendChild(frag);
+}
+
+
+
+
 /* =======================
    KPIs / títulos
    ======================= */
@@ -862,23 +1019,25 @@ function renderHeaderPaciente(p){
 
 
 async function openFicha(turnoId){
+  // 0) Permisos básicos
   if (!roleAllows('abrir_ficha', userRole)) {
     alert('No tenés permisos para abrir la ficha.');
     return;
   }
 
+  // 1) Preparación UI
   drawerTurnoId = turnoId;
   try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
-  setDrawerStatus('Cargando…'); 
+  setDrawerStatus('Cargando…');
   setDrawerMsg('');
   showDrawer();
 
-  // 1) Traer turno (incluye copago / pago)
+  // 2) Leer turno (incluye estado_pago y notas para chip y form)
   const { data: t, error: terr } = await supabase
     .from('turnos')
     .select(`
       id, fecha, hora_inicio, hora_fin, estado, hora_arribo,
-      copago, importe, medio_pago, estado_pago,
+      copago, importe, medio_pago, estado_pago, notas,
       paciente_id, profesional_id, centro_id
     `)
     .eq('id', turnoId)
@@ -890,7 +1049,7 @@ async function openFicha(turnoId){
     return;
   }
 
-  // 2) Traer paciente
+  // 3) Leer paciente
   const { data: p, error: perr } = await supabase
     .from('pacientes')
     .select(`
@@ -902,14 +1061,10 @@ async function openFicha(turnoId){
     .eq('id', t.paciente_id)
     .maybeSingle();
 
-  if (perr){
-    console.warn('[openFicha] pacientes warn:', perr);
-  }
+  if (perr) console.warn('[openFicha] pacientes warn:', perr);
 
-  // 3) Encabezado/resumen
-  if (Drawer.hora)   Drawer.hora.textContent   = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
-
-  // Copago/importe/medio/estado pago (chipeado)
+  // 4) Encabezado/chips rápidos
+  if (Drawer.hora)      Drawer.hora.textContent      = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
   const copVal = toPesoInt(t.copago);
   const copTxt = (copVal && copVal > 0) ? money(copVal) : 'Sin copago';
   if (Drawer.copago)    Drawer.copago.textContent    = `Copago: ${copTxt}`;
@@ -917,10 +1072,33 @@ async function openFicha(turnoId){
   if (Drawer.medio)     Drawer.medio.textContent     = `Medio: ${t.medio_pago || '—'}`;
   if (Drawer.estadoPago)Drawer.estadoPago.textContent= `Estado pago: ${t.estado_pago ? String(t.estado_pago).toUpperCase() : '—'}`;
 
-  // Título y sub
+  // Título/sub
   renderHeaderPaciente(p || {});
 
-  // 4) Campos editables del paciente
+  // 4.b) “Turnos OS en el año”
+  try {
+    const hoy   = new Date();
+    const y     = hoy.getFullYear();
+    const desde = `${y}-01-01`;
+    const hasta = `${y}-12-31`;
+
+    const { count, error: countErr } = await supabase
+      .from('turnos')
+      .select('id', { count: 'exact', head: true })
+      .eq('paciente_id', t.paciente_id)
+      .gte('fecha', desde)
+      .lte('fecha', hasta);
+
+    if (!countErr && Drawer.osYear) {
+      const labelOS = p?.obra_social ? p.obra_social : 'Sin OS';
+      Drawer.osYear.textContent = `Turnos OS en el año: ${count || 0} (${labelOS})`;
+    }
+  } catch (e) {
+    console.warn('[openFicha] conteo OS año warn:', e);
+    if (Drawer.osYear) Drawer.osYear.textContent = 'Turnos OS en el año: —';
+  }
+
+  // 5) Campos editables del PACIENTE
   if (Drawer.dni)   Drawer.dni.value   = p?.dni || '';
   if (Drawer.ape)   Drawer.ape.value   = p?.apellido || '';
   if (Drawer.nom)   Drawer.nom.value   = p?.nombre || '';
@@ -929,10 +1107,16 @@ async function openFicha(turnoId){
   if (Drawer.mail)  Drawer.mail.value  = p?.email || '';
   await loadObrasSociales(p?.obra_social || '');
   if (Drawer.afiliado) Drawer.afiliado.value = p?.numero_afiliado || '';
+
   if (Drawer.cred){
     Drawer.cred.value = p?.credencial || '';
     if (Drawer.credLink) Drawer.credLink.href = p?.credencial || '#';
+    // mantener sincronizado el botón "Ver" de credencial
+    Drawer.cred.oninput = () => {
+      if (Drawer.credLink) Drawer.credLink.href = Drawer.cred.value || '#';
+    };
   }
+
   if (Drawer.ecNom)  Drawer.ecNom.value  = p?.contacto_nombre || '';
   if (Drawer.ecApe)  Drawer.ecApe.value  = p?.contacto_apellido || '';
   if (Drawer.ecCel)  Drawer.ecCel.value  = p?.contacto_celular || '';
@@ -941,78 +1125,96 @@ async function openFicha(turnoId){
   if (Drawer.renov)  Drawer.renov.value  = p?.renovacion_receta || '';
   if (Drawer.activo) Drawer.activo.checked = !!p?.activo;
 
-   // Link historia clínica (input editable y botón)
-if (Drawer.hcLink) Drawer.hcLink.value = p?.historia_clinica || '';
-
-if (Drawer.hc) {
-  if (p?.historia_clinica) {
-    Drawer.hc.style.display = 'inline-flex';
-    Drawer.hc.href = p.historia_clinica;
-  } else {
-    Drawer.hc.style.display = 'none';
-    Drawer.hc.removeAttribute('href');
-  }
-}
-if (Drawer.hcLink && Drawer.hc) {
-  Drawer.hcLink.oninput = () => {
-    if (Drawer.hcLink.value.trim()) {
+  // 6) Historia clínica: input (#fd-hc-link) SIEMPRE visible y botón de header (#fd-hc)
+  if (Drawer.hcLink) Drawer.hcLink.value = p?.historia_clinica || '';
+  if (Drawer.hc) {
+    const url = Drawer.hcLink?.value?.trim();
+    if (url) {
       Drawer.hc.style.display = 'inline-flex';
-      Drawer.hc.href = Drawer.hcLink.value.trim();
+      Drawer.hc.href = url;
     } else {
       Drawer.hc.style.display = 'none';
       Drawer.hc.removeAttribute('href');
     }
-  };
-}
+  }
+  if (Drawer.hcLink && Drawer.hc) {
+    Drawer.hcLink.oninput = () => {
+      const v = Drawer.hcLink.value.trim();
+      if (v) {
+        Drawer.hc.style.display = 'inline-flex';
+        Drawer.hc.href = v;
+      } else {
+        Drawer.hc.style.display = 'none';
+        Drawer.hc.removeAttribute('href');
+      }
+    };
+  }
 
-  // Notas del turno
+  // 7) Notas del turno
   if (Drawer.notas) Drawer.notas.value = t?.notas || '';
 
-  setDrawerStatus('');
-
-  // 5) Acciones del drawer
+  // 8) Acciones del drawer
   if (Drawer.btnGuardar)  Drawer.btnGuardar.onclick = guardarFicha;
   if (Drawer.btnFinalizar){
     Drawer.btnFinalizar.style.display = roleAllows('finalizar', userRole) ? '' : 'none';
     Drawer.btnFinalizar.onclick = () => finalizarAtencion(drawerTurnoId, { closeDrawer: true });
   }
 
-  if (Drawer.cred) {
-    Drawer.cred.oninput = () => {
-      if (Drawer.credLink) Drawer.credLink.href = Drawer.cred.value || '#';
-    };
-  }
+  // 9) Listo
+  setDrawerStatus('');
 }
 
 
 async function guardarFicha(){
   if (!drawerTurnoId) return;
   if (!roleAllows('abrir_ficha', userRole)) { alert('No tenés permisos para guardar.'); return; }
-  const { data: t } = await supabase.from('turnos').select('paciente_id').eq('id', drawerTurnoId).maybeSingle();
-  const pacienteId = t?.paciente_id; if (!pacienteId){ setDrawerMsg('No se encontró paciente del turno','warn'); return; }
+
+  // traer el paciente_id del turno
+  const { data: t } = await supabase
+    .from('turnos')
+    .select('paciente_id')
+    .eq('id', drawerTurnoId)
+    .maybeSingle();
+
+  const pacienteId = t?.paciente_id;
+  if (!pacienteId){
+    setDrawerMsg('No se encontró paciente del turno','warn');
+    return;
+  }
 
   setDrawerMsg('Guardando...');
+
+  // leer valores del form
+  const historiaClinicaURL = (Drawer.hcLink?.value || '').trim();
+
   const payloadP = {
-    dni: Drawer.dni?.value.trim() || null,
-    apellido: Drawer.ape?.value.trim() || null,
-    nombre: Drawer.nom?.value.trim() || null,
+    dni: (Drawer.dni?.value || '').trim() || null,
+    apellido: (Drawer.ape?.value || '').trim() || null,
+    nombre: (Drawer.nom?.value || '').trim() || null,
     fecha_nacimiento: Drawer.nac?.value || null,
-    telefono: Drawer.tel?.value.trim() || null,
-    email: Drawer.mail?.value.trim() || null,
+    telefono: (Drawer.tel?.value || '').trim() || null,
+    email: (Drawer.mail?.value || '').trim() || null,
     obra_social: Drawer.obra?.value || null,
-    numero_afiliado: Drawer.afiliado?.value.trim() || null,
-    credencial: Drawer.cred?.value.trim() || null,
-    contacto_nombre: Drawer.ecNom?.value.trim() || null,
-    contacto_apellido: Drawer.ecApe?.value.trim() || null,
-    contacto_celular: Drawer.ecCel?.value.trim() || null,
-    vinculo: Drawer.ecVin?.value.trim() || null,
-    historia_clinica: Drawer.hcLink?.value.trim() || null,
+    numero_afiliado: (Drawer.afiliado?.value || '').trim() || null,
+    credencial: (Drawer.cred?.value || '').trim() || null,
+
+    // 👇 persistimos el link de historia clínica
+    historia_clinica: historiaClinicaURL || null,
+
+    contacto_nombre: (Drawer.ecNom?.value || '').trim() || null,
+    contacto_apellido: (Drawer.ecApe?.value || '').trim() || null,
+    contacto_celular: (Drawer.ecCel?.value || '').trim() || null,
+    vinculo: (Drawer.ecVin?.value || '').trim() || null,
     proximo_control: Drawer.prox?.value || null,
     renovacion_receta: Drawer.renov?.value || null,
     activo: !!Drawer.activo?.checked,
   };
-  const payloadTurno = { notas: Drawer.notas?.value || null };
 
+  const payloadTurno = {
+    notas: (Drawer.notas?.value || '').trim() || null,
+  };
+
+  // guardar
   const [r1, r2] = await Promise.all([
     supabase.from('pacientes').update(payloadP).eq('id', pacienteId),
     supabase.from('turnos').update(payloadTurno).eq('id', drawerTurnoId),
@@ -1021,11 +1223,28 @@ async function guardarFicha(){
   if (r1.error){ setDrawerMsg('Error guardando paciente: '+r1.error.message,'warn'); return; }
   if (r2.error){ setDrawerMsg('Error guardando notas: '+r2.error.message,'warn'); return; }
 
+  // actualizar encabezado/links en UI post-guardado
   renderHeaderPaciente({
-    dni: payloadP.dni, apellido: payloadP.apellido, nombre: payloadP.nombre,
-    fecha_nacimiento: payloadP.fecha_nacimiento, historia_clinica: payloadP.historia_clinica
+    dni: payloadP.dni,
+    apellido: payloadP.apellido,
+    nombre: payloadP.nombre,
+    fecha_nacimiento: payloadP.fecha_nacimiento,
+    historia_clinica: payloadP.historia_clinica
   });
-  setDrawerMsg('Cambios guardados.','ok'); setTimeout(()=> setDrawerMsg(''), 1200);
+
+  // sincronizar botón del header "Ver historia clínica"
+  if (Drawer.hc){
+    if (payloadP.historia_clinica){
+      Drawer.hc.style.display = 'inline-flex';
+      Drawer.hc.href = payloadP.historia_clinica;
+    } else {
+      Drawer.hc.style.display = 'none';
+      Drawer.hc.removeAttribute('href');
+    }
+  }
+
+  setDrawerMsg('Cambios guardados.','ok');
+  setTimeout(()=> setDrawerMsg(''), 1200);
 }
 
 /* =======================
@@ -1046,21 +1265,27 @@ async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
   if (closeDrawer) hideDrawer();
   await refreshAll();
 }
+
+
 async function marcarLlegadaYCopago(turnoId){
   if (!roleAllows('arribo', userRole)) { alert('No tenés permisos.'); return; }
 
-  // leer copago y estado_pago del turno
+  // Leer copago del turno
   const { data: t, error: terr } = await supabase
     .from('turnos')
-    .select('id, copago, estado_pago')
+    .select('id, copago')
     .eq('id', turnoId)
     .maybeSingle();
 
   if (terr || !t) { alert('No se pudo leer el turno.'); return; }
 
-  const debeCobrar = (toPesoInt(t.copago) ?? 0) > 0 && String(t.estado_pago||'').toLowerCase() !== 'pagado';
+  const cop = toPesoInt(t.copago) ?? 0;
 
-  // si no debe cobrar → En espera directo
+  // Total pagado hasta ahora
+  const { totalPagado } = await getPagoResumen(turnoId);
+  const debeCobrar = cop > (totalPagado || 0);
+
+  // Si no hay nada que cobrar → registrar arribo directo
   if (!debeCobrar){
     const { error } = await supabase
       .from('turnos')
@@ -1071,35 +1296,32 @@ async function marcarLlegadaYCopago(turnoId){
     return;
   }
 
-  // debe cobrar → modal
+  // Hay saldo pendiente → pedir pago con el modal GLOBAL y luego pasar a EN_ESPERA
   openCobroModal({
-    turno: t,
+    turno: { copago: cop },
     confirmLabel: 'Cobrar y pasar a En espera',
-    skipLabel: 'Solo pasar a En espera',
+    skipLabel: 'Continuar sin cobrar',
     onCobrar: async ({ importe, medio }) => {
-      // registramos cobro + pasamos de estado
-      let { error } = await supabase.from('turnos').update({
-        estado: EST.EN_ESPERA,
-        hora_arribo: nowHHMMSS(),
-        importe: importe,
+      // 1) Registrar pago
+      const { error: e1 } = await supabase.from('turnos_pagos').insert([{
+        turno_id: turnoId,
+        importe: toPesoInt(importe),
         medio_pago: medio,
-        estado_pago: 'pagado'
-      }).eq('id', turnoId);
+        nota: 'Pago en arribo'
+      }]);
+      if (e1){ alert('No se pudo registrar el pago.'); return; }
 
-      // fallback si enum no permite 'pagado'
-      if (error && /estado_pago/i.test(error.message||'')){
-        const { error: e2 } = await supabase.from('turnos').update({
-          estado: EST.EN_ESPERA,
-          hora_arribo: nowHHMMSS(),
-          importe: importe,
-          medio_pago: medio
-        }).eq('id', turnoId);
-        if (e2) { alert('No se pudo registrar el cobro.'); return; }
-      } else if (error){ alert('No se pudo registrar el cobro.'); return; }
+      // 2) Pasar a EN_ESPERA con hora de arribo
+      const { error: e2 } = await supabase
+        .from('turnos')
+        .update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS() })
+        .eq('id', turnoId);
+      if (e2) { alert('No se pudo registrar la llegada.'); return; }
 
       await refreshAll();
     },
     onSkip: async () => {
+      // Continuar sin cobrar: solo marcar EN_ESPERA con arribo
       const { error } = await supabase
         .from('turnos')
         .update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS() })
@@ -1110,22 +1332,27 @@ async function marcarLlegadaYCopago(turnoId){
   });
 }
 
+
+
 async function pasarAEnAtencion(turnoId, ev){
   if (ev) ev.preventDefault();
   if (!roleAllows('atender', userRole)) { alert('Solo AMP/Médico pueden atender.'); return; }
 
-  // leer copago y estado_pago
+  // Leer copago del turno
   const { data: t, error: terr } = await supabase
     .from('turnos')
-    .select('id, copago, estado_pago')
+    .select('id, copago')
     .eq('id', turnoId)
     .maybeSingle();
-
   if (terr || !t) { alert('No se pudo leer el turno.'); return; }
 
-  const debeCobrar = (toPesoInt(t.copago) ?? 0) > 0 && String(t.estado_pago||'').toLowerCase() !== 'pagado';
+  const cop = toPesoInt(t.copago) ?? 0;
 
-  // Si no debe cobrar → En atención directo
+  // Total pagado hasta ahora
+  const { totalPagado } = await getPagoResumen(turnoId);
+  const debeCobrar = cop > (totalPagado || 0);
+
+  // Si no hay nada que cobrar → pasar directo a EN_ATENCION
   if (!debeCobrar){
     const { error } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
     if (error) { alert('No se pudo pasar a "En atención".'); return; }
@@ -1134,29 +1361,24 @@ async function pasarAEnAtencion(turnoId, ev){
     return;
   }
 
-  // Debe cobrar → mostrar modal al médico
+  // Hay saldo pendiente → pedir pago con el template unificado
   openCobroModal({
-    turno: t,
+    turno: { copago: cop },
     confirmLabel: 'Cobrar y pasar a En atención',
     skipLabel: 'Continuar sin cobrar',
     onCobrar: async ({ importe, medio }) => {
-      // registramos cobro y pasamos a EN_ATENCION
-      let { error } = await supabase.from('turnos').update({
-        estado: EST.EN_ATENCION,
-        importe: importe,
+      // 1) Registrar pago
+      const { error: e1 } = await supabase.from('turnos_pagos').insert([{
+        turno_id: turnoId,
+        importe: toPesoInt(importe),
         medio_pago: medio,
-        estado_pago: 'pagado'
-      }).eq('id', turnoId);
+        nota: 'Pago antes de atención'
+      }]);
+      if (e1){ alert('No se pudo registrar el pago.'); return; }
 
-      if (error && /estado_pago/i.test(error.message||'')){
-        const { error: e2 } = await supabase.from('turnos').update({
-          estado: EST.EN_ATENCION,
-          importe: importe,
-          medio_pago: medio
-        }).eq('id', turnoId);
-        if (e2) { alert('No se pudo registrar el cobro.'); return; }
-      } else if (error){ alert('No se pudo registrar el cobro.'); return; }
-
+      // 2) Pasar a EN_ATENCION
+      const { error: e2 } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
+      if (e2) { alert('No se pudo pasar a "En atención".'); return; }
       await refreshAll();
       await openFicha(turnoId);
     },
@@ -1169,6 +1391,7 @@ async function pasarAEnAtencion(turnoId, ev){
   });
 }
 
+
 async function anularTurno(turnoId){
   if (!roleAllows('cancelar', userRole)) { alert('No tenés permisos para anular.'); return; }
   if (!confirm('¿Anular este turno?')) return;
@@ -1180,39 +1403,34 @@ async function anularTurno(turnoId){
 /* =======================
    Refresh principal (con abort + overlay suave)
    ======================= */
-async function refreshAll({ showOverlayIfSlow = false } = {}){
-  if(!selectedProfesionales.length){
-    UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML=''; UI.tblDone.innerHTML='';
-    safeSet(UI.kpiSub, `${currentCentroNombre||''} · ${currentFechaISO||todayISO()}`);
-    renderBoardTitles({pendientes:[],presentes:[],atencion:[],atendidos:[]});
-    return;
-  }
+// =======================
+// Refresh principal (con abort + overlay suave) y auto-refresh cada 2 minutos
+// =======================
+let autoRefreshInterval = null;
+let visListenerAttached = false;
 
-  _refresh.abort?.abort();
-  const abort = new AbortController();
-  _refresh.abort = abort;
-  const myReqId = ++_refresh.reqId;
+function startAutoRefresh() {
+  // (re)inicia el intervalo
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  autoRefreshInterval = setInterval(() => { refreshAll(); }, 120000); // 2 min
 
-  let overlayTimer;
-  if (showOverlayIfSlow) overlayTimer = setTimeout(()=> setLoading(document, true), 220);
-
-  try{
-    const raw = await fetchDiaData(abort.signal);
-    if (myReqId !== _refresh.reqId) return;
-    computeColumnWidthsForDay(raw);
-    const filtered = applyFilter(raw);
-    renderPendientes(filtered.pendientes);
-    renderPresentes(filtered.presentes);
-    renderAtencion(filtered.atencion);
-    renderAtendidos(filtered.atendidos);
-    renderKPIs(raw);
-    renderBoardTitles(filtered);
-  } finally {
-    if (overlayTimer) clearTimeout(overlayTimer);
-    setLoading(document, false);
-    if (myReqId === _refresh.reqId) _refresh.abort = null;
+  // agrega el listener de visibilidad una sola vez
+  if (!visListenerAttached) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        refreshAll(); // refresh inmediato al volver
+        // reinicia el intervalo
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        autoRefreshInterval = setInterval(() => { refreshAll(); }, 120000);
+      } else {
+        // pausa el intervalo cuando la pestaña no está visible
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+      }
+    });
+    visListenerAttached = true;
   }
 }
+
 
 function closeAnyModal() {
   const modalRoot = document.getElementById('modal-root');
@@ -1287,6 +1505,109 @@ function openCobroModal(opts){
 }
 
 /* =======================
+   Refresh principal (con anti-tearing y pagos)
+   ======================= */
+
+// Suma pagos por turno y devuelve un mapa { [turno_id]: totalPagado }
+async function fetchPagosMap(turnoIds = []) {
+  const ids = [...new Set(turnoIds)].filter(Boolean);
+  if (!ids.length) return {};
+  const { data = [], error } = await supabase
+    .from('turnos_pagos')
+    .select('turno_id, importe')
+    .in('turno_id', ids);
+
+  if (error) {
+    console.warn('[refreshAll] turnos_pagos error:', error);
+    return {};
+  }
+  const map = {};
+  for (const r of data) {
+    const id = r.turno_id;
+    const imp = Number(r.importe || 0);
+    map[id] = (map[id] || 0) + imp;
+  }
+  return map;
+}
+
+function clearBoardsUI() {
+  if (UI.tblPend) UI.tblPend.innerHTML = '';
+  if (UI.tblEsp) UI.tblEsp.innerHTML = '';
+  if (UI.tblAtencion) UI.tblAtencion.innerHTML = '';
+  if (UI.tblDone) UI.tblDone.innerHTML = '';
+  renderBoardTitles({ pendientes: [], presentes: [], atencion: [], atendidos: [] });
+  if (UI.kpiFree) UI.kpiFree.textContent = '—';
+  if (UI.kpiSub)  UI.kpiSub.textContent  = `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO || ''}`;
+}
+
+/**
+ * refreshAll({ showOverlayIfSlow = true } = {})
+ *   - Trae datos del día
+ *   - Calcula anchos de columnas
+ *   - Suma pagos por turno
+ *   - Renderiza las 4 tablas + KPIs
+ */
+async function refreshAll({ showOverlayIfSlow = true } = {}) {
+  const myId = ++_refresh.reqId;
+
+  // Overlay si tarda (suave)
+  let overlayTimer = null;
+  const rootNode = boardsEl?.closest?.('.page') || document.body;
+  if (showOverlayIfSlow) {
+    overlayTimer = setTimeout(() => setLoading(rootNode, true), 220);
+  }
+
+  try {
+    // Precondiciones mínimas
+    if (!currentCentroId) {
+      clearBoardsUI();
+      return;
+    }
+
+    // 1) Traer datos base del día
+    const raw = await fetchDiaData();
+    if (myId !== _refresh.reqId) return; // llegó tarde → descarto
+
+    // 2) Filtro global si hay texto
+    const data = applyFilter(raw);
+
+    // 3) Calcular anchos de columnas en base a TODOS los turnos del día
+    computeColumnWidthsForDay({ turnos: data.turnos || [] });
+    // Actualizar la plantilla grid (por si las variables cambiaron)
+    GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
+
+    // 4) KPIs y títulos
+    renderKPIs(data);
+    renderBoardTitles(data);
+
+    // 5) Sumar pagos por turno (para mostrar "Tt / p" y saldos)
+    const allIds = [
+      ...data.pendientes.map(t => t.id),
+      ...data.presentes.map(t => t.id),
+      ...data.atencion.map(t => t.id),
+      ...data.atendidos.map(t => t.id),
+    ];
+    const pagosMap = await fetchPagosMap(allIds);
+    if (myId !== _refresh.reqId) return; // llegó tarde
+
+    // 6) Render de tablas
+    if (UI.tblPend)     await renderPendientes(data.pendientes, pagosMap);
+    if (UI.tblEsp)      renderPresentes(data.presentes, pagosMap);
+    if (UI.tblAtencion) renderAtencion(data.atencion, pagosMap);
+    if (UI.tblDone)     renderAtendidos(data.atendidos, pagosMap);
+
+  } catch (err) {
+    console.error('[refreshAll] error:', err);
+    // fallback UI simple
+    clearBoardsUI();
+  } finally {
+    if (overlayTimer) clearTimeout(overlayTimer);
+    setLoading(rootNode, false);
+  }
+}
+
+
+/* =======================
    INIT (export)
    ======================= */
 export async function initInicio(root){
@@ -1338,4 +1659,5 @@ export async function initInicio(root){
 
   // watcher de centro (si cambia en otro tab/side, re-carga todo)
   startCentroWatcher();
+  startAutoRefresh();
 }
