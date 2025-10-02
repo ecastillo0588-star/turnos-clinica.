@@ -542,14 +542,14 @@ function computeColumnWidthsForDay({ turnos }) {
 // que todas las tablas compartan el mismo ancho por columna (según el contenido del día).
 // Rejilla única basada 100% en variables CSS (mismo ancho en header y filas)
 const COLS = [
-  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },                      // fijo para sticky
-  { key: "hora",     label: "Hora",        width: "var(--col-hora)" },                   // p.ej. 16ch
-  { key: "dni",      label: "DNI",         width: "var(--col-dni)" },                    // calculado
-  { key: "nombre",   label: "Nombre",      width: "minmax(var(--col-nombre),1fr)" },     // calculado + elástico
-  { key: "apellido", label: "Apellido",    width: "minmax(var(--col-apellido),1fr)" },   // calculado + elástico
-  { key: "obra",     label: "Obra social", width: "minmax(var(--col-obra),1fr)" },       // calculado + elástico
-  { key: "copago",   label: "Copago",      width: "var(--col-copago)" },                 // calculado
-  { key: "espera",   label: "Espera",      width: "var(--col-espera)" },                 // p.ej. 8ch
+  { key: "acciones", label: "Acciones",    width: "var(--w-acc)" },
+  { key: "hora",     label: "Hora",        width: "var(--col-hora)" },
+  { key: "dni",      label: "DNI",         width: "var(--col-dni)" },
+  { key: "nombre",   label: "Nombre",      width: "minmax(var(--col-nombre),1fr)" },
+  { key: "apellido", label: "Apellido",    width: "minmax(var(--col-apellido),1fr)" },
+  { key: "obra",     label: "Obra social", width: "minmax(var(--col-obra),1fr)" },
+  { key: "copago",   label: "Copago (Tt / p)", width: "var(--col-copago)" }, // <- Cambiado el encabezado
+  { key: "espera",   label: "Espera",      width: "var(--col-espera)" },
 ];
 
 let GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
@@ -586,31 +586,89 @@ const money = (n) => {
 };
 
 
-function buildCell(key, t, ctx){
+function buildCell(key, t, ctx) {
   const p = t.pacientes || {};
+  const pagado = ctx.pagos?.[t.id] || 0;
+  const copago = toPesoInt(t.copago) ?? 0;
+  const pendiente = Math.max(0, copago - pagado);
+
   switch (key) {
-    case 'espera':
-      return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
-    case 'hora':
-      return horaRango(t);
-    case 'dni':
-      return p.dni || '—';
-    case 'nombre':
-      return titleCase(p.nombre) || '—';
-    case 'apellido':
-      return titleCase(p.apellido) || '—';
-    case 'obra':
-      return p.obra_social || '—';
     case 'copago': {
-  const val = toPesoInt(t.copago);
-  return (val && val > 0)
-    ? `<span class="copago">${money(val)}</span>`
-    : `<span class="copago none">Sin copago</span>`;
-}
-    case 'acciones':
-      return ctx.actionsHTML(t);
+      if (copago === 0) return `<span class="copago none">Sin copago</span>`;
+      const totalStr = money(copago);
+      const pagadoStr = money(pagado);
+      if (pendiente === 0) {
+        // TODO: puedes resaltar con un color especial si quieres
+        return `<span class="copago ok">${totalStr} / ${pagadoStr} <span title="Abonado" style="color:#2e7d32;font-weight:bold;">✅ Abonado</span></span>`;
+      }
+      return `<span class="copago">${totalStr} / ${pagadoStr} <span style="color:#f57c00;">(${money(pendiente)} pendiente)</span></span>`;
+    }
+    case 'acciones': {
+      // Solo mostrar el botón de pago si hay pendiente
+      let html = `<div class="actions">`;
+      if (ctx.puedeCancelar) html += `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>`;
+      if (copago > 0 && pendiente > 0 && ctx.puedePagar) html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
+      if (ctx.puedeArribo && ctx.isHoy) html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
+      if (ctx.puedeAtender) html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>`;
+      if (ctx.puedeFinalizar) html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;
+      if (ctx.puedeAbrirFicha) html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
+      html += `</div>`;
+      return html;
+    }
+    // Puedes seguir agregando otros casos según tu diseño...
     default:
-      return '—';
+      // fallback al anterior
+      switch (key) {
+        case 'espera': return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
+        case 'hora': return horaRango(t);
+        case 'dni': return p.dni || '—';
+        case 'nombre': return titleCase(p.nombre) || '—';
+        case 'apellido': return titleCase(p.apellido) || '—';
+        case 'obra': return p.obra_social || '—';
+        default: return '—';
+      }
+  }
+}function buildCell(key, t, ctx) {
+  const p = t.pacientes || {};
+  const pagado = ctx.pagos?.[t.id] || 0;
+  const copago = toPesoInt(t.copago) ?? 0;
+  const pendiente = Math.max(0, copago - pagado);
+
+  switch (key) {
+    case 'copago': {
+      if (copago === 0) return `<span class="copago none">Sin copago</span>`;
+      const totalStr = money(copago);
+      const pagadoStr = money(pagado);
+      if (pendiente === 0) {
+        // TODO: puedes resaltar con un color especial si quieres
+        return `<span class="copago ok">${totalStr} / ${pagadoStr} <span title="Abonado" style="color:#2e7d32;font-weight:bold;">✅ Abonado</span></span>`;
+      }
+      return `<span class="copago">${totalStr} / ${pagadoStr} <span style="color:#f57c00;">(${money(pendiente)} pendiente)</span></span>`;
+    }
+    case 'acciones': {
+      // Solo mostrar el botón de pago si hay pendiente
+      let html = `<div class="actions">`;
+      if (ctx.puedeCancelar) html += `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>`;
+      if (copago > 0 && pendiente > 0 && ctx.puedePagar) html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
+      if (ctx.puedeArribo && ctx.isHoy) html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
+      if (ctx.puedeAtender) html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>`;
+      if (ctx.puedeFinalizar) html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;
+      if (ctx.puedeAbrirFicha) html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
+      html += `</div>`;
+      return html;
+    }
+    // Puedes seguir agregando otros casos según tu diseño...
+    default:
+      // fallback al anterior
+      switch (key) {
+        case 'espera': return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
+        case 'hora': return horaRango(t);
+        case 'dni': return p.dni || '—';
+        case 'nombre': return titleCase(p.nombre) || '—';
+        case 'apellido': return titleCase(p.apellido) || '—';
+        case 'obra': return p.obra_social || '—';
+        default: return '—';
+      }
   }
 }
 
@@ -651,32 +709,38 @@ const showProfColumn = ()=> {
 /* PENDIENTES */
 /* PENDIENTES */
 /* PENDIENTES */
-function renderPendientes(list){
-  const puedeCancelar = roleAllows('cancelar', userRole);
-  const puedeArribo   = roleAllows('arribo', userRole);
-  const isHoy         = (currentFechaISO === todayISO());
+// Render de pendientes - versión completa: copago detallado, botón pagar solo si corresponde, integración con buildCell global
 
+async function renderPendientes(list, mapPagos) {
+  // Permisos y flags para acciones
   const ctx = {
     type: 'pend',
     fechaISO: currentFechaISO,
-    actionsHTML: (t) => {
-      const tieneCopago = (toPesoInt(t.copago) ?? 0) > 0; // ← sólo si copago > 0
-      return `
-        <div class="actions">
-          ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
-          ${tieneCopago ? `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>` : ''}
-          ${(puedeArribo && isHoy) ? `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>` : ''}
-        </div>`;
-    }
+    pagos: mapPagos,
+    puedeCancelar: roleAllows('cancelar', userRole),
+    puedeArribo: roleAllows('arribo', userRole),
+    puedePagar: true, // Si quieres filtrar por rol, cámbialo
+    isHoy: (currentFechaISO === todayISO()),
+    // Puedes agregar flags adicionales para otras acciones si tu tabla lo requiere
   };
 
-  renderTable(UI.tblPend, list, ctx);
+  // Renderizado de la tabla
+  const head = renderHeadHTML();
+  const rows = (list || []).map(t =>
+    `<tr class="row" style="grid-template-columns:${GRID_TEMPLATE}">` +
+    COLS.map(c =>
+      `<td class="cell">${buildCell(c.key, t, ctx)}</td>`
+    ).join('') +
+    `</tr>`
+  ).join('');
+  UI.tblPend.innerHTML = head + '<tbody>' + rows + '</tbody>';
 
-  UI.tblPend.querySelectorAll('.icon').forEach(btn=>{
-    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='pago')   btn.onclick=()=> abrirPagoModal(id);
-    if(act==='arribo') btn.onclick=()=> marcarLlegadaYCopago(id);
-    if(act==='cancel') btn.onclick=()=> anularTurno(id);
+  // Asignar eventos a los botones de acciones de la tabla
+  UI.tblPend.querySelectorAll('.icon').forEach(btn => {
+    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
+    if (act === 'pago')   btn.onclick = () => abrirPagoModal(id);
+    if (act === 'arribo') btn.onclick = () => marcarLlegadaYCopago(id);
+    if (act === 'cancel') btn.onclick = () => anularTurno(id);
   });
 }
 
@@ -712,7 +776,7 @@ function updateWaitBadges(){
 }
 
 /* PRESENTES (EN ESPERA) */
-function renderPresentes(list){
+function renderPresentes(list, mapPagos) {
   const puedeVolver   = roleAllows('volver', userRole);
   const puedeCancelar = roleAllows('cancelar', userRole);
   const puedeAtender  = roleAllows('atender', userRole);
@@ -720,28 +784,34 @@ function renderPresentes(list){
   const ctx = {
     type: 'esp',
     fechaISO: currentFechaISO,
-    actionsHTML: (t) => `
-      <div class="actions">
-        ${puedeVolver   ? `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a pendientes">↩️</button>` : ''}
-        ${puedeCancelar ? `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>` : ''}
-        ${puedeAtender  ? `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>` : ''}
-      </div>`
+    pagos: mapPagos, // <-- esto es lo importante!
+    puedeVolver,
+    puedeCancelar,
+    puedeAtender,
+    puedePagar: true, // si quieres mostrar botón de pago aquí
+    // otros flags según tu lógica...
   };
 
+  // renderTable debe usar buildCell global, que ya compara copago/pagado/etc.
   renderTable(UI.tblEsp, list, ctx);
 
-  UI.tblEsp.querySelectorAll('.icon').forEach(btn=>{
-    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='volver') btn.onclick=async()=>{ if(!roleAllows('volver', userRole)) return; await supabase.from('turnos').update({estado:EST.ASIGNADO, hora_arribo:null}).eq('id',id); await refreshAll(); };
-    if(act==='cancel') btn.onclick=()=> anularTurno(id);
-    if(act==='atender') btn.onclick=(ev)=> pasarAEnAtencion(id, ev);
+  UI.tblEsp.querySelectorAll('.icon').forEach(btn => {
+    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
+    if (act === 'volver') btn.onclick = async () => {
+      if (!roleAllows('volver', userRole)) return;
+      await supabase.from('turnos').update({ estado: EST.ASIGNADO, hora_arribo: null }).eq('id', id);
+      await refreshAll();
+    };
+    if (act === 'cancel') btn.onclick = () => anularTurno(id);
+    if (act === 'atender') btn.onclick = (ev) => pasarAEnAtencion(id, ev);
+    if (act === 'pago') btn.onclick = () => abrirPagoModal(id); // si usas pagos aquí
   });
 
   updateWaitBadges(); startWaitTicker();
 }
 
 /* EN ATENCIÓN */
-function renderAtencion(list){
+function renderAtencion(list, mapPagos) {
   const puedeAbrir   = roleAllows('abrir_ficha', userRole);
   const puedeVolverE = roleAllows('atender', userRole);
   const puedeFin     = roleAllows('finalizar', userRole);
@@ -749,49 +819,41 @@ function renderAtencion(list){
   const ctx = {
     type: 'atencion',
     fechaISO: currentFechaISO,
-    actionsHTML: (t) => `
-      <div class="actions">
-        ${puedeAbrir   ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha"   title="Abrir ficha">📄</button>` : ''}
-        ${puedeVolverE ? `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a espera">⏪</button>` : ''}
-        ${puedeFin     ? `<button class="icon" data-id="${t.id}" data-act="finalizar"     title="Marcar ATENDIDO">✅</button>` : ''}
-      </div>`
+    pagos: mapPagos,         // <-- ¡mapPagos aquí!
+    puedeAbrirFicha: puedeAbrir,
+    puedeVolverE,
+    puedeFinalizar: puedeFin,
+    puedePagar: true,        // <-- Si quieres botón de pago aquí, si no, pon false
   };
 
   renderTable(UI.tblAtencion, list, ctx);
 
-  UI.tblAtencion.querySelectorAll('.icon').forEach(btn=>{
-    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='abrir-ficha')    btn.onclick=()=> openFicha(id);
-    if(act==='volver-espera')  btn.onclick=()=> volverASalaEspera(id);
-    if(act==='finalizar')      btn.onclick=()=> finalizarAtencion(id);
+  UI.tblAtencion.querySelectorAll('.icon').forEach(btn => {
+    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
+    if (act === 'abrir-ficha')    btn.onclick = () => openFicha(id);
+    if (act === 'volver-espera')  btn.onclick = () => volverASalaEspera(id);
+    if (act === 'finalizar')      btn.onclick = () => finalizarAtencion(id);
+    if (act === 'pago')           btn.onclick = () => abrirPagoModal(id); // si quieres permitir pagos aquí
   });
 }
 
-/* ATENDIDOS */
-function renderAtendidos(list){
+function renderAtendidos(list, mapPagos) {
   const puedeAbrir = roleAllows('abrir_ficha', userRole);
 
   const ctx = {
     type: 'done',
     fechaISO: currentFechaISO,
-    actionsHTML: (t) => {
-      const p = t.pacientes || {};
-      const hcBtn = p.historia_clinica
-        ? `<a class="icon" href="${p.historia_clinica}" target="_blank" rel="noopener" title="Historia clínica">🔗</a>`
-        : '';
-      return `
-        <div class="actions">
-          ${puedeAbrir ? `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>` : ''}
-          ${hcBtn}
-        </div>`;
-    }
+    pagos: mapPagos,         // <-- ¡mapPagos aquí!
+    puedeAbrirFicha: puedeAbrir,
+    puedePagar: false,       // Generalmente no se permite pagar en atendidos, pero puedes cambiarlo
   };
 
   renderTable(UI.tblDone, list, ctx);
 
-  UI.tblDone.querySelectorAll('.icon').forEach(btn=>{
-    const id=btn.getAttribute('data-id'), act=btn.getAttribute('data-act');
-    if(act==='abrir-ficha') btn.onclick=()=> openFicha(id);
+  UI.tblDone.querySelectorAll('.icon').forEach(btn => {
+    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
+    if (act === 'abrir-ficha') btn.onclick = () => openFicha(id);
+    if (act === 'pago')        btn.onclick = () => abrirPagoModal(id); // solo si activás pagos aquí
   });
 }
 
@@ -1299,10 +1361,12 @@ async function refreshAll({ showOverlayIfSlow = false } = {}){
     if (myReqId !== _refresh.reqId) return;
     computeColumnWidthsForDay(raw);
     const filtered = applyFilter(raw);
+
     renderPendientes(filtered.pendientes);
     renderPresentes(filtered.presentes);
     renderAtencion(filtered.atencion);
     renderAtendidos(filtered.atendidos);
+
     renderKPIs(raw);
     renderBoardTitles(filtered);
   } finally {
