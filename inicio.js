@@ -32,6 +32,46 @@ const minutesDiff = (start, end) => {
 const nowHHMMSS = () => { const d=new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
 
 /* =======================
+   Helpers de dinero / hora (globales)
+   ======================= */
+function toPesoInt(v){
+  if (v === null || v === undefined) return null;
+  // admite "1.234", "1,234.50", "$ 1.234", etc.
+  const s = String(v).replace(/[^\d,-.]/g, '').replace(/\./g, '').replace(',', '.');
+  const n = Number(s);
+  if (!isFinite(n)) return null;
+  return Math.round(n);
+}
+
+function money(n){
+  const val = toPesoInt(n);
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0
+  }).format(val ?? 0);
+}
+
+function horaRango(t){
+  const hi = toHM(t?.hora_inicio);
+  const hf = toHM(t?.hora_fin);
+  if (hi && hf) return `${hi} — ${hf}`;
+  if (hi)       return hi;
+  if (hf)       return hf;
+  return '—';
+}
+
+/** Badge “Espera” (solo para EN_ESPERA) */
+function esperaBadge(t, fechaISO){
+  if (!t?.hora_arribo) return '—';
+  // Armamos un timestamp ISO para que updateWaitBadges pueda calcular el tiempo
+  const hhmm = toHM(t.hora_arribo) || '00:00';
+  const iso  = `${fechaISO}T${hhmm}:00`;
+  return `<span class="wait" data-arribo-ts="${iso}">—</span>`;
+}
+
+
+/* =======================
    Estado de módulo
    ======================= */
 let UI = {};
