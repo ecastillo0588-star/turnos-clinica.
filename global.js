@@ -173,20 +173,26 @@ export function roleAllows(action, role) {
   const R = normalizeRole(role);
   const full  = (R === 'medico' || R === 'amp');
   const recep = (R === 'amc' || R === 'propietario');
+
   const map = {
     arribo:       full || recep,
     volver:       full || recep,
-    cancelar:     full,
-    atender:      full,    // SOLO medico y amp pueden pasar a "en atención"
-    reprogramar:  true,    // TODOS los roles pueden reprogramar
+    cancelar:     full || recep,                 // AMC y propietario pueden anular
+    atender:      full,                          // solo médico/AMP
+    reprogramar:  true,                          // todos
     abrir_ficha:  full,
     finalizar:    full,
-    bloquear: true,
-    desbloquear: true,
-    reenviar_wa: true,
+
+    // Turnos/slots
+    bloquear:     full || (R === 'propietario'), // AMC NO puede bloquear
+    desbloquear:  full || (R === 'propietario'), // AMC NO puede desbloquear
+    reenviar_wa:  full || recep,                 // AMC sí puede reenviar WhatsApp
   };
+
   return !!map[action];
 }
+
+
 
 /** Helper: carga médicos, llena el select y devuelve el id elegido */
 export async function loadProfesionalesIntoSelect(selectEl, { role, centroId, loggedProfesionalId }) {
