@@ -1671,7 +1671,7 @@ export async function initInicio(root){
   ensureOverlay(root);
   overlayRoot = root;
 
-  addClickableCursorStyle(); 
+  addClickableCursorStyle();
 
   // estado base (centro/fecha)
   currentCentroId     = localStorage.getItem('centro_medico_id');
