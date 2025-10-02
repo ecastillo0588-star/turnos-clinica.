@@ -1546,4 +1546,5 @@ export async function initInicio(root){
 
   // watcher de centro (si cambia en otro tab/side, re-carga todo)
   startCentroWatcher();
+  startAutoRefresh();
 }
