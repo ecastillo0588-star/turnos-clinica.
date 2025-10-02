@@ -628,51 +628,7 @@ function buildCell(key, t, ctx) {
         default: return '—';
       }
   }
-}function buildCell(key, t, ctx) {
-  const p = t.pacientes || {};
-  const pagado = ctx.pagos?.[t.id] || 0;
-  const copago = toPesoInt(t.copago) ?? 0;
-  const pendiente = Math.max(0, copago - pagado);
-
-  switch (key) {
-    case 'copago': {
-      if (copago === 0) return `<span class="copago none">Sin copago</span>`;
-      const totalStr = money(copago);
-      const pagadoStr = money(pagado);
-      if (pendiente === 0) {
-        // TODO: puedes resaltar con un color especial si quieres
-        return `<span class="copago ok">${totalStr} / ${pagadoStr} <span title="Abonado" style="color:#2e7d32;font-weight:bold;">✅ Abonado</span></span>`;
-      }
-      return `<span class="copago">${totalStr} / ${pagadoStr} <span style="color:#f57c00;">(${money(pendiente)} pendiente)</span></span>`;
-    }
-    case 'acciones': {
-      // Solo mostrar el botón de pago si hay pendiente
-      let html = `<div class="actions">`;
-      if (ctx.puedeCancelar) html += `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>`;
-      if (copago > 0 && pendiente > 0 && ctx.puedePagar) html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
-      if (ctx.puedeArribo && ctx.isHoy) html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
-      if (ctx.puedeAtender) html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">✅</button>`;
-      if (ctx.puedeFinalizar) html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;
-      if (ctx.puedeAbrirFicha) html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
-      html += `</div>`;
-      return html;
-    }
-    // Puedes seguir agregando otros casos según tu diseño...
-    default:
-      // fallback al anterior
-      switch (key) {
-        case 'espera': return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
-        case 'hora': return horaRango(t);
-        case 'dni': return p.dni || '—';
-        case 'nombre': return titleCase(p.nombre) || '—';
-        case 'apellido': return titleCase(p.apellido) || '—';
-        case 'obra': return p.obra_social || '—';
-        default: return '—';
-      }
-  }
 }
-
-
 
 
 // head único
