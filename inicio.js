@@ -704,18 +704,23 @@ async function renderPendientes(list, mapPagos) {
 
 
 async function getPagoResumen(turnoId){
- const { data: pagos = [] } = await supabase
-   .from('turnos_pagos')
-   .select('importe, medio_pago, creado_en')
-   .eq('turno_id', turnoId);
+  const { data: pagos = [], error } = await supabase
+    .from('turnos_pagos')
+    .select('importe, medio_pago, fecha')      // ← usar 'fecha'
+    .eq('turno_id', turnoId)
+    .order('fecha', { ascending: false });     // ← último pago primero
 
-  const totalPagado = (pagos || []).reduce((a,p)=> a + Number(p.importe||0), 0);
-  // último medio sólo para mostrar en ficha si querés
-  const ultimoMedio = (pagos || [])
-    .sort((a,b)=> new Date(b.creado_en||0) - new Date(a.creado_en||0))[0]?.medio_pago || null;
+  if (error) {
+    console.warn('[getPagoResumen] error:', error);
+    return { totalPagado: 0, ultimoMedio: null };
+  }
+
+  const totalPagado = pagos.reduce((a,p)=> a + Number(p.importe || 0), 0);
+  const ultimoMedio = pagos[0]?.medio_pago || null;  // por fecha desc
 
   return { totalPagado, ultimoMedio };
 }
+
 
 
 /* En sala de espera */
