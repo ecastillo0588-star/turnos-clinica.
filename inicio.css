@@ -264,28 +264,34 @@ body.role-amc [data-act="finalizar"]{ display:none !important; }
 @media (max-width:1500px){
   #inicio-root .b-ctrl--grow{ opacity:.5; pointer-events:none; }
 }
++/* === Panel lateral de turno (off-canvas) === */
+.turno-panel{
+  position: fixed;
+  right: 0;
+  top: 0;
+  width: 420px;
+  max-width: 92vw;
+  height: 100vh;
+  background: #fff;
+  box-shadow: -28px 0 44px rgba(0,0,0,.18);
+  transform: translateX(110%);
+  opacity: 0;
+  transition: transform .24s ease, opacity .24s ease;
+  z-index: 60;
+  overflow: auto;
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+@media (min-width:1100px){
+  .turno-panel{
+    top: 64px;                  /* altura aprox. de la toolbar */
+    height: calc(100vh - 64px);
+  }
+}
+.turno-panel.open{
+  transform: translateX(0);
+  opacity: 1;
+}
+/* opcional: bloquear scroll del fondo cuando está abierto */
+body.tp-open{ overflow: hidden; }
 
-/* ---------- Left Panel (detalle turno en Inicio) ---------- */
-#inicio-root .lpanel{
-  position:fixed; /* queda en viewport, pero lo anclamos al contenedor visual de la vista */
-  top:0;
-  left:0;  /* desde la izquierda */
-  height:100vh;
-  width:min(520px, 96vw);
-  background:#fff;
-  border-right:1px solid var(--line);
-  box-shadow:12px 0 40px rgba(0,0,0,.14);
-  transform:translateX(-100%); /* oculto hacia la izquierda */
-  transition:transform .28s ease;
-  z-index:9998; /* por debajo del drawer de ficha (9999) */
-  display:flex; flex-direction:column;
-}
-#inicio-root .lpanel.open{ transform:translateX(0); }
-#inicio-root .lpanel-head{
-  display:flex; align-items:center; gap:10px;
-  padding:10px 12px; background:#e8def8; border-bottom:1px solid var(--line);
-}
-#inicio-root .lpanel-title .title{ font-weight:800; }
-#inicio-root .lpanel-title .sub{ color:var(--muted); }
-#inicio-root .lpanel-body{ flex:1; overflow:auto; padding:12px; }
-#inicio-root .lpanel .chips{ display:flex; gap:8px; flex-wrap:wrap; }
