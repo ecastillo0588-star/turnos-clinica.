@@ -929,54 +929,7 @@ async function tryAgendar(slot){
     const { error } = await supabase.from('turnos').insert([payload]);
     if (error){ alert(error.message || 'No se pudo reservar el turno.'); return; }
 
-    // Modal OK + link de WhatsApp (con mensaje editable en el modal OK, como dejaste)
-   function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null }){
-  if (!UI.okBackdrop) return;
-
-  // Info visible en el modal
-  UI.okTitle.textContent     = 'Turno reservado';
-  UI.okPaciente.textContent  = `${pac.apellido}, ${pac.nombre}`;
-  UI.okDni.textContent       = pac.dni || '';
-  UI.okFechaHora.textContent = `${fmtDateLong(fechaISO)} · ${start}–${end}`;
-  UI.okProf.textContent      = profLabel || '';
-  UI.okCentro.textContent    = currentCentroNombre || '';
-  UI.okDir.textContent       = currentCentroDireccion || '';
-
-  // Mensaje base de WhatsApp
-  const waPhone = normalizePhoneForWA(pac.telefono);
-  const waText  = buildWA({
-    pac,
-    fechaISO,
-    start,
-    end,
-    prof:   profLabel,
-    centro: currentCentroNombre,
-    dir:    currentCentroDireccion,
-    osNombre,
-    copago,
-  });
-
-  // Prefill del textarea "Editable" + sincronizar el link
-  const ta = document.getElementById('ok-wa-textarea'); // <- asegurate que exista en el HTML
-  if (ta) {
-    ta.value = waText; // <<<<<< aquí lo precargamos
-    ta.oninput = () => {
-      const txt = ta.value || '';
-      UI.okWa.href = waPhone
-        ? `https://wa.me/${waPhone}?text=${encodeURIComponent(txt)}`
-        : `https://wa.me/?text=${encodeURIComponent(txt)}`;
-    };
-  }
-
-  // Seteo inicial del link (en base al texto precargado)
-  UI.okWa.href = waPhone
-    ? `https://wa.me/${waPhone}?text=${encodeURIComponent(ta ? ta.value : waText)}`
-    : `https://wa.me/?text=${encodeURIComponent(ta ? ta.value : waText)}`;
-
-  UI.okMsg.textContent = '';
-  UI.okBackdrop.style.display = 'flex';
-}
-
+    
 
 
 async function openDayModalMulti(isoDate, AByProf, TByProf){
@@ -1233,11 +1186,10 @@ async function desbloquearTurno(t) {
 
 
 
-    // Modal de OK + link de WhatsApp (requiere que openOkModal acepte osNombre y copago)
-function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null }){
+    function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null }){
   if (!UI.okBackdrop) return;
 
-  // Info visible en el modal (opcional)
+  // Info visible en el modal
   UI.okTitle.textContent     = 'Turno reservado';
   UI.okPaciente.textContent  = `${pac.apellido}, ${pac.nombre}`;
   UI.okDni.textContent       = pac.dni || '';
@@ -1246,7 +1198,7 @@ function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, co
   UI.okCentro.textContent    = currentCentroNombre || '';
   UI.okDir.textContent       = currentCentroDireccion || '';
 
-  // Mensaje de WhatsApp con OS o Copago
+  // Mensaje base de WhatsApp
   const waPhone = normalizePhoneForWA(pac.telefono);
   const waText  = buildWA({
     pac,
@@ -1260,14 +1212,26 @@ function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, co
     copago,
   });
 
+  // Prefill del textarea "Editable" + sincronizar el link
+  const ta = document.getElementById('ok-wa-textarea'); // <- asegurate que exista en el HTML
+  if (ta) {
+    ta.value = waText; // <<<<<< aquí lo precargamos
+    ta.oninput = () => {
+      const txt = ta.value || '';
+      UI.okWa.href = waPhone
+        ? `https://wa.me/${waPhone}?text=${encodeURIComponent(txt)}`
+        : `https://wa.me/?text=${encodeURIComponent(txt)}`;
+    };
+  }
+
+  // Seteo inicial del link (en base al texto precargado)
   UI.okWa.href = waPhone
-    ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}`
-    : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+    ? `https://wa.me/${waPhone}?text=${encodeURIComponent(ta ? ta.value : waText)}`
+    : `https://wa.me/?text=${encodeURIComponent(ta ? ta.value : waText)}`;
 
   UI.okMsg.textContent = '';
   UI.okBackdrop.style.display = 'flex';
 }
-
 
 
 
