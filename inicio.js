@@ -1671,6 +1671,8 @@ export async function initInicio(root){
   ensureOverlay(root);
   overlayRoot = root;
 
+  addClickableCursorStyle(); 
+
   // estado base (centro/fecha)
   currentCentroId     = localStorage.getItem('centro_medico_id');
   currentCentroNombre = localStorage.getItem('centro_medico_nombre') || await fetchCentroById(currentCentroId);
@@ -1810,3 +1812,29 @@ async function inicioGuardarComentarioRecepcion(turnoId){
 function inicioIsTurnoPanelOpen(){
   return !!UI?.tp?.el && UI.tp.el.classList.contains('open');
 }
+
+/* =======================
+   UX: cursor de "manito" en filas clickeables
+   ======================= */
+function addClickableCursorStyle(){
+  if (document.getElementById('inicio-row-cursor-style')) return;
+  const style = document.createElement('style');
+  style.id = 'inicio-row-cursor-style';
+  style.textContent = `
+    /* Manito en filas de datos */
+    table tbody tr.row { cursor: pointer; }
+
+    /* No cambiar el cursor en el header */
+    table thead tr { cursor: default; }
+
+    /* Iconos siguen siendo clickeables */
+    .row .icon { cursor: pointer; }
+
+    /* Un pequeño hover para reforzar affordance (opcional) */
+    table tbody tr.row:hover {
+      background: rgba(118,86,176,.06);
+    }
+  `;
+  document.head.appendChild(style);
+}
+
