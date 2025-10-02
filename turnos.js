@@ -705,11 +705,10 @@ function renderSlotsGroup(slots, profId){
   head.textContent = getProfLabelById(profId);
   UI.slotsList.appendChild(head);
 
-  // Filtro temporal (no mostrar horarios pasados del día actual)
+  // Filtro temporal: ocultar pasados del día actual
   const ahora = new Date();
   const hoyISO = dateToISO(ahora);
   const ahoraHM = `${pad(ahora.getHours())}:${pad(ahora.getMinutes())}`;
-
   const filtered = slots.filter(s => {
     if (!modalDateISO) return true;
     if (modalDateISO > hoyISO) return true;
@@ -746,7 +745,7 @@ function renderSlotsGroup(slots, profId){
     const btns = document.createElement('div');
     btns.style = 'display:flex;gap:8px;';
 
-    if (slot.turno){
+    if (slot.turno) {
       const p = slot.turno.pacientes;
       const osName = (slot.turno.obra_social_id && obrasSocialesById.get(String(slot.turno.obra_social_id))?.obra_social) || 'Particular';
       meta.textContent = p ? `${p.apellido}, ${p.nombre} · DNI ${p.dni} · ${osName}` : `Ocupado · ${osName}`;
@@ -756,19 +755,20 @@ function renderSlotsGroup(slots, profId){
       const mkBtn = (txt, title) => {
         const b = document.createElement('button');
         b.className = 'tw-icon-btn';
-        b.textContent = txt; b.title = title;
+        b.textContent = txt;
+        b.title = title;
         b.style = 'background:#7b5da7;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:1em;';
         return b;
       };
 
-      // Desbloquear si es bloqueo
+      // Si es bloqueo → mostrar "Desbloquear"
       if (estadoTurno === 'bloqueado' && canUnblock) {
         const btnUnblock = mkBtn('🔓', 'Desbloquear horario');
         btnUnblock.onclick = () => desbloquearTurno(slot.turno);
         btns.appendChild(btnUnblock);
       } else {
-        // Turno real (no bloqueado): reprogramar, cancelar, reenviar WA
-        if (canRepro){
+        // Turno real
+        if (canRepro) {
           const durMin = reprogramState?.durMin || slot.turno_duracion || minutesDiff(toHM(slot.turno.hora_inicio), toHM(slot.turno.hora_fin));
           const btnRep = mkBtn('↻', 'Reprogramar');
           btnRep.style.background = '#0b5394';
@@ -778,37 +778,41 @@ function renderSlotsGroup(slots, profId){
           btns.appendChild(btnRep);
         }
 
-          if (canCancel){
-            const btnDel = mkBtn('🗑️', 'Eliminar turno');
-            btnDel.style.background = '#b00020';
-            btnDel.style.color = '#fff';
-            btnDel.style.border = 'none';
-            btnDel.onclick = () => cancelarTurno(slot.turno);
-            btns.appendChild(btnDel);
-          }
+        if (canCancel) {
+          const btnDel = mkBtn('🗑️', 'Eliminar turno');
+          btnDel.style.background = '#b00020';
+          btnDel.style.color = '#fff';
+          btnDel.style.border = 'none';
+          btnDel.onclick = () => cancelarTurno(slot.turno);
+          btns.appendChild(btnDel);
+        }
 
-
-       if (canWA && p){
-  const btnWA = mkBtn('WA', 'Reenviar WhatsApp');
-  btnWA.style.background = '#0a7d38';
-  btnWA.style.color = '#fff';
-  btnWA.style.border = 'none';
-  btnWA.onclick = () => {
-    const osNombre = (slot.turno.obra_social_id && obrasSocialesById.get(String(slot.turno.obra_social_id))?.obra_social) || null;
-    const copago   = slot.turno.obra_social_id == null ? (slot.turno.copago ?? null) : null;
-    const waPhone  = normalizePhoneForWA(p?.telefono || '');
-    const waText   = buildWA({
-      pac: p, fechaISO: modalDateISO, start: slot.start, end: slot.end,
-      prof: getProfLabelById(slot.profId), centro: currentCentroNombre, dir: currentCentroDireccion,
-      osNombre, copago,
-    });
-    const href = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}` : `https://wa.me/?text=${encodeURIComponent(waText)}`;
-    window.open(href, '_blank', 'noopener');
-  };
-  btns.appendChild(btnWA);
-}
-
-
+        if (canWA && p) {
+          const btnWA = mkBtn('WA', 'Reenviar WhatsApp');
+          btnWA.style.background = '#0a7d38';
+          btnWA.style.color = '#fff';
+          btnWA.style.border = 'none';
+          btnWA.onclick = () => {
+            const osNombre = (slot.turno.obra_social_id && obrasSocialesById.get(String(slot.turno.obra_social_id))?.obra_social) || null;
+            const copago   = slot.turno.obra_social_id == null ? (slot.turno.copago ?? null) : null;
+            const waPhone  = normalizePhoneForWA(p?.telefono || '');
+            const waText   = buildWA({
+              pac: p,
+              fechaISO: modalDateISO,
+              start: slot.start,
+              end:   slot.end,
+              prof:  getProfLabelById(slot.profId),
+              centro: currentCentroNombre,
+              dir:    currentCentroDireccion,
+              osNombre,
+              copago,
+            });
+            const href = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}` : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+            window.open(href, '_blank', 'noopener');
+          };
+          btns.appendChild(btnWA);
+        }
+      } // ← cierra el else del "bloqueado"
     } else {
       // Slot libre
       const btnAdd = document.createElement('button');
@@ -817,13 +821,12 @@ function renderSlotsGroup(slots, profId){
       btnAdd.title = 'Reservar turno';
       btnAdd.style = 'background:#7b5da7;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:1em;';
       btnAdd.onclick = () => (reprogramState ? confirmReprogram(slot) : tryAgendar(slot));
-      // Si estoy reprogramando y no es el mismo profesional, bloquear acción
       if (reprogramState && String(reprogramState.turno.profesional_id) !== String(slot.profId)) {
-        btnAdd.disabled = true; btnAdd.title = 'Solo podés reprogramar con el mismo profesional';
+        btnAdd.disabled = true;
+        btnAdd.title = 'Solo podés reprogramar con el mismo profesional';
       }
       btns.appendChild(btnAdd);
 
-      // Botón Bloquear
       if (canBlock) {
         const btnBlock = document.createElement('button');
         btnBlock.className = 'tw-icon-btn';
