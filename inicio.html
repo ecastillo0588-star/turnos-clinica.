@@ -47,6 +47,62 @@
         </div>
       </div>
     </div>
+<!-- Panel lateral izquierdo: Detalle de turno (Recepción) -->
+<aside id="turnoPanel" class="lpanel" aria-hidden="true">
+  <header class="lpanel-head">
+    <div class="lpanel-title">
+      <div id="tp-title" class="title">Turno —</div>
+      <div id="tp-sub" class="sub">—</div>
+    </div>
+    <button id="tp-close" class="icon" title="Cerrar">✖️</button>
+  </header>
+
+  <div class="lpanel-body">
+    <div id="tp-status" class="msg" style="margin-bottom:8px"></div>
+
+    <div class="card">
+      <h4>Resumen</h4>
+      <div class="chips">
+        <div class="chip" id="tp-hora">Hora: —</div>
+        <div class="chip" id="tp-estado">Estado: —</div>
+        <div class="chip" id="tp-copago">Copago: —</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Paciente</h4>
+      <div class="row3">
+        <div class="field"><label>DNI</label><input id="tp-dni" class="inp" readonly></div>
+        <div class="field"><label>Apellido</label><input id="tp-ape" class="inp" readonly></div>
+        <div class="field"><label>Nombre</label><input id="tp-nom" class="inp" readonly></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Comentario de recepción</h4>
+      <div class="field">
+        <textarea id="tp-com-recep" class="inp" placeholder="Observaciones cargadas por recepción…" style="min-height:80px"></textarea>
+        <small class="hint">Se guarda en <code>turnos.comentario_recepcion</code>.</small>
+      </div>
+    </div>
+
+    <div class="card">
+      <h4>Acciones</h4>
+      <div class="row2">
+        <button id="tp-arribo"   class="btn secondary">Pasar a En espera</button>
+        <button id="tp-atender"  class="btn">En atención</button>
+      </div>
+      <div class="row2" style="margin-top:8px">
+        <button id="tp-pago"     class="btn">Registrar pago</button>
+        <button id="tp-cancel"   class="btn secondary">Anular turno</button>
+      </div>
+      <div style="margin-top:8px; display:flex; gap:8px;">
+        <button id="tp-ficha"    class="btn">Abrir ficha</button>
+        <button id="tp-guardar"  class="btn">Guardar comentario</button>
+      </div>
+    </div>
+  </div>
+</aside>
 
     <!-- Boards -->
     <div class="boards" id="boards">
