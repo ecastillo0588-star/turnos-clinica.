@@ -82,7 +82,7 @@
 
 <!-- Modal Confirmar Asignación -->
 <div id="turnos-confirm" class="modal-cupo-agotado" style="display:none;">
-   <div class="modal-content" role="dialog" aria-modal="true" style="background:#fff;border-color:#a490d7;">
+  <div class="modal-content" role="dialog" aria-modal="true" style="background:#fff;border-color:#a490d7;">
     <div class="modal-header-alert">
       <span class="icon-alert">❓</span>
       <span class="modal-title">Confirmar asignación de turno</span>
@@ -97,9 +97,12 @@
         <li id="tc-os" style="display:none;"><b>Obra social:</b> <span id="tc-osv"></span></li>
         <li id="tc-copago" style="display:none;"><b>Particular:</b> Copago <span id="tc-copagov"></span></li>
       </ul>
-      <div style="font-size:.92em;color:#6b6480;">
-        <b>Mensaje de WhatsApp (previa):</b>
-        <pre id="tc-wa-preview" style="white-space:pre-wrap;background:#faf9ff;border:1px solid var(--tw-line);border-radius:8px;padding:8px;margin-top:6px;"></pre>
+
+      <!-- Comentario para el médico -->
+      <div class="tw-field" style="margin-top:10px;">
+        <label for="tc-nota-input">Comentario para el médico (opcional)</label>
+        <textarea id="tc-nota-input" class="tw-inp" rows="3"
+          placeholder="Ej: traer estudios, alergias, situación particular..."></textarea>
       </div>
     </div>
     <div class="modal-actions">
@@ -120,6 +123,7 @@
       </div>
       <button class="tw-close" id="ok-close">×</button>
     </div>
+
     <ul class="tw-ok-list">
       <li><b>Paciente:</b> <span id="ok-paciente"></span></li>
       <li><b>DNI:</b> <span id="ok-dni"></span></li>
@@ -128,6 +132,15 @@
       <li><b>Centro:</b> <span id="ok-centro"></span></li>
       <li><b>Dirección:</b> <span id="ok-direccion"></span></li>
     </ul>
+
+    <!-- Mensaje de WhatsApp editable -->
+    <div class="tw-field" style="margin-top:10px;">
+      <label for="ok-wa-text">Mensaje de WhatsApp (editable)</label>
+      <textarea id="ok-wa-text" class="tw-inp" rows="6"
+        placeholder="Escribí o ajustá el mensaje antes de enviarlo..."></textarea>
+      <div class="tw-hint" id="ok-wa-phone-hint" style="margin-top:6px;"></div>
+    </div>
+
     <div class="tw-ok-actions">
       <a id="ok-wa-link" class="tw-btn ok" target="_blank" rel="noopener">Enviar por WhatsApp</a>
       <button id="ok-copy" class="tw-btn ghost">Copiar link</button>
@@ -135,6 +148,7 @@
     </div>
   </div>
 </div>
+
 
 <!-- Modal Cupo agotado -->
 <div id="modal-cupo-agotado" class="modal-cupo-agotado" style="display:none;">
