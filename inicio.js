@@ -603,8 +603,22 @@ let GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
 
 
 
-// helpers visuales reutilizables
-UI.tp.hora.textContent = `Turno: ${toHM(t.hora_inicio)}${t.hora_fin ? ' — ' + toHM(t.hora_fin) : ''}`;
+// === Fecha + rango horario para el panel lateral ===
+const hi = toHM(t.hora_inicio);
+const hf = toHM(t.hora_fin);
+
+let rango = '—';
+if (hi && hf)      rango = `${hi} — ${hf}`;
+else if (hi)       rango = hi;
+else if (hf)       rango = hf;
+
+// Usá la fecha del turno o la fecha actual seleccionada
+const fechaTxt = t.fecha || currentFechaISO || '—';
+// Si la querés formateada:
+// const fechaTxt = t.fecha ? new Date(t.fecha).toLocaleDateString('es-AR') : (currentFechaISO || '—');
+
+UI.tp.hora.textContent = `Turno: ${fechaTxt} · ${rango}`;
+
 
 
 const copagoChip = (v) => {
