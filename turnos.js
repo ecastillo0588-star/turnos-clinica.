@@ -860,7 +860,7 @@ async function tryAgendar(slot){
     // Trazabilidad (quién otorga el turno)
     const asignadoPor = getCurrentUserTag(); // puede ser null
 
-    // OS / copago (para DB y para mensaje)
+    // OS / copago (para DB)
     let obraSocialId  = pacienteSeleccionado.obra_social_id || null;
     let osNombre      = obraSocialId ? (obrasSocialesById.get(String(obraSocialId))?.obra_social || null) : null;
     let copagoElegido = null;
@@ -895,20 +895,8 @@ async function tryAgendar(slot){
       ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
       : null;
 
-    // ---- Previsualización/confirmación (antes del INSERT) ----
-    const waText = buildWA({
-      pac:   pacienteSeleccionado,
-      fechaISO: modalDateISO,
-      start: slot.start,
-      end:   slot.end,
-      prof:  profNameById(slot.profId),
-      centro: currentCentroNombre,
-      dir:    currentCentroDireccion,
-      osNombre,
-      copago: copagoFinal,
-    });
-
-    const acepto = await openConfirmModal({
+    // ---- Confirmación (antes del INSERT): ahora también captura comentario ----
+    const resConfirm = await openConfirmModal({
       pac: pacienteSeleccionado,
       fechaISO: modalDateISO,
       start: slot.start,
@@ -916,9 +904,10 @@ async function tryAgendar(slot){
       profLabel: profNameById(slot.profId),
       osNombre,
       copago: copagoFinal,
-      waText
     });
-    if (!acepto) return;
+    if (!resConfirm?.ok) return;
+
+    const comentarioRecep = (resConfirm.comentario || '').trim() || null;
 
     // INSERT
     const payload = {
@@ -934,12 +923,13 @@ async function tryAgendar(slot){
       obra_social_id:  obraSocialId,
       copago:          copagoFinal,
       asignado_por:    asignadoPor,
+      comentario_recepcion: comentarioRecep, // NUEVO
     };
 
     const { error } = await supabase.from('turnos').insert([payload]);
     if (error){ alert(error.message || 'No se pudo reservar el turno.'); return; }
 
-    // Modal OK + link de WhatsApp
+    // Modal OK + link de WhatsApp (editable)
     openOkModal({
       pac:       pacienteSeleccionado,
       fechaISO:  modalDateISO,
@@ -959,6 +949,8 @@ async function tryAgendar(slot){
   }
 }
 
+
+    
 
 
 async function openDayModalMulti(isoDate, AByProf, TByProf){
@@ -1095,13 +1087,13 @@ function cerrarModalCupoAgotado(){
 }
 async function getCopagoParticular(){ return 1000; }
 
-function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null, waText }) {
+function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null }) {
   return new Promise(resolve => {
     const root = document.getElementById('turnos-confirm');
-    if (!root) return resolve(false);
+    if (!root) return resolve({ ok:false, comentario:'' });
 
     // Pintar datos en el modal
-    const pacStr = `${pac.apellido}, ${pac.nombre}${pac.dni ? ' · DNI ' + pac.dni : ''}`;
+    const pacStr   = `${pac.apellido}, ${pac.nombre}${pac.dni ? ' · DNI ' + pac.dni : ''}`;
     const fechaStr = `${fmtDateLong(fechaISO)} · ${start}–${end}`;
 
     const tcPac   = document.getElementById('tc-pac');
@@ -1113,7 +1105,7 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
     const valOS   = document.getElementById('tc-osv');
     const liCop   = document.getElementById('tc-copago');
     const valCop  = document.getElementById('tc-copagov');
-    const waPrev  = document.getElementById('tc-wa-preview');
+    const txtCom  = document.getElementById('tc-comentario');
 
     if (tcPac)   tcPac.textContent   = pacStr;
     if (tcFecha) tcFecha.textContent = fechaStr;
@@ -1129,8 +1121,8 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
       if (copago != null) { liCop.style.display = 'list-item'; valCop.textContent = `$${Number(copago).toLocaleString('es-AR', { maximumFractionDigits: 0 })}`; }
       else { liCop.style.display = 'none'; }
     }
-    if (waPrev) waPrev.textContent = waText || '';
 
+    // Abrir modal
     root.style.display = 'flex';
 
     const btnOk = document.getElementById('turnos-confirm-aceptar');
@@ -1142,9 +1134,10 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
       document.removeEventListener('keydown', onKey);
     };
     const close = (ok) => {
+      const comentario = (txtCom?.value || '').trim();
       root.style.display = 'none';
       cleanup();
-      resolve(ok);
+      resolve({ ok, comentario });
     };
 
     const onOk = () => close(true);
@@ -1159,6 +1152,8 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
     document.addEventListener('keydown', onKey);
   });
 }
+
+
 
 async function bloquearSlot(slot) {
   if (!currentCentroId || !modalDateISO || !slot?.profId) return;
@@ -1212,11 +1207,10 @@ async function desbloquearTurno(t) {
 
 
 
-    // Modal de OK + link de WhatsApp (requiere que openOkModal acepte osNombre y copago)
-function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null }){
+    function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null }){
   if (!UI.okBackdrop) return;
 
-  // Info visible en el modal (opcional)
+  // Info visible en el modal
   UI.okTitle.textContent     = 'Turno reservado';
   UI.okPaciente.textContent  = `${pac.apellido}, ${pac.nombre}`;
   UI.okDni.textContent       = pac.dni || '';
@@ -1225,7 +1219,7 @@ function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, co
   UI.okCentro.textContent    = currentCentroNombre || '';
   UI.okDir.textContent       = currentCentroDireccion || '';
 
-  // Mensaje de WhatsApp con OS o Copago
+  // Mensaje base de WhatsApp
   const waPhone = normalizePhoneForWA(pac.telefono);
   const waText  = buildWA({
     pac,
@@ -1239,14 +1233,26 @@ function openOkModal({ pac, fechaISO, start, end, profLabel, osNombre = null, co
     copago,
   });
 
+  // Prefill del textarea "Editable" + sincronizar el link
+  const ta = document.getElementById('ok-wa-textarea'); // <- asegurate que exista en el HTML
+  if (ta) {
+    ta.value = waText; // <<<<<< aquí lo precargamos
+    ta.oninput = () => {
+      const txt = ta.value || '';
+      UI.okWa.href = waPhone
+        ? `https://wa.me/${waPhone}?text=${encodeURIComponent(txt)}`
+        : `https://wa.me/?text=${encodeURIComponent(txt)}`;
+    };
+  }
+
+  // Seteo inicial del link (en base al texto precargado)
   UI.okWa.href = waPhone
-    ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}`
-    : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+    ? `https://wa.me/${waPhone}?text=${encodeURIComponent(ta ? ta.value : waText)}`
+    : `https://wa.me/?text=${encodeURIComponent(ta ? ta.value : waText)}`;
 
   UI.okMsg.textContent = '';
   UI.okBackdrop.style.display = 'flex';
 }
-
 
 
 
