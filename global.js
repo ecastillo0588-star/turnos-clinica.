@@ -177,20 +177,21 @@ export function roleAllows(action, role) {
   const map = {
     arribo:       full || recep,
     volver:       full || recep,
-    cancelar:     full || recep,  // AMCs (recepción) ahora también pueden anular
-    atender:      full,           // solo médico/AMP
-    reprogramar:  true,           // todos
+    cancelar:     full || recep,          // AMC + propietario también pueden anular
+    atender:      full,                   // solo médico/AMP
+    reprogramar:  true,                   // todos
     abrir_ficha:  full,
     finalizar:    full,
 
-    // extras (si los usás en UI)
-    bloquear:     full || recep,
-    desbloquear:  full || recep,
-    reenviar_wa:  full || recep,
+    // Turnos/slots
+    bloquear:     full || recep,          // AMC sí puede bloquear
+    desbloquear:  full || (R === 'propietario'), // AMC NO puede desbloquear
+    reenviar_wa:  full || recep,          // AMC puede reenviar WhatsApp
   };
 
   return !!map[action];
 }
+
 
 
 /** Helper: carga médicos, llena el select y devuelve el id elegido */
