@@ -1019,23 +1019,25 @@ function renderHeaderPaciente(p){
 
 
 async function openFicha(turnoId){
+  // 0) Permisos básicos
   if (!roleAllows('abrir_ficha', userRole)) {
     alert('No tenés permisos para abrir la ficha.');
     return;
   }
 
+  // 1) Preparación UI
   drawerTurnoId = turnoId;
   try { localStorage.setItem('current_turno_id', String(turnoId)); } catch {}
   setDrawerStatus('Cargando…');
   setDrawerMsg('');
   showDrawer();
 
-  // 1) Turno (incluye estado_pago para el chip)
+  // 2) Leer turno (incluye estado_pago y notas para chip y form)
   const { data: t, error: terr } = await supabase
     .from('turnos')
     .select(`
       id, fecha, hora_inicio, hora_fin, estado, hora_arribo,
-      copago, importe, medio_pago, estado_pago,
+      copago, importe, medio_pago, estado_pago, notas,
       paciente_id, profesional_id, centro_id
     `)
     .eq('id', turnoId)
@@ -1047,7 +1049,7 @@ async function openFicha(turnoId){
     return;
   }
 
-  // 2) Paciente
+  // 3) Leer paciente
   const { data: p, error: perr } = await supabase
     .from('pacientes')
     .select(`
@@ -1059,23 +1061,44 @@ async function openFicha(turnoId){
     .eq('id', t.paciente_id)
     .maybeSingle();
 
-  if (perr){
-    console.warn('[openFicha] pacientes warn:', perr);
-  }
+  if (perr) console.warn('[openFicha] pacientes warn:', perr);
 
-  // 3) Encabezado / resumen
-  if (Drawer.hora)   Drawer.hora.textContent   = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
-
+  // 4) Encabezado/chips rápidos
+  if (Drawer.hora)      Drawer.hora.textContent      = `Hora turno: ${t.hora_inicio ? toHM(t.hora_inicio) : '—'}`;
   const copVal = toPesoInt(t.copago);
   const copTxt = (copVal && copVal > 0) ? money(copVal) : 'Sin copago';
-  if (Drawer.copago)      Drawer.copago.textContent      = `Copago: ${copTxt}`;
-  if (Drawer.importe)     Drawer.importe.textContent     = `Importe pagado: ${t.importe != null ? money(t.importe) : '—'}`;
-  if (Drawer.medio)       Drawer.medio.textContent       = `Medio: ${t.medio_pago || '—'}`;
-  if (Drawer.estadoPago)  Drawer.estadoPago.textContent  = `Estado pago: ${t.estado_pago ? String(t.estado_pago).toUpperCase() : '—'}`;
+  if (Drawer.copago)    Drawer.copago.textContent    = `Copago: ${copTxt}`;
+  if (Drawer.importe)   Drawer.importe.textContent   = `Importe pagado: ${t.importe != null ? money(t.importe) : '—'}`;
+  if (Drawer.medio)     Drawer.medio.textContent     = `Medio: ${t.medio_pago || '—'}`;
+  if (Drawer.estadoPago)Drawer.estadoPago.textContent= `Estado pago: ${t.estado_pago ? String(t.estado_pago).toUpperCase() : '—'}`;
 
+  // Título/sub
   renderHeaderPaciente(p || {});
 
-  // 4) Campos editables del paciente
+  // 4.b) “Turnos OS en el año”
+  try {
+    const hoy   = new Date();
+    const y     = hoy.getFullYear();
+    const desde = `${y}-01-01`;
+    const hasta = `${y}-12-31`;
+
+    const { count, error: countErr } = await supabase
+      .from('turnos')
+      .select('id', { count: 'exact', head: true })
+      .eq('paciente_id', t.paciente_id)
+      .gte('fecha', desde)
+      .lte('fecha', hasta);
+
+    if (!countErr && Drawer.osYear) {
+      const labelOS = p?.obra_social ? p.obra_social : 'Sin OS';
+      Drawer.osYear.textContent = `Turnos OS en el año: ${count || 0} (${labelOS})`;
+    }
+  } catch (e) {
+    console.warn('[openFicha] conteo OS año warn:', e);
+    if (Drawer.osYear) Drawer.osYear.textContent = 'Turnos OS en el año: —';
+  }
+
+  // 5) Campos editables del PACIENTE
   if (Drawer.dni)   Drawer.dni.value   = p?.dni || '';
   if (Drawer.ape)   Drawer.ape.value   = p?.apellido || '';
   if (Drawer.nom)   Drawer.nom.value   = p?.nombre || '';
@@ -1084,10 +1107,16 @@ async function openFicha(turnoId){
   if (Drawer.mail)  Drawer.mail.value  = p?.email || '';
   await loadObrasSociales(p?.obra_social || '');
   if (Drawer.afiliado) Drawer.afiliado.value = p?.numero_afiliado || '';
+
   if (Drawer.cred){
     Drawer.cred.value = p?.credencial || '';
     if (Drawer.credLink) Drawer.credLink.href = p?.credencial || '#';
+    // mantener sincronizado el botón "Ver" de credencial
+    Drawer.cred.oninput = () => {
+      if (Drawer.credLink) Drawer.credLink.href = Drawer.cred.value || '#';
+    };
   }
+
   if (Drawer.ecNom)  Drawer.ecNom.value  = p?.contacto_nombre || '';
   if (Drawer.ecApe)  Drawer.ecApe.value  = p?.contacto_apellido || '';
   if (Drawer.ecCel)  Drawer.ecCel.value  = p?.contacto_celular || '';
@@ -1096,7 +1125,7 @@ async function openFicha(turnoId){
   if (Drawer.renov)  Drawer.renov.value  = p?.renovacion_receta || '';
   if (Drawer.activo) Drawer.activo.checked = !!p?.activo;
 
-  // 4.b) Historia clínica: input siempre visible (#fd-hc-link) y botón header (#fd-hc)
+  // 6) Historia clínica: input (#fd-hc-link) SIEMPRE visible y botón de header (#fd-hc)
   if (Drawer.hcLink) Drawer.hcLink.value = p?.historia_clinica || '';
   if (Drawer.hc) {
     const url = Drawer.hcLink?.value?.trim();
@@ -1121,23 +1150,18 @@ async function openFicha(turnoId){
     };
   }
 
-  // 5) Notas del turno
+  // 7) Notas del turno
   if (Drawer.notas) Drawer.notas.value = t?.notas || '';
 
-  setDrawerStatus('');
-
-  // 6) Acciones del drawer
+  // 8) Acciones del drawer
   if (Drawer.btnGuardar)  Drawer.btnGuardar.onclick = guardarFicha;
   if (Drawer.btnFinalizar){
     Drawer.btnFinalizar.style.display = roleAllows('finalizar', userRole) ? '' : 'none';
     Drawer.btnFinalizar.onclick = () => finalizarAtencion(drawerTurnoId, { closeDrawer: true });
   }
 
-  if (Drawer.cred) {
-    Drawer.cred.oninput = () => {
-      if (Drawer.credLink) Drawer.credLink.href = Drawer.cred.value || '#';
-    };
-  }
+  // 9) Listo
+  setDrawerStatus('');
 }
 
 
