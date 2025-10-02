@@ -705,10 +705,10 @@ function renderSlotsGroup(slots, profId){
   head.textContent = getProfLabelById(profId);
   UI.slotsList.appendChild(head);
 
+  // Filtro temporal: ocultar pasados del día actual
   const ahora = new Date();
   const hoyISO = dateToISO(ahora);
   const ahoraHM = `${pad(ahora.getHours())}:${pad(ahora.getMinutes())}`;
-
   const filtered = slots.filter(s => {
     if (!modalDateISO) return true;
     if (modalDateISO > hoyISO) return true;
@@ -724,8 +724,11 @@ function renderSlotsGroup(slots, profId){
     return;
   }
 
-  const canCancel   = roleAllows('cancelar', userRole);      // AMP / Médico
-  const canRepro = roleAllows('reprogramar', userRole);      // usamos "atender" como proxy de privilegio completo
+  const canCancel  = roleAllows('cancelar', userRole);
+  const canRepro   = roleAllows('reprogramar', userRole);
+  const canBlock   = roleAllows('bloquear', userRole);
+  const canUnblock = roleAllows('desbloquear', userRole);
+  const canWA      = roleAllows('reenviar_wa', userRole);
 
   filtered.forEach(slot => {
     const wrap = document.createElement('div');
@@ -742,43 +745,97 @@ function renderSlotsGroup(slots, profId){
     const btns = document.createElement('div');
     btns.style = 'display:flex;gap:8px;';
 
-    if (slot.turno){
+    if (slot.turno) {
       const p = slot.turno.pacientes;
       const osName = (slot.turno.obra_social_id && obrasSocialesById.get(String(slot.turno.obra_social_id))?.obra_social) || 'Particular';
       meta.textContent = p ? `${p.apellido}, ${p.nombre} · DNI ${p.dni} · ${osName}` : `Ocupado · ${osName}`;
 
+      const estadoTurno = String(slot.turno.estado || '').toLowerCase();
+
       const mkBtn = (txt, title) => {
         const b = document.createElement('button');
         b.className = 'tw-icon-btn';
-        b.textContent = txt; b.title = title;
+        b.textContent = txt;
+        b.title = title;
         b.style = 'background:#7b5da7;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:1em;';
         return b;
       };
 
-      if (canCancel){
-        const btnDel = mkBtn('🗑️', 'Eliminar turno');
-        btnDel.onclick = () => cancelarTurno(slot.turno);
-        btns.appendChild(btnDel);
-      }
+      // Si es bloqueo → mostrar "Desbloquear"
+      if (estadoTurno === 'bloqueado' && canUnblock) {
+        const btnUnblock = mkBtn('🔓', 'Desbloquear horario');
+        btnUnblock.onclick = () => desbloquearTurno(slot.turno);
+        btns.appendChild(btnUnblock);
+      } else {
+        // Turno real
+        if (canRepro) {
+          const durMin = reprogramState?.durMin || slot.turno_duracion || minutesDiff(toHM(slot.turno.hora_inicio), toHM(slot.turno.hora_fin));
+          const btnRep = mkBtn('↻', 'Reprogramar');
+          btnRep.style.background = '#0b5394';
+          btnRep.style.color = '#fff';
+          btnRep.style.border = 'none';
+          btnRep.onclick = () => { reprogramState = { turno: slot.turno, durMin }; refreshDayModal(); };
+          btns.appendChild(btnRep);
+        }
 
-      if (canRepro){
-        const durMin = reprogramState?.durMin || slot.turno_duracion || minutesDiff(toHM(slot.turno.hora_inicio), toHM(slot.turno.hora_fin));
-        const btnRep = mkBtn('↻', 'Reprogramar');
-        btnRep.onclick = () => { reprogramState = { turno: slot.turno, durMin }; refreshDayModal(); };
-        btns.appendChild(btnRep);
-      }
+        if (canCancel) {
+          const btnDel = mkBtn('🗑️', 'Eliminar turno');
+          btnDel.style.background = '#b00020';
+          btnDel.style.color = '#fff';
+          btnDel.style.border = 'none';
+          btnDel.onclick = () => cancelarTurno(slot.turno);
+          btns.appendChild(btnDel);
+        }
+
+        if (canWA && p) {
+          const btnWA = mkBtn('WA', 'Reenviar WhatsApp');
+          btnWA.style.background = '#0a7d38';
+          btnWA.style.color = '#fff';
+          btnWA.style.border = 'none';
+          btnWA.onclick = () => {
+            const osNombre = (slot.turno.obra_social_id && obrasSocialesById.get(String(slot.turno.obra_social_id))?.obra_social) || null;
+            const copago   = slot.turno.obra_social_id == null ? (slot.turno.copago ?? null) : null;
+            const waPhone  = normalizePhoneForWA(p?.telefono || '');
+            const waText   = buildWA({
+              pac: p,
+              fechaISO: modalDateISO,
+              start: slot.start,
+              end:   slot.end,
+              prof:  getProfLabelById(slot.profId),
+              centro: currentCentroNombre,
+              dir:    currentCentroDireccion,
+              osNombre,
+              copago,
+            });
+            const href = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}` : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+            window.open(href, '_blank', 'noopener');
+          };
+          btns.appendChild(btnWA);
+        }
+      } // ← cierra el else del "bloqueado"
     } else {
+      // Slot libre
       const btnAdd = document.createElement('button');
       btnAdd.className = 'tw-icon-btn';
       btnAdd.textContent = '+';
       btnAdd.title = 'Reservar turno';
       btnAdd.style = 'background:#7b5da7;color:#fff;border:none;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:1em;';
       btnAdd.onclick = () => (reprogramState ? confirmReprogram(slot) : tryAgendar(slot));
-      // Si estoy reprogramando y el slot no es del mismo profesional, bloquear
       if (reprogramState && String(reprogramState.turno.profesional_id) !== String(slot.profId)) {
-        btnAdd.disabled = true; btnAdd.title = 'Solo podés reprogramar con el mismo profesional';
+        btnAdd.disabled = true;
+        btnAdd.title = 'Solo podés reprogramar con el mismo profesional';
       }
       btns.appendChild(btnAdd);
+
+      if (canBlock) {
+        const btnBlock = document.createElement('button');
+        btnBlock.className = 'tw-icon-btn';
+        btnBlock.textContent = '🔒';
+        btnBlock.title = 'Bloquear horario';
+        btnBlock.style = btnAdd.style;
+        btnBlock.onclick = () => bloquearSlot(slot);
+        btns.appendChild(btnBlock);
+      }
     }
 
     wrap.appendChild(hora);
@@ -787,6 +844,7 @@ function renderSlotsGroup(slots, profId){
     UI.slotsList.appendChild(wrap);
   });
 }
+
 
 async function tryAgendar(slot){
   if (bookingBusy) return;
@@ -837,6 +895,31 @@ async function tryAgendar(slot){
       ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
       : null;
 
+    // ---- Previsualización/confirmación (antes del INSERT) ----
+    const waText = buildWA({
+      pac:   pacienteSeleccionado,
+      fechaISO: modalDateISO,
+      start: slot.start,
+      end:   slot.end,
+      prof:  profNameById(slot.profId),
+      centro: currentCentroNombre,
+      dir:    currentCentroDireccion,
+      osNombre,
+      copago: copagoFinal,
+    });
+
+    const acepto = await openConfirmModal({
+      pac: pacienteSeleccionado,
+      fechaISO: modalDateISO,
+      start: slot.start,
+      end: slot.end,
+      profLabel: profNameById(slot.profId),
+      osNombre,
+      copago: copagoFinal,
+      waText
+    });
+    if (!acepto) return;
+
     // INSERT
     const payload = {
       agenda_id:       slot.agenda_id || null,
@@ -856,7 +939,7 @@ async function tryAgendar(slot){
     const { error } = await supabase.from('turnos').insert([payload]);
     if (error){ alert(error.message || 'No se pudo reservar el turno.'); return; }
 
-    // Abrir modal OK (usa SIEMPRE la misma openOkModal global)
+    // Modal OK + link de WhatsApp
     openOkModal({
       pac:       pacienteSeleccionado,
       fechaISO:  modalDateISO,
@@ -875,7 +958,6 @@ async function tryAgendar(slot){
     refreshModalTitle();
   }
 }
-
 
 
 
@@ -996,6 +1078,7 @@ async function loadModalDate(newISO){
   await renderMiniCalFor(newISO);
 }
 
+
 // ---------------------------
 /* Reserva / Reprograma / Cancela */
 // ---------------------------
@@ -1011,6 +1094,120 @@ function cerrarModalCupoAgotado(){
   if (el) el.style.display = 'none';
 }
 async function getCopagoParticular(){ return 1000; }
+
+function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = null, copago = null, waText }) {
+  return new Promise(resolve => {
+    const root = document.getElementById('turnos-confirm');
+    if (!root) return resolve(false);
+
+    // Pintar datos en el modal
+    const pacStr = `${pac.apellido}, ${pac.nombre}${pac.dni ? ' · DNI ' + pac.dni : ''}`;
+    const fechaStr = `${fmtDateLong(fechaISO)} · ${start}–${end}`;
+
+    const tcPac   = document.getElementById('tc-pac');
+    const tcFecha = document.getElementById('tc-fecha');
+    const tcProf  = document.getElementById('tc-prof');
+    const tcCen   = document.getElementById('tc-centro');
+    const tcDir   = document.getElementById('tc-dir');
+    const liOS    = document.getElementById('tc-os');
+    const valOS   = document.getElementById('tc-osv');
+    const liCop   = document.getElementById('tc-copago');
+    const valCop  = document.getElementById('tc-copagov');
+    const waPrev  = document.getElementById('tc-wa-preview');
+
+    if (tcPac)   tcPac.textContent   = pacStr;
+    if (tcFecha) tcFecha.textContent = fechaStr;
+    if (tcProf)  tcProf.textContent  = profLabel || '';
+    if (tcCen)   tcCen.textContent   = currentCentroNombre || '';
+    if (tcDir)   tcDir.textContent   = currentCentroDireccion || '';
+
+    if (liOS && valOS) {
+      if (osNombre) { liOS.style.display = 'list-item'; valOS.textContent = osNombre; }
+      else { liOS.style.display = 'none'; }
+    }
+    if (liCop && valCop) {
+      if (copago != null) { liCop.style.display = 'list-item'; valCop.textContent = `$${Number(copago).toLocaleString('es-AR', { maximumFractionDigits: 0 })}`; }
+      else { liCop.style.display = 'none'; }
+    }
+    if (waPrev) waPrev.textContent = waText || '';
+
+    root.style.display = 'flex';
+
+    const btnOk = document.getElementById('turnos-confirm-aceptar');
+    const btnCancel = document.getElementById('turnos-confirm-cancelar');
+
+    const cleanup = () => {
+      btnOk?.removeEventListener('click', onOk);
+      btnCancel?.removeEventListener('click', onCancel);
+      document.removeEventListener('keydown', onKey);
+    };
+    const close = (ok) => {
+      root.style.display = 'none';
+      cleanup();
+      resolve(ok);
+    };
+
+    const onOk = () => close(true);
+    const onCancel = () => close(false);
+    const onKey = (e) => {
+      if (e.key === 'Escape') close(false);
+      if (e.key === 'Enter') close(true);
+    };
+
+    btnOk?.addEventListener('click', onOk);
+    btnCancel?.addEventListener('click', onCancel);
+    document.addEventListener('keydown', onKey);
+  });
+}
+
+async function bloquearSlot(slot) {
+  if (!currentCentroId || !modalDateISO || !slot?.profId) return;
+  if (!roleAllows('bloquear', userRole)) { alert('No tenés permisos para bloquear.'); return; }
+
+  const profLbl = getProfLabelById(slot.profId);
+  const ok = confirm(`¿Bloquear ${slot.start}–${slot.end} para ${profLbl}?`);
+  if (!ok) return;
+
+  const payload = {
+    agenda_id:      slot.agenda_id || null,
+    centro_id:      currentCentroId,
+    profesional_id: slot.profId,
+    paciente_id:    null,
+    fecha:          modalDateISO,
+    hora_inicio:    slot.start,
+    hora_fin:       slot.end,
+    estado:         'bloqueado',
+    notas:          'Bloqueo manual',
+    obra_social_id: null,
+    copago:         null,
+    asignado_por:   getCurrentUserTag(),
+  };
+
+  const { error } = await supabase.from('turnos').insert([payload]);
+  if (error) {
+    alert(error.message || 'No se pudo bloquear el horario.');
+    return;
+  }
+  await refreshDayModal();
+  await renderCalendar();
+}
+
+async function desbloquearTurno(t) {
+  if (!roleAllows('desbloquear', userRole)) { alert('No tenés permisos para desbloquear.'); return; }
+  if (String(t.estado || '').toLowerCase() !== 'bloqueado') return;
+
+  const rango = `${toHM(t.hora_inicio)}–${toHM(t.hora_fin)}`;
+  const ok = confirm(`¿Desbloquear ${rango}?`);
+  if (!ok) return;
+
+  const { error } = await supabase.from('turnos').delete().eq('id', t.id);
+  if (error) {
+    alert(error.message || 'No se pudo desbloquear.');
+    return;
+  }
+  await refreshDayModal();
+  await renderCalendar();
+}
 
 
 

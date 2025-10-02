@@ -181,6 +181,9 @@ export function roleAllows(action, role) {
     reprogramar:  true,    // TODOS los roles pueden reprogramar
     abrir_ficha:  full,
     finalizar:    full,
+    bloquear: true,
+    desbloquear: true,
+    reenviar_wa: true,
   };
   return !!map[action];
 }

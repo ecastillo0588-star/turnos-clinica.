@@ -248,4 +248,11 @@
 .btn-accept:hover{background:#389e0d;}
 .btn-cancel:hover{background:#888;}
 
+/* Botón principal de WhatsApp (modal OK) */
+.tw-btn.ok { 
+  background: var(--tw-ok);   /* ya definido: #0a7d38 */
+  color: #fff;
+  border: none;
+}
+.tw-btn.ok:hover { filter: brightness(.97); }
 

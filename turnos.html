@@ -80,6 +80,36 @@
   </div>
 </div>
 
+<!-- Modal Confirmar Asignación -->
+<div id="turnos-confirm" class="modal-cupo-agotado" style="display:none;">
+   <div class="modal-content" role="dialog" aria-modal="true" style="background:#fff;border-color:#a490d7;">
+    <div class="modal-header-alert">
+      <span class="icon-alert">❓</span>
+      <span class="modal-title">Confirmar asignación de turno</span>
+    </div>
+    <div class="modal-body">
+      <ul style="margin:0 0 10px 18px;padding:0;line-height:1.5;">
+        <li><b>Paciente:</b> <span id="tc-pac"></span></li>
+        <li><b>Fecha y hora:</b> <span id="tc-fecha"></span></li>
+        <li><b>Profesional:</b> <span id="tc-prof"></span></li>
+        <li><b>Centro:</b> <span id="tc-centro"></span></li>
+        <li><b>Dirección:</b> <span id="tc-dir"></span></li>
+        <li id="tc-os" style="display:none;"><b>Obra social:</b> <span id="tc-osv"></span></li>
+        <li id="tc-copago" style="display:none;"><b>Particular:</b> Copago <span id="tc-copagov"></span></li>
+      </ul>
+      <div style="font-size:.92em;color:#6b6480;">
+        <b>Mensaje de WhatsApp (previa):</b>
+        <pre id="tc-wa-preview" style="white-space:pre-wrap;background:#faf9ff;border:1px solid var(--tw-line);border-radius:8px;padding:8px;margin-top:6px;"></pre>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="turnos-confirm-aceptar" class="btn-accept">Confirmar</button>
+      <button id="turnos-confirm-cancelar" class="btn-cancel">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- Modal OK -->
 <div class="tw-backdrop" id="turnos-modal-ok" style="display:none;">
   <div class="tw-modal-ok">
@@ -108,7 +138,7 @@
 
 <!-- Modal Cupo agotado -->
 <div id="modal-cupo-agotado" class="modal-cupo-agotado" style="display:none;">
-  <div class="modal-content">
+  <div class="modal-content" role="dialog" aria-modal="true">
     <div class="modal-header-alert">
       <span class="icon-alert">⚠️</span>
       <span class="modal-title">Cupo agotado para obra social</span>
