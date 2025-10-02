@@ -1863,63 +1863,7 @@ export async function initInicio(root){
    Panel izquierdo (abrir / cerrar / guardar)
    ======================= */
 
-async function inicioOpenTurnoPanel(turnoId){
-  try{
-    // Cargar turno + paciente
-    const { data: t, error: te } = await supabase
-      .from('turnos')
-      .select(`
-        id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, comentario_recepcion,
-        paciente_id, profesional_id,
-        pacientes(id, dni, apellido, nombre)
-      `)
-      .eq('id', turnoId)
-      .maybeSingle();
 
-    if (te || !t) { console.warn('[inicioOpenTurnoPanel] turno no encontrado', te); return; }
-
-    // Mostrar panel y setear id
-    UI.tp.el?.classList.add('open');
-    UI.tp.el?.setAttribute('data-turno-id', String(t.id));
-    if (UI.tp.status) UI.tp.status.textContent = '';
-
-    // Header y datos base
-    const p = t.pacientes || {};
-    const nom = (p.nombre || '').trim();
-    const ape = (p.apellido || '').trim();
-    if (UI.tp.title) UI.tp.title.textContent = [nom, ape].filter(Boolean).map(titleCase).join(' ') || '—';
-    if (UI.tp.sub)   UI.tp.sub.textContent   = `DNI ${p.dni || '—'}`;
-    if (UI.tp.hora)  UI.tp.hora.textContent  = horaRango(t);
-    if (UI.tp.estado)UI.tp.estado.textContent= String(t.estado || '—').replaceAll('_',' ').toUpperCase();
-    if (UI.tp.copago)UI.tp.copago.textContent= (toPesoInt(t.copago) ?? 0) > 0 ? money(t.copago) : 'Sin copago';
-
-    // Comentario recepción (editable según permiso)
-    if (UI.tp.com) {
-      UI.tp.com.value = t.comentario_recepcion || '';
-      UI.tp.com.disabled = !roleAllows('abrir_ficha', (localStorage.getItem('user_role')||'').toLowerCase());
-    }
-
-    // Botones
-    if (UI.tp.btnArr)   UI.tp.btnArr.onclick   = () => marcarLlegadaYCopago(t.id);
-    if (UI.tp.btnAt)    UI.tp.btnAt.onclick    = (ev) => pasarAEnAtencion(t.id, ev);
-    if (UI.tp.btnPago)  UI.tp.btnPago.onclick  = () => abrirPagoModal(t.id);
-    if (UI.tp.btnCan)   UI.tp.btnCan.onclick   = () => anularTurno(t.id);
-    if (UI.tp.btnFicha) UI.tp.btnFicha.onclick = () => openFicha(t.id);
-    if (UI.tp.btnSave)  UI.tp.btnSave.onclick  = () => inicioGuardarComentarioRecepcion(t.id);
-
-    // Visibilidad por rol
-    const urole = (localStorage.getItem('user_role')||'').toLowerCase();
-    if (UI.tp.btnArr)   UI.tp.btnArr.style.display   = roleAllows('arribo', urole)    ? '' : 'none';
-    if (UI.tp.btnAt)    UI.tp.btnAt.style.display    = roleAllows('atender', urole)   ? '' : 'none';
-    if (UI.tp.btnPago)  UI.tp.btnPago.style.display  = ''; // ajustar si querés condicionar
-    if (UI.tp.btnCan)   UI.tp.btnCan.style.display   = roleAllows('cancelar', urole)  ? '' : 'none';
-    if (UI.tp.btnFicha) UI.tp.btnFicha.style.display = roleAllows('abrir_ficha', urole)? '' : 'none';
-    if (UI.tp.btnSave)  UI.tp.btnSave.style.display  = roleAllows('abrir_ficha', urole)? '' : 'none';
-
-  } catch(e){
-    console.error('[inicioOpenTurnoPanel] error', e);
-  }
-}
 
 function inicioHideTurnoPanel(){
   if (!UI?.tp?.el) return;
