@@ -1411,6 +1411,109 @@ function openCobroModal(opts){
 }
 
 /* =======================
+   Refresh principal (con anti-tearing y pagos)
+   ======================= */
+
+// Suma pagos por turno y devuelve un mapa { [turno_id]: totalPagado }
+async function fetchPagosMap(turnoIds = []) {
+  const ids = [...new Set(turnoIds)].filter(Boolean);
+  if (!ids.length) return {};
+  const { data = [], error } = await supabase
+    .from('turnos_pagos')
+    .select('turno_id, importe')
+    .in('turno_id', ids);
+
+  if (error) {
+    console.warn('[refreshAll] turnos_pagos error:', error);
+    return {};
+  }
+  const map = {};
+  for (const r of data) {
+    const id = r.turno_id;
+    const imp = Number(r.importe || 0);
+    map[id] = (map[id] || 0) + imp;
+  }
+  return map;
+}
+
+function clearBoardsUI() {
+  if (UI.tblPend) UI.tblPend.innerHTML = '';
+  if (UI.tblEsp) UI.tblEsp.innerHTML = '';
+  if (UI.tblAtencion) UI.tblAtencion.innerHTML = '';
+  if (UI.tblDone) UI.tblDone.innerHTML = '';
+  renderBoardTitles({ pendientes: [], presentes: [], atencion: [], atendidos: [] });
+  if (UI.kpiFree) UI.kpiFree.textContent = '—';
+  if (UI.kpiSub)  UI.kpiSub.textContent  = `${currentCentroNombre || ''} · ${profsLabel()} · ${currentFechaISO || ''}`;
+}
+
+/**
+ * refreshAll({ showOverlayIfSlow = true } = {})
+ *   - Trae datos del día
+ *   - Calcula anchos de columnas
+ *   - Suma pagos por turno
+ *   - Renderiza las 4 tablas + KPIs
+ */
+async function refreshAll({ showOverlayIfSlow = true } = {}) {
+  const myId = ++_refresh.reqId;
+
+  // Overlay si tarda (suave)
+  let overlayTimer = null;
+  const rootNode = boardsEl?.closest?.('.page') || document.body;
+  if (showOverlayIfSlow) {
+    overlayTimer = setTimeout(() => setLoading(rootNode, true), 220);
+  }
+
+  try {
+    // Precondiciones mínimas
+    if (!currentCentroId) {
+      clearBoardsUI();
+      return;
+    }
+
+    // 1) Traer datos base del día
+    const raw = await fetchDiaData();
+    if (myId !== _refresh.reqId) return; // llegó tarde → descarto
+
+    // 2) Filtro global si hay texto
+    const data = applyFilter(raw);
+
+    // 3) Calcular anchos de columnas en base a TODOS los turnos del día
+    computeColumnWidthsForDay({ turnos: data.turnos || [] });
+    // Actualizar la plantilla grid (por si las variables cambiaron)
+    GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
+
+    // 4) KPIs y títulos
+    renderKPIs(data);
+    renderBoardTitles(data);
+
+    // 5) Sumar pagos por turno (para mostrar "Tt / p" y saldos)
+    const allIds = [
+      ...data.pendientes.map(t => t.id),
+      ...data.presentes.map(t => t.id),
+      ...data.atencion.map(t => t.id),
+      ...data.atendidos.map(t => t.id),
+    ];
+    const pagosMap = await fetchPagosMap(allIds);
+    if (myId !== _refresh.reqId) return; // llegó tarde
+
+    // 6) Render de tablas
+    if (UI.tblPend)     await renderPendientes(data.pendientes, pagosMap);
+    if (UI.tblEsp)      renderPresentes(data.presentes, pagosMap);
+    if (UI.tblAtencion) renderAtencion(data.atencion, pagosMap);
+    if (UI.tblDone)     renderAtendidos(data.atendidos, pagosMap);
+
+  } catch (err) {
+    console.error('[refreshAll] error:', err);
+    // fallback UI simple
+    clearBoardsUI();
+  } finally {
+    if (overlayTimer) clearTimeout(overlayTimer);
+    setLoading(rootNode, false);
+  }
+}
+
+
+/* =======================
    INIT (export)
    ======================= */
 export async function initInicio(root){
