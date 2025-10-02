@@ -1340,11 +1340,19 @@ async function anularTurno(turnoId){
 /* =======================
    Refresh principal (con abort + overlay suave)
    ======================= */
-async function refreshAll({ showOverlayIfSlow = false } = {}){
-  if(!selectedProfesionales.length){
-    UI.tblPend.innerHTML=''; UI.tblEsp.innerHTML=''; UI.tblAtencion.innerHTML=''; UI.tblDone.innerHTML='';
-    safeSet(UI.kpiSub, `${currentCentroNombre||''} · ${currentFechaISO||todayISO()}`);
-    renderBoardTitles({pendientes:[],presentes:[],atencion:[],atendidos:[]});
+// =======================
+// Refresh principal (con abort + overlay suave) y auto-refresh cada 2 minutos
+// =======================
+let autoRefreshInterval = null;
+
+async function refreshAll({ showOverlayIfSlow = false } = {}) {
+  if (!selectedProfesionales.length) {
+    UI.tblPend.innerHTML = '';
+    UI.tblEsp.innerHTML = '';
+    UI.tblAtencion.innerHTML = '';
+    UI.tblDone.innerHTML = '';
+    safeSet(UI.kpiSub, `${currentCentroNombre || ''} · ${currentFechaISO || todayISO()}`);
+    renderBoardTitles({ pendientes: [], presentes: [], atencion: [], atendidos: [] });
     return;
   }
 
@@ -1354,18 +1362,33 @@ async function refreshAll({ showOverlayIfSlow = false } = {}){
   const myReqId = ++_refresh.reqId;
 
   let overlayTimer;
-  if (showOverlayIfSlow) overlayTimer = setTimeout(()=> setLoading(document, true), 220);
+  if (showOverlayIfSlow) overlayTimer = setTimeout(() => setLoading(document, true), 220);
 
-  try{
+  try {
     const raw = await fetchDiaData(abort.signal);
     if (myReqId !== _refresh.reqId) return;
     computeColumnWidthsForDay(raw);
     const filtered = applyFilter(raw);
 
-    renderPendientes(filtered.pendientes);
-    renderPresentes(filtered.presentes);
-    renderAtencion(filtered.atencion);
-    renderAtendidos(filtered.atendidos);
+    // --- Calcular mapPagos para todos los turnos del día ---
+    const turnosIds = raw.turnos.map(t => t.id);
+    let mapPagos = {};
+    if (turnosIds.length > 0) {
+      const { data: pagos = [] } = await supabase
+        .from('turnos_pagos')
+        .select('turno_id, importe')
+        .in('turno_id', turnosIds);
+
+      for (const p of pagos) {
+        mapPagos[p.turno_id] = (mapPagos[p.turno_id] || 0) + Number(p.importe || 0);
+      }
+    }
+
+    // --- Pasar mapPagos a cada render de tabla ---
+    await renderPendientes(filtered.pendientes, mapPagos);
+    await renderPresentes(filtered.presentes, mapPagos);
+    await renderAtencion(filtered.atencion, mapPagos);
+    await renderAtendidos(filtered.atendidos, mapPagos);
 
     renderKPIs(raw);
     renderBoardTitles(filtered);
@@ -1375,6 +1398,29 @@ async function refreshAll({ showOverlayIfSlow = false } = {}){
     if (myReqId === _refresh.reqId) _refresh.abort = null;
   }
 }
+
+// =======================
+// Inicialización de auto-refresh cada 2 minutos
+// =======================
+function startAutoRefresh() {
+  if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+  autoRefreshInterval = setInterval(() => {
+    refreshAll();
+  }, 120000); // 2 minutos
+  // También refresca cuando el usuario vuelve a la pestaña
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      refreshAll();
+      startAutoRefresh();
+    } else {
+      if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    }
+  });
+}
+
+// Llama a startAutoRefresh después del primer render/initInicio
+// Ejemplo: en initInicio al final
+// startAutoRefresh();
 
 function closeAnyModal() {
   const modalRoot = document.getElementById('modal-root');
