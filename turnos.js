@@ -771,39 +771,43 @@ function renderSlotsGroup(slots, profId){
         if (canRepro){
           const durMin = reprogramState?.durMin || slot.turno_duracion || minutesDiff(toHM(slot.turno.hora_inicio), toHM(slot.turno.hora_fin));
           const btnRep = mkBtn('↻', 'Reprogramar');
+          btnRep.style.background = '#0b5394';
+          btnRep.style.color = '#fff';
+          btnRep.style.border = 'none';
           btnRep.onclick = () => { reprogramState = { turno: slot.turno, durMin }; refreshDayModal(); };
           btns.appendChild(btnRep);
         }
 
-        if (canCancel){
-          const btnDel = mkBtn('🗑️', 'Eliminar turno');
-          btnDel.onclick = () => cancelarTurno(slot.turno);
-          btns.appendChild(btnDel);
-        }
+          if (canCancel){
+            const btnDel = mkBtn('🗑️', 'Eliminar turno');
+            btnDel.style.background = '#b00020';
+            btnDel.style.color = '#fff';
+            btnDel.style.border = 'none';
+            btnDel.onclick = () => cancelarTurno(slot.turno);
+            btns.appendChild(btnDel);
+          }
 
-        if (canWA && p){
-          const btnWA = mkBtn('WA', 'Reenviar WhatsApp');
-          btnWA.onclick = () => {
-            const osNombre = (slot.turno.obra_social_id && obrasSocialesById.get(String(slot.turno.obra_social_id))?.obra_social) || null;
-            const copago   = slot.turno.obra_social_id == null ? (slot.turno.copago ?? null) : null;
-            const waPhone  = normalizePhoneForWA(p?.telefono || '');
-            const waText   = buildWA({
-              pac: p,
-              fechaISO: modalDateISO,
-              start: slot.start,
-              end: slot.end,
-              prof: getProfLabelById(slot.profId),
-              centro: currentCentroNombre,
-              dir: currentCentroDireccion,
-              osNombre,
-              copago,
-            });
-            const href = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}` : `https://wa.me/?text=${encodeURIComponent(waText)}`;
-            window.open(href, '_blank', 'noopener');
-          };
-          btns.appendChild(btnWA);
-        }
-      }
+
+       if (canWA && p){
+  const btnWA = mkBtn('WA', 'Reenviar WhatsApp');
+  btnWA.style.background = '#0a7d38';
+  btnWA.style.color = '#fff';
+  btnWA.style.border = 'none';
+  btnWA.onclick = () => {
+    const osNombre = (slot.turno.obra_social_id && obrasSocialesById.get(String(slot.turno.obra_social_id))?.obra_social) || null;
+    const copago   = slot.turno.obra_social_id == null ? (slot.turno.copago ?? null) : null;
+    const waPhone  = normalizePhoneForWA(p?.telefono || '');
+    const waText   = buildWA({
+      pac: p, fechaISO: modalDateISO, start: slot.start, end: slot.end,
+      prof: getProfLabelById(slot.profId), centro: currentCentroNombre, dir: currentCentroDireccion,
+      osNombre, copago,
+    });
+    const href = waPhone ? `https://wa.me/${waPhone}?text=${encodeURIComponent(waText)}` : `https://wa.me/?text=${encodeURIComponent(waText)}`;
+    window.open(href, '_blank', 'noopener');
+  };
+  btns.appendChild(btnWA);
+}
+
 
     } else {
       // Slot libre
