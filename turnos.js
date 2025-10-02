@@ -923,11 +923,32 @@ async function tryAgendar(slot){
       obra_social_id:  obraSocialId,
       copago:          copagoFinal,
       asignado_por:    asignadoPor,
-      comentario_recepcion: comentarioRecep, // << NUEVO
+      comentario_recepcion: comentarioRecep, // NUEVO
     };
 
     const { error } = await supabase.from('turnos').insert([payload]);
     if (error){ alert(error.message || 'No se pudo reservar el turno.'); return; }
+
+    // Modal OK + link de WhatsApp (editable)
+    openOkModal({
+      pac:       pacienteSeleccionado,
+      fechaISO:  modalDateISO,
+      start:     slot.start,
+      end:       slot.end,
+      profLabel: profNameById(slot.profId),
+      osNombre,
+      copago:    copagoFinal,
+    });
+
+  } finally {
+    bookingBusy = false;
+    setSlotsDisabled(false);
+    await refreshDayModal();
+    await renderCalendar();
+    refreshModalTitle();
+  }
+}
+
 
     
 
