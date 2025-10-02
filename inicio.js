@@ -38,6 +38,7 @@ let UI = {};
 let H  = {};
 let Drawer = {};
 let boardsEl, zDec, zInc, zReset;
+let overlayRoot = null;
 
 let fsPx;
 
@@ -76,12 +77,12 @@ function bindUI(root = document) {
     massClear:  root.querySelector('#mass-clear'),
   };
 
-     H = {
-      pend:  root.querySelector('#hl-pend'),
-      esp:   root.querySelector('#hl-esp'),
-      atenc: root.querySelector('#hl-atencion'),
-      done:  root.querySelector('#hl-done'),
-    };
+  H = {
+    pend:  root.querySelector('#hl-pend'),
+    esp:   root.querySelector('#hl-esp'),
+    atenc: root.querySelector('#hl-atencion'),
+    done:  root.querySelector('#hl-done'),
+  };
 
   Drawer = {
     el:        root.querySelector('#fichaDrawer'),
@@ -123,7 +124,6 @@ function bindUI(root = document) {
     btnCerrar: root.querySelector('#fd-cerrar'),
     btnGuardar:root.querySelector('#fd-guardar'),
     btnFinalizar:root.querySelector('#fd-finalizar'),
-    
   };
 
   boardsEl = root.querySelector('#boards');
@@ -134,6 +134,29 @@ function bindUI(root = document) {
   // drawer: cierres
   if (Drawer.close)     Drawer.close.onclick     = hideDrawer;
   if (Drawer.btnCerrar) Drawer.btnCerrar.onclick = hideDrawer;
+
+  // === Panel izquierdo (detalle de turno) ===
+  UI.tp = {
+    el:      root.querySelector('#turnoPanel'),
+    close:   root.querySelector('#tp-close'),
+    title:   root.querySelector('#tp-title'),
+    sub:     root.querySelector('#tp-sub'),
+    status:  root.querySelector('#tp-status'),
+    hora:    root.querySelector('#tp-hora'),
+    estado:  root.querySelector('#tp-estado'),
+    copago:  root.querySelector('#tp-copago'),
+    dni:     root.querySelector('#tp-dni'),
+    ape:     root.querySelector('#tp-ape'),
+    nom:     root.querySelector('#tp-nom'),
+    com:     root.querySelector('#tp-com-recep'),
+    btnArr:  root.querySelector('#tp-arribo'),
+    btnAt:   root.querySelector('#tp-atender'),
+    btnPago: root.querySelector('#tp-pago'),
+    btnCan:  root.querySelector('#tp-cancel'),
+    btnFicha:root.querySelector('#tp-ficha'),
+    btnSave: root.querySelector('#tp-guardar'),
+  };
+  if (UI.tp?.close) UI.tp.close.onclick = inicioHideTurnoPanel;
 }
 
 /* =======================
@@ -149,6 +172,27 @@ function handleProfChange(target){
 }
 // Escucha a nivel documento (funciona aunque el <select> se reemplace)
 document.addEventListener('change', (e) => handleProfChange(e.target));
+
+/* =======================
+   Delegación: click en filas (abre panel)
+   ======================= */
+document.addEventListener('click', (e) => {
+  // Ignorar clicks en botones de acción dentro de la fila
+  if (e.target.closest?.('.icon')) return;
+  if (e.target.closest('thead')) return; 
+
+  const row = e.target.closest?.('tr.row');
+  if (!row) return;
+
+  const id = row.getAttribute('data-turno-id');
+  if (!id) return;
+
+if (!UI?.tp?.el) return; 
+   
+   
+  inicioOpenTurnoPanel(id);
+});
+
 
 /* =======================
    Overlay de “Cargando…”
@@ -449,10 +493,11 @@ async function fetchDiaData(/*signal*/){
   }
 
   const profIds = selectedProfesionales.map(String);
-  const selectCols = `
-    id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, importe, medio_pago, paciente_id, profesional_id,
-    pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)
-  `;
+const selectCols = `
+  id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, importe, medio_pago,
+  paciente_id, profesional_id, comentario_recepcion,
+  pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)
+`;
   const byHora = (a,b) => (toHM(a.hora_inicio) || '').localeCompare(toHM(b.hora_inicio) || '');
 
   // 1) Todos los turnos del día
@@ -644,11 +689,17 @@ function renderHeadHTML(){
     </thead>`;
 }
 
-// fila única
-function renderRowHTML(t, ctx){
+// Nueva con prefijo
+function inicioRenderRowHTML(t, ctx){
   const tds = COLS.map(c => `<td class="cell">${buildCell(c.key, t, ctx)}</td>`).join('');
-  return `<tr class="row" style="grid-template-columns:${GRID_TEMPLATE}">${tds}</tr>`;
+  return `<tr class="row" data-turno-id="${t.id}" style="grid-template-columns:${GRID_TEMPLATE}">${tds}</tr>`;
 }
+
+// Puente (compatibilidad): usa la nueva
+function renderRowHTML(t, ctx){
+  return inicioRenderRowHTML(t, ctx);
+}
+
 
 // tabla genérica
 function renderTable(el, list, ctx){
@@ -667,42 +718,46 @@ const showProfColumn = ()=> {
 };
 
 /* PENDIENTES */
-/* PENDIENTES */
-/* PENDIENTES */
 // Render de pendientes - versión completa: copago detallado, botón pagar solo si corresponde, integración con buildCell global
 
-async function renderPendientes(list, mapPagos) {
-  // Permisos y flags para acciones
+function renderPendientes(list, mapPagos) {
+  const puedeCancelar = roleAllows('cancelar', userRole);
+  const puedeArribo   = roleAllows('arribo', userRole);
+  const puedeAtender  = roleAllows('atender', userRole);
+  const puedeFinalizar= roleAllows('finalizar', userRole);
+  const puedeAbrir    = roleAllows('abrir_ficha', userRole);
+
   const ctx = {
     type: 'pend',
     fechaISO: currentFechaISO,
     pagos: mapPagos,
-    puedeCancelar: roleAllows('cancelar', userRole),
-    puedeArribo: roleAllows('arribo', userRole),
-    puedePagar: true, // Si quieres filtrar por rol, cámbialo
     isHoy: (currentFechaISO === todayISO()),
-    // Puedes agregar flags adicionales para otras acciones si tu tabla lo requiere
+    puedeCancelar: puedeCancelar,
+    puedeArribo:   puedeArribo,
+    puedeAtender:  puedeAtender,
+    puedeFinalizar:puedeFinalizar,
+    puedeAbrirFicha: puedeAbrir,
+    puedePagar: true, // si querés permitir pago desde “Por llegar”
   };
 
-  // Renderizado de la tabla
   const head = renderHeadHTML();
-  const rows = (list || []).map(t =>
-    `<tr class="row" style="grid-template-columns:${GRID_TEMPLATE}">` +
-    COLS.map(c =>
-      `<td class="cell">${buildCell(c.key, t, ctx)}</td>`
-    ).join('') +
-    `</tr>`
-  ).join('');
+  const rows = (list || []).map(t => inicioRenderRowHTML(t, ctx)).join('');
   UI.tblPend.innerHTML = head + '<tbody>' + rows + '</tbody>';
 
-  // Asignar eventos a los botones de acciones de la tabla
   UI.tblPend.querySelectorAll('.icon').forEach(btn => {
-    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
-    if (act === 'pago')   btn.onclick = () => abrirPagoModal(id);
-    if (act === 'arribo') btn.onclick = () => marcarLlegadaYCopago(id);
-    if (act === 'cancel') btn.onclick = () => anularTurno(id);
+    const id  = btn.getAttribute('data-id');
+    const act = btn.getAttribute('data-act');
+    if (act === 'pago')         btn.onclick = () => abrirPagoModal(id);
+    if (act === 'arribo')       btn.onclick = () => marcarLlegadaYCopago(id);
+    if (act === 'cancel')       btn.onclick = () => anularTurno(id);
+    if (act === 'atender')      btn.onclick = (ev) => pasarAEnAtencion(id, ev);
+    if (act === 'finalizar')    btn.onclick = () => finalizarAtencion(id);
+    if (act === 'abrir-ficha')  btn.onclick = () => openFicha(id);
   });
 }
+
+
+
 
 
 async function getPagoResumen(turnoId){
@@ -750,6 +805,7 @@ function renderPresentes(list, mapPagos) {
     type: 'esp',
     fechaISO: currentFechaISO,
     pagos: mapPagos, // <-- esto es lo importante!
+    isHoy: (currentFechaISO === todayISO()), 
     puedeVolver,
     puedeCancelar,
     puedeAtender,
@@ -1552,7 +1608,7 @@ async function refreshAll({ showOverlayIfSlow = true } = {}) {
 
   // Overlay si tarda (suave)
   let overlayTimer = null;
-  const rootNode = boardsEl?.closest?.('.page') || document.body;
+  const rootNode = overlayRoot || (boardsEl?.closest?.('.page') || document.body);
   if (showOverlayIfSlow) {
     overlayTimer = setTimeout(() => setLoading(rootNode, true), 220);
   }
@@ -1613,6 +1669,7 @@ async function refreshAll({ showOverlayIfSlow = true } = {}) {
 export async function initInicio(root){
   bindUI(root);
   ensureOverlay(root);
+  overlayRoot = root;
 
   // estado base (centro/fecha)
   currentCentroId     = localStorage.getItem('centro_medico_id');
@@ -1653,11 +1710,103 @@ export async function initInicio(root){
   if (!restoreProfSelection()) saveProfSelection();
 
   // primera carga con overlay visible
-  setLoading(root, true);
+  setLoading(overlayRoot, true);
   await refreshAll({ showOverlayIfSlow:false });
-  setLoading(root, false);
+  setLoading(overlayRoot, false);
 
   // watcher de centro (si cambia en otro tab/side, re-carga todo)
   startCentroWatcher();
   startAutoRefresh();
+}
+
+
+/* =======================
+   Panel izquierdo (abrir / cerrar / guardar)
+   ======================= */
+
+async function inicioOpenTurnoPanel(turnoId){
+  try{
+    // Cargar turno + paciente
+    const { data: t, error: te } = await supabase
+      .from('turnos')
+      .select(`
+        id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, comentario_recepcion,
+        paciente_id, profesional_id,
+        pacientes(id, dni, apellido, nombre)
+      `)
+      .eq('id', turnoId)
+      .maybeSingle();
+
+    if (te || !t) { console.warn('[inicioOpenTurnoPanel] turno no encontrado', te); return; }
+
+    // Mostrar panel y setear id
+    UI.tp.el?.classList.add('open');
+    UI.tp.el?.setAttribute('data-turno-id', String(t.id));
+    if (UI.tp.status) UI.tp.status.textContent = '';
+
+    // Header y datos base
+    const p = t.pacientes || {};
+    const nom = (p.nombre || '').trim();
+    const ape = (p.apellido || '').trim();
+    if (UI.tp.title) UI.tp.title.textContent = [nom, ape].filter(Boolean).map(titleCase).join(' ') || '—';
+    if (UI.tp.sub)   UI.tp.sub.textContent   = `DNI ${p.dni || '—'}`;
+    if (UI.tp.hora)  UI.tp.hora.textContent  = horaRango(t);
+    if (UI.tp.estado)UI.tp.estado.textContent= String(t.estado || '—').replaceAll('_',' ').toUpperCase();
+    if (UI.tp.copago)UI.tp.copago.textContent= (toPesoInt(t.copago) ?? 0) > 0 ? money(t.copago) : 'Sin copago';
+
+    // Comentario recepción (editable según permiso)
+    if (UI.tp.com) {
+      UI.tp.com.value = t.comentario_recepcion || '';
+      UI.tp.com.disabled = !roleAllows('abrir_ficha', (localStorage.getItem('user_role')||'').toLowerCase());
+    }
+
+    // Botones
+    if (UI.tp.btnArr)   UI.tp.btnArr.onclick   = () => marcarLlegadaYCopago(t.id);
+    if (UI.tp.btnAt)    UI.tp.btnAt.onclick    = (ev) => pasarAEnAtencion(t.id, ev);
+    if (UI.tp.btnPago)  UI.tp.btnPago.onclick  = () => abrirPagoModal(t.id);
+    if (UI.tp.btnCan)   UI.tp.btnCan.onclick   = () => anularTurno(t.id);
+    if (UI.tp.btnFicha) UI.tp.btnFicha.onclick = () => openFicha(t.id);
+    if (UI.tp.btnSave)  UI.tp.btnSave.onclick  = () => inicioGuardarComentarioRecepcion(t.id);
+
+    // Visibilidad por rol
+    const urole = (localStorage.getItem('user_role')||'').toLowerCase();
+    if (UI.tp.btnArr)   UI.tp.btnArr.style.display   = roleAllows('arribo', urole)    ? '' : 'none';
+    if (UI.tp.btnAt)    UI.tp.btnAt.style.display    = roleAllows('atender', urole)   ? '' : 'none';
+    if (UI.tp.btnPago)  UI.tp.btnPago.style.display  = ''; // ajustar si querés condicionar
+    if (UI.tp.btnCan)   UI.tp.btnCan.style.display   = roleAllows('cancelar', urole)  ? '' : 'none';
+    if (UI.tp.btnFicha) UI.tp.btnFicha.style.display = roleAllows('abrir_ficha', urole)? '' : 'none';
+    if (UI.tp.btnSave)  UI.tp.btnSave.style.display  = roleAllows('abrir_ficha', urole)? '' : 'none';
+
+  } catch(e){
+    console.error('[inicioOpenTurnoPanel] error', e);
+  }
+}
+
+function inicioHideTurnoPanel(){
+  if (!UI?.tp?.el) return;
+  UI.tp.el.classList.remove('open');
+  UI.tp.el.removeAttribute('data-turno-id');
+}
+
+async function inicioGuardarComentarioRecepcion(turnoId){
+  if (!UI?.tp?.com) return;
+  const txt = (UI.tp.com.value || '').trim();
+  if (UI.tp.status) UI.tp.status.textContent = 'Guardando…';
+  const { error } = await supabase
+    .from('turnos')
+    .update({ comentario_recepcion: txt || null })
+    .eq('id', turnoId);
+  if (error){
+    if (UI.tp.status) UI.tp.status.textContent = 'Error guardando.';
+    alert(error.message || 'No se pudo guardar');
+    return;
+  }
+  if (UI.tp.status) UI.tp.status.textContent = 'Guardado ✓';
+  setTimeout(()=>{ if (UI.tp?.status) UI.tp.status.textContent=''; }, 1200);
+  refreshAll({ showOverlayIfSlow:false });
+}
+
+/** Utilidad opcional (por si la querés usar en algún lado) */
+function inicioIsTurnoPanelOpen(){
+  return !!UI?.tp?.el && UI.tp.el.classList.contains('open');
 }
