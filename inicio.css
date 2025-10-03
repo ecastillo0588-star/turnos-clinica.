@@ -304,3 +304,54 @@ body.tp-open{ overflow: hidden; }
 #inicio-root aside.turno-panel.open{
   transform: translateX(0) !important;
 }
+
+
+
+/* === Turno panel: look & feel tipo ficha === */
+.turno-panel .tp-section{ padding:12px; border-bottom:1px solid var(--line); }
+.turno-panel .tp-head{
+  position:sticky; top:0; z-index:2;
+  padding:10px 12px; background:#e8def8; border-bottom:1px solid var(--line);
+}
+.turno-panel .tp-title{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.turno-panel .tp-title h3{ margin:0; font-weight:800; color:#3b2b66; }
+.turno-panel .tp-sub{ margin-top:2px; color:var(--muted); display:flex; gap:8px; align-items:center; }
+.turno-panel .tp-h4{ margin:0 0 6px 0; font-size:.95rem; color:#4b3a78; }
+.turno-panel .tp-chips{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
+.turno-panel .tp-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.turno-panel .tp-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+
+/* Botón de cerrar del head */
+.turno-panel .icon-btn{
+  appearance:none; border:1px solid var(--line); background:#fff;
+  width:28px; height:28px; border-radius:7px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
+.turno-panel .icon-btn:hover{ background:#f4f1ff; }
+
+/* Botón ghost (Abrir ficha / Guardar comentario) */
+.btn.ghost{
+  background:#fff; color:#3b2b66; border:1px solid var(--line);
+}
+.btn.ghost:hover{ background:#f7f4ff; }
+
+/* Tonos de chips (se aplican desde JS con setChip(..., tone)) */
+.chip.info{   background:#eef4ff; border-color:#d8e6ff; color:#254b7a; }
+.chip.accent{ background:#efeafb; border-color:#e0d6fb; color:#5a3e9a; }
+.chip.warn{   background:#fff4e6; border-color:#ffe0b3; color:#8a5800; }
+.chip.ok{     background:#e8fff0; border-color:#b9f0cb; color:#0a7d38; }
+.chip.muted{  background:#f1f1f4; border-color:#e5e5ee; color:#6b6480; }
+
+/* Tarjetita de resumen de pago dentro del panel */
+#tp-copago-info{
+  background:#faf9ff; border:1px dashed var(--line);
+  padding:8px 10px; border-radius:8px; color:#3b2b66;
+}
+
+/* Inputs del panel (matching del resto) */
+.turno-panel .inp, .turno-panel .sel, .turno-panel textarea{
+  width:100%; background:#f7f9fb; border:1px solid var(--line); border-radius:8px; padding:7px 9px; color:#var(--ink);
+}
+.turno-panel textarea{ min-height:76px; resize:vertical; }
+.turno-panel .inp:focus, .turno-panel .sel:focus, .turno-panel textarea:focus{
+  border-color:var(--brand-2); outline:none;
+}
