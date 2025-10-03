@@ -910,6 +910,7 @@ async function tryAgendar(slot){
     if (!resConfirm?.ok) return;
 
     const comentarioRecep = (resConfirm.comentario || '').trim() || null;
+    console.log('[tryAgendar] comentarioRecepcion =', comentarioRecep);
 
     // --------- INSERT ----------
     const payload = {
@@ -1104,37 +1105,32 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
     const root = document.getElementById('turnos-confirm');
     if (!root) return resolve({ ok:false, comentario:'' });
 
-    // Pintar datos en el modal
+    // Pintar datos
     const pacStr   = `${pac.apellido}, ${pac.nombre}${pac.dni ? ' · DNI ' + pac.dni : ''}`;
     const fechaStr = `${fmtDateLong(fechaISO)} · ${start}–${end}`;
+    document.getElementById('tc-pac')?.replaceChildren(document.createTextNode(pacStr));
+    document.getElementById('tc-fecha')?.replaceChildren(document.createTextNode(fechaStr));
+    document.getElementById('tc-prof')?.replaceChildren(document.createTextNode(profLabel || ''));
+    document.getElementById('tc-centro')?.replaceChildren(document.createTextNode(currentCentroNombre || ''));
+    document.getElementById('tc-dir')?.replaceChildren(document.createTextNode(currentCentroDireccion || ''));
 
-    const tcPac   = document.getElementById('tc-pac');
-    const tcFecha = document.getElementById('tc-fecha');
-    const tcProf  = document.getElementById('tc-prof');
-    const tcCen   = document.getElementById('tc-centro');
-    const tcDir   = document.getElementById('tc-dir');
-    const liOS    = document.getElementById('tc-os');
-    const valOS   = document.getElementById('tc-osv');
-    const liCop   = document.getElementById('tc-copago');
-    const valCop  = document.getElementById('tc-copagov');
-    const txtCom  = document.getElementById('tc-comentario');
-
-    if (tcPac)   tcPac.textContent   = pacStr;
-    if (tcFecha) tcFecha.textContent = fechaStr;
-    if (tcProf)  tcProf.textContent  = profLabel || '';
-    if (tcCen)   tcCen.textContent   = currentCentroNombre || '';
-    if (tcDir)   tcDir.textContent   = currentCentroDireccion || '';
+    const liOS  = document.getElementById('tc-os');
+    const valOS = document.getElementById('tc-osv');
+    const liCp  = document.getElementById('tc-copago');
+    const valCp = document.getElementById('tc-copagov');
 
     if (liOS && valOS) {
       if (osNombre) { liOS.style.display = 'list-item'; valOS.textContent = osNombre; }
       else { liOS.style.display = 'none'; }
     }
-    if (liCop && valCop) {
-      if (copago != null) { liCop.style.display = 'list-item'; valCop.textContent = `$${Number(copago).toLocaleString('es-AR', { maximumFractionDigits: 0 })}`; }
-      else { liCop.style.display = 'none'; }
+    if (liCp && valCp) {
+      if (copago != null) { liCp.style.display = 'list-item'; valCp.textContent = `$${Number(copago).toLocaleString('es-AR',{maximumFractionDigits:0})}`; }
+      else { liCp.style.display = 'none'; }
     }
 
-    // Abrir modal
+    // <<< CAMBIO CLAVE: agarramos el textarea correcto
+    const txtCom = document.getElementById('tc-nota-input');
+
     root.style.display = 'flex';
 
     const btnOk = document.getElementById('turnos-confirm-aceptar');
@@ -1146,7 +1142,7 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
       document.removeEventListener('keydown', onKey);
     };
     const close = (ok) => {
-      const comentario = (txtCom?.value || '').trim();
+      const comentario = txtCom ? (txtCom.value || '') : '';
       root.style.display = 'none';
       cleanup();
       resolve({ ok, comentario });
@@ -1156,7 +1152,7 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
     const onCancel = () => close(false);
     const onKey = (e) => {
       if (e.key === 'Escape') close(false);
-      if (e.key === 'Enter') close(true);
+      if (e.key === 'Enter')  close(true);
     };
 
     btnOk?.addEventListener('click', onOk);
@@ -1164,6 +1160,7 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
     document.addEventListener('keydown', onKey);
   });
 }
+
 
 
 
