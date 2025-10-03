@@ -347,10 +347,10 @@ body.tp-open{ overflow: hidden; }
   padding:8px 10px; border-radius:8px; color:#3b2b66;
 }
 
-/* Inputs del panel (matching del resto) */
-.turno-panel .inp, .turno-panel .sel, .turno-panel textarea{
-  width:100%; background:#f7f9fb; border:1px solid var(--line); border-radius:8px; padding:7px 9px; color:#var(--ink);
-}
+ .turno-panel .inp, .turno-panel .sel, .turno-panel textarea{
+   width:100%; background:#f7f9fb; border:1px solid var(--line); border-radius:8px; padding:7px 9px; color:var(--ink);
+ }
+
 .turno-panel textarea{ min-height:76px; resize:vertical; }
 .turno-panel .inp:focus, .turno-panel .sel:focus, .turno-panel textarea:focus{
   border-color:var(--brand-2); outline:none;
