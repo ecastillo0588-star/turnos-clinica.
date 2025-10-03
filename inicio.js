@@ -667,7 +667,7 @@ function buildCell(key, t, ctx) {
      if (copago > 0 && pendiente > 0 && ctx.puedePagar) html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
      if (ctx.puedeArribo && ctx.isHoy) html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
      if (ctx.puedeAtender) html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">▶️</button>`;
-     if (ctx.puedeFinalizar) html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;
+     if (ctx.puedeFinalizar && t.estado === EST.EN_ATENCION) {html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;}
      if (ctx.puedeAbrirFicha) html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
      if (ctx.type === 'esp' && ctx.puedeVolver) html += `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a 'Por llegar'">↩︎</button>`;
      if (ctx.type === 'atencion' && ctx.puedeVolverE) html += `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">↩︎</button>`;
@@ -732,11 +732,10 @@ const showProfColumn = ()=> {
 // Render de pendientes - versión completa: copago detallado, botón pagar solo si corresponde, integración con buildCell global
 
 function renderPendientes(list, mapPagos) {
-  const puedeCancelar = roleAllows('cancelar', userRole);
-  const puedeArribo   = roleAllows('arribo', userRole);
-  const puedeAtender  = roleAllows('atender', userRole);
-  const puedeFinalizar= roleAllows('finalizar', userRole);
-  const puedeAbrir    = roleAllows('abrir_ficha', userRole);
+const puedeCancelar = roleAllows('cancelar', userRole);
+const puedeArribo   = roleAllows('arribo', userRole);
+const puedeAtender  = roleAllows('atender', userRole);
+const puedeFinalizar= false; // Finalizar nunca en "Por llegar"
 
   const ctx = {
     type: 'pend',
