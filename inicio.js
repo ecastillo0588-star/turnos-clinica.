@@ -32,12 +32,53 @@ const minutesDiff = (start, end) => {
 const nowHHMMSS = () => { const d=new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
 
 /* =======================
+   Helpers de dinero / hora (globales)
+   ======================= */
+function toPesoInt(v){
+  if (v === null || v === undefined) return null;
+  // admite "1.234", "1,234.50", "$ 1.234", etc.
+  const s = String(v).replace(/[^\d,-.]/g, '').replace(/\./g, '').replace(',', '.');
+  const n = Number(s);
+  if (!isFinite(n)) return null;
+  return Math.round(n);
+}
+
+function money(n){
+  const val = toPesoInt(n);
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    maximumFractionDigits: 0
+  }).format(val ?? 0);
+}
+
+function horaRango(t){
+  const hi = toHM(t?.hora_inicio);
+  const hf = toHM(t?.hora_fin);
+  if (hi && hf) return `${hi} — ${hf}`;
+  if (hi)       return hi;
+  if (hf)       return hf;
+  return '—';
+}
+
+/** Badge “Espera” (solo para EN_ESPERA) */
+function esperaBadge(t, fechaISO){
+  if (!t?.hora_arribo) return '—';
+  // Armamos un timestamp ISO para que updateWaitBadges pueda calcular el tiempo
+  const hhmm = toHM(t.hora_arribo) || '00:00';
+  const iso  = `${fechaISO}T${hhmm}:00`;
+  return `<span class="wait" data-arribo-ts="${iso}">—</span>`;
+}
+
+
+/* =======================
    Estado de módulo
    ======================= */
 let UI = {};
 let H  = {};
 let Drawer = {};
 let boardsEl, zDec, zInc, zReset;
+let overlayRoot = null;
 
 let fsPx;
 
@@ -76,12 +117,12 @@ function bindUI(root = document) {
     massClear:  root.querySelector('#mass-clear'),
   };
 
-     H = {
-      pend:  root.querySelector('#hl-pend'),
-      esp:   root.querySelector('#hl-esp'),
-      atenc: root.querySelector('#hl-atencion'),
-      done:  root.querySelector('#hl-done'),
-    };
+  H = {
+    pend:  root.querySelector('#hl-pend'),
+    esp:   root.querySelector('#hl-esp'),
+    atenc: root.querySelector('#hl-atencion'),
+    done:  root.querySelector('#hl-done'),
+  };
 
   Drawer = {
     el:        root.querySelector('#fichaDrawer'),
@@ -123,7 +164,6 @@ function bindUI(root = document) {
     btnCerrar: root.querySelector('#fd-cerrar'),
     btnGuardar:root.querySelector('#fd-guardar'),
     btnFinalizar:root.querySelector('#fd-finalizar'),
-    
   };
 
   boardsEl = root.querySelector('#boards');
@@ -134,6 +174,29 @@ function bindUI(root = document) {
   // drawer: cierres
   if (Drawer.close)     Drawer.close.onclick     = hideDrawer;
   if (Drawer.btnCerrar) Drawer.btnCerrar.onclick = hideDrawer;
+
+  // === Panel izquierdo (detalle de turno) ===
+  UI.tp = {
+    el:      root.querySelector('#turnoPanel'),
+    close:   root.querySelector('#tp-close'),
+    title:   root.querySelector('#tp-title'),
+    sub:     root.querySelector('#tp-sub'),
+    status:  root.querySelector('#tp-status'),
+    hora:    root.querySelector('#tp-hora'),
+    estado:  root.querySelector('#tp-estado'),
+    copago:  root.querySelector('#tp-copago'),
+    dni:     root.querySelector('#tp-dni'),
+    ape:     root.querySelector('#tp-ape'),
+    nom:     root.querySelector('#tp-nom'),
+    com:     root.querySelector('#tp-com-recep'),
+    btnArr:  root.querySelector('#tp-arribo'),
+    btnAt:   root.querySelector('#tp-atender'),
+    btnPago: root.querySelector('#tp-pago'),
+    btnCan:  root.querySelector('#tp-cancel'),
+    btnFicha:root.querySelector('#tp-ficha'),
+    btnSave: root.querySelector('#tp-guardar'),
+  };
+  if (UI.tp?.close) UI.tp.close.onclick = inicioHideTurnoPanel;
 }
 
 /* =======================
@@ -149,6 +212,27 @@ function handleProfChange(target){
 }
 // Escucha a nivel documento (funciona aunque el <select> se reemplace)
 document.addEventListener('change', (e) => handleProfChange(e.target));
+
+/* =======================
+   Delegación: click en filas (abre panel)
+   ======================= */
+document.addEventListener('click', (e) => {
+  // Ignorar clicks en botones de acción dentro de la fila
+  if (e.target.closest?.('.icon')) return;
+  if (e.target.closest('thead')) return; 
+
+  const row = e.target.closest?.('tr.row');
+  if (!row) return;
+
+  const id = row.getAttribute('data-turno-id');
+  if (!id) return;
+
+if (!UI?.tp?.el) return; 
+   
+   
+  inicioOpenTurnoPanel(id);
+});
+
 
 /* =======================
    Overlay de “Cargando…”
@@ -449,10 +533,11 @@ async function fetchDiaData(/*signal*/){
   }
 
   const profIds = selectedProfesionales.map(String);
-  const selectCols = `
-    id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, importe, medio_pago, paciente_id, profesional_id,
-    pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)
-  `;
+const selectCols = `
+  id, fecha, hora_inicio, hora_fin, estado, hora_arribo, copago, importe, medio_pago,
+  paciente_id, profesional_id, comentario_recepcion,
+  pacientes(id, dni, nombre, apellido, obra_social, historia_clinica)
+`;
   const byHora = (a,b) => (toHM(a.hora_inicio) || '').localeCompare(toHM(b.hora_inicio) || '');
 
   // 1) Todos los turnos del día
@@ -556,81 +641,83 @@ const COLS = [
 
 let GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
 
-
-
-// helpers visuales reutilizables
-const horaRango = t => `<b>${toHM(t.hora_inicio)}</b>${t.hora_fin ? ' — ' + toHM(t.hora_fin) : ''}`;
-
-const copagoChip = (v) => {
-  if (v && Number(v) > 0) return `<span class="copago">${money(v)}</span>`;
-  return `<span class="copago none">Sin copago</span>`;
-};
-
-// Espera (badge) solo se llena si el turno está EN_ESPERA
-const esperaBadge = (t, fechaISO) => {
-  if (!t.hora_arribo) return '—';
-  const iso = `${fechaISO}T${toHM(t.hora_arribo)||'00:00'}:00`;
-  return `<span class="wait" data-arribo-ts="${iso}">—</span>`;
-};
-
-const toPesoInt = (v) => {
-  if (v === null || v === undefined) return null;
-  const s = String(v).replace(/[^\d-]/g, "");
-  if (!s) return null;
-  return parseInt(s, 10);
-};
-
-const money = (n) => {
-  const val = toPesoInt(n);
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency', currency: 'ARS', maximumFractionDigits: 0
-  }).format(val ?? 0);
-};
-
-
 function buildCell(key, t, ctx) {
   const p = t.pacientes || {};
-  const pagado = ctx.pagos?.[t.id] || 0;
+  const pagado = ctx.pagos?.[t.id] ?? 0;
   const copago = toPesoInt(t.copago) ?? 0;
   const pendiente = Math.max(0, copago - pagado);
+
+  // flags por estado (para decidir visibilidad de acciones)
+  const st = t.estado;
+  const isAsignado = st === EST.ASIGNADO;
+  const isEspera   = st === EST.EN_ESPERA;
+  const isAtencion = st === EST.EN_ATENCION;
 
   switch (key) {
     case 'copago': {
       if (copago === 0) return `<span class="copago none">Sin copago</span>`;
-      const totalStr = money(copago);
+      const totalStr  = money(copago);
       const pagadoStr = money(pagado);
       if (pendiente === 0) {
-        // TODO: puedes resaltar con un color especial si quieres
         return `<span class="copago ok">${totalStr} / ${pagadoStr} <span title="Abonado" style="color:#2e7d32;font-weight:bold;">✅ Abonado</span></span>`;
       }
       return `<span class="copago">${totalStr} / ${pagadoStr} <span style="color:#f57c00;">(${money(pendiente)} pendiente)</span></span>`;
     }
-   case 'acciones': {
-     let html = `<div class="actions">`;
-     if (ctx.puedeCancelar) html += `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>`;
-     if (copago > 0 && pendiente > 0 && ctx.puedePagar) html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
-     if (ctx.puedeArribo && ctx.isHoy) html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
-     if (ctx.puedeAtender) html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">▶️</button>`;
-     if (ctx.puedeFinalizar) html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;
-     if (ctx.puedeAbrirFicha) html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
-     if (ctx.type === 'esp' && ctx.puedeVolver) html += `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a 'Por llegar'">↩︎</button>`;
-     if (ctx.type === 'atencion' && ctx.puedeVolverE) html += `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">↩︎</button>`;
-     html += `</div>`;
-     return html;
-   }
 
-    // Puedes seguir agregando otros casos según tu diseño...
-    default:
-      // fallback al anterior
-      switch (key) {
-        case 'espera': return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
-        case 'hora': return horaRango(t);
-        case 'dni': return p.dni || '—';
-        case 'nombre': return titleCase(p.nombre) || '—';
-        case 'apellido': return titleCase(p.apellido) || '—';
-        case 'obra': return p.obra_social || '—';
-        default: return '—';
+    case 'acciones': {
+      let html = `<div class="actions">`;
+
+      // 🔴 Sacamos "Anular" de las filas (solo en el slide)
+      // if (ctx.puedeCancelar) html += `<button ...>🗑️</button>`;
+
+      // 💵 Pagar: solo si hay saldo
+      if (copago > 0 && pendiente > 0 && ctx.puedePagar) {
+        html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
       }
+
+      // 🟢 Arribo: solo si está ASIGNADO y es hoy
+      if (ctx.puedeArribo && ctx.isHoy && isAsignado) {
+        html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
+      }
+
+      // ▶️ Atender: solo si está EN_ESPERA
+      if (ctx.puedeAtender && isEspera) {
+        html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">▶️</button>`;
+      }
+
+      // ✅ Finalizar: solo si está EN_ATENCION
+      if (ctx.puedeFinalizar && isAtencion) {
+        html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;
+      }
+
+      // 📄 Abrir ficha: según permiso
+      if (ctx.puedeAbrirFicha) {
+        html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
+      }
+
+      // ↩︎ Volver (solo donde aplica, guiado por ctx.type)
+      if (ctx.type === 'esp' && ctx.puedeVolver) {
+        html += `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a 'Por llegar'">↩︎</button>`;
+      }
+      if (ctx.type === 'atencion' && ctx.puedeVolverE) {
+        html += `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">↩︎</button>`;
+      }
+
+      html += `</div>`;
+      return html;
+    }
+
+    default: {
+      switch (key) {
+        case 'espera':  return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
+        case 'hora':    return horaRango(t);
+        case 'dni':     return p.dni || '—';
+        case 'nombre':  return titleCase(p.nombre) || '—';
+        case 'apellido':return titleCase(p.apellido) || '—';
+        case 'obra':    return p.obra_social || '—';
+        default:        return '—';
+      }
+    }
   }
 }
 
@@ -644,11 +731,17 @@ function renderHeadHTML(){
     </thead>`;
 }
 
-// fila única
-function renderRowHTML(t, ctx){
+// Nueva con prefijo
+function inicioRenderRowHTML(t, ctx){
   const tds = COLS.map(c => `<td class="cell">${buildCell(c.key, t, ctx)}</td>`).join('');
-  return `<tr class="row" style="grid-template-columns:${GRID_TEMPLATE}">${tds}</tr>`;
+  return `<tr class="row" data-turno-id="${t.id}" style="grid-template-columns:${GRID_TEMPLATE}">${tds}</tr>`;
 }
+
+// Puente (compatibilidad): usa la nueva
+function renderRowHTML(t, ctx){
+  return inicioRenderRowHTML(t, ctx);
+}
+
 
 // tabla genérica
 function renderTable(el, list, ctx){
@@ -667,42 +760,46 @@ const showProfColumn = ()=> {
 };
 
 /* PENDIENTES */
-/* PENDIENTES */
-/* PENDIENTES */
 // Render de pendientes - versión completa: copago detallado, botón pagar solo si corresponde, integración con buildCell global
 
-async function renderPendientes(list, mapPagos) {
-  // Permisos y flags para acciones
+function renderPendientes(list, mapPagos) {
+const puedeCancelar = roleAllows('cancelar', userRole);
+const puedeArribo   = roleAllows('arribo', userRole);
+const puedeAtender  = roleAllows('atender', userRole);
+const puedeFinalizar= false; // Finalizar nunca en "Por llegar"
+   const puedeAbrir = roleAllows('abrir_ficha', userRole);
+
   const ctx = {
     type: 'pend',
     fechaISO: currentFechaISO,
     pagos: mapPagos,
-    puedeCancelar: roleAllows('cancelar', userRole),
-    puedeArribo: roleAllows('arribo', userRole),
-    puedePagar: true, // Si quieres filtrar por rol, cámbialo
     isHoy: (currentFechaISO === todayISO()),
-    // Puedes agregar flags adicionales para otras acciones si tu tabla lo requiere
+    puedeCancelar: puedeCancelar,
+    puedeArribo:   puedeArribo,
+    puedeAtender:  puedeAtender, // queda false
+    puedeFinalizar:puedeFinalizar,
+    puedeAbrirFicha: puedeAbrir,
+    puedePagar: true, // si querés permitir pago desde “Por llegar”
   };
 
-  // Renderizado de la tabla
   const head = renderHeadHTML();
-  const rows = (list || []).map(t =>
-    `<tr class="row" style="grid-template-columns:${GRID_TEMPLATE}">` +
-    COLS.map(c =>
-      `<td class="cell">${buildCell(c.key, t, ctx)}</td>`
-    ).join('') +
-    `</tr>`
-  ).join('');
+  const rows = (list || []).map(t => inicioRenderRowHTML(t, ctx)).join('');
   UI.tblPend.innerHTML = head + '<tbody>' + rows + '</tbody>';
 
-  // Asignar eventos a los botones de acciones de la tabla
   UI.tblPend.querySelectorAll('.icon').forEach(btn => {
-    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
-    if (act === 'pago')   btn.onclick = () => abrirPagoModal(id);
-    if (act === 'arribo') btn.onclick = () => marcarLlegadaYCopago(id);
-    if (act === 'cancel') btn.onclick = () => anularTurno(id);
+    const id  = btn.getAttribute('data-id');
+    const act = btn.getAttribute('data-act');
+    if (act === 'pago')         btn.onclick = () => abrirPagoModal(id);
+    if (act === 'arribo')       btn.onclick = () => marcarLlegadaYCopago(id);
+    if (act === 'cancel')       btn.onclick = () => anularTurno(id);
+    if (act === 'atender')      btn.onclick = (ev) => pasarAEnAtencion(id, ev);
+    if (act === 'finalizar')    btn.onclick = () => finalizarAtencion(id);
+    if (act === 'abrir-ficha')  btn.onclick = () => openFicha(id);
   });
 }
+
+
+
 
 
 async function getPagoResumen(turnoId){
@@ -750,9 +847,10 @@ function renderPresentes(list, mapPagos) {
     type: 'esp',
     fechaISO: currentFechaISO,
     pagos: mapPagos, // <-- esto es lo importante!
+    isHoy: (currentFechaISO === todayISO()), 
     puedeVolver,
     puedeCancelar,
-    puedeAtender,
+    puedeAtender:  roleAllows('atender', userRole),
     puedePagar: true, // si quieres mostrar botón de pago aquí
     // otros flags según tu lógica...
   };
@@ -1336,60 +1434,98 @@ async function marcarLlegadaYCopago(turnoId){
 
 async function pasarAEnAtencion(turnoId, ev){
   if (ev) ev.preventDefault();
-  if (!roleAllows('atender', userRole)) { alert('Solo AMP/Médico pueden atender.'); return; }
 
-  // Leer copago del turno
+  // Permisos
+  if (!roleAllows('atender', userRole)) {
+    alert('Solo AMP/Médico pueden atender.');
+    return;
+  }
+
+  // 1) Leer turno y validar estado actual
   const { data: t, error: terr } = await supabase
     .from('turnos')
-    .select('id, copago')
+    .select('id, estado, copago')
     .eq('id', turnoId)
     .maybeSingle();
-  if (terr || !t) { alert('No se pudo leer el turno.'); return; }
 
+  if (terr || !t) {
+    alert('No se pudo leer el turno.');
+    return;
+  }
+  if (t.estado !== EST.EN_ESPERA) {
+    alert('Para atender, el turno debe estar EN ESPERA.');
+    return;
+  }
+
+  // 2) ¿Hay saldo de copago pendiente?
   const cop = toPesoInt(t.copago) ?? 0;
-
-  // Total pagado hasta ahora
   const { totalPagado } = await getPagoResumen(turnoId);
   const debeCobrar = cop > (totalPagado || 0);
 
-  // Si no hay nada que cobrar → pasar directo a EN_ATENCION
-  if (!debeCobrar){
-    const { error } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
-    if (error) { alert('No se pudo pasar a "En atención".'); return; }
+  // 3) Si no hay nada que cobrar → pasar directo a EN_ATENCION
+  if (!debeCobrar) {
+    const { error } = await supabase
+      .from('turnos')
+      .update({ estado: EST.EN_ATENCION })
+      .eq('id', turnoId)
+      .eq('estado', EST.EN_ESPERA); // doble check en DB
+
+    if (error) {
+      alert('No se pudo pasar a "En atención".');
+      return;
+    }
+
     await refreshAll();
     await openFicha(turnoId);
     return;
   }
 
-  // Hay saldo pendiente → pedir pago con el template unificado
+  // 4) Hay saldo pendiente → abrir modal unificado de cobro
   openCobroModal({
     turno: { copago: cop },
     confirmLabel: 'Cobrar y pasar a En atención',
     skipLabel: 'Continuar sin cobrar',
-    onCobrar: async ({ importe, medio }) => {
-      // 1) Registrar pago
-      const { error: e1 } = await supabase.from('turnos_pagos').insert([{
-        turno_id: turnoId,
-        importe: toPesoInt(importe),
-        medio_pago: medio,
-        nota: 'Pago antes de atención'
-      }]);
-      if (e1){ alert('No se pudo registrar el pago.'); return; }
 
-      // 2) Pasar a EN_ATENCION
-      const { error: e2 } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
+    // Cobrar y luego pasar a EN_ATENCION
+    onCobrar: async ({ importe, medio }) => {
+      // 4.1) Registrar pago
+      const { error: e1 } = await supabase
+        .from('turnos_pagos')
+        .insert([{
+          turno_id: turnoId,
+          importe: toPesoInt(importe),
+          medio_pago: medio,
+          nota: 'Pago antes de atención'
+        }]);
+      if (e1) { alert('No se pudo registrar el pago.'); return; }
+
+      // 4.2) Pasar a EN_ATENCION con guard
+      const { error: e2 } = await supabase
+        .from('turnos')
+        .update({ estado: EST.EN_ATENCION })
+        .eq('id', turnoId)
+        .eq('estado', EST.EN_ESPERA);
       if (e2) { alert('No se pudo pasar a "En atención".'); return; }
+
       await refreshAll();
       await openFicha(turnoId);
     },
+
+    // Continuar sin cobrar: solo cambiar estado
     onSkip: async () => {
-      const { error } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
+      const { error } = await supabase
+        .from('turnos')
+        .update({ estado: EST.EN_ATENCION })
+        .eq('id', turnoId)
+        .eq('estado', EST.EN_ESPERA);
       if (error) { alert('No se pudo pasar a "En atención".'); return; }
+
       await refreshAll();
       await openFicha(turnoId);
     }
   });
 }
+
 
 
 async function anularTurno(turnoId){
@@ -1552,7 +1688,7 @@ async function refreshAll({ showOverlayIfSlow = true } = {}) {
 
   // Overlay si tarda (suave)
   let overlayTimer = null;
-  const rootNode = boardsEl?.closest?.('.page') || document.body;
+  const rootNode = overlayRoot || (boardsEl?.closest?.('.page') || document.body);
   if (showOverlayIfSlow) {
     overlayTimer = setTimeout(() => setLoading(rootNode, true), 220);
   }
@@ -1613,6 +1749,9 @@ async function refreshAll({ showOverlayIfSlow = true } = {}) {
 export async function initInicio(root){
   bindUI(root);
   ensureOverlay(root);
+  overlayRoot = root;
+
+  addClickableCursorStyle();
 
   // estado base (centro/fecha)
   currentCentroId     = localStorage.getItem('centro_medico_id');
@@ -1653,11 +1792,264 @@ export async function initInicio(root){
   if (!restoreProfSelection()) saveProfSelection();
 
   // primera carga con overlay visible
-  setLoading(root, true);
+  setLoading(overlayRoot, true);
   await refreshAll({ showOverlayIfSlow:false });
-  setLoading(root, false);
+  setLoading(overlayRoot, false);
 
   // watcher de centro (si cambia en otro tab/side, re-carga todo)
   startCentroWatcher();
   startAutoRefresh();
 }
+
+
+/* =======================
+   Panel izquierdo (abrir / cerrar / guardar)
+   ======================= */
+
+async function inicioOpenTurnoPanel(turnoId){
+  // Helpers locales para UI
+  const setText = (el, txt='—') => { if (el) el.textContent = txt; };
+  const setChip = (el, txt, tone='') => {
+    if (!el) return;
+    el.textContent = txt;
+    el.className = 'chip' + (tone ? ' ' + tone : '');
+  };
+  const show = (el, v=true) => { if (el) el.style.display = v ? '' : 'none'; };
+  const enable = (el, v=true) => { if (el) el.disabled = !v; };
+
+  // 1) Traer turno + paciente
+  const { data: t, error } = await supabase
+    .from('turnos')
+    .select(`
+      id, fecha, hora_inicio, hora_fin, estado, hora_arribo,
+      copago, paciente_id, comentario_recepcion,
+      pacientes(dni, apellido, nombre)
+    `)
+    .eq('id', turnoId)
+    .maybeSingle();
+
+  if (error || !t) {
+    // Limpio UI básico si algo falla
+    setText(UI.tp?.title, 'Paciente');
+    setText(UI.tp?.sub, 'DNI —');
+    setText(UI.tp?.hora, 'Turno: —');
+    setChip(UI.tp?.estado, '—', '');
+    setChip(UI.tp?.copago, 'Sin copago', 'muted');
+    setText(document.getElementById('tp-copago-info'), '—');
+    ['btnArr','btnAt','btnPago','btnCan'].forEach(k => show(UI.tp?.[k], false));
+    // Abrir panel igual, para mostrar el estado
+    const el = UI?.tp?.el || document.getElementById('turnoPanel');
+    if (el){
+      el.classList.add('open');
+      el.setAttribute('aria-hidden','false');
+      el.setAttribute('data-turno-id', String(turnoId));
+      document.body.classList.add('tp-open');
+      (UI?.tp?.close || el.querySelector('#tp-close'))?.addEventListener('click', inicioHideTurnoPanel, { once:true });
+    }
+    return;
+  }
+
+   
+
+  // 2) Header (nombre + DNI)
+  const p = t.pacientes || {};
+  const ape = (p.apellido || '').trim();
+  const nom = (p.nombre || '').trim();
+  const fullName = (nom || ape) ? `${nom} ${ape}`.trim() : 'Paciente';
+  setText(UI.tp?.title, fullName);
+  setText(UI.tp?.sub, `DNI ${p.dni || '—'}`);
+
+  // 3) Fecha + rango horario
+  const hi = toHM(t.hora_inicio);
+  const hf = toHM(t.hora_fin);
+  let rango = '—';
+  if (hi && hf)      rango = `${hi} — ${hf}`;
+  else if (hi)       rango = hi;
+  else if (hf)       rango = hf;
+  const fechaTxt = t.fecha || currentFechaISO || '—';
+  setText(UI.tp?.hora, `Turno: ${fechaTxt} · ${rango}`);
+
+  // 4) Chips: estado + copago
+  const estado = t.estado;
+  const toneByEstado = {
+    [EST.ASIGNADO]:    'info',
+    [EST.EN_ESPERA]:   'accent',
+    [EST.EN_ATENCION]: 'warn',
+    [EST.ATENDIDO]:    'ok',
+    [EST.CANCELADO]:   'muted',
+    [EST.CONFIRMADO]:  'info'
+  };
+  setChip(UI.tp?.estado, (estado || '—').replaceAll('_',' '), toneByEstado[estado] || '');
+
+  const cop = toPesoInt(t.copago) ?? 0;
+  if (cop > 0) setChip(UI.tp?.copago, `Copago: ${money(cop)}`, 'accent');
+  else setChip(UI.tp?.copago, 'Sin copago', 'muted');
+
+  // 4.b) Pre-cargar comentario de recepción
+  if (UI.tp?.com) {
+    UI.tp.com.value = t.comentario_recepcion || '';
+  }
+   
+  // 5) Resumen de pago (Total/Pagado/Pendiente)
+  let totalPagado = 0;
+  try {
+    const { totalPagado: tp } = await getPagoResumen(turnoId);
+    totalPagado = Number(tp || 0);
+  } catch {}
+  const pendiente = Math.max(0, (toPesoInt(t.copago) ?? 0) - totalPagado);
+  const infoEl = document.getElementById('tp-copago-info');
+  if (infoEl) {
+    if (cop === 0) {
+      infoEl.textContent = 'Sin copago';
+    } else {
+      const parts = [
+        `Total: ${money(cop)}`,
+        `Pagado: ${money(totalPagado)}`
+      ];
+      if (pendiente === 0) parts.push(`✅ Abonado`);
+      else parts.push(`Pendiente: ${money(pendiente)}`);
+      infoEl.textContent = parts.join(' · ');
+    }
+  }
+
+  // 6) Botones (visibilidad y habilitación según permisos/estado)
+  const isHoy = (currentFechaISO === todayISO());
+
+  // ARRIBO: pasa ASIGNADO -> EN_ESPERA (hora_arribo)
+  const canArribo = roleAllows('arribo', userRole) && estado === EST.ASIGNADO && isHoy;
+  show(UI.tp?.btnArr, canArribo);
+  if (UI.tp?.btnArr) {
+    enable(UI.tp.btnArr, canArribo);
+    UI.tp.btnArr.onclick = () => marcarLlegadaYCopago(turnoId);
+  }
+
+  // ATENDER: permite pasar a EN_ATENCION (desde ASIGNADO/EN_ESPERA)
+  const canAtender = roleAllows('atender', userRole) && estado === EST.EN_ESPERA;
+  show(UI.tp?.btnAt, canAtender);   
+  if (UI.tp?.btnAt) {
+    enable(UI.tp.btnAt, canAtender);
+    UI.tp.btnAt.onclick = (ev) => pasarAEnAtencion(turnoId, ev);
+  }
+
+  // FINALIZAR: solo cuando ya está EN_ATENCION
+  const canFinalizar = roleAllows('finalizar', userRole) && estado === EST.EN_ATENCION;
+  show(UI.tp?.btnFinalizar, canFinalizar);
+  if (UI.tp?.btnFinalizar) {
+    enable(UI.tp.btnFinalizar, canFinalizar);
+    UI.tp.btnFinalizar.onclick = () => finalizarAtencion(turnoId);
+  }
+
+  // CANCELAR: si no está atendido ni cancelado
+  const canCancelar = roleAllows('cancelar', userRole) && estado !== EST.CANCELADO && estado !== EST.ATENDIDO;
+  show(UI.tp?.btnCan, canCancelar);
+  if (UI.tp?.btnCan) {
+    enable(UI.tp.btnCan, canCancelar);
+    UI.tp.btnCan.onclick = () => anularTurno(turnoId);
+  }
+
+  // PAGO: si hay copago pendiente
+  const canPagar = (cop > 0 && pendiente > 0);
+  show(UI.tp?.btnPago, canPagar);
+  if (UI.tp?.btnPago) {
+    enable(UI.tp.btnPago, canPagar);
+    UI.tp.btnPago.onclick = () => abrirPagoModal(turnoId, { afterPay: async ()=> {
+      await inicioOpenTurnoPanel(turnoId);
+      await refreshAll({ showOverlayIfSlow:false });
+    }});
+  }
+
+  // FICHA
+  const canAbrirFicha = roleAllows('abrir_ficha', userRole);
+  show(UI.tp?.btnFicha, canAbrirFicha);
+  if (UI.tp?.btnFicha) {
+    enable(UI.tp.btnFicha, canAbrirFicha);
+    UI.tp.btnFicha.onclick = () => openFicha(turnoId);
+  }
+
+  // Guardar comentario recepción (si el input existe)
+  if (UI.tp?.btnSave && UI.tp?.com) {
+    UI.tp.btnSave.onclick = async () => {
+      const v = (UI.tp.com.value || '').trim() || null;
+      const { error: e } = await supabase
+        .from('turnos')
+        .update({ comentario_recepcion: v })
+        .eq('id', turnoId);
+      if (e) { alert('No se pudo guardar el comentario.'); return; }
+      UI.tp.btnSave.classList.add('ok');
+      setTimeout(()=> UI.tp.btnSave.classList.remove('ok'), 600);
+    };
+  }
+
+  // 7) Abrir panel (off-canvas) y focos
+  const el = UI?.tp?.el || document.getElementById('turnoPanel');
+  if (el){
+    el.classList.add('open');
+    el.setAttribute('aria-hidden','false');
+    el.setAttribute('data-turno-id', String(turnoId));
+    document.body.classList.add('tp-open');
+    const btnClose = UI?.tp?.close || el.querySelector('#tp-close');
+    btnClose?.addEventListener('click', inicioHideTurnoPanel, { once:true });
+    btnClose?.focus?.();
+  }
+}
+
+
+function inicioHideTurnoPanel(){
+  const el = UI?.tp?.el || document.getElementById('turnoPanel');
+  if (!el) return;
+  el.classList.remove('open');
+  el.setAttribute('aria-hidden','true');
+  el.removeAttribute('data-turno-id');
+  document.body.classList.remove('tp-open');
+}
+
+
+
+async function inicioGuardarComentarioRecepcion(turnoId){
+  if (!UI?.tp?.com) return;
+  const txt = (UI.tp.com.value || '').trim();
+  if (UI.tp.status) UI.tp.status.textContent = 'Guardando…';
+  const { error } = await supabase
+    .from('turnos')
+    .update({ comentario_recepcion: txt || null })
+    .eq('id', turnoId);
+  if (error){
+    if (UI.tp.status) UI.tp.status.textContent = 'Error guardando.';
+    alert(error.message || 'No se pudo guardar');
+    return;
+  }
+  if (UI.tp.status) UI.tp.status.textContent = 'Guardado ✓';
+  setTimeout(()=>{ if (UI.tp?.status) UI.tp.status.textContent=''; }, 1200);
+  refreshAll({ showOverlayIfSlow:false });
+}
+
+/** Utilidad opcional (por si la querés usar en algún lado) */
+function inicioIsTurnoPanelOpen(){
+  return !!UI?.tp?.el && UI.tp.el.classList.contains('open');
+}
+
+/* =======================
+   UX: cursor de "manito" en filas clickeables
+   ======================= */
+function addClickableCursorStyle(){
+  if (document.getElementById('inicio-row-cursor-style')) return;
+  const style = document.createElement('style');
+  style.id = 'inicio-row-cursor-style';
+  style.textContent = `
+    /* Manito en filas de datos */
+    table tbody tr.row { cursor: pointer; }
+
+    /* No cambiar el cursor en el header */
+    table thead tr { cursor: default; }
+
+    /* Iconos siguen siendo clickeables */
+    .row .icon { cursor: pointer; }
+
+    /* Un pequeño hover para reforzar affordance (opcional) */
+    table tbody tr.row:hover {
+      background: rgba(118,86,176,.06);
+    }
+  `;
+  document.head.appendChild(style);
+}
+

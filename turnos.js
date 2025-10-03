@@ -852,29 +852,31 @@ async function tryAgendar(slot){
   setSlotsDisabled(true);
 
   try {
-    // Validaciones
+    // --------- Validaciones básicas ----------
     if (!pacienteSeleccionado){ alert('Seleccioná un paciente primero.'); return; }
     if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
     if (!currentCentroId || !modalDateISO || !slot?.profId){ alert('Falta centro/profesional/fecha.'); return; }
 
     // Trazabilidad (quién otorga el turno)
-    const asignadoPor = getCurrentUserTag(); // puede ser null
+    const asignadoPor = getCurrentUserTag() || null;
 
-    // OS / copago (para DB)
+    // --------- OS / Copago ----------
     let obraSocialId  = pacienteSeleccionado.obra_social_id || null;
     let osNombre      = obraSocialId ? (obrasSocialesById.get(String(obraSocialId))?.obra_social || null) : null;
     let copagoElegido = null;
 
-    // Cupo OS
     if (obraSocialId){
+      // Estados que cuentan para cupo OS
       const ESTADOS_VIGENTES = ['asignado','confirmado','atendido'];
       const cupo = await getCupoObraSocialMensual(obraSocialId, slot.profId, modalDateISO, ESTADOS_VIGENTES);
 
       if (!cupo.disponible){
+        // Si hay valor_copago en config úsalo, si no, buscá el copago particular
         copagoElegido = (cupo.valor_copago != null)
           ? Number(cupo.valor_copago)
           : await getCopagoParticular(currentCentroId, slot.profId, modalDateISO);
 
+        // Preguntar si quiere pasar a particular
         abrirModalCupoAgotado(copagoElegido);
         const res = await new Promise(resolve => {
           const A = document.getElementById('modal-cupo-aceptar');
@@ -890,17 +892,17 @@ async function tryAgendar(slot){
       }
     }
 
-    // Copago final (solo particular)
+    // Copago final sólo si es particular
     const copagoFinal = obraSocialId == null
       ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
       : null;
 
-    // ---- Confirmación (antes del INSERT): ahora también captura comentario ----
+    // --------- Confirmación (captura comentario) ----------
     const resConfirm = await openConfirmModal({
       pac: pacienteSeleccionado,
       fechaISO: modalDateISO,
       start: slot.start,
-      end: slot.end,
+      end:   slot.end,
       profLabel: profNameById(slot.profId),
       osNombre,
       copago: copagoFinal,
@@ -908,8 +910,9 @@ async function tryAgendar(slot){
     if (!resConfirm?.ok) return;
 
     const comentarioRecep = (resConfirm.comentario || '').trim() || null;
+    console.log('[tryAgendar] comentarioRecepcion =', comentarioRecep);
 
-    // INSERT
+    // --------- INSERT ----------
     const payload = {
       agenda_id:       slot.agenda_id || null,
       centro_id:       currentCentroId,
@@ -923,13 +926,23 @@ async function tryAgendar(slot){
       obra_social_id:  obraSocialId,
       copago:          copagoFinal,
       asignado_por:    asignadoPor,
-      comentario_recepcion: comentarioRecep, // NUEVO
+      comentario_recepcion: comentarioRecep,   // << guarda el comentario
     };
 
-    const { error } = await supabase.from('turnos').insert([payload]);
-    if (error){ alert(error.message || 'No se pudo reservar el turno.'); return; }
+    console.debug('[tryAgendar] insert payload:', payload);
+    const { data: inserted, error } = await supabase
+      .from('turnos')
+      .insert([payload])
+      .select('id, comentario_recepcion')
+      .single();
 
-    // Modal OK + link de WhatsApp (editable)
+    if (error){
+      alert(error.message || 'No se pudo reservar el turno.');
+      return;
+    }
+    console.debug('[tryAgendar] insert OK:', inserted);
+
+    // --------- Modal OK + WhatsApp (editable) ----------
     openOkModal({
       pac:       pacienteSeleccionado,
       fechaISO:  modalDateISO,
@@ -1092,37 +1105,32 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
     const root = document.getElementById('turnos-confirm');
     if (!root) return resolve({ ok:false, comentario:'' });
 
-    // Pintar datos en el modal
+    // Pintar datos
     const pacStr   = `${pac.apellido}, ${pac.nombre}${pac.dni ? ' · DNI ' + pac.dni : ''}`;
     const fechaStr = `${fmtDateLong(fechaISO)} · ${start}–${end}`;
+    document.getElementById('tc-pac')?.replaceChildren(document.createTextNode(pacStr));
+    document.getElementById('tc-fecha')?.replaceChildren(document.createTextNode(fechaStr));
+    document.getElementById('tc-prof')?.replaceChildren(document.createTextNode(profLabel || ''));
+    document.getElementById('tc-centro')?.replaceChildren(document.createTextNode(currentCentroNombre || ''));
+    document.getElementById('tc-dir')?.replaceChildren(document.createTextNode(currentCentroDireccion || ''));
 
-    const tcPac   = document.getElementById('tc-pac');
-    const tcFecha = document.getElementById('tc-fecha');
-    const tcProf  = document.getElementById('tc-prof');
-    const tcCen   = document.getElementById('tc-centro');
-    const tcDir   = document.getElementById('tc-dir');
-    const liOS    = document.getElementById('tc-os');
-    const valOS   = document.getElementById('tc-osv');
-    const liCop   = document.getElementById('tc-copago');
-    const valCop  = document.getElementById('tc-copagov');
-    const txtCom  = document.getElementById('tc-comentario');
-
-    if (tcPac)   tcPac.textContent   = pacStr;
-    if (tcFecha) tcFecha.textContent = fechaStr;
-    if (tcProf)  tcProf.textContent  = profLabel || '';
-    if (tcCen)   tcCen.textContent   = currentCentroNombre || '';
-    if (tcDir)   tcDir.textContent   = currentCentroDireccion || '';
+    const liOS  = document.getElementById('tc-os');
+    const valOS = document.getElementById('tc-osv');
+    const liCp  = document.getElementById('tc-copago');
+    const valCp = document.getElementById('tc-copagov');
 
     if (liOS && valOS) {
       if (osNombre) { liOS.style.display = 'list-item'; valOS.textContent = osNombre; }
       else { liOS.style.display = 'none'; }
     }
-    if (liCop && valCop) {
-      if (copago != null) { liCop.style.display = 'list-item'; valCop.textContent = `$${Number(copago).toLocaleString('es-AR', { maximumFractionDigits: 0 })}`; }
-      else { liCop.style.display = 'none'; }
+    if (liCp && valCp) {
+      if (copago != null) { liCp.style.display = 'list-item'; valCp.textContent = `$${Number(copago).toLocaleString('es-AR',{maximumFractionDigits:0})}`; }
+      else { liCp.style.display = 'none'; }
     }
 
-    // Abrir modal
+    // <<< CAMBIO CLAVE: agarramos el textarea correcto
+    const txtCom = document.getElementById('tc-nota-input');
+
     root.style.display = 'flex';
 
     const btnOk = document.getElementById('turnos-confirm-aceptar');
@@ -1134,7 +1142,7 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
       document.removeEventListener('keydown', onKey);
     };
     const close = (ok) => {
-      const comentario = (txtCom?.value || '').trim();
+      const comentario = txtCom ? (txtCom.value || '') : '';
       root.style.display = 'none';
       cleanup();
       resolve({ ok, comentario });
@@ -1144,7 +1152,7 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
     const onCancel = () => close(false);
     const onKey = (e) => {
       if (e.key === 'Escape') close(false);
-      if (e.key === 'Enter') close(true);
+      if (e.key === 'Enter')  close(true);
     };
 
     btnOk?.addEventListener('click', onOk);
@@ -1152,6 +1160,7 @@ function openConfirmModal({ pac, fechaISO, start, end, profLabel, osNombre = nul
     document.addEventListener('keydown', onKey);
   });
 }
+
 
 
 
