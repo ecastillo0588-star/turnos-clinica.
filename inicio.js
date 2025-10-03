@@ -1814,6 +1814,11 @@ async function inicioOpenTurnoPanel(turnoId){
   if (cop > 0) setChip(UI.tp?.copago, `Copago: ${money(cop)}`, 'accent');
   else setChip(UI.tp?.copago, 'Sin copago', 'muted');
 
+  // 4.b) Pre-cargar comentario de recepción
+  if (UI.tp?.com) {
+    UI.tp.com.value = t.comentario_recepcion || '';
+  }
+   
   // 5) Resumen de pago (Total/Pagado/Pendiente)
   let totalPagado = 0;
   try {
