@@ -745,7 +745,7 @@ function renderPendientes(list, mapPagos) {
     isHoy: (currentFechaISO === todayISO()),
     puedeCancelar: puedeCancelar,
     puedeArribo:   puedeArribo,
-    puedeAtender:  puedeAtender,
+    puedeAtender:  puedeAtender, // queda false
     puedeFinalizar:puedeFinalizar,
     puedeAbrirFicha: puedeAbrir,
     puedePagar: true, // si querés permitir pago desde “Por llegar”
@@ -819,7 +819,7 @@ function renderPresentes(list, mapPagos) {
     isHoy: (currentFechaISO === todayISO()), 
     puedeVolver,
     puedeCancelar,
-    puedeAtender,
+    puedeAtender:  roleAllows('atender', userRole),
     puedePagar: true, // si quieres mostrar botón de pago aquí
     // otros flags según tu lógica...
   };
@@ -1403,60 +1403,98 @@ async function marcarLlegadaYCopago(turnoId){
 
 async function pasarAEnAtencion(turnoId, ev){
   if (ev) ev.preventDefault();
-  if (!roleAllows('atender', userRole)) { alert('Solo AMP/Médico pueden atender.'); return; }
 
-  // Leer copago del turno
+  // Permisos
+  if (!roleAllows('atender', userRole)) {
+    alert('Solo AMP/Médico pueden atender.');
+    return;
+  }
+
+  // 1) Leer turno y validar estado actual
   const { data: t, error: terr } = await supabase
     .from('turnos')
-    .select('id, copago')
+    .select('id, estado, copago')
     .eq('id', turnoId)
     .maybeSingle();
-  if (terr || !t) { alert('No se pudo leer el turno.'); return; }
 
+  if (terr || !t) {
+    alert('No se pudo leer el turno.');
+    return;
+  }
+  if (t.estado !== EST.EN_ESPERA) {
+    alert('Para atender, el turno debe estar EN ESPERA.');
+    return;
+  }
+
+  // 2) ¿Hay saldo de copago pendiente?
   const cop = toPesoInt(t.copago) ?? 0;
-
-  // Total pagado hasta ahora
   const { totalPagado } = await getPagoResumen(turnoId);
   const debeCobrar = cop > (totalPagado || 0);
 
-  // Si no hay nada que cobrar → pasar directo a EN_ATENCION
-  if (!debeCobrar){
-    const { error } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
-    if (error) { alert('No se pudo pasar a "En atención".'); return; }
+  // 3) Si no hay nada que cobrar → pasar directo a EN_ATENCION
+  if (!debeCobrar) {
+    const { error } = await supabase
+      .from('turnos')
+      .update({ estado: EST.EN_ATENCION })
+      .eq('id', turnoId)
+      .eq('estado', EST.EN_ESPERA); // doble check en DB
+
+    if (error) {
+      alert('No se pudo pasar a "En atención".');
+      return;
+    }
+
     await refreshAll();
     await openFicha(turnoId);
     return;
   }
 
-  // Hay saldo pendiente → pedir pago con el template unificado
+  // 4) Hay saldo pendiente → abrir modal unificado de cobro
   openCobroModal({
     turno: { copago: cop },
     confirmLabel: 'Cobrar y pasar a En atención',
     skipLabel: 'Continuar sin cobrar',
-    onCobrar: async ({ importe, medio }) => {
-      // 1) Registrar pago
-      const { error: e1 } = await supabase.from('turnos_pagos').insert([{
-        turno_id: turnoId,
-        importe: toPesoInt(importe),
-        medio_pago: medio,
-        nota: 'Pago antes de atención'
-      }]);
-      if (e1){ alert('No se pudo registrar el pago.'); return; }
 
-      // 2) Pasar a EN_ATENCION
-      const { error: e2 } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
+    // Cobrar y luego pasar a EN_ATENCION
+    onCobrar: async ({ importe, medio }) => {
+      // 4.1) Registrar pago
+      const { error: e1 } = await supabase
+        .from('turnos_pagos')
+        .insert([{
+          turno_id: turnoId,
+          importe: toPesoInt(importe),
+          medio_pago: medio,
+          nota: 'Pago antes de atención'
+        }]);
+      if (e1) { alert('No se pudo registrar el pago.'); return; }
+
+      // 4.2) Pasar a EN_ATENCION con guard
+      const { error: e2 } = await supabase
+        .from('turnos')
+        .update({ estado: EST.EN_ATENCION })
+        .eq('id', turnoId)
+        .eq('estado', EST.EN_ESPERA);
       if (e2) { alert('No se pudo pasar a "En atención".'); return; }
+
       await refreshAll();
       await openFicha(turnoId);
     },
+
+    // Continuar sin cobrar: solo cambiar estado
     onSkip: async () => {
-      const { error } = await supabase.from('turnos').update({ estado: EST.EN_ATENCION }).eq('id', turnoId);
+      const { error } = await supabase
+        .from('turnos')
+        .update({ estado: EST.EN_ATENCION })
+        .eq('id', turnoId)
+        .eq('estado', EST.EN_ESPERA);
       if (error) { alert('No se pudo pasar a "En atención".'); return; }
+
       await refreshAll();
       await openFicha(turnoId);
     }
   });
 }
+
 
 
 async function anularTurno(turnoId){
@@ -1853,8 +1891,8 @@ async function inicioOpenTurnoPanel(turnoId){
   }
 
   // ATENDER: permite pasar a EN_ATENCION (desde ASIGNADO/EN_ESPERA)
-  const canAtender = roleAllows('atender', userRole) && (estado === EST.EN_ESPERA || estado === EST.ASIGNADO);
-  show(UI.tp?.btnAt, canAtender);
+  const canAtender = roleAllows('atender', userRole) && estado === EST.EN_ESPERA;
+  show(UI.tp?.btnAt, canAtender);   
   if (UI.tp?.btnAt) {
     enable(UI.tp.btnAt, canAtender);
     UI.tp.btnAt.onclick = (ev) => pasarAEnAtencion(turnoId, ev);
