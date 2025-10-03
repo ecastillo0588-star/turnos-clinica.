@@ -642,53 +642,165 @@ const COLS = [
 let GRID_TEMPLATE = COLS.map(c => c.width).join(' ');
 
 
-
-
 function buildCell(key, t, ctx) {
   const p = t.pacientes || {};
-  const pagado = ctx.pagos?.[t.id] || 0;
+  const pagado = ctx.pagos?.[t.id] ?? 0;
   const copago = toPesoInt(t.copago) ?? 0;
   const pendiente = Math.max(0, copago - pagado);
+
+  // flags por estado (para decidir visibilidad de acciones)
+  const st = t.estado;
+  const isAsignado = st === EST.ASIGNADO;
+  const isEspera   = st === EST.EN_ESPERA;
+  const isAtencion = st === EST.EN_ATENCION;
 
   switch (key) {
     case 'copago': {
       if (copago === 0) return `<span class="copago none">Sin copago</span>`;
-      const totalStr = money(copago);
+      const totalStr  = money(copago);
       const pagadoStr = money(pagado);
       if (pendiente === 0) {
-        // TODO: puedes resaltar con un color especial si quieres
         return `<span class="copago ok">${totalStr} / ${pagadoStr} <span title="Abonado" style="color:#2e7d32;font-weight:bold;">✅ Abonado</span></span>`;
       }
       return `<span class="copago">${totalStr} / ${pagadoStr} <span style="color:#f57c00;">(${money(pendiente)} pendiente)</span></span>`;
     }
-   case 'acciones': {
-     let html = `<div class="actions">`;
-     if (ctx.puedeCancelar) html += `<button class="icon" data-id="${t.id}" data-act="cancel" title="Anular">🗑️</button>`;
-     if (copago > 0 && pendiente > 0 && ctx.puedePagar) html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
-     if (ctx.puedeArribo && ctx.isHoy) html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
-     if (ctx.puedeAtender) html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">▶️</button>`;
-     if (ctx.puedeFinalizar && t.estado === EST.EN_ATENCION) {html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;}
-     if (ctx.puedeAbrirFicha) html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
-     if (ctx.type === 'esp' && ctx.puedeVolver) html += `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a 'Por llegar'">↩︎</button>`;
-     if (ctx.type === 'atencion' && ctx.puedeVolverE) html += `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">↩︎</button>`;
-     html += `</div>`;
-     return html;
-   }
 
-    // Puedes seguir agregando otros casos según tu diseño...
-    default:
-      // fallback al anterior
-      switch (key) {
-        case 'espera': return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
-        case 'hora': return horaRango(t);
-        case 'dni': return p.dni || '—';
-        case 'nombre': return titleCase(p.nombre) || '—';
-        case 'apellido': return titleCase(p.apellido) || '—';
-        case 'obra': return p.obra_social || '—';
-        default: return '—';
+    case 'acciones': {
+      let html = `<div class="actions">`;
+
+      // 🔴 Sacamos "Anular" de las filas (solo en el slide)
+      // if (ctx.puedeCancelar) html += `<button ...>🗑️</button>`;
+
+      // 💵 Pagar: solo si hay saldo
+      if (copago > 0 && pendiente > 0 && ctx.puedePagar) {
+        html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
       }
+
+      // 🟢 Arribo: solo si está ASIGNADO y es hoy
+      if (ctx.puedeArribo && ctx.isHoy && isAsignado) {
+        html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
+      }
+
+      // ▶️ Atender: solo si está EN_ESPERA
+      if (ctx.puedeAtender && isEspera) {
+        html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">▶️</button>`;
+      }
+
+      // ✅ Finalizar: solo si está EN_ATENCION
+      if (ctx.puedeFinalizar && isAtencion) {
+        html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;
+      }
+
+      // 📄 Abrir ficha: según permiso
+      if (ctx.puedeAbrirFicha) {
+        html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
+      }
+
+      // ↩︎ Volver (solo donde aplica, guiado por ctx.type)
+      if (ctx.type === 'esp' && ctx.puedeVolver) {
+        html += `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a 'Por llegar'">↩︎</button>`;
+      }
+      if (ctx.type === 'atencion' && ctx.puedeVolverE) {
+        html += `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">↩︎</button>`;
+      }
+
+      html += `</div>`;
+      return html;
+    }
+
+    default: {
+      switch (key) {
+        case 'espera':  return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
+        case 'hora':    return horaRango(t);
+        case 'dni':     return p.dni || '—';
+        case 'nombre':  return titleCase(p.nombre) || '—';
+        case 'apellido':return titleCase(p.apellido) || '—';
+        case 'obra':    return p.obra_social || '—';
+        default:        return '—';
+      }
+    }
   }
 }
+function buildCell(key, t, ctx) {
+  const p = t.pacientes || {};
+  const pagado = ctx.pagos?.[t.id] ?? 0;
+  const copago = toPesoInt(t.copago) ?? 0;
+  const pendiente = Math.max(0, copago - pagado);
+
+  // flags por estado (para decidir visibilidad de acciones)
+  const st = t.estado;
+  const isAsignado = st === EST.ASIGNADO;
+  const isEspera   = st === EST.EN_ESPERA;
+  const isAtencion = st === EST.EN_ATENCION;
+
+  switch (key) {
+    case 'copago': {
+      if (copago === 0) return `<span class="copago none">Sin copago</span>`;
+      const totalStr  = money(copago);
+      const pagadoStr = money(pagado);
+      if (pendiente === 0) {
+        return `<span class="copago ok">${totalStr} / ${pagadoStr} <span title="Abonado" style="color:#2e7d32;font-weight:bold;">✅ Abonado</span></span>`;
+      }
+      return `<span class="copago">${totalStr} / ${pagadoStr} <span style="color:#f57c00;">(${money(pendiente)} pendiente)</span></span>`;
+    }
+
+    case 'acciones': {
+      let html = `<div class="actions">`;
+
+      // 🔴 Sacamos "Anular" de las filas (solo en el slide)
+      // if (ctx.puedeCancelar) html += `<button ...>🗑️</button>`;
+
+      // 💵 Pagar: solo si hay saldo
+      if (copago > 0 && pendiente > 0 && ctx.puedePagar) {
+        html += `<button class="icon" data-id="${t.id}" data-act="pago" title="Registrar pago">$</button>`;
+      }
+
+      // 🟢 Arribo: solo si está ASIGNADO y es hoy
+      if (ctx.puedeArribo && ctx.isHoy && isAsignado) {
+        html += `<button class="icon" data-id="${t.id}" data-act="arribo" title="Pasar a En espera">🟢</button>`;
+      }
+
+      // ▶️ Atender: solo si está EN_ESPERA
+      if (ctx.puedeAtender && isEspera) {
+        html += `<button class="icon" data-id="${t.id}" data-act="atender" title="En atención">▶️</button>`;
+      }
+
+      // ✅ Finalizar: solo si está EN_ATENCION
+      if (ctx.puedeFinalizar && isAtencion) {
+        html += `<button class="icon" data-id="${t.id}" data-act="finalizar" title="Marcar ATENDIDO">✅</button>`;
+      }
+
+      // 📄 Abrir ficha: según permiso
+      if (ctx.puedeAbrirFicha) {
+        html += `<button class="icon" data-id="${t.id}" data-act="abrir-ficha" title="Abrir ficha">📄</button>`;
+      }
+
+      // ↩︎ Volver (solo donde aplica, guiado por ctx.type)
+      if (ctx.type === 'esp' && ctx.puedeVolver) {
+        html += `<button class="icon" data-id="${t.id}" data-act="volver" title="Volver a 'Por llegar'">↩︎</button>`;
+      }
+      if (ctx.type === 'atencion' && ctx.puedeVolverE) {
+        html += `<button class="icon" data-id="${t.id}" data-act="volver-espera" title="Volver a sala de espera">↩︎</button>`;
+      }
+
+      html += `</div>`;
+      return html;
+    }
+
+    default: {
+      switch (key) {
+        case 'espera':  return (ctx.type === 'esp') ? esperaBadge(t, ctx.fechaISO) : '—';
+        case 'hora':    return horaRango(t);
+        case 'dni':     return p.dni || '—';
+        case 'nombre':  return titleCase(p.nombre) || '—';
+        case 'apellido':return titleCase(p.apellido) || '—';
+        case 'obra':    return p.obra_social || '—';
+        default:        return '—';
+      }
+    }
+  }
+}
+
 
 
 // head único
