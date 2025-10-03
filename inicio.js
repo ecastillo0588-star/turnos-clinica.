@@ -736,6 +736,7 @@ const puedeCancelar = roleAllows('cancelar', userRole);
 const puedeArribo   = roleAllows('arribo', userRole);
 const puedeAtender  = roleAllows('atender', userRole);
 const puedeFinalizar= false; // Finalizar nunca en "Por llegar"
+   const puedeAbrir = roleAllows('abrir_ficha', userRole);
 
   const ctx = {
     type: 'pend',
@@ -1816,6 +1817,8 @@ async function inicioOpenTurnoPanel(turnoId){
     }
     return;
   }
+
+   
 
   // 2) Header (nombre + DNI)
   const p = t.pacientes || {};
