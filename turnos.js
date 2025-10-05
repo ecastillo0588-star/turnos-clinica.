@@ -6,7 +6,7 @@ import { isValidHourRange as _isValidHourRange } from './validators.js';
 import { openPacienteModal, loadProfesionalesIntoSelect, applyRoleClasses, roleAllows } from './global.js';
 // turnos.js
 import { openPagoModal, initPaymentsBridge } from './payments.js';
-import { openPagoModal } from './payments.js';
+
 
 
 // ---------------------------
