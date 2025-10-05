@@ -4,6 +4,9 @@
 import supabase from './supabaseClient.js';
 import { isValidHourRange as _isValidHourRange } from './validators.js';
 import { openPacienteModal, loadProfesionalesIntoSelect, applyRoleClasses, roleAllows } from './global.js';
+// turnos.js
+import { openPagoModal } from './payments.js';  // << NUEVO
+
 
 // ---------------------------
 // Validación HH:MM (fallback)
@@ -910,7 +913,6 @@ async function tryAgendar(slot){
     if (!resConfirm?.ok) return;
 
     const comentarioRecep = (resConfirm.comentario || '').trim() || null;
-    console.log('[tryAgendar] comentarioRecepcion =', comentarioRecep);
 
     // --------- INSERT ----------
     const payload = {
@@ -926,21 +928,36 @@ async function tryAgendar(slot){
       obra_social_id:  obraSocialId,
       copago:          copagoFinal,
       asignado_por:    asignadoPor,
-      comentario_recepcion: comentarioRecep,   // << guarda el comentario
+      comentario_recepcion: comentarioRecep,
     };
 
-    console.debug('[tryAgendar] insert payload:', payload);
     const { data: inserted, error } = await supabase
       .from('turnos')
       .insert([payload])
-      .select('id, comentario_recepcion')
+      .select('id')
       .single();
 
     if (error){
       alert(error.message || 'No se pudo reservar el turno.');
       return;
     }
-    console.debug('[tryAgendar] insert OK:', inserted);
+
+    // --------- OFRECER COBRAR AHORA (solo particular con copago > 0) ----------
+    if (inserted?.id && obraSocialId == null && (copagoFinal ?? 0) > 0) {
+      const quiereCobrar = confirm(
+        `El turno fue reservado como PARTICULAR con copago de $${Number(copagoFinal).toLocaleString('es-AR')}.
+¿Registrar el cobro ahora?`
+      );
+      if (quiereCobrar) {
+        // abre el modal unificado de pagos
+        await openPagoModal(inserted.id, {
+          afterPay: async () => {
+            await refreshDayModal();
+            await renderCalendar();
+          }
+        });
+      }
+    }
 
     // --------- Modal OK + WhatsApp (editable) ----------
     openOkModal({
@@ -961,7 +978,6 @@ async function tryAgendar(slot){
     refreshModalTitle();
   }
 }
-
 
     
 
