@@ -5,7 +5,7 @@ import supabase from './supabaseClient.js';
 import { isValidHourRange as _isValidHourRange } from './validators.js';
 import { openPacienteModal, loadProfesionalesIntoSelect, applyRoleClasses, roleAllows } from './global.js';
 // turnos.js
-import { openPagoModal } from './payments.js';  // << NUEVO
+import { openPaymentModal } from './payments.js';
 
 
 // ---------------------------
@@ -950,14 +950,15 @@ async function tryAgendar(slot){
       );
       if (quiereCobrar) {
         // abre el modal unificado de pagos
-        await openPagoModal(inserted.id, {
-          afterPay: async () => {
-            await refreshDayModal();
-            await renderCalendar();
-          }
-        });
-      }
-    }
+ await openPaymentModal({
+ turnoId: inserted.id,
+ defaultImporte: copagoFinal ?? 0,   // precarga el copago sugerido
+ presetMedio: null,                  // o 'efectivo'/'transferencia' si querés precargar
+ onDone: async () => {               // callback equivalente a afterPay
+ await refreshDayModal();
+ await renderCalendar();
+   }
+ });
 
     // --------- Modal OK + WhatsApp (editable) ----------
     openOkModal({
