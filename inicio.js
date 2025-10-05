@@ -763,23 +763,23 @@ const showProfColumn = ()=> {
 // Render de pendientes - versión completa: copago detallado, botón pagar solo si corresponde, integración con buildCell global
 
 function renderPendientes(list, mapPagos) {
-const puedeCancelar = roleAllows('cancelar', userRole);
-const puedeArribo   = roleAllows('arribo', userRole);
-const puedeAtender  = roleAllows('atender', userRole);
-const puedeFinalizar= false; // Finalizar nunca en "Por llegar"
-   const puedeAbrir = roleAllows('abrir_ficha', userRole);
+  const puedeCancelar = roleAllows('cancelar', userRole);
+  const puedeArribo   = roleAllows('arribo', userRole);
+  const puedeAtender  = roleAllows('atender', userRole);
+  const puedeFinalizar= false; // Finalizar nunca en "Por llegar"
+  const puedeAbrir    = roleAllows('abrir_ficha', userRole);
 
   const ctx = {
     type: 'pend',
     fechaISO: currentFechaISO,
     pagos: mapPagos,
     isHoy: (currentFechaISO === todayISO()),
-    puedeCancelar: puedeCancelar,
-    puedeArribo:   puedeArribo,
-    puedeAtender:  puedeAtender, // queda false
-    puedeFinalizar:puedeFinalizar,
+    puedeCancelar,
+    puedeArribo,
+    puedeAtender, // queda false en práctica
+    puedeFinalizar,
     puedeAbrirFicha: puedeAbrir,
-    puedePagar: true, // si querés permitir pago desde “Por llegar”
+    puedePagar: true, // permitir pago desde “Por llegar”
   };
 
   const head = renderHeadHTML();
@@ -789,12 +789,33 @@ const puedeFinalizar= false; // Finalizar nunca en "Por llegar"
   UI.tblPend.querySelectorAll('.icon').forEach(btn => {
     const id  = btn.getAttribute('data-id');
     const act = btn.getAttribute('data-act');
-    if (act === 'pago')         btn.onclick = () => abrirPagoModal(id);
-    if (act === 'arribo')       btn.onclick = () => marcarLlegadaYCopago(id);
-    if (act === 'cancel')       btn.onclick = () => anularTurno(id);
-    if (act === 'atender')      btn.onclick = (ev) => pasarAEnAtencion(id, ev);
-    if (act === 'finalizar')    btn.onclick = () => finalizarAtencion(id);
-    if (act === 'abrir-ficha')  btn.onclick = () => openFicha(id);
+
+    if (act === 'pago') {
+      btn.onclick = () => {
+        // buscamos el turno para calcular pendiente sugerido
+        const t = (list || []).find(x => String(x.id) === String(id));
+        const copago  = toPesoInt(t?.copago) ?? 0;
+        const pagado  = mapPagos?.[t?.id] ?? 0;
+        const pendiente = Math.max(0, copago - pagado);
+
+        openPaymentBridge({
+          turnoId: id,
+          // si no hay pendiente, dejamos que el módulo decida
+          amount: pendiente > 0 ? pendiente : null,
+          confirmLabel: 'Registrar pago',
+          skipLabel: 'Cerrar',
+          onPaid: async () => {
+            await refreshAll({ showOverlayIfSlow: false });
+          }
+        });
+      };
+    }
+
+    if (act === 'arribo')      btn.onclick = () => marcarLlegadaYCopago(id);
+    if (act === 'cancel')      btn.onclick = () => anularTurno(id);
+    if (act === 'atender')     btn.onclick = (ev) => pasarAEnAtencion(id, ev);
+    if (act === 'finalizar')   btn.onclick = () => finalizarAtencion(id);
+    if (act === 'abrir-ficha') btn.onclick = () => openFicha(id);
   });
 }
 
@@ -846,32 +867,66 @@ function renderPresentes(list, mapPagos) {
   const ctx = {
     type: 'esp',
     fechaISO: currentFechaISO,
-    pagos: mapPagos, // <-- esto es lo importante!
-    isHoy: (currentFechaISO === todayISO()), 
+    pagos: mapPagos,
+    isHoy: (currentFechaISO === todayISO()),
     puedeVolver,
     puedeCancelar,
-    puedeAtender:  roleAllows('atender', userRole),
-    puedePagar: true, // si quieres mostrar botón de pago aquí
-    // otros flags según tu lógica...
+    puedeAtender,
+    puedePagar: true,
   };
 
-  // renderTable debe usar buildCell global, que ya compara copago/pagado/etc.
   renderTable(UI.tblEsp, list, ctx);
 
   UI.tblEsp.querySelectorAll('.icon').forEach(btn => {
-    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
-    if (act === 'volver') btn.onclick = async () => {
-      if (!roleAllows('volver', userRole)) return;
-      await supabase.from('turnos').update({ estado: EST.ASIGNADO, hora_arribo: null }).eq('id', id);
-      await refreshAll();
-    };
-    if (act === 'cancel') btn.onclick = () => anularTurno(id);
-    if (act === 'atender') btn.onclick = (ev) => pasarAEnAtencion(id, ev);
-    if (act === 'pago') btn.onclick = () => abrirPagoModal(id); // si usas pagos aquí
+    const id  = btn.getAttribute('data-id');
+    const act = btn.getAttribute('data-act');
+
+    if (act === 'volver') {
+      btn.onclick = async () => {
+        if (!roleAllows('volver', userRole)) return;
+        await supabase.from('turnos')
+          .update({ estado: EST.ASIGNADO, hora_arribo: null })
+          .eq('id', id);
+        await refreshAll();
+      };
+      return;
+    }
+
+    if (act === 'cancel') {
+      btn.onclick = () => anularTurno(id);
+      return;
+    }
+
+    if (act === 'atender') {
+      btn.onclick = (ev) => pasarAEnAtencion(id, ev);
+      return;
+    }
+
+    if (act === 'pago') {
+      btn.onclick = () => {
+        const t = (list || []).find(x => String(x.id) === String(id));
+        const copago    = toPesoInt(t?.copago) ?? 0;
+        const pagado    = mapPagos?.[t?.id] ?? 0;
+        const pendiente = Math.max(0, copago - pagado);
+
+        openPaymentBridge({
+          turnoId: id,
+          amount: pendiente > 0 ? pendiente : null,
+          confirmLabel: 'Registrar pago',
+          skipLabel: 'Cerrar',
+          onPaid: async () => {
+            await refreshAll({ showOverlayIfSlow: false });
+          }
+        });
+      };
+      return;
+    }
   });
 
-  updateWaitBadges(); startWaitTicker();
+  updateWaitBadges();
+  startWaitTicker();
 }
+
 
 /* EN ATENCIÓN */
 function renderAtencion(list, mapPagos) {
@@ -882,149 +937,100 @@ function renderAtencion(list, mapPagos) {
   const ctx = {
     type: 'atencion',
     fechaISO: currentFechaISO,
-    pagos: mapPagos,         // <-- ¡mapPagos aquí!
+    pagos: mapPagos,
     puedeAbrirFicha: puedeAbrir,
     puedeVolverE,
     puedeFinalizar: puedeFin,
-    puedePagar: true,        // <-- Si quieres botón de pago aquí, si no, pon false
+    puedePagar: true,
   };
 
   renderTable(UI.tblAtencion, list, ctx);
 
   UI.tblAtencion.querySelectorAll('.icon').forEach(btn => {
-    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
-    if (act === 'abrir-ficha')    btn.onclick = () => openFicha(id);
-    if (act === 'volver-espera')  btn.onclick = () => volverASalaEspera(id);
-    if (act === 'finalizar')      btn.onclick = () => finalizarAtencion(id);
-    if (act === 'pago')           btn.onclick = () => abrirPagoModal(id); // si quieres permitir pagos aquí
+    const id  = btn.getAttribute('data-id');
+    const act = btn.getAttribute('data-act');
+
+    if (act === 'abrir-ficha') {
+      btn.onclick = () => openFicha(id);
+      return;
+    }
+
+    if (act === 'volver-espera') {
+      btn.onclick = () => volverASalaEspera(id);
+      return;
+    }
+
+    if (act === 'finalizar') {
+      btn.onclick = () => finalizarAtencion(id);
+      return;
+    }
+
+    if (act === 'pago') {
+      btn.onclick = () => {
+        const t = (list || []).find(x => String(x.id) === String(id));
+        const copago    = toPesoInt(t?.copago) ?? 0;
+        const pagado    = mapPagos?.[t?.id] ?? 0;
+        const pendiente = Math.max(0, copago - pagado);
+
+        openPaymentBridge({
+          turnoId: id,
+          amount: pendiente > 0 ? pendiente : null,
+          confirmLabel: 'Registrar pago',
+          skipLabel: 'Cerrar',
+          onPaid: async () => {
+            await refreshAll({ showOverlayIfSlow: false });
+          }
+        });
+      };
+      return;
+    }
   });
 }
-
+   
 function renderAtendidos(list, mapPagos) {
   const puedeAbrir = roleAllows('abrir_ficha', userRole);
 
   const ctx = {
     type: 'done',
     fechaISO: currentFechaISO,
-    pagos: mapPagos,         // <-- ¡mapPagos aquí!
+    pagos: mapPagos,
     puedeAbrirFicha: puedeAbrir,
-    puedePagar: false,       // Generalmente no se permite pagar en atendidos, pero puedes cambiarlo
+    puedePagar: false, // dejalo en false si no querés pagos acá
   };
 
   renderTable(UI.tblDone, list, ctx);
 
   UI.tblDone.querySelectorAll('.icon').forEach(btn => {
-    const id = btn.getAttribute('data-id'), act = btn.getAttribute('data-act');
-    if (act === 'abrir-ficha') btn.onclick = () => openFicha(id);
-    if (act === 'pago')        btn.onclick = () => abrirPagoModal(id); // solo si activás pagos aquí
-  });
-}
+    const id  = btn.getAttribute('data-id');
+    const act = btn.getAttribute('data-act');
 
-async function abrirPagoModal(turnoId, { afterPay } = {}) {
-  const tpl = document.getElementById('tpl-modal-pago');
-  const mountPoint = document.getElementById('modal-root') || document.body;
-  if (!tpl) { console.error('tpl-modal-pago no encontrado'); return; }
-
-  // Clonar e insertar el modal
-  const frag = tpl.content.cloneNode(true);
-  const backdrop = frag.querySelector('.modal-backdrop');
-  const modal    = frag.querySelector('.modal');
-
-  // Referencias a campos
-  const elInfo   = frag.querySelector('#pay-info');
-  const inpImp   = frag.querySelector('#pay-importe');
-  const selMedio = frag.querySelector('#pay-medio');
-  const inpNota  = frag.querySelector('#pay-nota');
-  const btnSkip  = frag.querySelector('#btn-skip');     // lo dejamos oculto para este flujo
-  const btnOk    = frag.querySelector('#btn-confirm');
-  const btnClose = frag.querySelector('.modal-close');
-
-  // Helpers de cierre
-  const close = () => {
-    try {
-      // si lo montamos en #modal-root, limpiamos el contenedor
-      if (mountPoint.id === 'modal-root') mountPoint.innerHTML = '';
-      else backdrop?.remove();
-    } catch {}
-  };
-
-  // Cerrar por X o por click afuera
-  btnClose?.addEventListener('click', close);
-  backdrop?.addEventListener('click', (e) => { if (e.target === backdrop) close(); });
-
-  // Traer turno + pagos
-  const { data: t, error: terr } = await supabase
-    .from('turnos')
-    .select('copago')
-    .eq('id', turnoId)
-    .maybeSingle();
-
-  if (terr || !t) {
-    // Mostrar un mensaje de error simple en el modal
-    if (elInfo) {
-      elInfo.classList.remove('success-box');
-      elInfo.classList.add('error-box');
-      elInfo.style.display = '';
-      elInfo.textContent = 'No se pudo leer el turno.';
-    }
-  } else {
-    const { totalPagado } = await getPagoResumen(turnoId);
-    const total  = Number(t.copago || 0);
-    const pagado = Number(totalPagado || 0);
-    const pend   = Math.max(0, total - pagado);
-
-    // Llenar info y valor por defecto
-    if (elInfo) {
-      elInfo.classList.remove('error-box');
-      elInfo.classList.add('success-box');
-      elInfo.style.display = '';
-      elInfo.innerHTML = `Total copago: <b>${money(total)}</b> · Pagado: <b>${money(pagado)}</b> · Pendiente: <b>${money(pend)}</b>`;
-    }
-    if (pend > 0 && inpImp) inpImp.value = String(pend);
-  }
-
-  
-  // Confirmar (insertar pago)
-  btnOk?.addEventListener('click', async () => {
-    if (!btnOk || btnOk.disabled) return;
-
-    const raw   = inpImp?.value ?? '';
-    const medio = selMedio?.value || 'efectivo';
-    const nota  = (inpNota?.value || '').trim();
-
-    // Permite "1.234", "1234", "1,234.50" → se redondea a entero
-    const toPesoIntLocal = (v) => {
-      if (v == null) return null;
-      const s = String(v).replace(/\./g, '').replace(',', '.');
-      const n = Number(s);
-      if (!isFinite(n) || n <= 0) return null;
-      return Math.round(n);
-    };
-
-    const imp = toPesoIntLocal(raw);
-    if (!imp || imp <= 0) { alert('Ingresá un importe válido (> 0).'); return; }
-
-    btnOk.disabled = true; const prev = btnOk.textContent; btnOk.textContent = 'Guardando…';
-
-    const { error: insErr } = await supabase
-      .from('turnos_pagos')
-      .insert([{ turno_id: turnoId, importe: imp, medio_pago: medio, nota }]);
-
-    if (insErr) {
-      btnOk.disabled = false; btnOk.textContent = prev;
-      alert('No se pudo registrar el pago.\n' + (insErr.message || ''));
+    if (act === 'abrir-ficha') {
+      btn.onclick = () => openFicha(id);
       return;
     }
 
-    close();
-    await refreshAll();
-    if (typeof afterPay === 'function') afterPay();
+    // Si decidís habilitar pagos en "Atendidos", el handler ya queda listo:
+    if (act === 'pago') {
+      btn.onclick = () => {
+        const t = (list || []).find(x => String(x.id) === String(id));
+        const copago    = toPesoInt(t?.copago) ?? 0;
+        const pagado    = mapPagos?.[t?.id] ?? 0;
+        const pendiente = Math.max(0, copago - pagado);
+
+        openPaymentBridge({
+          turnoId: id,
+          amount: pendiente > 0 ? pendiente : null,
+          confirmLabel: 'Registrar pago',
+          skipLabel: 'Cerrar',
+          onPaid: async () => {
+            await refreshAll({ showOverlayIfSlow: false });
+          }
+        });
+      };
+      return;
+    }
   });
-
-  // Montar al DOM
-  mountPoint.appendChild(frag);
 }
-
 
 
 
@@ -1368,7 +1374,7 @@ async function finalizarAtencion(turnoId, { closeDrawer = false } = {}) {
 async function marcarLlegadaYCopago(turnoId){
   if (!roleAllows('arribo', userRole)) { alert('No tenés permisos.'); return; }
 
-  // Leer copago del turno
+  // 1) Leer copago del turno
   const { data: t, error: terr } = await supabase
     .from('turnos')
     .select('id, copago')
@@ -1379,154 +1385,47 @@ async function marcarLlegadaYCopago(turnoId){
 
   const cop = toPesoInt(t.copago) ?? 0;
 
-  // Total pagado hasta ahora
+  // 2) Total pagado hasta ahora
   const { totalPagado } = await getPagoResumen(turnoId);
-  const debeCobrar = cop > (totalPagado || 0);
+  const pendiente = Math.max(0, cop - (totalPagado || 0));
 
-  // Si no hay nada que cobrar → registrar arribo directo
-  if (!debeCobrar){
+  // 3) Si no hay nada que cobrar → registrar arribo directo
+  if (pendiente <= 0){
     const { error } = await supabase
       .from('turnos')
       .update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS() })
       .eq('id', turnoId);
     if (error) { alert('No se pudo registrar la llegada.'); return; }
-    await refreshAll();
+    await refreshAll({ showOverlayIfSlow:false });
     return;
   }
 
-  // Hay saldo pendiente → pedir pago con el modal GLOBAL y luego pasar a EN_ESPERA
-  openCobroModal({
-    turno: { copago: cop },
+  // 4) Hay saldo pendiente → abrir el NUEVO modal de pagos (payment modal)
+  openPaymentBridge({
+    turnoId: turnoId,
+    amount: pendiente,                          // valor sugerido = saldo
     confirmLabel: 'Cobrar y pasar a En espera',
     skipLabel: 'Continuar sin cobrar',
-    onCobrar: async ({ importe, medio }) => {
-      // 1) Registrar pago
-      const { error: e1 } = await supabase.from('turnos_pagos').insert([{
-        turno_id: turnoId,
-        importe: toPesoInt(importe),
-        medio_pago: medio,
-        nota: 'Pago en arribo'
-      }]);
-      if (e1){ alert('No se pudo registrar el pago.'); return; }
-
-      // 2) Pasar a EN_ESPERA con hora de arribo
-      const { error: e2 } = await supabase
+    // luego de cobrar, pasar a EN_ESPERA y setear hora_arribo
+    onPaid: async () => {
+      const { error } = await supabase
         .from('turnos')
         .update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS() })
         .eq('id', turnoId);
-      if (e2) { alert('No se pudo registrar la llegada.'); return; }
-
-      await refreshAll();
+      if (error) { alert('Se cobró, pero no se pudo marcar EN ESPERA.'); }
+      await refreshAll({ showOverlayIfSlow:false });
     },
+    // si el usuario decide continuar sin cobrar, igual marcamos EN_ESPERA
     onSkip: async () => {
-      // Continuar sin cobrar: solo marcar EN_ESPERA con arribo
       const { error } = await supabase
         .from('turnos')
         .update({ estado: EST.EN_ESPERA, hora_arribo: nowHHMMSS() })
         .eq('id', turnoId);
       if (error) { alert('No se pudo registrar la llegada.'); return; }
-      await refreshAll();
+      await refreshAll({ showOverlayIfSlow:false });
     }
   });
 }
-
-
-
-async function pasarAEnAtencion(turnoId, ev){
-  if (ev) ev.preventDefault();
-
-  // Permisos
-  if (!roleAllows('atender', userRole)) {
-    alert('Solo AMP/Médico pueden atender.');
-    return;
-  }
-
-  // 1) Leer turno y validar estado actual
-  const { data: t, error: terr } = await supabase
-    .from('turnos')
-    .select('id, estado, copago')
-    .eq('id', turnoId)
-    .maybeSingle();
-
-  if (terr || !t) {
-    alert('No se pudo leer el turno.');
-    return;
-  }
-  if (t.estado !== EST.EN_ESPERA) {
-    alert('Para atender, el turno debe estar EN ESPERA.');
-    return;
-  }
-
-  // 2) ¿Hay saldo de copago pendiente?
-  const cop = toPesoInt(t.copago) ?? 0;
-  const { totalPagado } = await getPagoResumen(turnoId);
-  const debeCobrar = cop > (totalPagado || 0);
-
-  // 3) Si no hay nada que cobrar → pasar directo a EN_ATENCION
-  if (!debeCobrar) {
-    const { error } = await supabase
-      .from('turnos')
-      .update({ estado: EST.EN_ATENCION })
-      .eq('id', turnoId)
-      .eq('estado', EST.EN_ESPERA); // doble check en DB
-
-    if (error) {
-      alert('No se pudo pasar a "En atención".');
-      return;
-    }
-
-    await refreshAll();
-    await openFicha(turnoId);
-    return;
-  }
-
-  // 4) Hay saldo pendiente → abrir modal unificado de cobro
-  openCobroModal({
-    turno: { copago: cop },
-    confirmLabel: 'Cobrar y pasar a En atención',
-    skipLabel: 'Continuar sin cobrar',
-
-    // Cobrar y luego pasar a EN_ATENCION
-    onCobrar: async ({ importe, medio }) => {
-      // 4.1) Registrar pago
-      const { error: e1 } = await supabase
-        .from('turnos_pagos')
-        .insert([{
-          turno_id: turnoId,
-          importe: toPesoInt(importe),
-          medio_pago: medio,
-          nota: 'Pago antes de atención'
-        }]);
-      if (e1) { alert('No se pudo registrar el pago.'); return; }
-
-      // 4.2) Pasar a EN_ATENCION con guard
-      const { error: e2 } = await supabase
-        .from('turnos')
-        .update({ estado: EST.EN_ATENCION })
-        .eq('id', turnoId)
-        .eq('estado', EST.EN_ESPERA);
-      if (e2) { alert('No se pudo pasar a "En atención".'); return; }
-
-      await refreshAll();
-      await openFicha(turnoId);
-    },
-
-    // Continuar sin cobrar: solo cambiar estado
-    onSkip: async () => {
-      const { error } = await supabase
-        .from('turnos')
-        .update({ estado: EST.EN_ATENCION })
-        .eq('id', turnoId)
-        .eq('estado', EST.EN_ESPERA);
-      if (error) { alert('No se pudo pasar a "En atención".'); return; }
-
-      await refreshAll();
-      await openFicha(turnoId);
-    }
-  });
-}
-
-
 
 async function anularTurno(turnoId){
   if (!roleAllows('cancelar', userRole)) { alert('No tenés permisos para anular.'); return; }
@@ -1568,81 +1467,7 @@ function startAutoRefresh() {
 }
 
 
-function closeAnyModal() {
-  const modalRoot = document.getElementById('modal-root');
-  if (modalRoot) modalRoot.innerHTML = '';
-  const backdrop = document.querySelector('.modal-backdrop');
-  if (backdrop) backdrop.remove();
-}
 
-/**
- * Modal de cobro (reutilizable para En espera / En atención)
- * opts = {
- *   turno,                         // {id, copago}
- *   confirmLabel, skipLabel,       // textos botones
- *   onCobrar({importe, medio}),    // callback cobrar
- *   onSkip()                       // callback continuar sin cobrar
- * }
- */
-function openCobroModal(opts){
-  const { turno, confirmLabel, skipLabel, onCobrar, onSkip } = opts;
-  const root = document.getElementById('modal-root') || document.body;
-  const cop = toPesoInt(turno.copago) ?? 0;
-
-  const html = document.createElement('div');
-  html.className = 'modal-backdrop';
-  html.innerHTML = `
-    <div class="modal" role="dialog" aria-modal="true" style="max-width:520px">
-      <button class="modal-close" aria-label="Cerrar">&times;</button>
-      <div class="modal-header"><h3>Copago del turno</h3></div>
-      <div class="modal-body">
-        <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:12px">
-          <div style="font-size:22px;">💳</div>
-          <div>
-            <div style="font-weight:600; color:#381e60;">El paciente ha reservado turno con copago.</div>
-            <div style="color:#6b6480;">Importe informado: <b>${money(cop)}</b></div>
-          </div>
-        </div>
-        <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <div class="form-group">
-            <label>Importe a cobrar</label>
-            <input id="pago-importe" class="inp" inputmode="numeric" value="${cop>0? cop : ''}" placeholder="${cop>0? money(cop) : '0'}" />
-          </div>
-          <div class="form-group">
-            <label>Medio de pago</label>
-            <select id="pago-medio" class="sel">
-              <option value="efectivo" selected>Efectivo</option>
-              <option value="transferencia">Transferencia</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
-        <button id="btn-skip" class="btn secondary">${skipLabel || 'Continuar sin cobrar'}</button>
-        <button id="btn-cobrar" class="btn">${confirmLabel || 'Cobrar y continuar'}</button>
-      </div>
-    </div>
-  `;
-  root.appendChild(html);
-
-  html.querySelector('.modal-close')?.addEventListener('click', closeAnyModal);
-  html.addEventListener('click', (e)=>{ if(e.target===html) closeAnyModal(); });
-
-  html.querySelector('#btn-skip').onclick = async () => {
-    try{ await onSkip?.(); } finally{ closeAnyModal(); }
-  };
-  html.querySelector('#btn-cobrar').onclick = async () => {
-    const rawImp = html.querySelector('#pago-importe').value;
-    const medio  = html.querySelector('#pago-medio').value || 'efectivo';
-    const imp    = toPesoInt(rawImp);
-    if (!imp || imp <= 0) { alert('Ingresá un importe válido.'); return; }
-    try{ await onCobrar?.({ importe: imp, medio }); } finally{ closeAnyModal(); }
-  };
-}
-
-/* =======================
-   Refresh principal (con anti-tearing y pagos)
-   ======================= */
 
 // Suma pagos por turno y devuelve un mapa { [turno_id]: totalPagado }
 async function fetchPagosMap(turnoIds = []) {
@@ -1801,6 +1626,83 @@ export async function initInicio(root){
   startAutoRefresh();
 }
 
+async function pasarAEnAtencion(turnoId, ev){
+  if (ev) ev.preventDefault();
+
+  // Permisos
+  if (!roleAllows('atender', userRole)) {
+    alert('Solo AMP/Médico pueden atender.');
+    return;
+  }
+
+  // 1) Leer turno y validar estado actual
+  const { data: t, error: terr } = await supabase
+    .from('turnos')
+    .select('id, estado, copago')
+    .eq('id', turnoId)
+    .maybeSingle();
+
+  if (terr || !t) {
+    alert('No se pudo leer el turno.');
+    return;
+  }
+  if (t.estado !== EST.EN_ESPERA) {
+    alert('Para atender, el turno debe estar EN ESPERA.');
+    return;
+  }
+
+  // 2) ¿Hay saldo de copago pendiente?
+  const cop = toPesoInt(t.copago) ?? 0;
+  const { totalPagado } = await getPagoResumen(turnoId);
+  const pendiente = Math.max(0, cop - (totalPagado || 0));
+
+  // 3) Si no hay nada que cobrar → pasar directo a EN_ATENCION
+  if (pendiente <= 0) {
+    const { error } = await supabase
+      .from('turnos')
+      .update({ estado: EST.EN_ATENCION })
+      .eq('id', turnoId)
+      .eq('estado', EST.EN_ESPERA);
+    if (error) { alert('No se pudo pasar a "En atención".'); return; }
+
+    await refreshAll({ showOverlayIfSlow:false });
+    await openFicha(turnoId);
+    return;
+  }
+
+  // 4) Hay saldo pendiente → abrir el NUEVO modal de pagos
+  openPaymentBridge({
+    turnoId,
+    amount: pendiente,
+    confirmLabel: 'Cobrar y pasar a En atención',
+    skipLabel: 'Continuar sin cobrar',
+    onPaid: async () => {
+      // pasar a EN_ATENCION con guard de estado
+      const { error } = await supabase
+        .from('turnos')
+        .update({ estado: EST.EN_ATENCION })
+        .eq('id', turnoId)
+        .eq('estado', EST.EN_ESPERA);
+      if (error) { alert('Se cobró, pero no se pudo pasar a "En atención".'); return; }
+
+      await refreshAll({ showOverlayIfSlow:false });
+      await openFicha(turnoId);
+    },
+    onSkip: async () => {
+      // continuar sin cobrar: solo cambiar estado
+      const { error } = await supabase
+        .from('turnos')
+        .update({ estado: EST.EN_ATENCION })
+        .eq('id', turnoId)
+        .eq('estado', EST.EN_ESPERA);
+      if (error) { alert('No se pudo pasar a "En atención".'); return; }
+
+      await refreshAll({ showOverlayIfSlow:false });
+      await openFicha(turnoId);
+    }
+  });
+}
+
 
 /* =======================
    Panel izquierdo (abrir / cerrar / guardar)
@@ -1816,6 +1718,36 @@ async function inicioOpenTurnoPanel(turnoId){
   };
   const show = (el, v=true) => { if (el) el.style.display = v ? '' : 'none'; };
   const enable = (el, v=true) => { if (el) el.disabled = !v; };
+
+  // Lightbox simple para imágenes
+  const openLightbox = (src) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'lb-overlay';
+    overlay.innerHTML = `
+      <div class="lb-backdrop"></div>
+      <div class="lb-content" role="dialog" aria-modal="true">
+        <button class="lb-close" aria-label="Cerrar">×</button>
+        <img class="lb-img" alt="Comprobante" />
+      </div>
+    `;
+    const css = document.createElement('style');
+    css.textContent = `
+      .lb-overlay{position:fixed;inset:0;z-index:1000}
+      .lb-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+      .lb-content{position:absolute;inset:6%;display:flex;align-items:center;justify-content:center}
+      .lb-img{max-width:100%;max-height:100%;box-shadow:0 8px 30px rgba(0,0,0,.4);border-radius:8px;background:#fff}
+      .lb-close{position:absolute;top:10px;right:14px;font-size:28px;line-height:1;border:0;background:#fff;border-radius:999px;width:36px;height:36px;cursor:pointer}
+    `;
+    overlay.appendChild(css);
+    document.body.appendChild(overlay);
+    overlay.querySelector('.lb-img').src = src;
+    const close = () => overlay.remove();
+    overlay.querySelector('.lb-backdrop').onclick = close;
+    overlay.querySelector('.lb-close').onclick = close;
+    document.addEventListener('keydown', function onEsc(e){
+      if (e.key === 'Escape'){ close(); document.removeEventListener('keydown', onEsc); }
+    });
+  };
 
   // 1) Traer turno + paciente
   const { data: t, error } = await supabase
@@ -1848,8 +1780,6 @@ async function inicioOpenTurnoPanel(turnoId){
     }
     return;
   }
-
-   
 
   // 2) Header (nombre + DNI)
   const p = t.pacientes || {};
@@ -1889,7 +1819,7 @@ async function inicioOpenTurnoPanel(turnoId){
   if (UI.tp?.com) {
     UI.tp.com.value = t.comentario_recepcion || '';
   }
-   
+
   // 5) Resumen de pago (Total/Pagado/Pendiente)
   let totalPagado = 0;
   try {
@@ -1912,6 +1842,69 @@ async function inicioOpenTurnoPanel(turnoId){
     }
   }
 
+  // 5.b) Vista previa del comprobante (si existe)
+  try {
+    // buscamos el último pago con comprobante
+    const { data: compRows = [] } = await supabase
+      .from('turnos_pagos')
+      .select('id, comprobante_url, mime_type')
+      .eq('turno_id', turnoId)
+      .not('comprobante_url','is', null)
+      .order('fecha', { ascending: false })
+      .limit(1);
+    const comp = compRows?.[0];
+
+    // crear contenedor si no existe
+    let wrap = document.getElementById('tp-comp-wrap');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.id = 'tp-comp-wrap';
+      wrap.style.marginTop = '8px';
+      // insertarlo debajo de #tp-copago-info
+      const row = infoEl?.parentElement || UI.tp?.el?.querySelector('.tp-section .tp-row');
+      (row || UI.tp?.el)?.appendChild(wrap);
+    }
+    // limpiar
+    wrap.innerHTML = '';
+
+    if (comp?.comprobante_url) {
+      const url = comp.comprobante_url;
+      const mime = (comp.mime_type || '').toLowerCase();
+      const isImg = mime.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(url);
+
+      const title = document.createElement('div');
+      title.textContent = 'Comprobante:';
+      title.style.fontSize = '12px';
+      title.style.color = '#6b6480';
+      title.style.marginBottom = '4px';
+      wrap.appendChild(title);
+
+      if (isImg) {
+        const thumb = document.createElement('img');
+        thumb.src = url;
+        thumb.alt = 'Comprobante';
+        thumb.style.maxWidth = '120px';
+        thumb.style.maxHeight = '90px';
+        thumb.style.borderRadius = '6px';
+        thumb.style.boxShadow = '0 1px 4px rgba(0,0,0,.12)';
+        thumb.style.cursor = 'zoom-in';
+        thumb.onclick = () => openLightbox(url);
+        wrap.appendChild(thumb);
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        a.textContent = 'Abrir comprobante';
+        a.className = 'btn secondary';
+        wrap.appendChild(a);
+      }
+    }
+  } catch (e) {
+    // si falla, no interrumpimos el panel
+    // console.warn('[inicioOpenTurnoPanel] preview comprobante warn:', e);
+  }
+
   // 6) Botones (visibilidad y habilitación según permisos/estado)
   const isHoy = (currentFechaISO === todayISO());
 
@@ -1923,15 +1916,15 @@ async function inicioOpenTurnoPanel(turnoId){
     UI.tp.btnArr.onclick = () => marcarLlegadaYCopago(turnoId);
   }
 
-  // ATENDER: permite pasar a EN_ATENCION (desde ASIGNADO/EN_ESPERA)
+  // ATENDER: permite pasar a EN_ATENCION (desde EN_ESPERA)
   const canAtender = roleAllows('atender', userRole) && estado === EST.EN_ESPERA;
-  show(UI.tp?.btnAt, canAtender);   
+  show(UI.tp?.btnAt, canAtender);
   if (UI.tp?.btnAt) {
     enable(UI.tp.btnAt, canAtender);
     UI.tp.btnAt.onclick = (ev) => pasarAEnAtencion(turnoId, ev);
   }
 
-  // FINALIZAR: solo cuando ya está EN_ATENCION
+  // FINALIZAR: solo cuando ya está EN_ATENCIÓN
   const canFinalizar = roleAllows('finalizar', userRole) && estado === EST.EN_ATENCION;
   show(UI.tp?.btnFinalizar, canFinalizar);
   if (UI.tp?.btnFinalizar) {
@@ -1947,15 +1940,22 @@ async function inicioOpenTurnoPanel(turnoId){
     UI.tp.btnCan.onclick = () => anularTurno(turnoId);
   }
 
-  // PAGO: si hay copago pendiente
+  // PAGO: si hay copago pendiente → abre NUEVO modal
   const canPagar = (cop > 0 && pendiente > 0);
   show(UI.tp?.btnPago, canPagar);
   if (UI.tp?.btnPago) {
     enable(UI.tp.btnPago, canPagar);
-    UI.tp.btnPago.onclick = () => abrirPagoModal(turnoId, { afterPay: async ()=> {
-      await inicioOpenTurnoPanel(turnoId);
-      await refreshAll({ showOverlayIfSlow:false });
-    }});
+    UI.tp.btnPago.onclick = () => openPaymentBridge({
+      turnoId,
+      amount: pendiente,
+      confirmLabel: 'Registrar pago',
+      skipLabel: 'Cerrar',
+      onPaid: async () => {
+        await inicioOpenTurnoPanel(turnoId);                 // refresca slide
+        await refreshAll({ showOverlayIfSlow:false });       // refresca boards
+      },
+      onSkip: () => {} // nada
+    });
   }
 
   // FICHA
@@ -1992,6 +1992,7 @@ async function inicioOpenTurnoPanel(turnoId){
     btnClose?.focus?.();
   }
 }
+
 
 
 function inicioHideTurnoPanel(){
@@ -2052,4 +2053,47 @@ function addClickableCursorStyle(){
   `;
   document.head.appendChild(style);
 }
+
+
+   /**
+ * Bridge para abrir el modal de pago definido en el HTML de "payment".
+ * No crea DOM nuevo: solo dispara un evento que el módulo/payment ya maneja.
+ *
+ * Detalle que enviamos al listener:
+ * - turnoId (obligatorio)
+ * - amount  (opcional; si no viene, el módulo puede calcular pendiente)
+ * - confirmLabel, skipLabel (opcionales)
+ * - onPaid({ importe, medio }) (opcional; callback tras cobrar)
+ * - onSkip() (opcional; callback si sigue sin cobrar)
+ */
+function openPaymentBridge({
+  turnoId,
+  amount = null,
+  confirmLabel = 'Cobrar y continuar',
+  skipLabel = 'Continuar sin cobrar',
+  onPaid = null,
+  onSkip = null
+} = {}) {
+  if (!turnoId) {
+    console.warn('[openPaymentBridge] turnoId es requerido');
+    return;
+  }
+
+  // Armamos y disparamos el evento que debe consumir el módulo/payment
+  const ev = new CustomEvent('payment:open', {
+    detail: {
+      turnoId,
+      amount,
+      confirmLabel,
+      skipLabel,
+      onPaid,
+      onSkip
+    },
+    bubbles: true,
+    cancelable: true
+  });
+
+  document.dispatchEvent(ev);
+}
+
 
