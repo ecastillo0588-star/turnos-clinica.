@@ -949,14 +949,16 @@ async function tryAgendar(slot){
 ¿Registrar el cobro ahora?`
       );
       if (quiereCobrar) {
-await openPagoModal({
-  turnoId: inserted.id,
- defaultImporte: copagoFinal ?? 0,
-  onSaved: async () => {              // callback al guardar
-    await refreshDayModal();
-    await renderCalendar();
-  }
- });
+        await openPagoModal({
+          turnoId: inserted.id,
+          defaultImporte: copagoFinal ?? 0,
+          onSaved: async () => {
+            await refreshDayModal();
+            await renderCalendar();
+          }
+        });
+      }
+    }
 
     // --------- Modal OK + WhatsApp (editable) ----------
     openOkModal({
