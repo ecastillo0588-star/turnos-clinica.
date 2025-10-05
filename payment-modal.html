@@ -1,0 +1,48 @@
+<!-- payment-modal.html -->
+<div id="modal-root"></div>
+
+<template id="tpl-modal-pago">
+  <div class="modal-backdrop">
+    <div class="modal" role="dialog" aria-modal="true" style="max-width:560px">
+      <button class="modal-close" aria-label="Cerrar">&times;</button>
+      <div class="modal-header"><h3>Registrar pago</h3></div>
+      <div class="modal-body" style="display:grid; gap:12px;">
+        <div id="pay-info" class="info-box" style="display:none;"></div>
+
+        <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group">
+            <label>Importe</label>
+            <input id="pay-importe" class="inp" inputmode="numeric" placeholder="$ 0" />
+          </div>
+          <div class="form-group">
+            <label>Medio de pago</label>
+            <select id="pay-medio" class="sel">
+              <option value="efectivo">Efectivo</option>
+              <option value="transferencia">Transferencia</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Nota (opcional)</label>
+          <textarea id="pay-nota" class="inp" rows="2" placeholder="Ej: transferencia desde Banco X"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Comprobante (PDF o imagen) – opcional</label>
+          <input id="pay-file" type="file" accept="application/pdf,image/*" />
+          <div id="pay-file-hint" class="tw-hint"></div>
+          <div id="pay-file-preview" style="margin-top:8px; display:none;">
+            <img id="pay-preview-img" alt="" style="max-width:160px; max-height:120px; display:none; border:1px solid #eee; border-radius:6px;"/>
+            <div id="pay-preview-pdf" style="display:none;">PDF seleccionado</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
+        <button id="btn-cancel"  class="btn secondary">Cancelar</button>
+        <button id="btn-confirm" class="btn">Guardar pago</button>
+      </div>
+    </div>
+  </div>
+</template>
