@@ -1,356 +1,291 @@
-// payments.js
-// Modal de cobro reutilizable para Inicio/Turnos
-// Requiere: supabaseClient.js (ESM)
-// Bucket de storage: 'turnos_pagos'
+async function inicioOpenTurnoPanel(turnoId){
+  // Helpers locales para UI
+  const setText = (el, txt='—') => { if (el) el.textContent = txt; };
+  const setChip = (el, txt, tone='') => {
+    if (!el) return;
+    el.textContent = txt;
+    el.className = 'chip' + (tone ? ' ' + tone : '');
+  };
+  const show = (el, v=true) => { if (el) el.style.display = v ? '' : 'none'; };
+  const enable = (el, v=true) => { if (el) el.disabled = !v; };
 
-import supabase from './supabaseClient.js';
+  // Lightbox simple para imágenes
+  const openLightbox = (src) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'lb-overlay';
+    overlay.innerHTML = `
+      <div class="lb-backdrop"></div>
+      <div class="lb-content" role="dialog" aria-modal="true">
+        <button class="lb-close" aria-label="Cerrar">×</button>
+        <img class="lb-img" alt="Comprobante" />
+      </div>
+    `;
+    const css = document.createElement('style');
+    css.textContent = `
+      .lb-overlay{position:fixed;inset:0;z-index:1000}
+      .lb-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+      .lb-content{position:absolute;inset:6%;display:flex;align-items:center;justify-content:center}
+      .lb-img{max-width:100%;max-height:100%;box-shadow:0 8px 30px rgba(0,0,0,.4);border-radius:8px;background:#fff}
+      .lb-close{position:absolute;top:10px;right:14px;font-size:28px;line-height:1;border:0;background:#fff;border-radius:999px;width:36px;height:36px;cursor:pointer}
+    `;
+    overlay.appendChild(css);
+    document.body.appendChild(overlay);
+    overlay.querySelector('.lb-img').src = src;
+    const close = () => overlay.remove();
+    overlay.querySelector('.lb-backdrop').onclick = close;
+    overlay.querySelector('.lb-close').onclick = close;
+    document.addEventListener('keydown', function onEsc(e){
+      if (e.key === 'Escape'){ close(); document.removeEventListener('keydown', onEsc); }
+    });
+  };
 
-const BUCKET = 'turnos_pagos';
-
-// ------------------------------
-// Utils
-// ------------------------------
-const toPesoInt = (v) => {
-  if (v == null) return null;
-  const s = String(v).replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
-  const n = Number(s);
-  if (!isFinite(n) || n <= 0) return null;
-  return Math.round(n);
-};
-
-const money = (n) =>
-  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
-    .format(Math.max(0, Math.round(n || 0)));
-
-async function getUserId() {
-  try {
-    const { data } = await supabase.auth.getUser();
-    return data?.user?.id || null;
-  } catch { return null; }
-}
-
-async function fetchTurnoCopago(turnoId) {
-  const { data, error } = await supabase
+  // 1) Traer turno + paciente
+  const { data: t, error } = await supabase
     .from('turnos')
-    .select('copago')
+    .select(`
+      id, fecha, hora_inicio, hora_fin, estado, hora_arribo,
+      copago, paciente_id, comentario_recepcion,
+      pacientes(dni, apellido, nombre)
+    `)
     .eq('id', turnoId)
     .maybeSingle();
-  if (error) throw error;
-  return Number(data?.copago || 0);
-}
 
-async function fetchPagado(turnoId) {
-  const { data, error } = await supabase
-    .from('turnos_pagos')
-    .select('importe')
-    .eq('turno_id', turnoId);
-  if (error) throw error;
-  return (data || []).reduce((a, r) => a + Number(r.importe || 0), 0);
-}
-
-function buildPath(turnoId, file) {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  const ts = Date.now();
-  const safe = (file?.name || 'archivo').replace(/\s+/g, '_');
-  return `${turnoId}/${yyyy}/${mm}/${dd}/${ts}__${safe}`;
-}
-
-async function uploadComprobante(file, path) {
-  if (!file) return { path: null, meta: {} };
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, file, {
-      upsert: false,
-      contentType: file.type || 'application/octet-stream',
-    });
-  if (error) throw error;
-
-  // meta simple (si querés sha256 lo agregamos después)
-  return {
-    path: data?.path || path,
-    meta: {
-      comprobante_mime: file.type || null,
-      comprobante_size: file.size || null,
-      comprobante_filename: file.name || null,
+  if (error || !t) {
+    // Limpio UI básico si algo falla
+    setText(UI.tp?.title, 'Paciente');
+    setText(UI.tp?.sub, 'DNI —');
+    setText(UI.tp?.hora, 'Turno: —');
+    setChip(UI.tp?.estado, '—', '');
+    setChip(UI.tp?.copago, 'Sin copago', 'muted');
+    setText(document.getElementById('tp-copago-info'), '—');
+    ['btnArr','btnAt','btnPago','btnCan'].forEach(k => show(UI.tp?.[k], false));
+    // Abrir panel igual, para mostrar el estado
+    const el = UI?.tp?.el || document.getElementById('turnoPanel');
+    if (el){
+      el.classList.add('open');
+      el.setAttribute('aria-hidden','false');
+      el.setAttribute('data-turno-id', String(turnoId));
+      document.body.classList.add('tp-open');
+      (UI?.tp?.close || el.querySelector('#tp-close'))?.addEventListener('click', inicioHideTurnoPanel, { once:true });
     }
-  };
-}
-
-// ------------------------------
-// Modal
-// ------------------------------
-function buildModalDOM() {
-  // Contenedor + estilos mínimos inline (para que funcione incluso sin CSS global)
-  const backdrop = document.createElement('div');
-  backdrop.className = 'pm-backdrop';
-  backdrop.style.cssText = `
-    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
-    background:rgba(0,0,0,.35); z-index:9999;
-  `;
-
-  const modal = document.createElement('div');
-  modal.className = 'pm-modal';
-  modal.role = 'dialog';
-  modal.ariaModal = 'true';
-  modal.style.cssText = `
-    background:#fff; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,.2);
-    width:min(560px, calc(100vw - 24px)); max-width:560px; padding:16px 16px 12px; position:relative;
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell, Noto Sans, sans-serif;
-  `;
-
-  // header
-  const header = document.createElement('div');
-  header.style.cssText = "display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;";
-  const title = document.createElement('h3');
-  title.textContent = 'Registrar pago';
-  title.style.cssText = "margin:0; font-size:18px; color:#3c2a72;";
-  const closeBtn = document.createElement('button');
-  closeBtn.innerHTML = '&times;';
-  closeBtn.title = 'Cerrar';
-  closeBtn.style.cssText = `
-    border:none; background:transparent; font-size:24px; line-height:1; cursor:pointer; color:#444;
-  `;
-  header.appendChild(title);
-  header.appendChild(closeBtn);
-
-  // info
-  const info = document.createElement('div');
-  info.id = 'pm-info';
-  info.style.cssText = `
-    background:#f6f2ff; color:#46317a; border:1px solid #e6ddff; padding:8px 10px; border-radius:8px;
-    margin-bottom:12px; font-size:14px;
-  `;
-  info.textContent = '…';
-
-  // form
-  const form = document.createElement('div');
-  form.style.cssText = "display:grid; grid-template-columns: 1fr 1fr; gap:12px;";
-
-  const gImporte = document.createElement('div');
-  gImporte.innerHTML = `<label style="display:block;font-weight:600;margin-bottom:4px;">Importe</label>`;
-  const inpImporte = document.createElement('input');
-  inpImporte.type = 'text';
-  inpImporte.inputMode = 'numeric';
-  inpImporte.placeholder = '$ 0';
-  inpImporte.className = 'pm-inp';
-  inpImporte.style.cssText = "width:100%; padding:8px 10px; border-radius:8px; border:1px solid #ccc;";
-  gImporte.appendChild(inpImporte);
-
-  const gMedio = document.createElement('div');
-  gMedio.innerHTML = `<label style="display:block;font-weight:600;margin-bottom:4px;">Medio de pago</label>`;
-  const selMedio = document.createElement('select');
-  selMedio.className = 'pm-sel';
-  selMedio.style.cssText = "width:100%; padding:8px 10px; border-radius:8px; border:1px solid #ccc; background:#fff;";
-  selMedio.innerHTML = `
-    <option value="" selected disabled>Elija una forma de pago</option>
-    <option value="efectivo">Efectivo</option>
-    <option value="transferencia">Transferencia</option>
-  `;
-  gMedio.appendChild(selMedio);
-
-  const gNota = document.createElement('div');
-  gNota.style.gridColumn = '1 / -1';
-  gNota.innerHTML = `<label style="display:block;font-weight:600;margin-bottom:4px;">Nota (opcional)</label>`;
-  const taNota = document.createElement('textarea');
-  taNota.rows = 3;
-  taNota.className = 'pm-note';
-  taNota.placeholder = 'Observaciones…';
-  taNota.style.cssText = "width:100%; padding:8px 10px; border-radius:8px; border:1px solid #ccc; resize:vertical;";
-  gNota.appendChild(taNota);
-
-  const gFile = document.createElement('div');
-  gFile.style.gridColumn = '1 / -1';
-  gFile.innerHTML = `<label style="display:block;font-weight:600;margin-bottom:4px;">Comprobante (PDF o imagen) — opcional</label>`;
-  const inpFile = document.createElement('input');
-  inpFile.type = 'file';
-  inpFile.accept = "application/pdf,image/*";
-  gFile.appendChild(inpFile);
-
-  form.appendChild(gImporte);
-  form.appendChild(gMedio);
-  form.appendChild(gNota);
-  form.appendChild(gFile);
-
-  // footer
-  const footer = document.createElement('div');
-  footer.style.cssText = "display:flex; gap:8px; justify-content:flex-end; margin-top:12px;";
-  const btnCancel = document.createElement('button');
-  btnCancel.textContent = 'Cancelar';
-  btnCancel.className = 'pm-cancel';
-  btnCancel.style.cssText = "padding:8px 14px; border-radius:8px; border:1px solid #bbb; background:#fff; cursor:pointer;";
-  const btnOk = document.createElement('button');
-  btnOk.textContent = 'Guardar pago';
-  btnOk.className = 'pm-ok';
-  btnOk.style.cssText = "padding:8px 14px; border-radius:8px; border:none; background:#6c4cc9; color:#fff; cursor:pointer;";
-
-  footer.appendChild(btnCancel);
-  footer.appendChild(btnOk);
-
-  modal.appendChild(header);
-  modal.appendChild(info);
-  modal.appendChild(form);
-  modal.appendChild(footer);
-  backdrop.appendChild(modal);
-
-  return {
-    backdrop, modal, closeBtn, info,
-    inpImporte, selMedio, taNota, inpFile,
-    btnCancel, btnOk
-  };
-}
-
-// ------------------------------
-// API principal
-// ------------------------------
-/**
- * Abre el modal de pago.
- * @param {Object} opts
- * @param {string} opts.turnoId               - ID del turno (obligatorio)
- * @param {number|null} [opts.copagoTotal]    - Copago del turno (opcional; si no viene, lo lee)
- * @param {number|null} [opts.defaultImporte] - Sugerencia de importe inicial
- * @param {Function} [opts.onSaved]           - Callback({ pagoId, totalPagado, pendiente })
- * @returns {Promise<{saved:boolean, pagoId?:string}>}
- */
-export async function openPaymentModal({ turnoId, copagoTotal = null, defaultImporte = null, onSaved } = {}) {
-  if (!turnoId) throw new Error('turnoId es requerido');
-
-  // Construir UI
-  const ui = buildModalDOM();
-  document.body.appendChild(ui.backdrop);
-
-  // estado
-  let saving = false;
-  let cleanup;
-
-  // helpers cierre
-  const close = (result = { saved: false }) => {
-    if (cleanup) cleanup();
-    try { ui.backdrop.remove(); } catch {}
-    return result;
-  };
-
-  // validar y toggle botón
-  function validate() {
-    const imp = toPesoInt(ui.inpImporte.value);
-    const medio = ui.selMedio.value || '';
-    const ok = !!imp && medio !== '';
-    ui.btnOk.disabled = !ok || saving;
-    return ok;
+    return;
   }
 
-  // pre-carga de info (copago/pagado)
-  const copago = (copagoTotal != null) ? Number(copagoTotal) : await fetchTurnoCopago(turnoId);
-  const pagado = await fetchPagado(turnoId);
-  const pendiente = Math.max(0, copago - pagado);
+  // 2) Header (nombre + DNI)
+  const p = t.pacientes || {};
+  const ape = (p.apellido || '').trim();
+  const nom = (p.nombre || '').trim();
+  const fullName = (nom || ape) ? `${nom} ${ape}`.trim() : 'Paciente';
+  setText(UI.tp?.title, fullName);
+  setText(UI.tp?.sub, `DNI ${p.dni || '—'}`);
 
-  // pintar info
-  ui.info.textContent =
-    copago > 0
-      ? `Total copago: ${money(copago)} · Pagado: ${money(pagado)} · Pendiente: ${money(pendiente)}`
-      : `Sin copago informado para este turno.`;
+  // 3) Fecha + rango horario
+  const hi = toHM(t.hora_inicio);
+  const hf = toHM(t.hora_fin);
+  let rango = '—';
+  if (hi && hf)      rango = `${hi} — ${hf}`;
+  else if (hi)       rango = hi;
+  else if (hf)       rango = hf;
+  const fechaTxt = t.fecha || currentFechaISO || '—';
+  setText(UI.tp?.hora, `Turno: ${fechaTxt} · ${rango}`);
 
-  // set defaults
-  if (defaultImporte != null) {
-    ui.inpImporte.value = String(defaultImporte);
-  } else {
-    if (pendiente > 0) ui.inpImporte.value = String(pendiente);
+  // 4) Chips: estado + copago
+  const estado = t.estado;
+  const toneByEstado = {
+    [EST.ASIGNADO]:    'info',
+    [EST.EN_ESPERA]:   'accent',
+    [EST.EN_ATENCION]: 'warn',
+    [EST.ATENDIDO]:    'ok',
+    [EST.CANCELADO]:   'muted',
+    [EST.CONFIRMADO]:  'info'
+  };
+  setChip(UI.tp?.estado, (estado || '—').replaceAll('_',' '), toneByEstado[estado] || '');
+
+  const cop = toPesoInt(t.copago) ?? 0;
+  if (cop > 0) setChip(UI.tp?.copago, `Copago: ${money(cop)}`, 'accent');
+  else setChip(UI.tp?.copago, 'Sin copago', 'muted');
+
+  // 4.b) Pre-cargar comentario de recepción
+  if (UI.tp?.com) {
+    UI.tp.com.value = t.comentario_recepcion || '';
   }
-  validate();
 
-  // event listeners
-  const onBackdropClick = (e) => { if (e.target === ui.backdrop && !saving) resolve(close({ saved:false })); };
-  const onEsc = (e) => { if (e.key === 'Escape' && !saving) resolve(close({ saved:false })); };
-  const onInput = () => validate();
+  // 5) Resumen de pago (Total/Pagado/Pendiente)
+  let totalPagado = 0;
+  try {
+    const { totalPagado: tp } = await getPagoResumen(turnoId);
+    totalPagado = Number(tp || 0);
+  } catch {}
+  const pendiente = Math.max(0, (toPesoInt(t.copago) ?? 0) - totalPagado);
+  const infoEl = document.getElementById('tp-copago-info');
+  if (infoEl) {
+    if (cop === 0) {
+      infoEl.textContent = 'Sin copago';
+    } else {
+      const parts = [
+        `Total: ${money(cop)}`,
+        `Pagado: ${money(totalPagado)}`
+      ];
+      if (pendiente === 0) parts.push(`✅ Abonado`);
+      else parts.push(`Pendiente: ${money(pendiente)}`);
+      infoEl.textContent = parts.join(' · ');
+    }
+  }
 
-  let resolve; // promise resolver
+  // 5.b) Vista previa del comprobante (si existe)
+  try {
+    // último pago con comprobante (columnas correctas)
+    const { data: compRows = [] } = await supabase
+      .from('turnos_pagos')
+      .select('id, comprobante_path, comprobante_mime, fecha')
+      .eq('turno_id', turnoId)
+      .not('comprobante_path','is', null)
+      .order('fecha', { ascending: false })
+      .limit(1);
 
-  ui.backdrop.addEventListener('click', onBackdropClick);
-  document.addEventListener('keydown', onEsc);
-  ui.inpImporte.addEventListener('input', onInput);
-  ui.selMedio.addEventListener('change', onInput);
+    const comp = compRows?.[0];
 
-  ui.closeBtn.onclick = () => { if (!saving) resolve(close({ saved:false })); };
-  ui.btnCancel.onclick = () => { if (!saving) resolve(close({ saved:false })); };
+    // crear contenedor si no existe
+    let wrap = document.getElementById('tp-comp-wrap');
+    if (!wrap) {
+      wrap = document.createElement('div');
+      wrap.id = 'tp-comp-wrap';
+      wrap.style.marginTop = '8px';
+      // insertarlo debajo de #tp-copago-info
+      const row = infoEl?.parentElement || UI.tp?.el?.querySelector('.tp-section .tp-row');
+      (row || UI.tp?.el)?.appendChild(wrap);
+    }
+    // limpiar
+    wrap.innerHTML = '';
 
-  ui.btnOk.onclick = async () => {
-    if (saving) return;
-    if (!validate()) return;
+    if (comp?.comprobante_path) {
+      // URL firmada (10 minutos)
+      const { data: signed, error: sErr } = await supabase
+        .storage.from('turnos_pagos')
+        .createSignedUrl(comp.comprobante_path, 60 * 10);
 
-    const importe = toPesoInt(ui.inpImporte.value);
-    const medio = ui.selMedio.value;
-    const nota = (ui.taNota.value || '').trim();
-    const file = ui.inpFile.files?.[0] || null;
+      if (!sErr && signed?.signedUrl) {
+        const url = signed.signedUrl;
+        const mime = (comp.comprobante_mime || '').toLowerCase();
+        const isImg = mime.startsWith('image/') || /\.(png|jpe?g|webp|gif|bmp|svg)$/i.test(comp.comprobante_path);
 
-    try {
-      saving = true; ui.btnOk.disabled = true; ui.btnCancel.disabled = true; ui.closeBtn.disabled = true;
-      ui.btnOk.textContent = 'Guardando…';
+        const title = document.createElement('div');
+        title.textContent = 'Comprobante:';
+        title.style.fontSize = '12px';
+        title.style.color = '#6b6480';
+        title.style.marginBottom = '4px';
+        wrap.appendChild(title);
 
-      // 1) upload (opcional)
-      let up = { path: null, meta: {} };
-      if (file) {
-        const path = buildPath(turnoId, file);
-        up = await uploadComprobante(file, path);
+        if (isImg) {
+          const thumb = document.createElement('img');
+          thumb.src = url;
+          thumb.alt = 'Comprobante';
+          thumb.style.maxWidth = '120px';
+          thumb.style.maxHeight = '90px';
+          thumb.style.borderRadius = '6px';
+          thumb.style.boxShadow = '0 1px 4px rgba(0,0,0,.12)';
+          thumb.style.cursor = 'zoom-in';
+          thumb.onclick = () => openLightbox(url);
+          wrap.appendChild(thumb);
+        } else {
+          const a = document.createElement('a');
+          a.href = url;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.textContent = 'Abrir comprobante';
+          a.className = 'btn secondary';
+          wrap.appendChild(a);
+        }
       }
-
-      // 2) user id
-      const uid = await getUserId();
-
-      // 3) insert pago
-      const payload = {
-        turno_id: turnoId,
-        importe,
-        medio_pago: medio,          // 'efectivo' | 'transferencia'
-        nota: nota || null,
-
-        // metadata del comprobante
-        comprobante_path: up.path,
-        comprobante_mime: up.meta.comprobante_mime || null,
-        comprobante_size: up.meta.comprobante_size || null,
-        comprobante_filename: up.meta.comprobante_filename || null,
-
-        // quién registró y quién subió (si hay auth)
-        registrado_por: uid,
-        comprobante_subido_por: uid,
-      };
-
-      const { data, error } = await supabase
-        .from('turnos_pagos')
-        .insert([payload])
-        .select('id')
-        .single();
-
-      if (error) throw error;
-
-      // 4) recomputar totales
-      const nuevoPagado = await fetchPagado(turnoId);
-      const nuevoPend = Math.max(0, copago - nuevoPagado);
-
-      // callback opcional
-      onSaved?.({ pagoId: data?.id, totalPagado: nuevoPagado, pendiente: nuevoPend });
-
-      resolve(close({ saved: true, pagoId: data?.id }));
-    } catch (err) {
-      console.error('[payments] insert/upload error:', err);
-      alert(err?.message || 'No se pudo registrar el pago.');
-      saving = false; ui.btnOk.disabled = !validate(); ui.btnCancel.disabled = false; ui.closeBtn.disabled = false;
-      ui.btnOk.textContent = 'Guardar pago';
     }
-  };
+  } catch (e) {
+    // no interrumpimos el panel si falla
+  }
 
-  cleanup = () => {
-    ui.backdrop.removeEventListener('click', onBackdropClick);
-    document.removeEventListener('keydown', onEsc);
-    ui.inpImporte.removeEventListener('input', onInput);
-    ui.selMedio.removeEventListener('change', onInput);
-  };
+  // 6) Botones (visibilidad y habilitación según permisos/estado)
+  const isHoy = (currentFechaISO === todayISO());
 
-  // focus inicial
-  setTimeout(() => ui.inpImporte.focus(), 0);
+  // ARRIBO
+  const canArribo = roleAllows('arribo', userRole) && estado === EST.ASIGNADO && isHoy;
+  show(UI.tp?.btnArr, canArribo);
+  if (UI.tp?.btnArr) {
+    enable(UI.tp.btnArr, canArribo);
+    UI.tp.btnArr.onclick = () => marcarLlegadaYCopago(turnoId);
+  }
 
-  return new Promise((res) => { resolve = res; });
+  // ATENDER
+  const canAtender = roleAllows('atender', userRole) && estado === EST.EN_ESPERA;
+  show(UI.tp?.btnAt, canAtender);
+  if (UI.tp?.btnAt) {
+    enable(UI.tp.btnAt, canAtender);
+    UI.tp.btnAt.onclick = (ev) => pasarAEnAtencion(turnoId, ev);
+  }
+
+  // FINALIZAR
+  const canFinalizar = roleAllows('finalizar', userRole) && estado === EST.EN_ATENCION;
+  show(UI.tp?.btnFinalizar, canFinalizar);
+  if (UI.tp?.btnFinalizar) {
+    enable(UI.tp.btnFinalizar, canFinalizar);
+    UI.tp.btnFinalizar.onclick = () => finalizarAtencion(turnoId);
+  }
+
+  // CANCELAR
+  const canCancelar = roleAllows('cancelar', userRole) && estado !== EST.CANCELADO && estado !== EST.ATENDIDO;
+  show(UI.tp?.btnCan, canCancelar);
+  if (UI.tp?.btnCan) {
+    enable(UI.tp.btnCan, canCancelar);
+    UI.tp.btnCan.onclick = () => anularTurno(turnoId);
+  }
+
+  // PAGO (modal nuevo vía bridge)
+  const canPagar = (cop > 0 && pendiente > 0);
+  show(UI.tp?.btnPago, canPagar);
+  if (UI.tp?.btnPago) {
+    enable(UI.tp.btnPago, canPagar);
+    UI.tp.btnPago.onclick = () => openPaymentBridge({
+      turnoId,
+      amount: pendiente,
+      confirmLabel: 'Registrar pago',
+      skipLabel: 'Cerrar',
+      onPaid: async () => {
+        await inicioOpenTurnoPanel(turnoId);                 // refresca slide
+        await refreshAll({ showOverlayIfSlow:false });       // refresca boards
+      },
+      onSkip: () => {}
+    });
+  }
+
+  // FICHA
+  const canAbrirFicha = roleAllows('abrir_ficha', userRole);
+  show(UI.tp?.btnFicha, canAbrirFicha);
+  if (UI.tp?.btnFicha) {
+    enable(UI.tp.btnFicha, canAbrirFicha);
+    UI.tp.btnFicha.onclick = () => openFicha(turnoId);
+  }
+
+  // Guardar comentario recepción
+  if (UI.tp?.btnSave && UI.tp?.com) {
+    UI.tp.btnSave.onclick = async () => {
+      const v = (UI.tp.com.value || '').trim() || null;
+      const { error: e } = await supabase
+        .from('turnos')
+        .update({ comentario_recepcion: v })
+        .eq('id', turnoId);
+      if (e) { alert('No se pudo guardar el comentario.'); return; }
+      UI.tp.btnSave.classList.add('ok');
+      setTimeout(()=> UI.tp.btnSave.classList.remove('ok'), 600);
+    };
+  }
+
+  // 7) Abrir panel
+  const el = UI?.tp?.el || document.getElementById('turnoPanel');
+  if (el){
+    el.classList.add('open');
+    el.setAttribute('aria-hidden','false');
+    el.setAttribute('data-turno-id', String(turnoId));
+    document.body.classList.add('tp-open');
+    const btnClose = UI?.tp?.close || el.querySelector('#tp-close');
+    btnClose?.addEventListener('click', inicioHideTurnoPanel, { once:true });
+    btnClose?.focus?.();
+  }
 }
-
-export { openPaymentModal as openPagoModal };
