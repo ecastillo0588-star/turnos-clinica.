@@ -1,355 +1,354 @@
 // payments.js
-// Modal unificado de pagos (Inicio + Turnos)
-// - Carga el HTML partial (payment-modal.html) una sola vez
-// - Muestra total/pagado/pendiente
-// - Inserta registro en turnos_pagos
-// - (Opcional) Subir comprobante a Supabase Storage 'comprobantes'
-// ---------------------------------------------------------------
+// Modal de cobro reutilizable para Inicio/Turnos
+// Requiere: supabaseClient.js (ESM)
+// Bucket de storage: 'turnos_pagos'
 
 import supabase from './supabaseClient.js';
 
-const MODAL_PARTIAL_URL = '/payment-modal.html'; // Cambiá si lo servís en otra ruta
-const BUCKET = 'comprobantes';
-const ALLOWED_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp', 'image/gif']);
-const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
+const BUCKET = 'turnos_pagos';
 
-let _modalLoaded = false;
-let _dom = null; // refs a nodos del modal
-let _backdrop = null;
-
-/* ===========================
-   Helpers de dinero / parsing
-   =========================== */
-function toPesoInt(v) {
-  if (v === null || v === undefined) return null;
-  const s = String(v)
-    .replace(/[^\d,.-]/g, '')
-    .replace(/\./g, '')
-    .replace(',', '.');
+// ------------------------------
+// Utils
+// ------------------------------
+const toPesoInt = (v) => {
+  if (v == null) return null;
+  const s = String(v).replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
   const n = Number(s);
   if (!isFinite(n) || n <= 0) return null;
   return Math.round(n);
-}
-function money(n) {
-  const val = toPesoInt(n);
-  return new Intl.NumberFormat('es-AR', {
-    style: 'currency',
-    currency: 'ARS',
-    maximumFractionDigits: 0
-  }).format(val ?? 0);
-}
-const pad2 = (n) => (n < 10 ? '0' + n : '' + n);
+};
 
-/* ===========================
-   Supabase helpers
-   =========================== */
-async function getPagoResumen(turnoId) {
-  const { data = [], error } = await supabase
-    .from('turnos_pagos')
-    .select('importe, medio_pago, fecha')
-    .eq('turno_id', turnoId)
-    .order('fecha', { ascending: false });
+const money = (n) =>
+  new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 })
+    .format(Math.max(0, Math.round(n || 0)));
 
-  if (error) {
-    console.warn('[payments] getPagoResumen error:', error);
-    return { totalPagado: 0, ultimoMedio: null };
-  }
-  const totalPagado = data.reduce((a, r) => a + Number(r.importe || 0), 0);
-  const ultimoMedio = data[0]?.medio_pago || null;
-  return { totalPagado, ultimoMedio };
+async function getUserId() {
+  try {
+    const { data } = await supabase.auth.getUser();
+    return data?.user?.id || null;
+  } catch { return null; }
 }
 
-async function getTurnoCopago(turnoId) {
+async function fetchTurnoCopago(turnoId) {
   const { data, error } = await supabase
     .from('turnos')
-    .select('copago, fecha')
+    .select('copago')
     .eq('id', turnoId)
     .maybeSingle();
   if (error) throw error;
-  return { copago: Number(data?.copago || 0), fechaISO: data?.fecha || null };
+  return Number(data?.copago || 0);
 }
 
-/* ===========================
-   File helpers
-   =========================== */
-function humanSize(bytes) {
-  if (!Number.isFinite(bytes)) return '—';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+async function fetchPagado(turnoId) {
+  const { data, error } = await supabase
+    .from('turnos_pagos')
+    .select('importe')
+    .eq('turno_id', turnoId);
+  if (error) throw error;
+  return (data || []).reduce((a, r) => a + Number(r.importe || 0), 0);
 }
 
-function validateFile(file) {
-  if (!file) return { ok: true, msg: '' }; // archivo opcional
-  if (!ALLOWED_MIME.has(file.type)) {
-    return { ok: false, msg: 'Solo PDF o imágenes (JPG/PNG/WEBP/GIF).' };
-  }
-  if (file.size > MAX_SIZE) {
-    return { ok: false, msg: `Archivo demasiado grande (máx. ${humanSize(MAX_SIZE)}).` };
-  }
-  return { ok: true, msg: '' };
+function buildPath(turnoId, file) {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const ts = Date.now();
+  const safe = (file?.name || 'archivo').replace(/\s+/g, '_');
+  return `${turnoId}/${yyyy}/${mm}/${dd}/${ts}__${safe}`;
 }
 
-async function sha256Hex(file) {
-  const buf = await file.arrayBuffer();
-  const hash = await crypto.subtle.digest('SHA-256', buf);
-  const bytes = new Uint8Array(hash);
-  return [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-/**
- * Sube el archivo y devuelve metadatos para guardar en DB.
- * path: comprobantes/<turnoId>/<YYYY>/<MM>/<DD>/<timestamp>__<original>
- */
-async function uploadComprobante(turnoId, file, fechaISO) {
-  if (!file) return null;
-
-  const { ok, msg } = validateFile(file);
-  if (!ok) throw new Error(msg);
-
-  const d = fechaISO ? new Date(fechaISO + 'T00:00:00') : new Date();
-  const y = d.getFullYear();
-  const m = pad2(d.getMonth() + 1);
-  const day = pad2(d.getDate());
-
-  const stamp = Date.now();
-  const safeName = (file.name || 'archivo').replace(/[^\w.\-]+/g, '_').slice(0, 80);
-  const path = `comprobantes/${turnoId}/${y}/${m}/${day}/${stamp}__${safeName}`;
-
-  // Hash (opcional pero útil)
-  let sha256 = null;
-  try { sha256 = await sha256Hex(file); } catch { /* ignore */ }
-
-  const { error: upErr } = await supabase.storage
+async function uploadComprobante(file, path) {
+  if (!file) return { path: null, meta: {} };
+  const { data, error } = await supabase.storage
     .from(BUCKET)
     .upload(path, file, {
-      cacheControl: '31536000',
       upsert: false,
-      contentType: file.type || undefined
+      contentType: file.type || 'application/octet-stream',
     });
+  if (error) throw error;
 
-  if (upErr) {
-    console.error('[payments] upload error:', upErr);
-    throw new Error(upErr.message || 'No se pudo subir el comprobante');
-  }
+  // meta simple (si querés sha256 lo agregamos después)
+  return {
+    path: data?.path || path,
+    meta: {
+      comprobante_mime: file.type || null,
+      comprobante_size: file.size || null,
+      comprobante_filename: file.name || null,
+    }
+  };
+}
+
+// ------------------------------
+// Modal
+// ------------------------------
+function buildModalDOM() {
+  // Contenedor + estilos mínimos inline (para que funcione incluso sin CSS global)
+  const backdrop = document.createElement('div');
+  backdrop.className = 'pm-backdrop';
+  backdrop.style.cssText = `
+    position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.35); z-index:9999;
+  `;
+
+  const modal = document.createElement('div');
+  modal.className = 'pm-modal';
+  modal.role = 'dialog';
+  modal.ariaModal = 'true';
+  modal.style.cssText = `
+    background:#fff; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,.2);
+    width:min(560px, calc(100vw - 24px)); max-width:560px; padding:16px 16px 12px; position:relative;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell, Noto Sans, sans-serif;
+  `;
+
+  // header
+  const header = document.createElement('div');
+  header.style.cssText = "display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;";
+  const title = document.createElement('h3');
+  title.textContent = 'Registrar pago';
+  title.style.cssText = "margin:0; font-size:18px; color:#3c2a72;";
+  const closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '&times;';
+  closeBtn.title = 'Cerrar';
+  closeBtn.style.cssText = `
+    border:none; background:transparent; font-size:24px; line-height:1; cursor:pointer; color:#444;
+  `;
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+
+  // info
+  const info = document.createElement('div');
+  info.id = 'pm-info';
+  info.style.cssText = `
+    background:#f6f2ff; color:#46317a; border:1px solid #e6ddff; padding:8px 10px; border-radius:8px;
+    margin-bottom:12px; font-size:14px;
+  `;
+  info.textContent = '…';
+
+  // form
+  const form = document.createElement('div');
+  form.style.cssText = "display:grid; grid-template-columns: 1fr 1fr; gap:12px;";
+
+  const gImporte = document.createElement('div');
+  gImporte.innerHTML = `<label style="display:block;font-weight:600;margin-bottom:4px;">Importe</label>`;
+  const inpImporte = document.createElement('input');
+  inpImporte.type = 'text';
+  inpImporte.inputMode = 'numeric';
+  inpImporte.placeholder = '$ 0';
+  inpImporte.className = 'pm-inp';
+  inpImporte.style.cssText = "width:100%; padding:8px 10px; border-radius:8px; border:1px solid #ccc;";
+  gImporte.appendChild(inpImporte);
+
+  const gMedio = document.createElement('div');
+  gMedio.innerHTML = `<label style="display:block;font-weight:600;margin-bottom:4px;">Medio de pago</label>`;
+  const selMedio = document.createElement('select');
+  selMedio.className = 'pm-sel';
+  selMedio.style.cssText = "width:100%; padding:8px 10px; border-radius:8px; border:1px solid #ccc; background:#fff;";
+  selMedio.innerHTML = `
+    <option value="" selected disabled>Elija una forma de pago</option>
+    <option value="efectivo">Efectivo</option>
+    <option value="transferencia">Transferencia</option>
+  `;
+  gMedio.appendChild(selMedio);
+
+  const gNota = document.createElement('div');
+  gNota.style.gridColumn = '1 / -1';
+  gNota.innerHTML = `<label style="display:block;font-weight:600;margin-bottom:4px;">Nota (opcional)</label>`;
+  const taNota = document.createElement('textarea');
+  taNota.rows = 3;
+  taNota.className = 'pm-note';
+  taNota.placeholder = 'Observaciones…';
+  taNota.style.cssText = "width:100%; padding:8px 10px; border-radius:8px; border:1px solid #ccc; resize:vertical;";
+  gNota.appendChild(taNota);
+
+  const gFile = document.createElement('div');
+  gFile.style.gridColumn = '1 / -1';
+  gFile.innerHTML = `<label style="display:block;font-weight:600;margin-bottom:4px;">Comprobante (PDF o imagen) — opcional</label>`;
+  const inpFile = document.createElement('input');
+  inpFile.type = 'file';
+  inpFile.accept = "application/pdf,image/*";
+  gFile.appendChild(inpFile);
+
+  form.appendChild(gImporte);
+  form.appendChild(gMedio);
+  form.appendChild(gNota);
+  form.appendChild(gFile);
+
+  // footer
+  const footer = document.createElement('div');
+  footer.style.cssText = "display:flex; gap:8px; justify-content:flex-end; margin-top:12px;";
+  const btnCancel = document.createElement('button');
+  btnCancel.textContent = 'Cancelar';
+  btnCancel.className = 'pm-cancel';
+  btnCancel.style.cssText = "padding:8px 14px; border-radius:8px; border:1px solid #bbb; background:#fff; cursor:pointer;";
+  const btnOk = document.createElement('button');
+  btnOk.textContent = 'Guardar pago';
+  btnOk.className = 'pm-ok';
+  btnOk.style.cssText = "padding:8px 14px; border-radius:8px; border:none; background:#6c4cc9; color:#fff; cursor:pointer;";
+
+  footer.appendChild(btnCancel);
+  footer.appendChild(btnOk);
+
+  modal.appendChild(header);
+  modal.appendChild(info);
+  modal.appendChild(form);
+  modal.appendChild(footer);
+  backdrop.appendChild(modal);
 
   return {
-    comprobante_path: path,
-    comprobante_mime: file.type || null,
-    comprobante_size: file.size ?? null,
-    comprobante_filename: file.name || null,
-    comprobante_sha256: sha256,
+    backdrop, modal, closeBtn, info,
+    inpImporte, selMedio, taNota, inpFile,
+    btnCancel, btnOk
   };
 }
 
-/* ===========================
-   Modal loader (partial)
-   =========================== */
-async function ensureModalLoaded() {
-  if (_modalLoaded) return;
+// ------------------------------
+// API principal
+// ------------------------------
+/**
+ * Abre el modal de pago.
+ * @param {Object} opts
+ * @param {string} opts.turnoId               - ID del turno (obligatorio)
+ * @param {number|null} [opts.copagoTotal]    - Copago del turno (opcional; si no viene, lo lee)
+ * @param {number|null} [opts.defaultImporte] - Sugerencia de importe inicial
+ * @param {Function} [opts.onSaved]           - Callback({ pagoId, totalPagado, pendiente })
+ * @returns {Promise<{saved:boolean, pagoId?:string}>}
+ */
+export async function openPaymentModal({ turnoId, copagoTotal = null, defaultImporte = null, onSaved } = {}) {
+  if (!turnoId) throw new Error('turnoId es requerido');
 
-  // Cargar partial
-  const res = await fetch(MODAL_PARTIAL_URL, { cache: 'no-cache' });
-  if (!res.ok) throw new Error('No se pudo cargar payment-modal.html');
-  const html = await res.text();
+  // Construir UI
+  const ui = buildModalDOM();
+  document.body.appendChild(ui.backdrop);
 
-  // Montar en DOM
-  const wrap = document.createElement('div');
-  wrap.innerHTML = html;
+  // estado
+  let saving = false;
+  let cleanup;
 
-  // Soportar dos variantes de partial:
-  //  1) <template id="tpl-modal-pago">...</template>
-  //  2) markup directo con .modal-backdrop
-  const tpl = wrap.querySelector('#tpl-modal-pago');
-  if (tpl?.content) {
-    document.body.appendChild(tpl.content.cloneNode(true));
+  // helpers cierre
+  const close = (result = { saved: false }) => {
+    if (cleanup) cleanup();
+    try { ui.backdrop.remove(); } catch {}
+    return result;
+  };
+
+  // validar y toggle botón
+  function validate() {
+    const imp = toPesoInt(ui.inpImporte.value);
+    const medio = ui.selMedio.value || '';
+    const ok = !!imp && medio !== '';
+    ui.btnOk.disabled = !ok || saving;
+    return ok;
+  }
+
+  // pre-carga de info (copago/pagado)
+  const copago = (copagoTotal != null) ? Number(copagoTotal) : await fetchTurnoCopago(turnoId);
+  const pagado = await fetchPagado(turnoId);
+  const pendiente = Math.max(0, copago - pagado);
+
+  // pintar info
+  ui.info.textContent =
+    copago > 0
+      ? `Total copago: ${money(copago)} · Pagado: ${money(pagado)} · Pendiente: ${money(pendiente)}`
+      : `Sin copago informado para este turno.`;
+
+  // set defaults
+  if (defaultImporte != null) {
+    ui.inpImporte.value = String(defaultImporte);
   } else {
-    // Asumimos que el partial ya trae la .modal-backdrop
-    document.body.appendChild(wrap.firstElementChild);
+    if (pendiente > 0) ui.inpImporte.value = String(pendiente);
   }
+  validate();
 
-  _backdrop = document.querySelector('.modal-backdrop[data-modal="pago"]') ||
-              document.querySelector('.modal-backdrop'); // fallback
+  // event listeners
+  const onBackdropClick = (e) => { if (e.target === ui.backdrop && !saving) resolve(close({ saved:false })); };
+  const onEsc = (e) => { if (e.key === 'Escape' && !saving) resolve(close({ saved:false })); };
+  const onInput = () => validate();
 
-  if (!_backdrop) throw new Error('payment-modal: no se encontró .modal-backdrop');
+  let resolve; // promise resolver
 
-  // Cache refs
-  _dom = {
-    info:       _backdrop.querySelector('#pay-info'),
-    imp:        _backdrop.querySelector('#pay-importe'),
-    medio:      _backdrop.querySelector('#pay-medio'),
-    nota:       _backdrop.querySelector('#pay-nota'),
-    file:       _backdrop.querySelector('#pay-file'),
-    fileHint:   _backdrop.querySelector('#pay-file-hint'),
-    fileClear:  _backdrop.querySelector('#pay-file-clear'),
-    btnOk:      _backdrop.querySelector('#btn-confirm'),
-    btnCancel:  _backdrop.querySelector('#btn-cancel') || _backdrop.querySelector('.modal-close'),
-    closeX:     _backdrop.querySelector('.modal-close'),
-    modal:      _backdrop.querySelector('.modal')
-  };
+  ui.backdrop.addEventListener('click', onBackdropClick);
+  document.addEventListener('keydown', onEsc);
+  ui.inpImporte.addEventListener('input', onInput);
+  ui.selMedio.addEventListener('change', onInput);
 
-  // Listeners fijos
-  // Cerrar al click afuera
-  _backdrop.addEventListener('click', (e) => {
-    if (e.target === _backdrop) hide();
-  });
-  // Botón X
-  _dom.closeX?.addEventListener('click', hide);
-  _dom.btnCancel?.addEventListener('click', hide);
+  ui.closeBtn.onclick = () => { if (!saving) resolve(close({ saved:false })); };
+  ui.btnCancel.onclick = () => { if (!saving) resolve(close({ saved:false })); };
 
-  // File UI
-  if (_dom.file) {
-    _dom.file.addEventListener('change', () => {
-      const f = _dom.file.files?.[0] || null;
-      if (!f) {
-        _dom.fileHint.textContent = 'PDF o imagen (opcional).';
-        return;
-      }
-      const { ok, msg } = validateFile(f);
-      if (!ok) {
-        _dom.file.value = '';
-        _dom.fileHint.textContent = msg;
-      } else {
-        _dom.fileHint.textContent = `${f.name} · ${f.type || '—'} · ${humanSize(f.size)}`;
-      }
-    });
-  }
-  if (_dom.fileClear) {
-    _dom.fileClear.addEventListener('click', () => {
-      if (_dom.file) _dom.file.value = '';
-      if (_dom.fileHint) _dom.fileHint.textContent = 'PDF o imagen (opcional).';
-    });
-  }
+  ui.btnOk.onclick = async () => {
+    if (saving) return;
+    if (!validate()) return;
 
-  _modalLoaded = true;
-}
-
-function show() {
-  _backdrop?.classList.add('show');
-}
-function hide() {
-  _backdrop?.classList.remove('show');
-  // Limpieza liviana
-  if (_dom?.imp)   _dom.imp.value = '';
-  if (_dom?.nota)  _dom.nota.value = '';
-  if (_dom?.medio) _dom.medio.value = 'efectivo';
-  if (_dom?.file)  _dom.file.value = '';
-  if (_dom?.fileHint) _dom.fileHint.textContent = 'PDF o imagen (opcional).';
-  if (_dom?.info) {
-    _dom.info.classList.remove('error-box');
-    _dom.info.classList.remove('success-box');
-    _dom.info.style.display = 'none';
-    _dom.info.textContent = '';
-  }
-}
-
-/* ===========================
-   API principal
-   =========================== */
-export async function openPagoModal(turnoId, { afterPay } = {}) {
-  await ensureModalLoaded();
-
-  // 1) Leer copago + resumen pagado
-  let copago = 0, fechaISO = null, totalPagado = 0;
-  try {
-    const t = await getTurnoCopago(turnoId);
-    copago = Number(t.copago || 0);
-    fechaISO = t.fechaISO || null;
-    const r = await getPagoResumen(turnoId);
-    totalPagado = Number(r.totalPagado || 0);
-  } catch (e) {
-    console.warn('[payments] no se pudo leer turno/resumen:', e);
-  }
-
-  const pendiente = Math.max(0, copago - totalPagado);
-  if (_dom.info) {
-    _dom.info.style.display = '';
-    _dom.info.classList.remove('error-box');
-    _dom.info.classList.add('success-box');
-    _dom.info.innerHTML = `
-      Total copago: <b>${money(copago)}</b> · Pagado: <b>${money(totalPagado)}</b> · Pendiente: <b>${money(pendiente)}</b>
-    `;
-  }
-  if (_dom.imp) _dom.imp.value = pendiente > 0 ? String(pendiente) : '';
-
-  // 2) Confirmar → subir (si hay archivo) → insertar pago
-  const onConfirm = async () => {
-    if (!_dom.btnOk) return;
-    if (_dom.btnOk.disabled) return;
-
-    const rawImp = _dom.imp?.value ?? '';
-    const imp = toPesoInt(rawImp);
-    const medio = _dom.medio?.value || 'efectivo';
-    const nota = (_dom.nota?.value || '').trim();
-
-    if (!imp || imp <= 0) {
-      alert('Ingresá un importe válido (> 0).');
-      return;
-    }
-    if (medio !== 'efectivo' && medio !== 'transferencia') {
-      alert('Medio de pago inválido.');
-      return;
-    }
-
-    // Validar archivo (si existe)
-    const file = _dom.file?.files?.[0] || null;
-    const v = validateFile(file);
-    if (!v.ok) {
-      alert(v.msg);
-      return;
-    }
-
-    _dom.btnOk.disabled = true;
-    const prev = _dom.btnOk.textContent;
-    _dom.btnOk.textContent = 'Guardando…';
+    const importe = toPesoInt(ui.inpImporte.value);
+    const medio = ui.selMedio.value;
+    const nota = (ui.taNota.value || '').trim();
+    const file = ui.inpFile.files?.[0] || null;
 
     try {
-      // 2.a) Subir archivo (opcional)
-      let meta = null;
+      saving = true; ui.btnOk.disabled = true; ui.btnCancel.disabled = true; ui.closeBtn.disabled = true;
+      ui.btnOk.textContent = 'Guardando…';
+
+      // 1) upload (opcional)
+      let up = { path: null, meta: {} };
       if (file) {
-        meta = await uploadComprobante(turnoId, file, fechaISO);
+        const path = buildPath(turnoId, file);
+        up = await uploadComprobante(file, path);
       }
 
-      // 2.b) Insert en turnos_pagos
-      const row = {
+      // 2) user id
+      const uid = await getUserId();
+
+      // 3) insert pago
+      const payload = {
         turno_id: turnoId,
-        importe: imp,
-        medio_pago: medio,
+        importe,
+        medio_pago: medio,          // 'efectivo' | 'transferencia'
         nota: nota || null,
-        // metadatos del comprobante (si hay)
-        ...(meta || {}),
+
+        // metadata del comprobante
+        comprobante_path: up.path,
+        comprobante_mime: up.meta.comprobante_mime || null,
+        comprobante_size: up.meta.comprobante_size || null,
+        comprobante_filename: up.meta.comprobante_filename || null,
+
+        // quién registró y quién subió (si hay auth)
+        registrado_por: uid,
+        comprobante_subido_por: uid,
       };
 
-      const { error: insErr } = await supabase.from('turnos_pagos').insert([row]);
-      if (insErr) throw insErr;
+      const { data, error } = await supabase
+        .from('turnos_pagos')
+        .insert([payload])
+        .select('id')
+        .single();
 
-      hide();
-      if (typeof afterPay === 'function') {
-        await afterPay();
-      }
-    } catch (e) {
-      console.error('[payments] insert/upload error:', e);
-      alert(e.message || 'No se pudo registrar el pago.');
-    } finally {
-      if (_dom.btnOk) {
-        _dom.btnOk.disabled = false;
-        _dom.btnOk.textContent = prev;
-      }
+      if (error) throw error;
+
+      // 4) recomputar totales
+      const nuevoPagado = await fetchPagado(turnoId);
+      const nuevoPend = Math.max(0, copago - nuevoPagado);
+
+      // callback opcional
+      onSaved?.({ pagoId: data?.id, totalPagado: nuevoPagado, pendiente: nuevoPend });
+
+      resolve(close({ saved: true, pagoId: data?.id }));
+    } catch (err) {
+      console.error('[payments] insert/upload error:', err);
+      alert(err?.message || 'No se pudo registrar el pago.');
+      saving = false; ui.btnOk.disabled = !validate(); ui.btnCancel.disabled = false; ui.closeBtn.disabled = false;
+      ui.btnOk.textContent = 'Guardar pago';
     }
   };
 
-  // Bind/cancel previous handler to avoid duplicates
-  if (_dom.btnOk) {
-    _dom.btnOk.onclick = onConfirm;
-  }
+  cleanup = () => {
+    ui.backdrop.removeEventListener('click', onBackdropClick);
+    document.removeEventListener('keydown', onEsc);
+    ui.inpImporte.removeEventListener('input', onInput);
+    ui.selMedio.removeEventListener('change', onInput);
+  };
 
-  show();
+  // focus inicial
+  setTimeout(() => ui.inpImporte.focus(), 0);
+
+  return new Promise((res) => { resolve = res; });
 }
-
-/* ===========================
-   (Opcional) utilidad para abrir directo con datos mock
-   =========================== */
-// window.__openPagoDemo = () => openPagoModal('00000000-0000-0000-0000-000000000000');
-
-export default { openPagoModal };
-
