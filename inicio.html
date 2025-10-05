@@ -272,49 +272,6 @@
   </section>
 </div>
 
-  <!-- donde ya tengas tu app -->
-<div id="modal-root"></div>
-
-<!-- template reutilizable del modal de pago -->
-<template id="tpl-modal-pago">
-  <div class="modal-backdrop">
-    <div class="modal" role="dialog" aria-modal="true" style="max-width:520px">
-      <button class="modal-close" aria-label="Cerrar">&times;</button>
-
-      <div class="modal-header">
-        <h3>Copago del turno</h3>
-      </div>
-
-      <div class="modal-body">
-        <div id="pay-info" class="success-box" style="display:none"></div>
-
-        <div class="form-grid">
-          <div class="form-group">
-            <label>Importe</label>
-            <input id="pay-importe" class="inp" inputmode="decimal" placeholder="0" />
-          </div>
-          <div class="form-group">
-            <label>Medio de pago</label>
-            <select id="pay-medio" class="sel">
-              <option value="efectivo">Efectivo</option>
-              <option value="transferencia">Transferencia</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-group optional-note" hidden>
-          <label>Nota (opcional)</label>
-          <input id="pay-nota" class="inp" placeholder="Observaciones..." />
-        </div>
-      </div>
-
-      <div class="modal-footer">
-        <button id="btn-skip" class="btn secondary" hidden>Continuar sin cobrar</button>
-        <button id="btn-confirm" class="btn primary">Registrar pago</button>
-      </div>
-    </div>
-  </div>
-</template>
 
   
 <!-- Tu lógica va aparte en inicio.js -->
