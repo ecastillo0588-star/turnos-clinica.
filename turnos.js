@@ -5,7 +5,7 @@ import supabase from './supabaseClient.js';
 import { isValidHourRange as _isValidHourRange } from './validators.js';
 import { openPacienteModal, loadProfesionalesIntoSelect, applyRoleClasses, roleAllows } from './global.js';
 // turnos.js
-import { openPaymentModal } from './payments.js';
+import { openPagoModal, initPaymentsBridge } from './payments.js';
 
 
 // ---------------------------
@@ -949,17 +949,14 @@ async function tryAgendar(slot){
 ¿Registrar el cobro ahora?`
       );
       if (quiereCobrar) {
-        await openPaymentModal({
-          turnoId: inserted.id,
-          defaultImporte: copagoFinal ?? 0,   // precarga el copago sugerido
-          presetMedio: null,                  // opcional: 'efectivo' | 'transferencia'
-          onDone: async () => {               // refrescos tras guardar el pago
-            await refreshDayModal();
-            await renderCalendar();
-          }
-        });
-      }
-    }
+await openPagoModal({
+  turnoId: inserted.id,
+ defaultImporte: copagoFinal ?? 0,
+  onSaved: async () => {              // callback al guardar
+    await refreshDayModal();
+    await renderCalendar();
+  }
+ });
 
     // --------- Modal OK + WhatsApp (editable) ----------
     openOkModal({
@@ -1491,6 +1488,7 @@ export async function initTurnos(){
   bindUI();
   attachHandlers();
   renderDow();
+  initPaymentsBridge(); // idempotente
 
   // Centro desde sidebar
   await syncCentroFromStorage(true);
