@@ -352,3 +352,5 @@ export async function openPaymentModal({ turnoId, copagoTotal = null, defaultImp
 
   return new Promise((res) => { resolve = res; });
 }
+
+export { openPaymentModal as openPagoModal };
