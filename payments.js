@@ -289,3 +289,22 @@ async function inicioOpenTurnoPanel(turnoId){
     btnClose?.focus?.();
   }
 }
+
+
+export function initPaymentsBridge() {
+  // Busca botones con data-open-pago="TURNOID"
+  document.querySelectorAll('[data-open-pago]').forEach(btn => {
+    if (btn._pagoInit) return;
+    btn._pagoInit = true;
+    btn.addEventListener('click', async () => {
+      const turnoId = btn.getAttribute('data-open-pago');
+      if (!turnoId) return;
+      try {
+        await openPagoModal({ turnoId });
+      } catch (e) {
+        console.error('openPagoModal error:', e);
+        alert(e?.message || 'No se pudo abrir el modal de pago.');
+      }
+    });
+  });
+}
