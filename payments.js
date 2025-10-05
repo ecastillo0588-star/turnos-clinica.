@@ -308,3 +308,6 @@ export function initPaymentsBridge() {
     });
   });
 }
+
+export { openPaymentModal };
+export { openPaymentModal as openPagoModal };
