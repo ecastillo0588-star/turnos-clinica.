@@ -915,7 +915,7 @@ async function tryAgendar(slot){
     const comentarioRecep = (resConfirm.comentario || '').trim() || null;
 
     // --------- INSERT ----------
-    const payload = {
+    const insertPayload = {
       agenda_id:       slot.agenda_id || null,
       centro_id:       currentCentroId,
       profesional_id:  slot.profId,
@@ -933,7 +933,7 @@ async function tryAgendar(slot){
 
     const { data: inserted, error } = await supabase
       .from('turnos')
-      .insert([payload])
+      .insert([insertPayload])
       .select('id')
       .single();
 
@@ -949,16 +949,17 @@ async function tryAgendar(slot){
 ¿Registrar el cobro ahora?`
       );
       if (quiereCobrar) {
-        // abre el modal unificado de pagos
- await openPaymentModal({
- turnoId: inserted.id,
- defaultImporte: copagoFinal ?? 0,   // precarga el copago sugerido
- presetMedio: null,                  // o 'efectivo'/'transferencia' si querés precargar
- onDone: async () => {               // callback equivalente a afterPay
- await refreshDayModal();
- await renderCalendar();
-   }
- });
+        await openPaymentModal({
+          turnoId: inserted.id,
+          defaultImporte: copagoFinal ?? 0,   // precarga el copago sugerido
+          presetMedio: null,                  // opcional: 'efectivo' | 'transferencia'
+          onDone: async () => {               // refrescos tras guardar el pago
+            await refreshDayModal();
+            await renderCalendar();
+          }
+        });
+      }
+    }
 
     // --------- Modal OK + WhatsApp (editable) ----------
     openOkModal({
@@ -980,7 +981,6 @@ async function tryAgendar(slot){
   }
 }
 
-    
 
 
 async function openDayModalMulti(isoDate, AByProf, TByProf){
