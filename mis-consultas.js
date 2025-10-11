@@ -1,4 +1,4 @@
-// mis-consultas.js — versión médico
+// mis-consultas.js — solo para MÉDICOS (corregido)
 import supabase from "./supabaseClient.js";
 
 export async function initMisConsultas(root){
@@ -15,19 +15,19 @@ export async function initMisConsultas(root){
   const $kTick   = root.querySelector("#mc-kpi-ticket");
   const $mediosBody = root.querySelector("#mc-medios-body");
 
-  // Debe existir (médico)
-  const profesionalId = localStorage.getItem("profesional_id");
+  // 1) Resolver médico logueado de manera robusta
+  const profesionalId = await resolveProfesionalId();
   if (!profesionalId){
-    $tbody.innerHTML = rowInfo("No se encontró profesional logueado.", 6);
+    $tbody.innerHTML = rowInfo("No se pudo identificar al profesional logueado. Revisá login/permisos.", 6);
     return;
   }
 
-  // Rango por defecto: 1º del mes → hoy
+  // 2) Rango por defecto: 1º del mes → hoy
   const { d1, d2 } = defaultRangeCurrentMonth();
   $desde.value = d1;
   $hasta.value = d2;
 
-  // Centros vinculados a ESTE profesional
+  // 3) Centros vinculados a ESTE médico
   const allowedCentroIds = await loadCentrosDelMedico(profesionalId, $centro);
 
   $aplicar.onclick = () => cargar();
@@ -40,34 +40,45 @@ export async function initMisConsultas(root){
     const d1 = $desde.value;
     const d2 = $hasta.value;
     const centroSel = ($centro.value || "").trim();
-    const centrosFiltro = centroSel ? [centroSel] : allowedCentroIds.slice();
 
     $tbody.innerHTML = rowInfo("Cargando…", 6);
     $kAt.textContent = $kIng.textContent = $kPen.textContent = $kTick.textContent = "—";
     $mediosBody.innerHTML = rowMedio("—", "—", "—");
 
     try{
-      // 1) Turnos del período (solo de este profesional)
+      // 1) Turnos del período (de este profesional)
       const selectCols = `
         id, fecha, paciente_id, centro_id, profesional_id, copago, importe, estado,
         pacientes(id, apellido, nombre),
         centros_medicos(id, nombre)
       `.replace(/\s+/g,' ');
-      const { data: turnos = [], error: eT } = await supabase
+
+      let qTurnos = supabase
         .from("turnos")
         .select(selectCols)
         .gte("fecha", d1).lte("fecha", d2)
         .eq("profesional_id", profesionalId)
-        .in("centro_id", centrosFiltro)
         .not("paciente_id", "is", null)
         .neq("estado", "cancelado")
         .order("fecha", { ascending: false })
         .limit(5000);
+
+      // Si selecciona 1 centro → filtro por ese
+      if (centroSel) {
+        qTurnos = qTurnos.eq("centro_id", centroSel);
+      } else {
+        // "Todos los centros": si tenemos lista, la uso; si no, NO agrego .in() (para no vaciar resultados)
+        if (allowedCentroIds.length) {
+          qTurnos = qTurnos.in("centro_id", allowedCentroIds);
+        }
+      }
+
+      const { data: turnos = [], error: eT } = await qTurnos;
       if (eT) throw eT;
 
       const turnoIds = turnos.map(t => t.id);
 
-      // 2) Pagos del PERÍODO (para KPI “Cobrado” y por medio)
+      // 2) Pagos del PERÍODO (KPIs "Cobrado" y medios)
       const pagosPeriodoPorTurno = {};
       const pagosPeriodoPorMedio = {};
       if (turnoIds.length){
@@ -99,7 +110,7 @@ export async function initMisConsultas(root){
         }
       }
 
-      // Helpers
+      // Helpers p/ UI
       const nombreCentro = t => t?.centros_medicos?.nombre || "—";
       const nombrePaciente = t => {
         const p = t?.pacientes;
@@ -141,7 +152,7 @@ export async function initMisConsultas(root){
         }).join("");
       }
 
-      // Medios
+      // Medios (en el período)
       const tot = cobradoPeriodo || 0;
       const medios = Object.entries(pagosPeriodoPorMedio).sort((a,b)=> b[1]-a[1]);
       $mediosBody.innerHTML = medios.length
@@ -176,11 +187,44 @@ export async function initMisConsultas(root){
     }
   }
 
-  // Centros vinculados a este médico
+  // === Resolución robusta del profesional logueado ===
+  async function resolveProfesionalId(){
+    let id = localStorage.getItem("profesional_id");
+    if (isUUID(id)) return id;
+
+    const profileId = localStorage.getItem("profile_id");
+    if (isUUID(profileId)) {
+      const { data, error } = await supabase
+        .from("profesionales")
+        .select("id")
+        .eq("profile_id", profileId)
+        .maybeSingle();
+      if (data?.id) {
+        localStorage.setItem("profesional_id", data.id);
+        return data.id;
+      }
+    }
+
+    const email = localStorage.getItem("user_email") || localStorage.getItem("user_mail");
+    if (email) {
+      const { data, error } = await supabase
+        .from("profesionales")
+        .select("id, email")
+        .eq("email", email)
+        .maybeSingle();
+      if (data?.id) {
+        localStorage.setItem("profesional_id", data.id);
+        return data.id;
+      }
+    }
+    return null;
+  }
+
+  // Centros vinculados a este médico (join como en tu inicio)
   async function loadCentrosDelMedico(profId, selectEl){
     const { data = [], error } = await supabase
       .from("profesional_centro")
-      .select("centro_id, centros_medicos!inner(id, nombre)")
+      .select("centros_medicos(id, nombre)")
       .eq("profesional_id", profId)
       .eq("activo", true)
       .order("prioridad", { ascending: true });
@@ -203,7 +247,7 @@ export async function initMisConsultas(root){
     return ids;
   }
 
-  // Export CSV
+  // ==== Export CSV
   const _export = { rows: [], kpis: {} };
   function exportCSV(){
     if (!_export.rows.length){ alert("No hay datos para exportar."); return; }
@@ -223,7 +267,7 @@ export async function initMisConsultas(root){
     setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 0);
   }
 
-  // Helpers
+  // ==== Helpers
   function defaultRangeCurrentMonth(){ const n=new Date(); const f=new Date(n.getFullYear(),n.getMonth(),1); return { d1: iso(f), d2: iso(n) }; }
   const iso = d => new Date(d).toISOString().slice(0,10);
   const num = x => Number(x || 0);
@@ -232,6 +276,7 @@ export async function initMisConsultas(root){
   const esc = s => String(s ?? "").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
   const fdate = iso => { try{ const d=new Date(iso+"T00:00:00"); return d.toLocaleDateString("es-AR"); }catch{return iso} };
   const ucfirst = s => (s = String(s||"")) ? s[0].toUpperCase()+s.slice(1) : s;
+  const isUUID = v => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 
   function rowInfo(msg, cols){ return `<tr><td colspan="${cols}" style="padding:12px;color:#6b6480;">${esc(msg)}</td></tr>`; }
   function rowDetalle({ fecha, centro, paciente, importe, pagado, pendiente }){
