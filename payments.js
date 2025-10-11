@@ -1,12 +1,13 @@
 // payments.js
 import supabase from './supabaseClient.js';
 
-// --- Carga única del HTML externo ---
+/* =========================
+   Carga única del HTML modal
+   ========================= */
 let modalReady = false;
-async function ensureModalMounted() {
+async function ensureModalMounted () {
   if (modalReady && document.getElementById('tpl-modal-pago') && document.getElementById('modal-root')) return;
 
-  // Ajustá la ruta si el archivo está en otra carpeta
   const resp = await fetch('./payment-modal.html', { cache: 'no-store' });
   if (!resp.ok) throw new Error('No se pudo cargar payment-modal.html (revisá la ruta).');
 
@@ -17,80 +18,144 @@ async function ensureModalMounted() {
   const root = holder.querySelector('#modal-root');
   const tpl  = holder.querySelector('#tpl-modal-pago');
 
-  if (!root || !tpl) {
-    throw new Error('payment-modal.html debe contener div#modal-root y template#tpl-modal-pago');
-  }
+  if (!root || !tpl) throw new Error('payment-modal.html debe contener div#modal-root y template#tpl-modal-pago');
+
   if (!document.getElementById('modal-root')) document.body.appendChild(root);
   if (!document.getElementById('tpl-modal-pago')) document.body.appendChild(tpl);
 
   modalReady = true;
 }
 
-// --- helpers UI ---
-function $id(id){ return document.getElementById(id); }
-function money(n){ return Number(n||0).toLocaleString('es-AR', { style:'currency', currency:'ARS', maximumFractionDigits:0 }); }
-function toIntPeso(v){
-  const s = String(v||'').replace(/[^\d]/g,'');
-  return s ? parseInt(s,10) : 0;
+/* =========================
+   Helpers UI / formato
+   ========================= */
+const $id = (id) => document.getElementById(id);
+
+function toIntPeso (v) {
+  const s = String(v ?? '').replace(/[^\d]/g, '');
+  return s ? parseInt(s, 10) : 0;
+}
+function money (n) {
+  return Number(n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
+}
+const pad2 = (n) => (n < 10 ? '0' + n : '' + n);
+const toHM = (val) => {
+  if (!val) return '';
+  const s = String(val);
+  // acepta HH:MM o HH:MM:SS
+  const m = s.match(/^(\d{2}):(\d{2})/);
+  if (!m) return s;
+  return `${m[1]}:${m[2]}`;
+};
+function formatFechaHora (fecha, hi, hf) {
+  const rango = hi && hf ? `${toHM(hi)} — ${toHM(hf)}` : (hi || hf ? toHM(hi || hf) : '—');
+  return `${fecha || '—'} · ${rango}`;
 }
 
-// --- abrir modal de pago ---
-export async function openPagoModal({
+/* =========================
+   Apertura del modal (público)
+   ========================= */
+/**
+ * openPagoModal({
+ *   turnoId (req),
+ *   defaultImporte = 0,
+ *   defaultMedio   = 'transferencia',
+ *   defaultNota    = '',
+ *   confirmLabel   = 'Guardar pago',
+ *   cancelLabel    = 'Cancelar',
+ *   onSaved        = null,       // callback después de guardar
+ *   onCancel       = null        // callback al cerrar sin guardar
+ * })
+ */
+export async function openPagoModal ({
   turnoId,
   defaultImporte = 0,
-  defaultMedio   = 'efectivo',
+  defaultMedio   = 'transferencia',
   defaultNota    = '',
   confirmLabel   = 'Guardar pago',
   cancelLabel    = 'Cancelar',
   onSaved        = null,
-  onCancel       = null,
+  onCancel       = null
 } = {}) {
   if (!turnoId) throw new Error('openPagoModal: falta turnoId');
 
   await ensureModalMounted();
 
-  const tpl = /** @type {HTMLTemplateElement} */ ($id('tpl-modal-pago'));
+  const tpl  = /** @type {HTMLTemplateElement} */ ($id('tpl-modal-pago'));
   const root = $id('modal-root');
   if (!tpl || !root) throw new Error('Falta template o root del modal (tpl-modal-pago / modal-root)');
 
-  // instanciar
+  // Instanciar template
   const frag = tpl.content.cloneNode(true);
-  root.innerHTML = ''; // limpiar instancia anterior
+  root.innerHTML = '';
   root.appendChild(frag);
 
-  // refs
-  const backdrop = root.querySelector('.modal-backdrop');
-  const btnClose = root.querySelector('.modal-close');
-  const btnCancel= $id('btn-cancel');
-  const btnOk    = $id('btn-confirm');
+  // Refs básicas
+  const backdrop  = root.querySelector('.modal-backdrop');
+  const btnClose  = root.querySelector('.modal-close');
+  const btnCancel = $id('btn-cancel');
+  const btnOk     = $id('btn-confirm');
 
-  const infoBox  = $id('pay-info');
-  const inpImporte = $id('pay-importe');
-  const selMedio   = $id('pay-medio');
-  const txtNota    = $id('pay-nota');
-  const inpFile    = $id('pay-file');
-  const hintFile   = $id('pay-file-hint');
-  const prevWrap   = $id('pay-file-preview');
-  const prevImg    = $id('pay-preview-img');
-  const prevPdf    = $id('pay-preview-pdf');
+  // Refs de encabezado (opcional en el HTML)
+  const lblPac = $id('pay-paciente');
+  const lblFh  = $id('pay-fecha');
+  const lblPro = $id('pay-profesional');
+
+  // Refs form
+  const infoBox     = $id('pay-info');
+  const inpImporte  = $id('pay-importe');
+  const selMedio    = $id('pay-medio');
+  const txtNota     = $id('pay-nota');
+  const inpFile     = $id('pay-file');
+  const hintFile    = $id('pay-file-hint');
+  const prevWrap    = $id('pay-file-preview');
+  const prevImg     = $id('pay-preview-img');
+  const prevPdf     = $id('pay-preview-pdf');
 
   if (!backdrop || !btnOk || !btnCancel) {
     throw new Error('payment-modal.html: faltan nodos obligatorios (#btn-confirm, #btn-cancel o .modal-backdrop)');
   }
 
-  // estado inicial
+  // Estado inicial del form
   inpImporte.value = defaultImporte ? String(defaultImporte) : '';
-  selMedio.value   = defaultMedio || 'efectivo';
+  selMedio.value   = defaultMedio || 'transferencia';
   txtNota.value    = defaultNota || '';
-  btnOk.textContent    = confirmLabel || 'Guardar pago';
-  btnCancel.textContent= cancelLabel || 'Cancelar';
+  btnOk.textContent     = confirmLabel || 'Guardar pago';
+  btnCancel.textContent = cancelLabel || 'Cancelar';
   infoBox.style.display = 'none';
-  hintFile.textContent = '';
+  hintFile.textContent  = '';
   prevWrap.style.display = 'none';
   prevImg.style.display  = 'none';
   prevPdf.style.display  = 'none';
 
-  // previsualización de archivo
+  // Cargar encabezado (paciente / fecha-hora / profesional)
+  try {
+    const { data: t, error } = await supabase
+      .from('turnos')
+      .select(`
+        id, fecha, hora_inicio, hora_fin, profesional_id,
+        pacientes:pacientes ( nombre, apellido ),
+        profesionales:profesionales ( nombre, apellido )
+      `)
+      .eq('id', turnoId)
+      .maybeSingle();
+
+    if (!error && t) {
+      if (lblPac) lblPac.textContent = [t.pacientes?.nombre, t.pacientes?.apellido].filter(Boolean).join(' ') || '—';
+      if (lblFh)  lblFh.textContent  = formatFechaHora(t.fecha, t.hora_inicio, t.hora_fin);
+      if (lblPro) lblPro.textContent = [t.profesionales?.nombre, t.profesionales?.apellido].filter(Boolean).join(' ') || '—';
+    } else {
+      if (lblPac) lblPac.textContent = '—';
+      if (lblFh)  lblFh.textContent  = '—';
+      if (lblPro) lblPro.textContent = '—';
+    }
+  } catch (_) {
+    if (lblPac) lblPac.textContent = '—';
+    if (lblFh)  lblFh.textContent  = '—';
+    if (lblPro) lblPro.textContent = '—';
+  }
+
+  // Preview de archivo
   inpFile.onchange = () => {
     const f = inpFile.files?.[0];
     prevWrap.style.display = f ? 'block' : 'none';
@@ -112,20 +177,20 @@ export async function openPagoModal({
     }
   };
 
-  // abrir
+  // Mostrar modal
   backdrop.style.display = 'flex';
 
-  // cerrar helpers
+  // Cerrar helpers
   const close = (cb) => {
     backdrop.style.display = 'none';
     root.innerHTML = '';
-    if (cb) cb();
+    if (typeof cb === 'function') cb();
   };
   btnCancel.onclick = () => close(onCancel);
   btnClose.onclick  = () => close(onCancel);
   backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(onCancel); });
 
-  // guardar
+  // Guardar
   btnOk.onclick = async () => {
     const importe = toIntPeso(inpImporte.value);
     if (!importe || importe <= 0) {
@@ -134,13 +199,13 @@ export async function openPagoModal({
       return;
     }
 
-    // 1) insertar pago
+    // 1) Insertar pago
     const payload = {
       turno_id: turnoId,
       importe: importe,
-      medio: selMedio.value || 'efectivo',  // OJO: si tu columna es medio_pago, alinealo acá y en el resto de la app
+      medio_pago: selMedio.value || 'transferencia',
       nota: (txtNota.value || '').trim() || null,
-      fecha: new Date().toISOString(),
+      fecha: new Date().toISOString()
     };
 
     const { data: pagoRow, error: e1 } = await supabase
@@ -155,12 +220,13 @@ export async function openPagoModal({
       return;
     }
 
-    // 2) subir comprobante (opcional)
+    // 2) Subir comprobante (opcional)
     const file = inpFile.files?.[0];
     if (file) {
       try {
         const ext = (file.name.split('.').pop() || '').toLowerCase();
-        const path = `${turnoId}/${pagoRow.id}-${Date.now()}.${ext || (file.type.startsWith('image/')?'jpg':'pdf')}`;
+        const safeExt = ext || (file.type?.startsWith('image/') ? 'jpg' : 'pdf');
+        const path = `${turnoId}/${pagoRow.id}-${Date.now()}.${safeExt}`;
 
         const { error: upErr } = await supabase
           .storage.from('turnos_pagos')
@@ -168,13 +234,20 @@ export async function openPagoModal({
 
         if (upErr) throw upErr;
 
+        // URL pública (o ajustá a tu política de acceso)
+        const { data: pub } = supabase
+          .storage.from('turnos_pagos')
+          .getPublicUrl(path);
+
+        const publicUrl = pub?.publicUrl || null;
+
         await supabase
           .from('turnos_pagos')
-          .update({ comprobante_path: path, comprobante_mime: file.type || null })
+          .update({ comprobante_url: publicUrl, mime_type: file.type || null })
           .eq('id', pagoRow.id);
       } catch (e) {
-        // no rompas el guardado por falla de upload
         console.warn('Upload comprobante failed:', e?.message || e);
+        // no bloqueamos el pago por un fallo de upload
       }
     }
 
@@ -182,13 +255,15 @@ export async function openPagoModal({
   };
 }
 
-// --- Bridge e inicialización idempotente ---
+/* =========================
+   Bridge e init idempotente
+   ========================= */
 let _bridgeInit = false;
-export function initPaymentsBridge(){
+export function initPaymentsBridge () {
   if (_bridgeInit) return;
   _bridgeInit = true;
 
-  // Botones declarativos: data-open-pago="TURNO_ID"
+  // Declarativo: data-open-pago="TURNO_ID"
   document.querySelectorAll('[data-open-pago]').forEach(btn => {
     if (btn._pagoInit) return;
     btn._pagoInit = true;
@@ -204,18 +279,19 @@ export function initPaymentsBridge(){
     });
   });
 
-  // 🔗 Listener global del bridge usado por Inicio.js y Turnos.js
+  // Listener global consumido por Inicio.js / Turnos.js (openPaymentBridge -> dispatchEvent)
   document.addEventListener('payment:open', async (ev) => {
     const d = ev?.detail || {};
     if (!d.turnoId) return;
     try {
       await openPagoModal({
         turnoId: d.turnoId,
-        defaultImporte: d.amount ?? 0,        // sugerencia de importe/saldo
+        defaultImporte: d.amount ?? 0,
+        defaultMedio: 'transferencia',
         confirmLabel: d.confirmLabel || 'Guardar pago',
         cancelLabel:  d.skipLabel    || 'Cancelar',
-        onSaved:      d.onPaid       || null, // callback al guardar
-        onCancel:     d.onSkip       || null, // callback al cerrar sin guardar
+        onSaved:      d.onPaid       || null,
+        onCancel:     d.onSkip       || null
       });
     } catch (e) {
       console.error('[payments] payment:open failed:', e);
