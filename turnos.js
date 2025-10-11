@@ -4,6 +4,10 @@
 import supabase from './supabaseClient.js';
 import { isValidHourRange as _isValidHourRange } from './validators.js';
 import { openPacienteModal, loadProfesionalesIntoSelect, applyRoleClasses, roleAllows } from './global.js';
+// turnos.js
+import { openPagoModal, initPaymentsBridge } from './payments.js';
+
+
 
 // ---------------------------
 // Validación HH:MM (fallback)
@@ -857,7 +861,7 @@ async function tryAgendar(slot){
     if (!isValidHourRange(slot.start, slot.end)){ alert('Rango horario inválido.'); return; }
     if (!currentCentroId || !modalDateISO || !slot?.profId){ alert('Falta centro/profesional/fecha.'); return; }
 
-    // Trazabilidad (quién otorga el turno)
+    // Trazabilidad
     const asignadoPor = getCurrentUserTag() || null;
 
     // --------- OS / Copago ----------
@@ -871,12 +875,12 @@ async function tryAgendar(slot){
       const cupo = await getCupoObraSocialMensual(obraSocialId, slot.profId, modalDateISO, ESTADOS_VIGENTES);
 
       if (!cupo.disponible){
-        // Si hay valor_copago en config úsalo, si no, buscá el copago particular
+        // Si hay copago configurado para la OS úsalo, si no, particular por default del centro/prof
         copagoElegido = (cupo.valor_copago != null)
           ? Number(cupo.valor_copago)
           : await getCopagoParticular(currentCentroId, slot.profId, modalDateISO);
 
-        // Preguntar si quiere pasar a particular
+        // Preguntar si pasa a particular
         abrirModalCupoAgotado(copagoElegido);
         const res = await new Promise(resolve => {
           const A = document.getElementById('modal-cupo-aceptar');
@@ -897,7 +901,7 @@ async function tryAgendar(slot){
       ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
       : null;
 
-    // --------- Confirmación (captura comentario) ----------
+    // --------- Confirmación (y comentario de recepción) ----------
     const resConfirm = await openConfirmModal({
       pac: pacienteSeleccionado,
       fechaISO: modalDateISO,
@@ -910,10 +914,9 @@ async function tryAgendar(slot){
     if (!resConfirm?.ok) return;
 
     const comentarioRecep = (resConfirm.comentario || '').trim() || null;
-    console.log('[tryAgendar] comentarioRecepcion =', comentarioRecep);
 
     // --------- INSERT ----------
-    const payload = {
+    const insertPayload = {
       agenda_id:       slot.agenda_id || null,
       centro_id:       currentCentroId,
       profesional_id:  slot.profId,
@@ -926,21 +929,44 @@ async function tryAgendar(slot){
       obra_social_id:  obraSocialId,
       copago:          copagoFinal,
       asignado_por:    asignadoPor,
-      comentario_recepcion: comentarioRecep,   // << guarda el comentario
+      comentario_recepcion: comentarioRecep,
     };
 
-    console.debug('[tryAgendar] insert payload:', payload);
-    const { data: inserted, error } = await supabase
+    const { data: inserted, error: insErr } = await supabase
       .from('turnos')
-      .insert([payload])
-      .select('id, comentario_recepcion')
+      .insert([insertPayload])
+      .select('id')
       .single();
 
-    if (error){
-      alert(error.message || 'No se pudo reservar el turno.');
+    if (insErr){
+      alert(insErr.message || 'No se pudo reservar el turno.');
       return;
     }
-    console.debug('[tryAgendar] insert OK:', inserted);
+    const turnoId = inserted?.id;
+
+    // --------- OFRECER COBRAR AHORA (solo particular con copago > 0) ----------
+    if (turnoId && obraSocialId == null && (copagoFinal ?? 0) > 0) {
+      const quiereCobrar = confirm(
+        `El turno fue reservado como PARTICULAR con copago de $${Number(copagoFinal).toLocaleString('es-AR')}.\n¿Registrar el cobro ahora?`
+      );
+      if (quiereCobrar) {
+        try {
+          await openPagoModal({
+            turnoId,
+            defaultImporte: copagoFinal ?? 0,
+            confirmLabel: 'Guardar pago',
+            cancelLabel: 'Cancelar',
+            onSaved: async () => {
+              await refreshDayModal();
+              await renderCalendar();
+            }
+          });
+        } catch (e) {
+          console.error('openPagoModal error:', e);
+          alert('No se pudo abrir el modal de pago. Verificá que payment-modal.html esté accesible.');
+        }
+      }
+    }
 
     // --------- Modal OK + WhatsApp (editable) ----------
     openOkModal({
@@ -953,6 +979,9 @@ async function tryAgendar(slot){
       copago:    copagoFinal,
     });
 
+  } catch (e) {
+    console.error('tryAgendar error:', e);
+    alert(e?.message || 'Ocurrió un error al agendar.');
   } finally {
     bookingBusy = false;
     setSlotsDisabled(false);
@@ -961,9 +990,6 @@ async function tryAgendar(slot){
     refreshModalTitle();
   }
 }
-
-
-    
 
 
 async function openDayModalMulti(isoDate, AByProf, TByProf){
@@ -1474,6 +1500,7 @@ export async function initTurnos(){
   bindUI();
   attachHandlers();
   renderDow();
+  initPaymentsBridge(); // idempotente
 
   // Centro desde sidebar
   await syncCentroFromStorage(true);
