@@ -129,10 +129,10 @@ export async function openPagoModal({
   const prevImg    = $id('pay-preview-img');
   const prevPdf    = $id('pay-preview-pdf');
 
-  const hdrPac   = $id('tp-turno-paciente');
-  const hdrMeta  = $id('tp-turno-meta');
-  const hdrProf  = $id('tp-turno-prof');
-
+  const hdrPac   = $id('pay-paciente');
+  const hdrMeta  = $id('pay-fecha');
+  const hdrProf  = $id('pay-prof');
+  
   if (!backdrop || !btnOk || !btnCancel) {
     throw new Error('payment-modal.html: faltan nodos obligatorios (#btn-confirm, #btn-cancel o .modal-backdrop)');
   }
