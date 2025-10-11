@@ -93,7 +93,6 @@ async function fetchTurnoInfo(turnoId){
 export async function openPagoModal({
   turnoId,
   defaultImporte = 0,
-  // por pedido: default a "transferencia"
   defaultMedio   = 'transferencia',
   defaultNota    = '',
   confirmLabel   = 'Guardar pago',
@@ -104,55 +103,55 @@ export async function openPagoModal({
   if (!turnoId) throw new Error('openPagoModal: falta turnoId');
   await ensureModalMounted();
 
-  const tpl  = /** @type {HTMLTemplateElement} */ ($id('tpl-modal-pago'));
-  const root = $id('modal-root');
+  const tpl  = /** @type {HTMLTemplateElement} */ (document.getElementById('tpl-modal-pago'));
+  const root = document.getElementById('modal-root');
   if (!tpl || !root) throw new Error('Falta template o root del modal (tpl-modal-pago / modal-root)');
 
-  // Instanciar
+  // --- instanciar
   const frag = tpl.content.cloneNode(true);
   root.innerHTML = '';
   root.appendChild(frag);
 
-  // Refs UI
+  // --- refs UI
   const backdrop   = root.querySelector('.modal-backdrop');
   const btnClose   = root.querySelector('.modal-close');
-  const btnCancel  = $id('btn-cancel');
-  const btnOk      = $id('btn-confirm');
+  const btnCancel  = document.getElementById('btn-cancel');
+  const btnOk      = document.getElementById('btn-confirm');
 
-  const infoBox    = $id('pay-info');
-  const inpImporte = $id('pay-importe');
-  const selMedio   = $id('pay-medio');
-  const txtNota    = $id('pay-nota');
-  const inpFile    = $id('pay-file');
-  const hintFile   = $id('pay-file-hint');
-  const prevWrap   = $id('pay-file-preview');
-  const prevImg    = $id('pay-preview-img');
-  const prevPdf    = $id('pay-preview-pdf');
+  const infoBox    = document.getElementById('pay-info');
+  const inpImporte = document.getElementById('pay-importe');
+  const selMedio   = document.getElementById('pay-medio');
+  const txtNota    = document.getElementById('pay-nota');
+  const inpFile    = document.getElementById('pay-file');
+  const hintFile   = document.getElementById('pay-file-hint');
+  const prevWrap   = document.getElementById('pay-file-preview');
+  const prevImg    = document.getElementById('pay-preview-img');
+  const prevPdf    = document.getElementById('pay-preview-pdf');
 
-  const hdrPac   = $id('pay-paciente');
-  const hdrMeta  = $id('pay-fecha');
-  const hdrProf  = $id('pay-prof');
-  
+  const hdrPac   = document.getElementById('pay-paciente');
+  const hdrMeta  = document.getElementById('pay-fecha');
+  const hdrProf  = document.getElementById('pay-prof');
+
   if (!backdrop || !btnOk || !btnCancel) {
     throw new Error('payment-modal.html: faltan nodos obligatorios (#btn-confirm, #btn-cancel o .modal-backdrop)');
   }
 
-  // Header del turno
+  // --- header del turno
   try {
     const info = await fetchTurnoInfo(turnoId);
     if (hdrPac)  hdrPac.textContent  = info.paciente;
     if (hdrMeta) hdrMeta.textContent = `${info.fecha} · ${info.rango}`;
     if (hdrProf) hdrProf.textContent = info.profesional;
-  } catch (e) {
+  } catch {
     if (hdrPac)  hdrPac.textContent  = 'Paciente';
     if (hdrMeta) hdrMeta.textContent = '—';
     if (hdrProf) hdrProf.textContent = '—';
   }
 
-  // Estado inicial del form
-  inpImporte.value = defaultImporte ? String(defaultImporte) : '';
-  selMedio.value   = (defaultMedio === 'efectivo' || defaultMedio === 'transferencia') ? defaultMedio : 'transferencia';
-  txtNota.value    = defaultNota || '';
+  // --- estado inicial form
+  inpImporte.value      = defaultImporte ? String(defaultImporte) : '';
+  selMedio.value        = (defaultMedio === 'efectivo' || defaultMedio === 'transferencia') ? defaultMedio : 'transferencia';
+  txtNota.value         = defaultNota || '';
   btnOk.textContent     = confirmLabel || 'Guardar pago';
   btnCancel.textContent = cancelLabel || 'Cancelar';
   infoBox.style.display = 'none';
@@ -161,7 +160,7 @@ export async function openPagoModal({
   prevImg.style.display = 'none';
   prevPdf.style.display = 'none';
 
-  // Preview del archivo
+  // --- preview archivo
   inpFile.onchange = () => {
     const f = inpFile.files?.[0];
     prevWrap.style.display = f ? 'block' : 'none';
@@ -183,10 +182,10 @@ export async function openPagoModal({
     }
   };
 
-  // Abrir
+  // --- abrir
   backdrop.style.display = 'flex';
 
-  // Cerrar helpers
+  // --- cerrar helpers
   const close = (cb) => {
     backdrop.style.display = 'none';
     root.innerHTML = '';
@@ -196,8 +195,13 @@ export async function openPagoModal({
   btnClose.onclick  = () => close(onCancel);
   backdrop.addEventListener('click', (e) => { if (e.target === backdrop) close(onCancel); });
 
-  // Guardar
+  // --- guardar
   btnOk.onclick = async () => {
+    const toIntPeso = (v) => {
+      const s = String(v||'').replace(/[^\d]/g,'');
+      return s ? parseInt(s,10) : 0;
+    };
+
     const importe = toIntPeso(inpImporte.value);
     if (!importe || importe <= 0) {
       infoBox.style.display = 'block';
@@ -205,13 +209,17 @@ export async function openPagoModal({
       return;
     }
 
-    // 1) INSERT en turnos_pagos (usa nombres EXACTOS del DDL)
+    // ⚠️ user actual para RLS
+    const { data: { user } = {} } = await supabase.auth.getUser();
+    const userId = user?.id || null;
+
+    // 1) INSERT en turnos_pagos (incluye registrado_por)
     const payload = {
       turno_id: turnoId,
-      importe: importe,                   // numeric(12,2) con check > 0
-      medio_pago: selMedio.value,         // 'efectivo' | 'transferencia'
+      importe,
+      medio_pago: selMedio.value,                 // 'efectivo' | 'transferencia'
       nota: (txtNota.value || '').trim() || null,
-      // fecha tiene default now()
+      registrado_por: userId,                     // <<< CLAVE para pasar la RLS del UPDATE
     };
 
     const { data: pagoRow, error: e1 } = await supabase
@@ -226,41 +234,36 @@ export async function openPagoModal({
       return;
     }
 
-    // 2) Subir comprobante a Storage (opcional) y PATCHear fila
+    // 2) Subir comprobante y luego UPDATE de metadatos
     const file = inpFile.files?.[0];
     if (file) {
       try {
-        // Subida
         const ext = (file.name.split('.').pop() || '').toLowerCase();
-        const safeExt = ext || (file.type.startsWith('image/') ? 'jpg' : 'pdf');
+        const safeExt = ext || (file.type?.startsWith('image/') ? 'jpg' : 'pdf');
         const path = `${turnoId}/${pagoRow.id}-${Date.now()}.${safeExt}`;
 
         const { error: upErr } = await supabase
           .storage.from('turnos_pagos')
           .upload(path, file, { upsert: false, contentType: file.type || undefined });
-
         if (upErr) throw upErr;
 
-        // Update de metadatos de comprobante (usa nombres EXACTOS del DDL)
         const patch = {
           comprobante_path: path,
           comprobante_mime: file.type || null,
           comprobante_size: file.size ?? null,
           comprobante_filename: file.name || null,
-          // sha256: opcional (si querés calcularlo en cliente)
           comprobante_subido_en: new Date().toISOString(),
-          // comprobante_subido_por: (si tenés user_id) -> agregalo acá
+          comprobante_subido_por: userId || null,
         };
 
         const { error: updErr } = await supabase
           .from('turnos_pagos')
           .update(patch)
           .eq('id', pagoRow.id);
-
         if (updErr) throw updErr;
       } catch (e) {
         console.warn('Upload/patch comprobante falló:', e?.message || e);
-        // No cortar el flujo si falla el upload: dejamos el pago registrado
+        // No cortamos el flujo: el pago queda registrado aunque falle el comprobante
       }
     }
 
