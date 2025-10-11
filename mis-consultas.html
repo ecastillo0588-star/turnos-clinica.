@@ -4,24 +4,32 @@
       <h2 style="margin:0; color:#381e60;">Mis Consultas</h2>
       <small style="color:#6b6480;">Consultas, cobranzas e indicadores por período</small>
     </div>
-    <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+
+    <div style="display:flex; gap:8px; align-items:center; margin-left:auto;">
       <label>Desde <input id="mc-desde" type="date"></label>
       <label>Hasta <input id="mc-hasta" type="date"></label>
+      <label>Centro
+        <select id="mc-centro" style="min-width:220px;">
+          <option value="">Todos los centros</option>
+        </select>
+      </label>
       <button id="mc-aplicar" class="settings-btn" style="width:auto;padding:8px 14px;">Aplicar</button>
+      <button id="mc-export"  class="settings-btn" style="width:auto;padding:8px 14px;background:#8b6bd9;">Exportar CSV</button>
     </div>
   </header>
 
-  <div id="mc-kpis" style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px;">
+  <div id="mc-kpis" style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;">
     <div class="card"><div><b>Atenciones</b></div><div id="mc-kpi-atenciones" style="font-size:22px;">—</div></div>
-    <div class="card"><div><b>Ingresos (pagos del período)</b></div><div id="mc-kpi-ingresos" style="font-size:22px;">—</div></div>
-    <div class="card"><div><b>Pendiente (sobre turnos del período)</b></div><div id="mc-kpi-pendiente" style="font-size:22px;">—</div></div>
+    <div class="card"><div><b>Cobrado (período)</b></div><div id="mc-kpi-ingresos" style="font-size:22px;">—</div></div>
+    <div class="card"><div><b>Pendiente</b></div><div id="mc-kpi-pendiente" style="font-size:22px;">—</div></div>
+    <div class="card"><div><b>Ticket promedio</b></div><div id="mc-kpi-ticket" style="font-size:22px;">—</div></div>
   </div>
 
-  <div class="card">
+  <div class="card" style="margin-bottom:12px;">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-      <b>Atenciones</b>
-      <span style="margin-left:auto;color:#6b6480;font-size:13px;">
-        Centro: <span id="mc-centro-label">—</span>
+      <b>Detalle</b>
+      <span style="margin-left:auto;color:#6b6480;font-size:12px;">
+        * “Pagado” en la tabla es <i>total histórico</i> del turno. El KPI “Cobrado (período)” usa pagos dentro del rango.
       </span>
     </div>
     <div style="overflow:auto;">
@@ -29,6 +37,7 @@
         <thead style="color:#6b6480; font-size:14px;">
           <tr>
             <th style="text-align:left;">Fecha</th>
+            <th style="text-align:left;">Centro</th>
             <th style="text-align:left;">Paciente</th>
             <th style="text-align:right;">Importe</th>
             <th style="text-align:right;">Pagado</th>
@@ -36,7 +45,27 @@
           </tr>
         </thead>
         <tbody id="mc-tbody">
-          <tr><td colspan="5" style="padding:12px;color:#6b6480;">Elegí un período y presioná “Aplicar”.</td></tr>
+          <tr><td colspan="6" style="padding:12px;color:#6b6480;">Elegí un período y presioná “Aplicar”.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <b>Desglose por medio de pago (en período)</b>
+    </div>
+    <div style="overflow:auto;">
+      <table id="mc-medios" style="width:100%; border-collapse:separate; border-spacing:0 6px;">
+        <thead style="color:#6b6480; font-size:14px;">
+          <tr>
+            <th style="text-align:left;">Medio</th>
+            <th style="text-align:right;">Importe</th>
+            <th style="text-align:right;">% del total</th>
+          </tr>
+        </thead>
+        <tbody id="mc-medios-body">
+          <tr><td colspan="3" style="padding:12px;color:#6b6480;">Sin datos.</td></tr>
         </tbody>
       </table>
     </div>
