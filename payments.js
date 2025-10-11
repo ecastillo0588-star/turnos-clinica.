@@ -1,11 +1,11 @@
 // payments.js
 import supabase from './supabaseClient.js';
 
-/* =========================
-   Carga única del HTML modal
-   ========================= */
+// ===========================
+// Carga única del template
+// ===========================
 let modalReady = false;
-async function ensureModalMounted () {
+async function ensureModalMounted() {
   if (modalReady && document.getElementById('tpl-modal-pago') && document.getElementById('modal-root')) return;
 
   const resp = await fetch('./payment-modal.html', { cache: 'no-store' });
@@ -18,150 +18,143 @@ async function ensureModalMounted () {
   const root = holder.querySelector('#modal-root');
   const tpl  = holder.querySelector('#tpl-modal-pago');
 
-  if (!root || !tpl) throw new Error('payment-modal.html debe contener div#modal-root y template#tpl-modal-pago');
-
+  if (!root || !tpl) {
+    throw new Error('payment-modal.html debe contener div#modal-root y template#tpl-modal-pago');
+  }
   if (!document.getElementById('modal-root')) document.body.appendChild(root);
   if (!document.getElementById('tpl-modal-pago')) document.body.appendChild(tpl);
 
   modalReady = true;
 }
 
-/* =========================
-   Helpers UI / formato
-   ========================= */
+// ===========================
+// Helpers UI y formateo
+// ===========================
 const $id = (id) => document.getElementById(id);
+const pad2 = (n)=> (n<10?'0'+n:''+n);
+const toHM = (t)=> (t??'').toString().slice(0,5);
+function money(n){ return Number(n||0).toLocaleString('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}); }
+function toIntPeso(v){ const s = String(v||'').replace(/[^\d]/g,''); return s ? parseInt(s,10) : 0; }
+const titleCase = s => (s||'').split(' ').filter(Boolean).map(w=> w[0]?.toUpperCase()+w.slice(1).toLowerCase()).join(' ');
 
-function toIntPeso (v) {
-  const s = String(v ?? '').replace(/[^\d]/g, '');
-  return s ? parseInt(s, 10) : 0;
-}
-function money (n) {
-  return Number(n || 0).toLocaleString('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
-}
-const pad2 = (n) => (n < 10 ? '0' + n : '' + n);
-const toHM = (val) => {
-  if (!val) return '';
-  const s = String(val);
-  // acepta HH:MM o HH:MM:SS
-  const m = s.match(/^(\d{2}):(\d{2})/);
-  if (!m) return s;
-  return `${m[1]}:${m[2]}`;
-};
-function formatFechaHora (fecha, hi, hf) {
-  const rango = hi && hf ? `${toHM(hi)} — ${toHM(hf)}` : (hi || hf ? toHM(hi || hf) : '—');
-  return `${fecha || '—'} · ${rango}`;
+// ===========================
+// Datos del turno (para header)
+// ===========================
+async function fetchTurnoInfo(turnoId){
+  const { data: t, error } = await supabase
+    .from('turnos')
+    .select(`
+      id, fecha, hora_inicio, hora_fin,
+      paciente_id, profesional_id,
+      pacientes(apellido, nombre),
+      profesionales(apellido, nombre)
+    `)
+    .eq('id', turnoId)
+    .maybeSingle();
+
+  if (error) throw error;
+
+  const pac = t?.pacientes || {};
+  const pro = t?.profesionales || {};
+  const paciente = [pac.nombre, pac.apellido].filter(Boolean).map(titleCase).join(' ').trim() || 'Paciente';
+  const profesional = [pro.nombre, pro.apellido].filter(Boolean).map(titleCase).join(' ').trim() || '—';
+
+  const hi = toHM(t?.hora_inicio);
+  const hf = toHM(t?.hora_fin);
+  let rango = '—';
+  if (hi && hf)      rango = `${hi} — ${hf}`;
+  else if (hi)       rango = hi;
+  else if (hf)       rango = hf;
+
+  return {
+    paciente,
+    fecha: t?.fecha || '—',
+    rango,
+    profesional
+  };
 }
 
-/* =========================
-   Apertura del modal (público)
-   ========================= */
-/**
- * openPagoModal({
- *   turnoId (req),
- *   defaultImporte = 0,
- *   defaultMedio   = 'transferencia',
- *   defaultNota    = '',
- *   confirmLabel   = 'Guardar pago',
- *   cancelLabel    = 'Cancelar',
- *   onSaved        = null,       // callback después de guardar
- *   onCancel       = null        // callback al cerrar sin guardar
- * })
- */
-export async function openPagoModal ({
+// ===========================
+// Abrir modal (público)
+// ===========================
+export async function openPagoModal({
   turnoId,
   defaultImporte = 0,
+  // por pedido: default a "transferencia"
   defaultMedio   = 'transferencia',
   defaultNota    = '',
   confirmLabel   = 'Guardar pago',
   cancelLabel    = 'Cancelar',
   onSaved        = null,
-  onCancel       = null
+  onCancel       = null,
 } = {}) {
   if (!turnoId) throw new Error('openPagoModal: falta turnoId');
-
   await ensureModalMounted();
 
   const tpl  = /** @type {HTMLTemplateElement} */ ($id('tpl-modal-pago'));
   const root = $id('modal-root');
   if (!tpl || !root) throw new Error('Falta template o root del modal (tpl-modal-pago / modal-root)');
 
-  // Instanciar template
+  // Instanciar
   const frag = tpl.content.cloneNode(true);
   root.innerHTML = '';
   root.appendChild(frag);
 
-  // Refs básicas
-  const backdrop  = root.querySelector('.modal-backdrop');
-  const btnClose  = root.querySelector('.modal-close');
-  const btnCancel = $id('btn-cancel');
-  const btnOk     = $id('btn-confirm');
+  // Refs UI
+  const backdrop   = root.querySelector('.modal-backdrop');
+  const btnClose   = root.querySelector('.modal-close');
+  const btnCancel  = $id('btn-cancel');
+  const btnOk      = $id('btn-confirm');
 
-  // Refs de encabezado (opcional en el HTML)
-  const lblPac = $id('pay-paciente');
-  const lblFh  = $id('pay-fecha');
-  const lblPro = $id('pay-profesional');
+  const infoBox    = $id('pay-info');
+  const inpImporte = $id('pay-importe');
+  const selMedio   = $id('pay-medio');
+  const txtNota    = $id('pay-nota');
+  const inpFile    = $id('pay-file');
+  const hintFile   = $id('pay-file-hint');
+  const prevWrap   = $id('pay-file-preview');
+  const prevImg    = $id('pay-preview-img');
+  const prevPdf    = $id('pay-preview-pdf');
 
-  // Refs form
-  const infoBox     = $id('pay-info');
-  const inpImporte  = $id('pay-importe');
-  const selMedio    = $id('pay-medio');
-  const txtNota     = $id('pay-nota');
-  const inpFile     = $id('pay-file');
-  const hintFile    = $id('pay-file-hint');
-  const prevWrap    = $id('pay-file-preview');
-  const prevImg     = $id('pay-preview-img');
-  const prevPdf     = $id('pay-preview-pdf');
+  const hdrPac   = $id('tp-turno-paciente');
+  const hdrMeta  = $id('tp-turno-meta');
+  const hdrProf  = $id('tp-turno-prof');
 
   if (!backdrop || !btnOk || !btnCancel) {
     throw new Error('payment-modal.html: faltan nodos obligatorios (#btn-confirm, #btn-cancel o .modal-backdrop)');
   }
 
+  // Header del turno
+  try {
+    const info = await fetchTurnoInfo(turnoId);
+    if (hdrPac)  hdrPac.textContent  = info.paciente;
+    if (hdrMeta) hdrMeta.textContent = `${info.fecha} · ${info.rango}`;
+    if (hdrProf) hdrProf.textContent = info.profesional;
+  } catch (e) {
+    if (hdrPac)  hdrPac.textContent  = 'Paciente';
+    if (hdrMeta) hdrMeta.textContent = '—';
+    if (hdrProf) hdrProf.textContent = '—';
+  }
+
   // Estado inicial del form
   inpImporte.value = defaultImporte ? String(defaultImporte) : '';
-  selMedio.value   = defaultMedio || 'transferencia';
+  selMedio.value   = (defaultMedio === 'efectivo' || defaultMedio === 'transferencia') ? defaultMedio : 'transferencia';
   txtNota.value    = defaultNota || '';
   btnOk.textContent     = confirmLabel || 'Guardar pago';
   btnCancel.textContent = cancelLabel || 'Cancelar';
   infoBox.style.display = 'none';
   hintFile.textContent  = '';
-  prevWrap.style.display = 'none';
-  prevImg.style.display  = 'none';
-  prevPdf.style.display  = 'none';
+  prevWrap.style.display= 'none';
+  prevImg.style.display = 'none';
+  prevPdf.style.display = 'none';
 
-  // Cargar encabezado (paciente / fecha-hora / profesional)
-  try {
-    const { data: t, error } = await supabase
-      .from('turnos')
-      .select(`
-        id, fecha, hora_inicio, hora_fin, profesional_id,
-        pacientes:pacientes ( nombre, apellido ),
-        profesionales:profesionales ( nombre, apellido )
-      `)
-      .eq('id', turnoId)
-      .maybeSingle();
-
-    if (!error && t) {
-      if (lblPac) lblPac.textContent = [t.pacientes?.nombre, t.pacientes?.apellido].filter(Boolean).join(' ') || '—';
-      if (lblFh)  lblFh.textContent  = formatFechaHora(t.fecha, t.hora_inicio, t.hora_fin);
-      if (lblPro) lblPro.textContent = [t.profesionales?.nombre, t.profesionales?.apellido].filter(Boolean).join(' ') || '—';
-    } else {
-      if (lblPac) lblPac.textContent = '—';
-      if (lblFh)  lblFh.textContent  = '—';
-      if (lblPro) lblPro.textContent = '—';
-    }
-  } catch (_) {
-    if (lblPac) lblPac.textContent = '—';
-    if (lblFh)  lblFh.textContent  = '—';
-    if (lblPro) lblPro.textContent = '—';
-  }
-
-  // Preview de archivo
+  // Preview del archivo
   inpFile.onchange = () => {
     const f = inpFile.files?.[0];
     prevWrap.style.display = f ? 'block' : 'none';
-    prevImg.style.display = 'none';
-    prevPdf.style.display = 'none';
-    hintFile.textContent = '';
+    prevImg.style.display  = 'none';
+    prevPdf.style.display  = 'none';
+    hintFile.textContent   = '';
 
     if (f) {
       const isPdf = /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name);
@@ -177,14 +170,14 @@ export async function openPagoModal ({
     }
   };
 
-  // Mostrar modal
+  // Abrir
   backdrop.style.display = 'flex';
 
   // Cerrar helpers
   const close = (cb) => {
     backdrop.style.display = 'none';
     root.innerHTML = '';
-    if (typeof cb === 'function') cb();
+    if (cb) cb();
   };
   btnCancel.onclick = () => close(onCancel);
   btnClose.onclick  = () => close(onCancel);
@@ -199,13 +192,13 @@ export async function openPagoModal ({
       return;
     }
 
-    // 1) Insertar pago
+    // 1) INSERT en turnos_pagos (usa nombres EXACTOS del DDL)
     const payload = {
       turno_id: turnoId,
-      importe: importe,
-      medio_pago: selMedio.value || 'transferencia',
+      importe: importe,                   // numeric(12,2) con check > 0
+      medio_pago: selMedio.value,         // 'efectivo' | 'transferencia'
       nota: (txtNota.value || '').trim() || null,
-      fecha: new Date().toISOString()
+      // fecha tiene default now()
     };
 
     const { data: pagoRow, error: e1 } = await supabase
@@ -220,12 +213,13 @@ export async function openPagoModal ({
       return;
     }
 
-    // 2) Subir comprobante (opcional)
+    // 2) Subir comprobante a Storage (opcional) y PATCHear fila
     const file = inpFile.files?.[0];
     if (file) {
       try {
+        // Subida
         const ext = (file.name.split('.').pop() || '').toLowerCase();
-        const safeExt = ext || (file.type?.startsWith('image/') ? 'jpg' : 'pdf');
+        const safeExt = ext || (file.type.startsWith('image/') ? 'jpg' : 'pdf');
         const path = `${turnoId}/${pagoRow.id}-${Date.now()}.${safeExt}`;
 
         const { error: upErr } = await supabase
@@ -234,20 +228,26 @@ export async function openPagoModal ({
 
         if (upErr) throw upErr;
 
-        // URL pública (o ajustá a tu política de acceso)
-        const { data: pub } = supabase
-          .storage.from('turnos_pagos')
-          .getPublicUrl(path);
+        // Update de metadatos de comprobante (usa nombres EXACTOS del DDL)
+        const patch = {
+          comprobante_path: path,
+          comprobante_mime: file.type || null,
+          comprobante_size: file.size ?? null,
+          comprobante_filename: file.name || null,
+          // sha256: opcional (si querés calcularlo en cliente)
+          comprobante_subido_en: new Date().toISOString(),
+          // comprobante_subido_por: (si tenés user_id) -> agregalo acá
+        };
 
-        const publicUrl = pub?.publicUrl || null;
-
-        await supabase
+        const { error: updErr } = await supabase
           .from('turnos_pagos')
-          .update({ comprobante_url: publicUrl, mime_type: file.type || null })
+          .update(patch)
           .eq('id', pagoRow.id);
+
+        if (updErr) throw updErr;
       } catch (e) {
-        console.warn('Upload comprobante failed:', e?.message || e);
-        // no bloqueamos el pago por un fallo de upload
+        console.warn('Upload/patch comprobante falló:', e?.message || e);
+        // No cortar el flujo si falla el upload: dejamos el pago registrado
       }
     }
 
@@ -255,15 +255,15 @@ export async function openPagoModal ({
   };
 }
 
-/* =========================
-   Bridge e init idempotente
-   ========================= */
+// ===========================
+// Bridge global e init idempotente
+// ===========================
 let _bridgeInit = false;
-export function initPaymentsBridge () {
+export function initPaymentsBridge(){
   if (_bridgeInit) return;
   _bridgeInit = true;
 
-  // Declarativo: data-open-pago="TURNO_ID"
+  // Declarativo por data-open-pago (opcional)
   document.querySelectorAll('[data-open-pago]').forEach(btn => {
     if (btn._pagoInit) return;
     btn._pagoInit = true;
@@ -279,7 +279,7 @@ export function initPaymentsBridge () {
     });
   });
 
-  // Listener global consumido por Inicio.js / Turnos.js (openPaymentBridge -> dispatchEvent)
+  // Listener del bridge usado desde Inicio.js (openPaymentBridge)
   document.addEventListener('payment:open', async (ev) => {
     const d = ev?.detail || {};
     if (!d.turnoId) return;
@@ -287,11 +287,12 @@ export function initPaymentsBridge () {
       await openPagoModal({
         turnoId: d.turnoId,
         defaultImporte: d.amount ?? 0,
-        defaultMedio: 'transferencia',
+        // Por defecto Transferencia, salvo que nos pasen explícito
+        defaultMedio: d.defaultMedio || 'transferencia',
         confirmLabel: d.confirmLabel || 'Guardar pago',
         cancelLabel:  d.skipLabel    || 'Cancelar',
         onSaved:      d.onPaid       || null,
-        onCancel:     d.onSkip       || null
+        onCancel:     d.onSkip       || null,
       });
     } catch (e) {
       console.error('[payments] payment:open failed:', e);
