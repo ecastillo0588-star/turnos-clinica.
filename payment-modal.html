@@ -5,8 +5,20 @@
   <div class="modal-backdrop">
     <div class="modal" role="dialog" aria-modal="true" style="max-width:560px">
       <button class="modal-close" aria-label="Cerrar">&times;</button>
-      <div class="modal-header"><h3>Registrar pago</h3></div>
+
+      <div class="modal-header">
+        <h3>Registrar pago</h3>
+      </div>
+
       <div class="modal-body" style="display:grid; gap:12px;">
+
+        <!-- Detalle del turno -->
+        <div class="pay-turno-info" style="border:1px solid #ece7f6; background:#f7f5fc; border-radius:8px; padding:10px;">
+          <div><strong>Paciente:</strong> <span id="pay-paciente">—</span></div>
+          <div><strong>Fecha y hora:</strong> <span id="pay-fecha">—</span></div>
+          <div><strong>Profesional:</strong> <span id="pay-prof">—</span></div>
+        </div>
+
         <div id="pay-info" class="info-box" style="display:none;"></div>
 
         <div class="form-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -18,7 +30,7 @@
             <label>Medio de pago</label>
             <select id="pay-medio" class="sel">
               <option value="efectivo">Efectivo</option>
-              <option value="transferencia">Transferencia</option>
+              <option value="transferencia" selected>Transferencia</option>
             </select>
           </div>
         </div>
@@ -40,8 +52,10 @@
       </div>
 
       <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;">
-        <button id="btn-cancel"  class="btn secondary">Cancelar</button>
-        <button id="btn-confirm" class="btn">Guardar pago</button>
+        <button id="btn-cancel" class="btn secondary"
+                style="background:#d32f2f;border-color:#d32f2f;color:#fff;">Cancelar</button>
+        <button id="btn-confirm" class="btn"
+                style="background:#7656b0;border-color:#7656b0;color:#fff;">Guardar pago</button>
       </div>
     </div>
   </div>
