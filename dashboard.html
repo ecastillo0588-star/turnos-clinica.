@@ -198,6 +198,7 @@
         <button id="btn-inicio" class="active">Inicio</button>
         <button id="btn-turnos">Turnos</button>
         <button id="btn-pacientes">Pacientes</button>
+        <button id="btn-mis-consultas" title="Consultas, cobranzas e indicadores por período">Mis Consultas</button>
         <button id="btn-config">Configuración</button>
       </nav>
       <div class="logout-slot">
@@ -310,6 +311,7 @@ centroSelect.onchange = ()=> {
     document.getElementById("btn-inicio").onclick=()=>{setActive("btn-inicio");cargarPanelHtml("inicio.html");};
     document.getElementById("btn-turnos").onclick=()=>{setActive("btn-turnos");cargarPanelHtml("turnos.html");};
     document.getElementById("btn-pacientes").onclick=()=>{setActive("btn-pacientes");cargarPanelHtml("pacientes.html");};
+    document.getElementById("btn-mis-consultas").onclick=()=>{setActive("btn-mis-consultas");cargarPanelHtml("mis-consultas.html");};
     document.getElementById("btn-config").onclick=()=>{setActive("btn-config");cargarPanelHtml("configuracion.html");};
     function setActive(id){
       document.querySelectorAll(".menu button").forEach(b=>b.classList.remove("active"));
