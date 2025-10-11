@@ -234,6 +234,9 @@
     // --- Configuración botón según rol
     const btnConfig = document.getElementById("btn-config");
     if (!["medico","propietario","amp"].includes(userRolRaw)) btnConfig.style.display = "none";
+      // Mostrar "Mis Consultas" solo a profesionales (médico)
+    const btnMis = document.getElementById("btn-mis-consultas");
+    if (btnMis && userRolRaw !== "medico") btnMis.style.display = "none";
 
     // --- Selector de centros
     const centroSelect = document.getElementById("centro-select");
@@ -292,6 +295,20 @@ centroSelect.onchange = ()=> {
           const mod = await import("./inicio.js"); mod.initInicio?.(main);
         } else if (file==="turnos.html") {
           const mod = await import("./turnos.js"); mod.initTurnos?.(main);
+         } else if (file==="mis-consultas.html") {
+          try {
+            console.log("[loader] cargando mis-consultas.js…");
+            const mod = await import("./mis-consultas.js");
+            if (!mod?.initMisConsultas) {
+              console.warn("[loader] initMisConsultas no exportado");
+            }
+            mod.initMisConsultas?.(main);
+          } catch (e) {
+            console.error("[loader] error import mis-consultas.js:", e);
+            main.innerHTML = `<div style="color:#b00020;">Error cargando Mis Consultas: ${e?.message||e}</div>`;
+          }
+
+          
         } else if (file==="configuracion.html" || file==="pacientes.html") {
           // reinyección de scripts internos
           main.querySelectorAll("script").forEach(old=>{
