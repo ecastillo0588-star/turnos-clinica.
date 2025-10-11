@@ -2,6 +2,7 @@
 // -----------------------------------------------
 import supabase from './supabaseClient.js';
 import { applyRoleClasses, loadProfesionalesIntoSelect, roleAllows } from './global.js';
+import { initPaymentsBridge } from './payments.js';
 
 /* =======================
    Constantes / utilidades
@@ -1573,6 +1574,7 @@ async function refreshAll({ showOverlayIfSlow = true } = {}) {
    ======================= */
 export async function initInicio(root){
   bindUI(root);
+  initPaymentsBridge(); 
   ensureOverlay(root);
   overlayRoot = root;
 
