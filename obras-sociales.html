@@ -1,403 +1,65 @@
-<!-- Contenedor principal de Obras Sociales -->
-<div class="os-container">
-  <h3>Obras Sociales</h3>
+<!-- mis-consultas.html -->
+<section class="page">
+  <h2 style="margin:0 0 10px;color:#381e60;">Mis Consultas</h2>
 
-  <div class="os-header-actions">
-    <input type="text" id="buscar-os" class="os-buscar-input" placeholder="Buscar por nombre de obra social..." />
-    <button class="btn os-btn-primary" id="btn-agregar-os" type="button">
-      <svg width="16" height="16" fill="none"><path d="M8 3v10M3 8h10" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
-      Nueva Obra Social
-    </button>
-  </div>
-
-  <table class="os-table" id="tabla-obras-sociales">
-    <thead>
-      <tr>
-        <th>Obra Social</th>
-        <th>Condición Copago</th>
-        <th>Valor Copago</th>
-        <th>Cantidad de Turnos</th>
-        <th>Acciones</th>
-      </tr>
-    </thead>
-    <tbody>
-      <!-- Filas dinámicas JS -->
-    </tbody>
-  </table>
-</div>
-
-<!-- Modal para agregar/editar obra social -->
-<div id="modal-os-overlay" class="modal-overlay"></div>
-<div id="modal-os" class="modal-os">
-  <h4 id="modal-os-title">Nueva Obra Social</h4>
-  <form id="form-os">
-    <label>Nombre Obra Social<span class="req">*</span>
-      <input type="text" name="obra_social" list="lista-os" required />
-      <datalist id="lista-os"></datalist>
-    </label>
-
-    <label>Condición Copago
-      <select name="condicion_copago">
-        <option value="true">Sí</option>
-        <option value="false">No</option>
+  <div class="filters" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:12px;">
+    <label>Centro
+      <select id="mc-centro" style="min-width:260px;">
+        <option value="">Todos los centros</option>
       </select>
     </label>
-
-    <label>Valor Copago
-      <input type="number" name="valor_copago" min="0" step="0.01" />
+    <label>Desde
+      <input id="mc-desde" type="date">
     </label>
-
-    <label>Cantidad de Turnos
-      <input type="number" name="cantidad_turnos" min="0" />
-      <small style="display:block;color:#6b6480">Dejar vacío = Infinito</small>
+    <label>Hasta
+      <input id="mc-hasta" type="date">
     </label>
+    <button id="mc-aplicar" class="btn">Aplicar</button>
+    <button id="mc-export"  class="btn secondary">Exportar CSV</button>
+  </div>
 
-    <div class="modal-os-actions">
-      <button type="submit" class="btn os-btn-primary">Guardar</button>
-      <button type="button" class="btn os-btn-secondary" id="btn-cancelar-os">Cancelar</button>
-    </div>
-  </form>
-</div>
+  <div class="kpis" style="display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px;margin-bottom:10px;">
+    <div class="card" style="padding:12px;"><div style="color:#6b6480;">Atenciones</div><div id="mc-kpi-atenciones" style="font-weight:700;font-size:20px;">—</div></div>
+    <div class="card" style="padding:12px;"><div style="color:#6b6480;">Cobrado (período)</div><div id="mc-kpi-ingresos" style="font-weight:700;font-size:20px;">—</div></div>
+    <div class="card" style="padding:12px;"><div style="color:#6b6480;">Pendiente (histórico)</div><div id="mc-kpi-pendiente" style="font-weight:700;font-size:20px;">—</div></div>
+    <div class="card" style="padding:12px;"><div style="color:#6b6480;">Ticket promedio</div><div id="mc-kpi-ticket" style="font-weight:700;font-size:20px;">—</div></div>
+  </div>
 
-<style>
-.os-header-actions{display:flex;gap:18px;justify-content:flex-end;align-items:center;margin-bottom:18px}
-.os-buscar-input{padding:7px 14px;border-radius:6px;border:1px solid #d4cbe6;font-size:15px;width:260px;background:#f7f3fc;color:#504180}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.22);z-index:999}
-.modal-os{display:none;position:fixed;top:10%;left:50%;transform:translateX(-50%);width:min(560px,90vw);background:#fff;border-radius:12px;padding:18px 20px;box-shadow:0 12px 40px rgba(0,0,0,.2);z-index:1000}
-.modal-os h4{margin:0 0 12px}
-.modal-os form label{display:block;margin:10px 0}
-.modal-os form input,.modal-os form select{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:8px}
-.modal-os-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
-.btn{border:0;border-radius:8px;padding:8px 12px;cursor:pointer}
-.os-btn-primary{background:#7b5da7;color:#fff}
-.os-btn-secondary{background:#eee;color:#333}
-.os-actions-btns{display:flex;gap:8px}
-.os-action-btn{background:#fff;border:1px solid #e2d9f5;padding:6px 8px;border-radius:8px;cursor:pointer}
-.os-action-btn:hover{background:#f5f0ff}
-.req{color:#c44;margin-left:6px}
-</style>
+  <div class="card" style="padding:0;">
+    <table style="width:100%;border-collapse:separate;border-spacing:0;">
+      <thead>
+        <tr style="background:#f7f9fb;color:#4f3b7a;">
+          <th style="text-align:left;padding:10px 8px;">Fecha</th>
+          <th style="text-align:left;padding:10px 8px;">Centro</th>
+          <th style="text-align:left;padding:10px 8px;">Paciente</th>
+          <th style="text-align:right;padding:10px 8px;">Importe esperado</th>
+          <th style="text-align:right;padding:10px 8px;">Pagado</th>
+          <th style="text-align:right;padding:10px 8px;">Pendiente</th>
+        </tr>
+      </thead>
+      <tbody id="mc-tbody">
+        <tr><td colspan="6" style="padding:14px;color:#6b6480;">Cargando…</td></tr>
+      </tbody>
+    </table>
+  </div>
 
+  <div class="card" style="padding:0;margin-top:12px;">
+    <h3 style="margin:12px;color:#381e60;font-size:16px;">Cobros por medio (en el período)</h3>
+    <table style="width:100%;border-collapse:separate;border-spacing:0;">
+      <thead>
+        <tr style="background:#f7f9fb;color:#4f3b7a;">
+          <th style="text-align:left;padding:10px 8px;">Medio</th>
+          <th style="text-align:right;padding:10px 8px;">Importe</th>
+          <th style="text-align:right;padding:10px 8px;">%</th>
+        </tr>
+      </thead>
+      <tbody id="mc-medios-body">
+        <tr><td colspan="3" style="padding:14px;color:#6b6480;">Cargando…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
 <script type="module">
-import supabase from './supabaseClient.js';
-
-/* =====================
- * Helpers
- * ===================== */
-function getIdProfesionalLogueado() {
-  return localStorage.getItem('profesional_id')
-      || localStorage.getItem('id_profesional')
-      || '092fa577-d353-47d1-b30c-d819fac0df64';
-}
-const toNullOrNumber = (v) => (v === '' || v == null ? null : Number(v));
-
-/* =====================
- * Estado
- * ===================== */
-let obrasSociales = [];        // mezcla de catálogo + vínculo del médico
-let todasObrasSociales = [];   // catálogo (id, obra_social)
-let editIdx = null;            // índice en obrasSociales cuando editamos
-let filtroNombre = '';
-
-const tbody        = document.querySelector('#tabla-obras-sociales tbody');
-const modal        = document.getElementById('modal-os');
-const overlay      = document.getElementById('modal-os-overlay');
-const btnAgregar   = document.getElementById('btn-agregar-os');
-const btnCancelar  = document.getElementById('btn-cancelar-os');
-const formModal    = document.getElementById('form-os');
-const modalTitle   = document.getElementById('modal-os-title');
-const buscarInput  = document.getElementById('buscar-os');
-const datalistOS   = document.getElementById('lista-os');
-
-/* =====================
- * Carga de datos
- * ===================== */
-async function cargarObrasSociales() {
-  const id_profesional = getIdProfesionalLogueado();
-
-  // Catálogo
-  const { data: todasOS, error: errorOS } = await supabase
-    .from('obras_sociales')
-    .select('id, obra_social')
-    .order('obra_social', { ascending: true });
-
-  if (errorOS) { alert('Error al cargar obras sociales: ' + errorOS.message); return; }
-  todasObrasSociales = todasOS ?? [];
-
-  // datalist
-  if (datalistOS) {
-    datalistOS.innerHTML = (todasObrasSociales || [])
-      .map(o => `<option value="${o.obra_social}"></option>`)
-      .join('');
-  }
-
-  // Vínculos médico
-  const { data: vinculos, error: errorV } = await supabase
-    .from('medico_obras_sociales')
-    .select('id, obra_social_id, condicion_copago, valor_copago, cantidad_turnos')
-    .eq('medico_id', id_profesional);
-
-  if (errorV) { alert('Error al cargar vínculos del médico: ' + errorV.message); return; }
-
-  // Combinar catálogo + vínculo (si existe)
-  obrasSociales = (todasObrasSociales || []).map(os => {
-    const vinc = (vinculos || []).find(v => v.obra_social_id === os.id);
-    return {
-      id: vinc?.id || null,
-      obra_social_id: os.id,
-      obra_social: os.obra_social,
-      condicion_copago: vinc?.condicion_copago ?? false,
-      valor_copago: vinc?.valor_copago ?? null,
-      cantidad_turnos: vinc?.cantidad_turnos ?? null, // null = Infinito
-      configurado: !!vinc
-    };
-  });
-
-  renderTabla();
-}
-
-/* =====================
- * Render
- * ===================== */
-function renderTabla() {
-  tbody.innerHTML = '';
-
-  let datos = obrasSociales;
-  if (filtroNombre) {
-    const q = filtroNombre.trim().toLowerCase();
-    datos = obrasSociales.filter(f => (f.obra_social || '').toLowerCase().includes(q));
-  }
-
-  datos.forEach((fila) => {
-    const cantTxt   = (fila.cantidad_turnos == null ? 'Infinito' : String(fila.cantidad_turnos));
-    const copagoTxt = (fila.valor_copago == null ? '' : String(fila.valor_copago));
-
-    tbody.innerHTML += `
-      <tr>
-        <td>${fila.obra_social}</td>
-        <td>${fila.condicion_copago ? 'Sí' : 'No'}</td>
-        <td>${copagoTxt}</td>
-        <td>${cantTxt}</td>
-        <td>
-          <div class="os-actions-btns">
-            ${fila.configurado ? `
-              <button type="button" class="os-action-btn" data-accion="editar" data-osid="${fila.obra_social_id}" title="Editar">
-                <svg width="20" height="20" fill="none"><path d="M4 16l1.5-5.5L14 2.5a2 2 0 112.8 2.8L8.3 14.5L4 16z" stroke="#7f6acf" stroke-width="2"/></svg>
-              </button>
-              <button type="button" class="os-action-btn" data-accion="borrar" data-osid="${fila.obra_social_id}" title="Borrar">
-                <svg width="20" height="20" fill="none"><circle cx="10" cy="10" r="9" stroke="#c44" stroke-width="2"/><path d="M7 7l6 6M13 7l-6 6" stroke="#c44" stroke-width="2"/></svg>
-              </button>
-            ` : `
-              <button type="button" class="os-action-btn" data-accion="agregar" data-osid="${fila.obra_social_id}" title="Agregar">
-                <svg width="20" height="20" fill="none"><path d="M10 4v12M4 10h12" stroke="#7b5da7" stroke-width="2" stroke-linecap="round"/></svg>
-              </button>
-            `}
-          </div>
-        </td>
-      </tr>
-    `;
-  });
-
-  agregarEventListeners();
-}
-
-/* =====================
- * Eventos (delegación)
- * ===================== */
-function agregarEventListeners() {
-  tbody.onclick = null;
-  tbody.onclick = (e) => {
-    const btn = e.target.closest('button.os-action-btn');
-    if (!btn) return;
-
-    const accion = btn.dataset.accion;
-    const osid = btn.dataset.osid;
-    const idxReal = obrasSociales.findIndex(f => String(f.obra_social_id) === String(osid));
-    if (idxReal < 0) return;
-
-    if (accion === 'editar') abrirModal(idxReal, true);
-    if (accion === 'borrar') borrarObraSocial(idxReal);
-    if (accion === 'agregar') abrirModal(idxReal, false);
-  };
-}
-
-/* =====================
- * Modal
- * ===================== */
-function abrirModal(idx, esEdicion) {
-  editIdx = esEdicion ? idx : null;
-
-  modalTitle.textContent = esEdicion ? 'Editar Obra Social' : 'Nueva Obra Social';
-  overlay.style.display = 'block';
-  modal.style.display = 'block';
-  formModal.reset();
-
-  if (esEdicion) {
-    const fila = obrasSociales[idx];
-    formModal.obra_social.value = fila.obra_social; // editable
-    formModal.condicion_copago.value = fila.condicion_copago ? 'true' : 'false';
-    formModal.valor_copago.value = (fila.valor_copago == null ? '' : String(fila.valor_copago));
-    formModal.cantidad_turnos.value = (fila.cantidad_turnos == null ? '' : String(fila.cantidad_turnos));
-    formModal.obra_social.disabled = false;
-  } else {
-    // “Agregar” desde fila pre-llena el nombre; desde botón global queda vacío
-    const nombre = (idx != null && obrasSociales[idx]) ? obrasSociales[idx].obra_social : '';
-    formModal.obra_social.value = nombre;
-    formModal.condicion_copago.value = 'false';
-    formModal.valor_copago.value = '';
-    formModal.cantidad_turnos.value = '';
-    formModal.obra_social.disabled = false;
-  }
-}
-
-function cerrarModal() {
-  modal.style.display = 'none';
-  overlay.style.display = 'none';
-  editIdx = null;
-}
-overlay.onclick = cerrarModal;
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarModal(); });
-btnCancelar.onclick = cerrarModal;
-
-btnAgregar.onclick = () => {
-  editIdx = null;
-  modalTitle.textContent = 'Nueva Obra Social';
-  overlay.style.display = 'block';
-  modal.style.display = 'block';
-  formModal.reset();
-  formModal.obra_social.disabled = false;
-  formModal.condicion_copago.value = 'false';
-  formModal.valor_copago.value = '';
-  formModal.cantidad_turnos.value = '';
-};
-
-/* =====================
- * CRUD
- * ===================== */
-async function borrarObraSocial(idx) {
-  const fila = obrasSociales[idx];
-  if (!fila?.id) return;
-  if (!confirm(`¿Borrar la configuración de "${fila.obra_social}" para este profesional?`)) return;
-
-  const { error } = await supabase
-    .from('medico_obras_sociales')
-    .delete()
-    .eq('id', fila.id);
-
-  if (error) { alert('Error al borrar: ' + error.message); return; }
-
-  await cargarObrasSociales();
-  const medico_id = getIdProfesionalLogueado();
-  window.dispatchEvent(new CustomEvent('os-config-changed', { detail: { medico_id } }));
-}
-
-formModal.onsubmit = async (e) => {
-  e.preventDefault();
-
-  const fd = new FormData(formModal);
-  const nombreOS       = (fd.get('obra_social') || '').trim();
-  const condicion      = fd.get('condicion_copago') === 'true';
-  const valorCopago    = toNullOrNumber(fd.get('valor_copago'));
-  const cantidadTurnos = toNullOrNumber(fd.get('cantidad_turnos')); // null = Infinito
-  const medicoId       = getIdProfesionalLogueado();
-
-  if (!nombreOS) { alert('El nombre de la obra social es obligatorio.'); return; }
-  if (valorCopago != null && (isNaN(valorCopago) || valorCopago < 0)) { alert('Valor de copago inválido.'); return; }
-  if (cantidadTurnos != null && (isNaN(cantidadTurnos) || cantidadTurnos < 0)) { alert('Cantidad de turnos inválida.'); return; }
-
-  // helper: buscar por nombre (case-insensitive)
-  function findOSByName(name) {
-    return (todasObrasSociales || []).find(o => (o.obra_social || '').trim().toLowerCase() === name.toLowerCase());
-  }
-
-  if (editIdx !== null && obrasSociales[editIdx]?.configurado) {
-    // ===== Editar =====
-    const fila = obrasSociales[editIdx];
-    const oldOSId   = fila.obra_social_id;
-    const oldName   = fila.obra_social;
-    const vincId    = fila.id;
-
-    // 1) Si cambió el nombre, intentamos actualizar la tabla obras_sociales (mismo id)
-    if (nombreOS.toLowerCase() !== (oldName || '').toLowerCase()) {
-      // Evitar choque con unique(obra_social)
-      const dup = findOSByName(nombreOS);
-      if (dup && String(dup.id) !== String(oldOSId)) {
-        alert(`Ya existe una obra social con el nombre "${nombreOS}". Elegí otro nombre o usá esa existente.`);
-        return;
-      }
-      const { error: updNameErr } = await supabase
-        .from('obras_sociales')
-        .update({ obra_social: nombreOS })
-        .eq('id', oldOSId);
-      if (updNameErr) { alert('No se pudo renombrar la obra social: ' + updNameErr.message); return; }
-
-      // sincronizar catálogo local
-      const catIdx = todasObrasSociales.findIndex(o => String(o.id) === String(oldOSId));
-      if (catIdx >= 0) todasObrasSociales[catIdx].obra_social = nombreOS;
-    }
-
-    // 2) Actualizar la configuración del vínculo del médico
-    const { error: updLinkErr } = await supabase
-      .from('medico_obras_sociales')
-      .update({ condicion_copago: condicion, valor_copago: valorCopago, cantidad_turnos: cantidadTurnos })
-      .eq('id', vincId);
-    if (updLinkErr) { alert('Error al guardar configuración: ' + updLinkErr.message); return; }
-
-    cerrarModal();
-    await cargarObrasSociales();
-    window.dispatchEvent(new CustomEvent('os-config-changed', { detail: { medico_id: medicoId } }));
-
-  } else {
-    // ===== Agregar =====
-    // Si existe por nombre, usamos ese id; si no, lo creamos
-    let os = findOSByName(nombreOS);
-    let osId = os?.id;
-
-    if (!osId) {
-      const { data: nuevaOS, error: errOS } = await supabase
-        .from('obras_sociales')
-        .insert([{ obra_social: nombreOS }])
-        .select()
-        .single();
-      if (errOS) { alert('Error al crear obra social: ' + errOS.message); return; }
-      osId = nuevaOS.id;
-      todasObrasSociales.push({ id: osId, obra_social: nombreOS });
-
-      if (datalistOS) {
-        const opt = document.createElement('option');
-        opt.value = nombreOS;
-        datalistOS.appendChild(opt);
-      }
-    }
-
-    // Vincular/crear config para el médico
-    const { error: linkErr } = await supabase
-      .from('medico_obras_sociales')
-      .upsert([{
-        medico_id: medicoId,
-        obra_social_id: osId,
-        condicion_copago: condicion,
-        valor_copago: valorCopago,
-        cantidad_turnos: cantidadTurnos
-      }], { onConflict: 'medico_id,obra_social_id' });
-
-    if (linkErr) { alert('Error al vincular: ' + linkErr.message); return; }
-
-    cerrarModal();
-    await cargarObrasSociales();
-    window.dispatchEvent(new CustomEvent('os-config-changed', { detail: { medico_id: medicoId } }));
-  }
-};
-
-/* =====================
- * Búsqueda
- * ===================== */
-buscarInput.addEventListener('input', () => {
-  filtroNombre = buscarInput.value;
-  renderTabla();
-});
-
-/* =====================
- * Init
- * ===================== */
-cargarObrasSociales();
+  import { initMisConsultas } from './mis-consultas.js';
+  initMisConsultas(document.currentScript.closest('.page'));
 </script>
