@@ -40,39 +40,52 @@ const titleCase = s => (s||'').split(' ').filter(Boolean).map(w=> w[0]?.toUpperC
 // ===========================
 // Datos del turno (para header)
 // ===========================
+// ===========================
+// Datos del turno (para header) — versión robusta
+// ===========================
 async function fetchTurnoInfo(turnoId){
+  // 1) turno + paciente (esta relación sí la tenés)
   const { data: t, error } = await supabase
     .from('turnos')
     .select(`
       id, fecha, hora_inicio, hora_fin,
       paciente_id, profesional_id,
-      pacientes(apellido, nombre),
-      profesionales(apellido, nombre)
+      pacientes(apellido, nombre)
     `)
     .eq('id', turnoId)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error || !t) throw (error || new Error('Turno no encontrado'));
 
-  const pac = t?.pacientes || {};
-  const pro = t?.profesionales || {};
-  const paciente = [pac.nombre, pac.apellido].filter(Boolean).map(titleCase).join(' ').trim() || 'Paciente';
-  const profesional = [pro.nombre, pro.apellido].filter(Boolean).map(titleCase).join(' ').trim() || '—';
+  const pac = t.pacientes || {};
+  const titleCase = s => (s||'')
+    .split(' ')
+    .filter(Boolean)
+    .map(w => w[0]?.toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
 
-  const hi = toHM(t?.hora_inicio);
-  const hf = toHM(t?.hora_fin);
-  let rango = '—';
-  if (hi && hf)      rango = `${hi} — ${hf}`;
-  else if (hi)       rango = hi;
-  else if (hf)       rango = hf;
+  const paciente = [pac.nombre, pac.apellido].filter(Boolean).map(titleCase).join(' ') || 'Paciente';
 
-  return {
-    paciente,
-    fecha: t?.fecha || '—',
-    rango,
-    profesional
-  };
+  const toHM = v => (v??'').toString().slice(0,5);
+  const hi = toHM(t.hora_inicio), hf = toHM(t.hora_fin);
+  const rango = hi && hf ? `${hi} — ${hf}` : (hi || hf || '—');
+
+  // 2) profesional: intento lookup directo (no confiamos en que exista el join)
+  let profesional = '—';
+  if (t.profesional_id) {
+    const { data: pro, error: perr } = await supabase
+      .from('profesionales')
+      .select('nombre, apellido')
+      .eq('id', t.profesional_id)
+      .maybeSingle();
+    if (!perr && pro) {
+      profesional = [pro.nombre, pro.apellido].filter(Boolean).map(titleCase).join(' ') || '—';
+    }
+  }
+
+  return { paciente, fecha: t.fecha || '—', rango, profesional };
 }
+
 
 // ===========================
 // Abrir modal (público)
