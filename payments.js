@@ -6,8 +6,7 @@ let modalReady = false;
 async function ensureModalMounted() {
   if (modalReady && document.getElementById('tpl-modal-pago') && document.getElementById('modal-root')) return;
 
-  // ⚠️ Ajustá la ruta si el archivo está en otra carpeta
-  // Si usás bundler moderno podés usar: const url = new URL('./payment-modal.html', import.meta.url);
+  // Ajustá la ruta si el archivo está en otra carpeta
   const resp = await fetch('./payment-modal.html', { cache: 'no-store' });
   if (!resp.ok) throw new Error('No se pudo cargar payment-modal.html (revisá la ruta).');
 
@@ -139,7 +138,7 @@ export async function openPagoModal({
     const payload = {
       turno_id: turnoId,
       importe: importe,
-      medio: selMedio.value || 'efectivo',
+      medio: selMedio.value || 'efectivo',  // OJO: si tu columna es medio_pago, alinealo acá y en el resto de la app
       nota: (txtNota.value || '').trim() || null,
       fecha: new Date().toISOString(),
     };
@@ -183,15 +182,44 @@ export async function openPagoModal({
   };
 }
 
-// opcional: bridge por data-open-pago
+// --- Bridge e inicialización idempotente ---
+let _bridgeInit = false;
 export function initPaymentsBridge(){
+  if (_bridgeInit) return;
+  _bridgeInit = true;
+
+  // Botones declarativos: data-open-pago="TURNO_ID"
   document.querySelectorAll('[data-open-pago]').forEach(btn => {
     if (btn._pagoInit) return;
     btn._pagoInit = true;
     btn.addEventListener('click', async () => {
       const turnoId = btn.getAttribute('data-open-pago');
       if (!turnoId) return;
-      await openPagoModal({ turnoId });
+      try {
+        await openPagoModal({ turnoId });
+      } catch (e) {
+        console.error('openPagoModal error:', e);
+        alert(e?.message || 'No se pudo abrir el modal de pago.');
+      }
     });
+  });
+
+  // 🔗 Listener global del bridge usado por Inicio.js y Turnos.js
+  document.addEventListener('payment:open', async (ev) => {
+    const d = ev?.detail || {};
+    if (!d.turnoId) return;
+    try {
+      await openPagoModal({
+        turnoId: d.turnoId,
+        defaultImporte: d.amount ?? 0,        // sugerencia de importe/saldo
+        confirmLabel: d.confirmLabel || 'Guardar pago',
+        cancelLabel:  d.skipLabel    || 'Cancelar',
+        onSaved:      d.onPaid       || null, // callback al guardar
+        onCancel:     d.onSkip       || null, // callback al cerrar sin guardar
+      });
+    } catch (e) {
+      console.error('[payments] payment:open failed:', e);
+      alert(e?.message || 'No se pudo abrir el modal de pago.');
+    }
   });
 }
