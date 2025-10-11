@@ -1,3 +1,44 @@
 <section class="mis-consultas">
-  <h2 style="margin:0; color:#381e60;">Mis Consultas</h2>
+  <header style="display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:18px;">
+    <div>
+      <h2 style="margin:0; color:#381e60;">Mis Consultas</h2>
+      <small style="color:#6b6480;">Consultas, cobranzas e indicadores por período</small>
+    </div>
+    <div style="margin-left:auto; display:flex; gap:8px; align-items:center;">
+      <label>Desde <input id="mc-desde" type="date"></label>
+      <label>Hasta <input id="mc-hasta" type="date"></label>
+      <button id="mc-aplicar" class="settings-btn" style="width:auto;padding:8px 14px;">Aplicar</button>
+    </div>
+  </header>
+
+  <div id="mc-kpis" style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px;">
+    <div class="card"><div><b>Atenciones</b></div><div id="mc-kpi-atenciones" style="font-size:22px;">—</div></div>
+    <div class="card"><div><b>Ingresos (pagos del período)</b></div><div id="mc-kpi-ingresos" style="font-size:22px;">—</div></div>
+    <div class="card"><div><b>Pendiente (sobre turnos del período)</b></div><div id="mc-kpi-pendiente" style="font-size:22px;">—</div></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <b>Atenciones</b>
+      <span style="margin-left:auto;color:#6b6480;font-size:13px;">
+        Centro: <span id="mc-centro-label">—</span>
+      </span>
+    </div>
+    <div style="overflow:auto;">
+      <table id="mc-tabla" style="width:100%; border-collapse:separate; border-spacing:0 6px;">
+        <thead style="color:#6b6480; font-size:14px;">
+          <tr>
+            <th style="text-align:left;">Fecha</th>
+            <th style="text-align:left;">Paciente</th>
+            <th style="text-align:right;">Importe</th>
+            <th style="text-align:right;">Pagado</th>
+            <th style="text-align:right;">Pendiente</th>
+          </tr>
+        </thead>
+        <tbody id="mc-tbody">
+          <tr><td colspan="5" style="padding:12px;color:#6b6480;">Elegí un período y presioná “Aplicar”.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </section>
