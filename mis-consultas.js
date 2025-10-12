@@ -130,44 +130,92 @@ function buildPorOS(turnos){
 }
 
 // --- en refresh(), envolvé todo en try/catch (o reemplazá la función completa) ---
+// ==== REFRESH ÚNICA ====
 async function refresh(){
-  const desde = UI.desde.value || isoFirstDayOfMonth();
-  const hasta = UI.hasta.value || isoToday();
-  const gran  = UI.gran.value || 'day';
-  const centroId = UI.centro.value || null;
+  // 1) Parámetros actuales de la UI (con defaults)
+  const desde    = UI.desde.value || isoFirstDayOfMonth();
+  const hasta    = UI.hasta.value || isoToday();
+  const gran     = UI.gran?.value || 'day';
+  const centroId = UI.centro?.value || null;
 
-  UI.empty.style.display=''; UI.empty.textContent='Cargando…';
-  dpush({ refresh_params: {desde, hasta, gran, profesionalId, centroId} });
+  // 2) Estado de carga
+  if (UI.empty){
+    UI.empty.style.display = '';
+    UI.empty.textContent = 'Cargando…';
+  }
+
+  // (opcional debug)
+  dpush({ refresh_params: { desde, hasta, gran, profesionalId, centroId } });
 
   try {
-    const turnos = await fetchTurnos({ desde, hasta, profId: profesionalId, centroId });
-    const pagosMap = await fetchPagosMap(turnos.map(t=>t.id));
+    // 3) Traer datos base
+    const turnos   = await fetchTurnos({ desde, hasta, profId: profesionalId, centroId });
+    const pagosMap = await fetchPagosMap(turnos.map(t => t.id));
 
+    // 4) KPIs + tabla + leyenda
     setKPIs(turnos, pagosMap);
     renderTable(turnos, pagosMap);
     setLegend();
 
-    const tl = buildTimeline(turnos, gran);
-    Charts.timeline = ensureOrUpdateChart(Charts.timeline, UI.canvases.timeline,
-      barConfig(tl, 'Atendidos'));
+    // 5) Preparar series para gráficos
+    const tl  = buildTimeline(turnos, gran);   // {labels, values} por día/semana/mes
+    const os  = buildPorOS(turnos);            // {labels, values} por Obra Social (desde paciente.obra_social)
+    const cen = buildPorCentro(turnos);        // {labels, values} por centro
+    const st  = buildPorEstado(turnos);        // {labels, values} por estado
 
-    const os = buildPorOS(turnos);
-    Charts.os = ensureOrUpdateChart(Charts.os, UI.canvases.os, pieConfig(os));
+    // 6) Crear/actualizar charts (Chart.js cargado previamente en init)
+    Charts.timeline = ensureOrUpdateChart(
+      Charts.timeline,
+      UI.canvases.timeline,
+      barConfig(tl, 'Atendidos')
+    );
 
-    const byC = buildPorCentro(turnos);
-    Charts.centros = ensureOrUpdateChart(Charts.centros, UI.canvases.centros, barConfig(byC, 'Atendidos'));
+    Charts.os = ensureOrUpdateChart(
+      Charts.os,
+      UI.canvases.os,
+      pieConfig(os)
+    );
 
-    const est = buildPorEstado(turnos);
-    Charts.estados = ensureOrUpdateChart(Charts.estados, UI.canvases.estados, pieConfig(est));
+    Charts.centros = ensureOrUpdateChart(
+      Charts.centros,
+      UI.canvases.centros,
+      barConfig(cen, 'Atendidos')
+    );
 
-    UI.empty.style.display='none';
-  } catch (e){
+    Charts.estados = ensureOrUpdateChart(
+      Charts.estados,
+      UI.canvases.estados,
+      pieConfig(st)
+    );
+
+    // 7) Ocultar vacío si hay datos (o mostrar mensaje si no hay)
+    if (UI.empty){
+      if ((turnos || []).length === 0) {
+        UI.empty.style.display = '';
+        UI.empty.textContent = 'Sin resultados para el período.';
+      } else {
+        UI.empty.style.display = 'none';
+      }
+    }
+
+  } catch (e) {
     console.error('[MisConsultas] refresh error:', e);
-    UI.empty.style.display=''; 
-    UI.empty.textContent = 'Error: ' + (e?.message || e);
-    dpush({ refresh_error: e });
+    dpush({ refresh_error: e?.message || e });
+    if (UI.empty){
+      UI.empty.style.display = '';
+      UI.empty.textContent = 'Error: ' + (e?.message || e);
+    }
+  } finally {
+    // 8) Reflow suave para evitar “estiramientos”
+    requestAnimationFrame(() => {
+      try { Charts.timeline?.resize(); } catch {}
+      try { Charts.os?.resize(); } catch {}
+      try { Charts.centros?.resize(); } catch {}
+      try { Charts.estados?.resize(); } catch {}
+    });
   }
 }
+
 
 
 async function fetchPagosMap(ids){
@@ -280,18 +328,32 @@ function pieConfig({labels, values}){
 }
 
 function ensureOrUpdateChart(instRef, canvas, cfg){
-  if (!canvas) return null;
-  if (instRef?.data){
-    // update
-    instRef.config.type = cfg.type;
-    instRef.data.labels = cfg.data.labels;
-    instRef.data.datasets = cfg.data.datasets;
-    instRef.update();
-    return instRef;
+  if (!canvas || !window.Chart) return null;
+
+  // Si existe pero el canvas ya no está en el DOM o no coincide → destruir
+  const invalid =
+    (instRef && (!instRef.canvas || !document.contains(instRef.canvas))) ||
+    (instRef && instRef.canvas && instRef.canvas !== canvas);
+
+  if (invalid) {
+    try { instRef.destroy(); } catch {}
+    instRef = null;
   }
-  // create
-  return new window.Chart(canvas.getContext('2d'), cfg);
+
+  if (!instRef) {
+    // Crear nuevo sobre el canvas correcto
+    return new window.Chart(canvas.getContext('2d'), cfg);
+  }
+
+  // Reusar: actualizar datos/tipo
+  instRef.config.type      = cfg.type;
+  instRef.data.labels      = cfg.data.labels;
+  instRef.data.datasets    = cfg.data.datasets;
+  instRef.options          = { ...instRef.options, ...cfg.options };
+  instRef.update();
+  return instRef;
 }
+
 
 
 /* ===== init ===== */
@@ -321,7 +383,37 @@ export async function initMisConsultas(root){
   UI.desde.onchange = refresh;
   UI.hasta.onchange = refresh;
 
+  // --- auto-limpieza cuando el panel se desmonta (SPA)
+const onResize = () => {
+  // Reforzamos el reflow cuando cambia el tamaño de la ventana
+  Charts.timeline?.resize();
+  Charts.os?.resize();
+  Charts.centros?.resize();
+  Charts.estados?.resize();
+};
+window.addEventListener('resize', onResize);
+
+// Si el nodo raíz deja de existir, destruimos los charts
+const mo = new MutationObserver(() => {
+  if (UI.root && !document.body.contains(UI.root)) {
+    window.removeEventListener('resize', onResize);
+    destroyCharts();
+    mo.disconnect();
+  }
+});
+mo.observe(document.body, { childList:true, subtree:true });
+
+
   // primera carga
   await refresh();
   log('ready');
 }
+
+function destroyCharts(){
+  try { Charts.timeline?.destroy(); } catch {}
+  try { Charts.os?.destroy(); } catch {}
+  try { Charts.centros?.destroy(); } catch {}
+  try { Charts.estados?.destroy(); } catch {}
+  Charts = { timeline:null, os:null, centros:null, estados:null };
+}
+
