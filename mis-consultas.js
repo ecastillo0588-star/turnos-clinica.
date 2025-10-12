@@ -206,13 +206,6 @@ function buildTimeline(turnos, gran='day'){
   return { labels, values };
 }
 
-function buildPorOS(turnos){
-  const labelOf = (t)=> t.obras_sociales?.obra_social || t.pacientes?.obra_social || 'Sin OS';
-  const m = groupBy(turnos, labelOf);
-  const labels = [...m.keys()];
-  const values = labels.map(l => m.get(l).filter(x=>x.estado==='atendido').length);
-  return { labels, values };
-}
 
 function buildPorCentro(turnos){
   const labelOf = (t)=> t.centros_medicos?.nombre || '—';
