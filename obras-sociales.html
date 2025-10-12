@@ -1,65 +1,181 @@
 <!-- mis-consultas.html -->
-<section class="page">
-  <h2 style="margin:0 0 10px;color:#381e60;">Mis Consultas</h2>
+<section id="mc" class="mc-wrap">
+  <style>
+    /* ===== Reset mínimo dentro de la tarjeta ===== */
+    .mc-wrap{ font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Arial; color:#2b2b2b; }
+    .mc-wrap h2{ margin:0 0 14px; font-size:22px; color:#311b66; }
+    .mc-wrap h4{ margin:0 0 8px; font-size:14px; color:#6b6480; font-weight:600; }
 
-  <div class="filters" style="display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin-bottom:12px;">
-    <label>Centro
-      <select id="mc-centro" style="min-width:260px;">
-        <option value="">Todos los centros</option>
-      </select>
-    </label>
-    <label>Desde
-      <input id="mc-desde" type="date">
-    </label>
-    <label>Hasta
-      <input id="mc-hasta" type="date">
-    </label>
-    <button id="mc-aplicar" class="btn">Aplicar</button>
-    <button id="mc-export"  class="btn secondary">Exportar CSV</button>
-  </div>
+    /* ===== Card principal ===== */
+    .mc-card{
+      background:#fff; border-radius:14px; box-shadow:0 2px 12px rgba(80,60,160,.10);
+      padding:18px 18px 22px;
+    }
 
-  <div class="kpis" style="display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px;margin-bottom:10px;">
-    <div class="card" style="padding:12px;"><div style="color:#6b6480;">Atenciones</div><div id="mc-kpi-atenciones" style="font-weight:700;font-size:20px;">—</div></div>
-    <div class="card" style="padding:12px;"><div style="color:#6b6480;">Cobrado (período)</div><div id="mc-kpi-ingresos" style="font-weight:700;font-size:20px;">—</div></div>
-    <div class="card" style="padding:12px;"><div style="color:#6b6480;">Pendiente (histórico)</div><div id="mc-kpi-pendiente" style="font-weight:700;font-size:20px;">—</div></div>
-    <div class="card" style="padding:12px;"><div style="color:#6b6480;">Ticket promedio</div><div id="mc-kpi-ticket" style="font-weight:700;font-size:20px;">—</div></div>
-  </div>
+    /* ===== Filtros ===== */
+    .mc-filters{ display:grid; grid-template-columns: repeat(12, 1fr); gap:10px; align-items:end; }
+    .mc-field{ display:flex; flex-direction:column; gap:4px; }
+    .mc-field label{ font-size:12px; color:#6b6480; }
+    .mc-field input[type="date"],
+    .mc-field select{
+      height:32px; border:1.5px solid #ece5fc; border-radius:7px; background:#f7f9fb;
+      padding:4px 10px; color:#4f3b7a; outline:none;
+    }
+    .mc-field select:focus, .mc-field input[type="date"]:focus{ box-shadow:0 0 0 3px rgba(139,107,217,.35); }
+    .mc-btn{
+      height:32px; padding:0 14px; border:none; border-radius:7px; background:#7656b0; color:#fff; cursor:pointer;
+      font-weight:600;
+    }
+    .mc-btn:hover{ filter:brightness(0.95); }
 
-  <div class="card" style="padding:0;">
-    <table style="width:100%;border-collapse:separate;border-spacing:0;">
-      <thead>
-        <tr style="background:#f7f9fb;color:#4f3b7a;">
-          <th style="text-align:left;padding:10px 8px;">Fecha</th>
-          <th style="text-align:left;padding:10px 8px;">Centro</th>
-          <th style="text-align:left;padding:10px 8px;">Paciente</th>
-          <th style="text-align:right;padding:10px 8px;">Importe esperado</th>
-          <th style="text-align:right;padding:10px 8px;">Pagado</th>
-          <th style="text-align:right;padding:10px 8px;">Pendiente</th>
-        </tr>
-      </thead>
-      <tbody id="mc-tbody">
-        <tr><td colspan="6" style="padding:14px;color:#6b6480;">Cargando…</td></tr>
-      </tbody>
-    </table>
-  </div>
+    /* columnas filtros */
+    .mc-col-desde{ grid-column: span 3; }
+    .mc-col-hasta{ grid-column: span 3; }
+    .mc-col-centro{ grid-column: span 4; }
+    .mc-col-gran{ grid-column: span 2; }
+    .mc-col-accion{ grid-column: span 12; display:flex; gap:8px; justify-content:flex-end; }
 
-  <div class="card" style="padding:0;margin-top:12px;">
-    <h3 style="margin:12px;color:#381e60;font-size:16px;">Cobros por medio (en el período)</h3>
-    <table style="width:100%;border-collapse:separate;border-spacing:0;">
-      <thead>
-        <tr style="background:#f7f9fb;color:#4f3b7a;">
-          <th style="text-align:left;padding:10px 8px;">Medio</th>
-          <th style="text-align:right;padding:10px 8px;">Importe</th>
-          <th style="text-align:right;padding:10px 8px;">%</th>
-        </tr>
-      </thead>
-      <tbody id="mc-medios-body">
-        <tr><td colspan="3" style="padding:14px;color:#6b6480;">Cargando…</td></tr>
-      </tbody>
-    </table>
+    @media (max-width:900px){
+      .mc-col-desde,.mc-col-hasta,.mc-col-centro,.mc-col-gran{ grid-column: span 6; }
+      .mc-col-accion{ grid-column: span 12; }
+    }
+
+    /* ===== KPIs ===== */
+    .mc-kpis{ display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; margin:14px 0 4px; }
+    .mc-kpi{
+      background:#f7f9fb; border:1px solid #ece5fc; border-radius:12px; padding:10px 12px;
+      display:flex; flex-direction:column; gap:3px;
+    }
+    .mc-kpi small{ color:#6b6480; font-weight:600; }
+    .mc-kpi b{ font-size:18px; color:#311b66; }
+
+    /* ===== Legend ===== */
+    .mc-legend{ margin:4px 0 12px; color:#6b6480; font-size:13px; }
+
+    /* ===== Gráficos ===== */
+    .mc-charts{
+      display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin:6px 0 10px;
+    }
+    .chart-card{
+      background:#fff; border-radius:12px; box-shadow:0 2px 10px rgba(0,0,0,.06); padding:12px 12px 14px;
+    }
+    .chart-card .plot{ position:relative; height:260px; }
+    .chart-card.is-pie .plot{ height:220px; }
+    .chart-card canvas{
+      position:absolute; inset:0; width:100% !important; height:100% !important;
+    }
+    @media (max-width:900px){ .mc-charts{ grid-template-columns: 1fr; } }
+
+    /* ===== Tabla ===== */
+    .mc-table-wrap{ margin-top:6px; border:1px solid #ece5fc; border-radius:12px; overflow:hidden; }
+    table.mc-table{ width:100%; border-collapse:collapse; }
+    .mc-table thead th{
+      text-align:left; font-size:12px; color:#6b6480; background:#f8f6ff; padding:10px; border-bottom:1px solid #ece5fc;
+    }
+    .mc-table tbody td{ padding:10px; border-bottom:1px solid #f0edf9; }
+    .mc-table tbody tr:nth-child(odd){ background:#fcfbff; }
+    .mc-td-right{ text-align:right; }
+
+    .mc-empty{
+      padding:16px; color:#6b6480; font-style:italic; text-align:center;
+    }
+
+    /* ===== Debug ===== */
+    details.mc-debug{ margin-top:10px; }
+    details.mc-debug summary{ cursor:pointer; color:#4f3b7a; }
+    #mc-debug-pre{
+      border:1px dashed #e0d8fb; border-radius:10px; background:#faf9ff; padding:10px; margin-top:8px; max-height:240px; overflow:auto;
+      font:12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color:#3a2d66;
+    }
+  </style>
+
+  <div class="mc-card">
+    <h2>Mis Consultas</h2>
+
+    <!-- Filtros -->
+    <div class="mc-filters">
+      <div class="mc-field mc-col-desde">
+        <label for="mc-desde">Desde</label>
+        <input type="date" id="mc-desde">
+      </div>
+      <div class="mc-field mc-col-hasta">
+        <label for="mc-hasta">Hasta</label>
+        <input type="date" id="mc-hasta">
+      </div>
+      <div class="mc-field mc-col-centro">
+        <label for="mc-centro">Centro</label>
+        <select id="mc-centro">
+          <option value="">Todos los centros</option>
+          <!-- opciones se cargan desde mis-consultas.js -->
+        </select>
+      </div>
+      <div class="mc-field mc-col-gran">
+        <label for="mc-gran">Agrupar por</label>
+        <select id="mc-gran">
+          <option value="day">Día</option>
+          <option value="week">Semana</option>
+          <option value="month">Mes</option>
+        </select>
+      </div>
+      <div class="mc-col-accion">
+        <button id="mc-refresh" class="mc-btn">Actualizar</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="mc-kpis">
+      <div class="mc-kpi"><small>Consultas atendidas</small><b id="mc-kpi-consultas">—</b></div>
+      <div class="mc-kpi"><small>Cobrado</small><b id="mc-kpi-cobrado">—</b></div>
+      <div class="mc-kpi"><small>Pendiente</small><b id="mc-kpi-pendiente">—</b></div>
+    </div>
+
+    <!-- Leyenda -->
+    <div id="mc-legend" class="mc-legend">—</div>
+
+    <!-- Charts -->
+    <div class="mc-charts">
+      <div class="chart-card">
+        <h4 class="chart-title">Evolución</h4>
+        <div class="plot"><canvas id="mc-chart-timeline"></canvas></div>
+      </div>
+      <div class="chart-card is-pie">
+        <h4 class="chart-title">Obras sociales</h4>
+        <div class="plot"><canvas id="mc-chart-os"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h4 class="chart-title">Por centro</h4>
+        <div class="plot"><canvas id="mc-chart-centros"></canvas></div>
+      </div>
+      <div class="chart-card is-pie">
+        <h4 class="chart-title">Estados</h4>
+        <div class="plot"><canvas id="mc-chart-estados"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Tabla resultados -->
+    <div class="mc-table-wrap">
+      <div id="mc-empty" class="mc-empty">Cargando…</div>
+      <table class="mc-table" aria-describedby="mc-legend">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Hora</th>
+            <th>Centro</th>
+            <th>Paciente</th>
+            <th>Estado</th>
+            <th class="mc-td-right">Copago</th>
+            <th class="mc-td-right">Pagado</th>
+          </tr>
+        </thead>
+        <tbody id="mc-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Debug -->
+    <details class="mc-debug">
+      <summary>Ver debug</summary>
+      <pre id="mc-debug-pre">(sin eventos)</pre>
+    </details>
   </div>
 </section>
-<script type="module">
-  import { initMisConsultas } from './mis-consultas.js';
-  initMisConsultas(document.currentScript.closest('.page'));
-</script>
