@@ -198,6 +198,7 @@
         <button id="btn-inicio" class="active">Inicio</button>
         <button id="btn-turnos">Turnos</button>
         <button id="btn-pacientes">Pacientes</button>
+        <button id="btn-mis-consultas" title="Consultas, cobranzas e indicadores por período">Mis Consultas</button>
         <button id="btn-config">Configuración</button>
       </nav>
       <div class="logout-slot">
@@ -233,6 +234,9 @@
     // --- Configuración botón según rol
     const btnConfig = document.getElementById("btn-config");
     if (!["medico","propietario","amp"].includes(userRolRaw)) btnConfig.style.display = "none";
+      // Mostrar "Mis Consultas" solo a profesionales (médico)
+    const btnMis = document.getElementById("btn-mis-consultas");
+    if (btnMis && userRolRaw !== "medico") btnMis.style.display = "none";
 
     // --- Selector de centros
     const centroSelect = document.getElementById("centro-select");
@@ -291,6 +295,20 @@ centroSelect.onchange = ()=> {
           const mod = await import("./inicio.js"); mod.initInicio?.(main);
         } else if (file==="turnos.html") {
           const mod = await import("./turnos.js"); mod.initTurnos?.(main);
+         } else if (file==="mis-consultas.html") {
+          try {
+            console.log("[loader] cargando mis-consultas.js…");
+            const mod = await import("./mis-consultas.js");
+            if (!mod?.initMisConsultas) {
+              console.warn("[loader] initMisConsultas no exportado");
+            }
+            mod.initMisConsultas?.(main);
+          } catch (e) {
+            console.error("[loader] error import mis-consultas.js:", e);
+            main.innerHTML = `<div style="color:#b00020;">Error cargando Mis Consultas: ${e?.message||e}</div>`;
+          }
+
+          
         } else if (file==="configuracion.html" || file==="pacientes.html") {
           // reinyección de scripts internos
           main.querySelectorAll("script").forEach(old=>{
@@ -310,6 +328,7 @@ centroSelect.onchange = ()=> {
     document.getElementById("btn-inicio").onclick=()=>{setActive("btn-inicio");cargarPanelHtml("inicio.html");};
     document.getElementById("btn-turnos").onclick=()=>{setActive("btn-turnos");cargarPanelHtml("turnos.html");};
     document.getElementById("btn-pacientes").onclick=()=>{setActive("btn-pacientes");cargarPanelHtml("pacientes.html");};
+    document.getElementById("btn-mis-consultas").onclick=()=>{setActive("btn-mis-consultas");cargarPanelHtml("mis-consultas.html");};
     document.getElementById("btn-config").onclick=()=>{setActive("btn-config");cargarPanelHtml("configuracion.html");};
     function setActive(id){
       document.querySelectorAll(".menu button").forEach(b=>b.classList.remove("active"));
