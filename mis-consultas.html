@@ -1,73 +1,77 @@
-<section class="mis-consultas">
-  <header style="display:flex; gap:12px; align-items:end; flex-wrap:wrap; margin-bottom:18px;">
-    <div>
-      <h2 style="margin:0; color:#381e60;">Mis Consultas</h2>
-      <small style="color:#6b6480;">Consultas, cobranzas e indicadores por período</small>
-    </div>
+<!-- mis-consultas.html -->
+<div class="page page-mis-consultas">
+  <h2 style="margin:0 0 12px;color:#381e60;">Mis Consultas</h2>
 
-    <div style="display:flex; gap:8px; align-items:center; margin-left:auto;">
-      <label>Desde <input id="mc-desde" type="date"></label>
-      <label>Hasta <input id="mc-hasta" type="date"></label>
-      <label>Centro
-        <select id="mc-centro" style="min-width:220px;">
-          <option value="">Todos los centros</option>
-        </select>
-      </label>
-      <button id="mc-aplicar" class="settings-btn" style="width:auto;padding:8px 14px;">Aplicar</button>
-      <button id="mc-export"  class="settings-btn" style="width:auto;padding:8px 14px;background:#8b6bd9;">Exportar CSV</button>
-    </div>
-  </header>
+  <!-- Filtros -->
+  <div class="toolbar" style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-bottom:14px;">
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#6b6480;">
+      Desde
+      <input id="mc-desde" type="date"
+             style="padding:6px 10px;border:1px solid #e6e1f7;border-radius:8px;background:#faf9ff;">
+    </label>
 
-  <div id="mc-kpis" style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:16px;">
-    <div class="card"><div><b>Atenciones</b></div><div id="mc-kpi-atenciones" style="font-size:22px;">—</div></div>
-    <div class="card"><div><b>Cobrado (período)</b></div><div id="mc-kpi-ingresos" style="font-size:22px;">—</div></div>
-    <div class="card"><div><b>Pendiente</b></div><div id="mc-kpi-pendiente" style="font-size:22px;">—</div></div>
-    <div class="card"><div><b>Ticket promedio</b></div><div id="mc-kpi-ticket" style="font-size:22px;">—</div></div>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#6b6480;">
+      Hasta
+      <input id="mc-hasta" type="date"
+             style="padding:6px 10px;border:1px solid #e6e1f7;border-radius:8px;background:#faf9ff;">
+    </label>
+
+    <!-- (Opcional) Filtro de Centro: el JS puede ignorarlo por ahora -->
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#6b6480;">
+      Centro
+      <select id="mc-centro" style="padding:6px 10px;border:1px solid #e6e1f7;border-radius:8px;background:#faf9ff;min-width:220px;">
+        <option value="">Todos los centros</option>
+      </select>
+    </label>
+
+    <button id="mc-refresh"
+            style="padding:8px 12px;border:0;border-radius:8px;background:#7656b0;color:#fff;font-weight:600;cursor:pointer;">
+      Actualizar
+    </button>
   </div>
 
-  <div class="card" style="margin-bottom:12px;">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-      <b>Detalle</b>
-      <span style="margin-left:auto;color:#6b6480;font-size:12px;">
-        * “Pagado” en la tabla es <i>total histórico</i> del turno. El KPI “Cobrado (período)” usa pagos dentro del rango.
-      </span>
-    </div>
-    <div style="overflow:auto;">
-      <table id="mc-tabla" style="width:100%; border-collapse:separate; border-spacing:0 6px;">
-        <thead style="color:#6b6480; font-size:14px;">
-          <tr>
-            <th style="text-align:left;">Fecha</th>
-            <th style="text-align:left;">Centro</th>
-            <th style="text-align:left;">Paciente</th>
-            <th style="text-align:right;">Importe</th>
-            <th style="text-align:right;">Pagado</th>
-            <th style="text-align:right;">Pendiente</th>
-          </tr>
-        </thead>
-        <tbody id="mc-tbody">
-          <tr><td colspan="6" style="padding:12px;color:#6b6480;">Elegí un período y presioná “Aplicar”.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
+  <!-- KPIs -->
+  <div id="mc-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;"></div>
 
-  <div class="card">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-      <b>Desglose por medio de pago (en período)</b>
-    </div>
-    <div style="overflow:auto;">
-      <table id="mc-medios" style="width:100%; border-collapse:separate; border-spacing:0 6px;">
-        <thead style="color:#6b6480; font-size:14px;">
-          <tr>
-            <th style="text-align:left;">Medio</th>
-            <th style="text-align:right;">Importe</th>
-            <th style="text-align:right;">% del total</th>
-          </tr>
-        </thead>
-        <tbody id="mc-medios-body">
-          <tr><td colspan="3" style="padding:12px;color:#6b6480;">Sin datos.</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
+  <!-- Resultados -->
+  <div id="mc-out" style="background:#fff;border:1px solid #eee;border-radius:10px;overflow:auto;"></div>
+
+  <!-- Debug -->
+  <details style="margin-top:12px;">
+    <summary style="cursor:pointer;color:#6b6480;">Ver debug</summary>
+    <pre id="mc-debug" style="background:#17132a;color:#cbb8ff;padding:10px;border-radius:8px;overflow:auto;max-height:260px;"></pre>
+  </details>
+</div>
+
+<!-- Estilos mínimos para la tabla generada -->
+<style>
+  .page-mis-consultas table{
+    width:100%;
+    border-collapse: separate;
+    border-spacing:0;
+    font-size:14px;
+  }
+  .page-mis-consultas thead th{
+    position:sticky; top:0;
+    background:#f6f3ff;
+    color:#4f3b7a;
+    text-align:left;
+    padding:10px;
+    border-bottom:1px solid #e8e1fb;
+    z-index:1;
+  }
+  .page-mis-consultas tbody td{
+    padding:10px;
+    border-bottom:1px solid #f1edff;
+  }
+  .page-mis-consultas tbody tr:hover{
+    background:rgba(118,86,176,.06);
+  }
+  .page-mis-consultas .kpi{
+    background:#fff; border:1px solid #eee; border-radius:10px;
+    padding:10px 12px; min-width:160px;
+    box-shadow:0 1px 8px rgba(80,60,160,.06);
+  }
+  .page-mis-consultas .kpi .label{ font-size:12px; color:#6b6480; }
+  .page-mis-consultas .kpi .value{ font-size:18px; color:#381e60; font-weight:700; }
+</style>
