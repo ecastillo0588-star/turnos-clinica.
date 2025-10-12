@@ -1,136 +1,81 @@
 <!-- mis-consultas.html -->
 <section id="mc" class="mc">
   <style>
-    /* ====== Override ancho de la “card” del dashboard para este panel ====== */
-    #main-content.card { max-width: 1400px; width: 100%; }
-    @media (min-width: 1600px){ #main-content.card { max-width: 92vw; } }
+    /* Usa más ancho, pero sin desbordarse */
+    #main-content.card { max-width: 1280px; width: 100%; }
 
-    /* ====== Estilos base ====== */
     .mc { display: grid; gap: 18px; }
     .mc h2 { margin: 0 0 4px; color: #381e60; font-weight: 700; }
 
+    /* ===== Toolbar ===== */
     .mc-toolbar {
-      display: grid;
-      gap: 10px;
-      grid-template-columns: 1fr;
+      display: grid; gap: 10px;
+      grid-template-columns: repeat(12, minmax(0,1fr));
       align-items: end;
     }
-    @media (min-width: 820px){
-      .mc-toolbar {
-        grid-template-columns: repeat(12, minmax(0,1fr));
-        align-items: end;
-      }
-    }
-
     .mc-field { display: grid; gap: 6px; }
     .mc-field label { font-size: 12px; color: #6b6480; }
     .mc-field input, .mc-field select {
-      background: #fbfbfe; border: 1.5px solid #ece5fc; border-radius: 8px;
-      padding: 8px 10px; font-size: 14px; color: #381e60;
-      outline: none;
+      background:#fbfbfe; border:1.5px solid #ece5fc; border-radius:8px;
+      padding:8px 10px; font-size:14px; color:#381e60; outline:none;
     }
-    .mc-field input:focus, .mc-field select:focus { box-shadow: 0 0 0 3px rgba(139,107,217,.25); }
+    .mc-field input:focus, .mc-field select:focus { box-shadow:0 0 0 3px rgba(139,107,217,.25); }
+    .mc-btn { border:0; background:#7656b0; color:#fff; padding:10px 14px; border-radius:10px; font-weight:600; cursor:pointer; }
+    .mc-legend { font-size:13px; color:#6b6480; margin-top:2px; grid-column:1 / -1; }
 
-    .mc-legend {
-      font-size: 13px; color: #6b6480; margin-top: 2px;
-    }
+    /* Chips (multifiltro) */
+    .chips { grid-column:1/-1; display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .chip { display:inline-flex; align-items:center; gap:8px; border:1px solid #e2dcf7; background:#f6f3fd; color:#4f3b7a; border-radius:999px; padding:6px 10px; font-size:13px; }
+    .chip .x { cursor:pointer; font-weight:700; color:#8b6bd9; }
 
-    .mc-btn {
-      border: 0; background: #7656b0; color: #fff; padding: 10px 14px; border-radius: 10px;
-      font-weight: 600; cursor: pointer; transition: transform .06s ease, box-shadow .18s ease;
-    }
-    .mc-btn:hover { box-shadow: 0 6px 14px rgba(118,86,176,.18); }
-    .mc-btn:active { transform: translateY(1px); }
+    /* ===== KPIs ===== */
+    .mc-kpis { display:grid; gap:12px; grid-template-columns: repeat(3, minmax(0,1fr)); }
+    .kpi { background:#fff; border:1px solid #eee8ff; border-radius:12px; padding:14px 16px; box-shadow:0 2px 8px rgba(80,60,160,.06); display:grid; gap:6px; }
+    .kpi .label { font-size:12px; color:#6b6480; }
+    .kpi .value { font-size:22px; color:#381e60; font-weight:800; }
 
-    /* ====== Chips de filtros activos ====== */
-    .chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .chip {
-      display: inline-flex; align-items: center; gap: 8px;
-      border: 1px solid #e2dcf7; background: #f6f3fd; color: #4f3b7a;
-      border-radius: 999px; padding: 6px 10px; font-size: 13px;
-    }
-    .chip .x { cursor: pointer; font-weight: 700; color: #8b6bd9; }
-    .chip .x:hover { color: #5d3fae; }
-
-    /* ====== KPIs ====== */
-    .mc-kpis {
-      display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-    .kpi {
-      background: #fff; border: 1px solid #eee8ff; border-radius: 12px; padding: 14px 16px;
-      display: grid; gap: 6px; box-shadow: 0 2px 8px rgba(80,60,160,.06);
-    }
-    .kpi .label { font-size: 12px; color: #6b6480; }
-    .kpi .value { font-size: 22px; color: #381e60; font-weight: 800; }
-
-    /* ====== Grillas de gráficos ====== */
+    /* ===== Charts: dos columnas lado a lado ===== */
     .mc-charts {
-      display: grid; gap: 14px;
-      grid-template-columns: 1fr;
+      display:grid; gap:14px;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      align-items: stretch;
     }
-    @media (min-width: 1100px){
-      .mc-charts {
-        grid-template-columns: 2fr 1fr 1fr;
-        grid-auto-rows: minmax(0, auto);
-        align-items: stretch;
-      }
-      .chart-card.timeline {
-        grid-column: 1 / -1;   /* ocupa todo el ancho arriba */
-      }
+    @media (max-width: 900px){
+      .mc-charts { grid-template-columns: 1fr; }
     }
 
     .chart-card {
-      background: #fff; border: 1px solid #eee8ff; border-radius: 12px; padding: 12px;
-      box-shadow: 0 2px 8px rgba(80,60,160,.06);
-      display: grid; grid-template-rows: auto 1fr; gap: 10px;
-      min-height: 280px;
+      background:#fff; border:1px solid #eee8ff; border-radius:12px; padding:12px;
+      box-shadow:0 2px 8px rgba(80,60,160,.06);
+      display:grid; grid-template-rows:auto 1fr; gap:10px;
+      min-height: 320px;   /* altura fija para evitar estiramientos */
     }
-    .chart-card.timeline { min-height: 340px; }
+    .chart-title { font-size:13px; color:#6b6480; display:flex; justify-content:space-between; align-items:center; }
+    .chart-body { min-height:0; }
+    .chart-body canvas { width:100% !important; height:100% !important; display:block; }
 
-    .chart-title {
-      font-size: 13px; color: #6b6480; display: flex; justify-content: space-between; align-items: center;
-    }
-    .chart-body {
-      min-height: 0; /* evita estiramiento */
-    }
-    .chart-body canvas {
-      width: 100% !important;
-      height: 100% !important;
-      display: block;
-    }
-
-    /* ====== Tabla ====== */
-    .mc-table-wrap {
-      background: #fff; border: 1px solid #eee8ff; border-radius: 12px; padding: 12px;
-      box-shadow: 0 2px 8px rgba(80,60,160,.06);
-      overflow: auto;
-    }
-    table { width: 100%; border-collapse: collapse; }
-    thead th {
-      text-align: left; font-size: 12px; color: #6b6480; font-weight: 600;
-      padding: 10px 8px; border-bottom: 1px solid #eee8ff;
-      white-space: nowrap;
-    }
-    tbody td { padding: 10px 8px; border-bottom: 1px solid #f4f0ff; font-size: 14px; color: #381e60; }
-    tbody tr:hover { background: #faf7ff; }
-
-    /* vacío / estado */
-    .mc-empty { color:#6b6480; font-size: 14px; text-align: center; padding: 12px 0; }
+    /* ===== Tabla ===== */
+    .mc-table-wrap { background:#fff; border:1px solid #eee8ff; border-radius:12px; padding:12px; box-shadow:0 2px 8px rgba(80,60,160,.06); overflow:auto; }
+    table { width:100%; border-collapse:collapse; }
+    thead th { text-align:left; font-size:12px; color:#6b6480; font-weight:600; padding:10px 8px; border-bottom:1px solid #eee8ff; white-space:nowrap; }
+    tbody td { padding:10px 8px; border-bottom:1px solid #f4f0ff; font-size:14px; color:#381e60; }
+    tbody tr:hover{ background:#faf7ff; }
+    .mc-empty { color:#6b6480; font-size:14px; text-align:center; padding:12px 0; }
   </style>
 
   <h2>Mis consultas</h2>
 
-  <!-- Filtros -->
+  <!-- Toolbar -->
   <div class="mc-toolbar">
-    <div class="mc-field" style="grid-column: span 2;">
+    <div class="mc-field" style="grid-column: span 3;">
       <label>Desde</label>
       <input id="mc-desde" type="date">
     </div>
-    <div class="mc-field" style="grid-column: span 2;">
+    <div class="mc-field" style="grid-column: span 3;">
       <label>Hasta</label>
       <input id="mc-hasta" type="date">
     </div>
-    <div class="mc-field" style="grid-column: span 4;">
+    <div class="mc-field" style="grid-column: span 3;">
       <label>Centro médico</label>
       <select id="mc-centro">
         <option value="">Todos los centros</option>
@@ -144,17 +89,13 @@
         <option value="month">Mes</option>
       </select>
     </div>
-    <div class="mc-field" style="grid-column: span 2;">
+    <div class="mc-field" style="grid-column: span 1;">
       <label>&nbsp;</label>
       <button id="mc-refresh" class="mc-btn">Actualizar</button>
     </div>
 
-    <div class="mc-legend" style="grid-column: 1 / -1;">
-      <span id="mc-legend">—</span>
-    </div>
-
-    <!-- Chips de filtros activos (se rellenan desde JS si hacés clic en los gráficos) -->
-    <div id="mc-chips" class="chips" style="grid-column: 1 / -1;"></div>
+    <div id="mc-legend" class="mc-legend">—</div>
+    <div id="mc-chips" class="chips"></div>
   </div>
 
   <!-- KPIs -->
@@ -173,9 +114,9 @@
     </div>
   </div>
 
-  <!-- Charts -->
+  <!-- Charts (2 columnas, lado a lado) -->
   <div class="mc-charts">
-    <div class="chart-card timeline">
+    <div class="chart-card">
       <div class="chart-title">
         <span>Evolución de atenciones</span>
         <small style="color:#8b6bd9;">clic para filtrar</small>
