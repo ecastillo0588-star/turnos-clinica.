@@ -97,6 +97,7 @@ async function loadCentrosFor(profId){
 }
 
 /* ===== turnos + pagos ===== */
+// --- reemplazá fetchTurnos por este ---
 async function fetchTurnos({ desde, hasta, profId, centroId }){
   let q = supabase
     .from('turnos')
@@ -104,8 +105,7 @@ async function fetchTurnos({ desde, hasta, profId, centroId }){
       id, fecha, hora_inicio, hora_fin, estado, copago,
       centro_id, obra_social_id,
       pacientes(id, apellido, nombre, obra_social),
-      centros_medicos(id, nombre),
-      obras_sociales:obras_sociales(obra_social)
+      centros_medicos(id, nombre)
     `)
     .eq('profesional_id', profId)
     .gte('fecha', desde)
@@ -119,6 +119,56 @@ async function fetchTurnos({ desde, hasta, profId, centroId }){
   if (error) throw error;
   return data || [];
 }
+
+// --- reemplazá buildPorOS por este (sin referencia a obras_sociales) ---
+function buildPorOS(turnos){
+  const labelOf = (t)=> t.pacientes?.obra_social || 'Sin OS';
+  const m = groupBy(turnos, labelOf);
+  const labels = [...m.keys()];
+  const values = labels.map(l => m.get(l).filter(x=>x.estado==='atendido').length);
+  return { labels, values };
+}
+
+// --- en refresh(), envolvé todo en try/catch (o reemplazá la función completa) ---
+async function refresh(){
+  const desde = UI.desde.value || isoFirstDayOfMonth();
+  const hasta = UI.hasta.value || isoToday();
+  const gran  = UI.gran.value || 'day';
+  const centroId = UI.centro.value || null;
+
+  UI.empty.style.display=''; UI.empty.textContent='Cargando…';
+  dpush({ refresh_params: {desde, hasta, gran, profesionalId, centroId} });
+
+  try {
+    const turnos = await fetchTurnos({ desde, hasta, profId: profesionalId, centroId });
+    const pagosMap = await fetchPagosMap(turnos.map(t=>t.id));
+
+    setKPIs(turnos, pagosMap);
+    renderTable(turnos, pagosMap);
+    setLegend();
+
+    const tl = buildTimeline(turnos, gran);
+    Charts.timeline = ensureOrUpdateChart(Charts.timeline, UI.canvases.timeline,
+      barConfig(tl, 'Atendidos'));
+
+    const os = buildPorOS(turnos);
+    Charts.os = ensureOrUpdateChart(Charts.os, UI.canvases.os, pieConfig(os));
+
+    const byC = buildPorCentro(turnos);
+    Charts.centros = ensureOrUpdateChart(Charts.centros, UI.canvases.centros, barConfig(byC, 'Atendidos'));
+
+    const est = buildPorEstado(turnos);
+    Charts.estados = ensureOrUpdateChart(Charts.estados, UI.canvases.estados, pieConfig(est));
+
+    UI.empty.style.display='none';
+  } catch (e){
+    console.error('[MisConsultas] refresh error:', e);
+    UI.empty.style.display=''; 
+    UI.empty.textContent = 'Error: ' + (e?.message || e);
+    dpush({ refresh_error: e });
+  }
+}
+
 
 async function fetchPagosMap(ids){
   const uniq = [...new Set(ids || [])];
