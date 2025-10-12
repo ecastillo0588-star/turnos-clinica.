@@ -1,234 +1,111 @@
-// mis-consultas.js (v3)
-// -------------------------------------------------
+// mis-consultas.js (v4 con gráficos)
 import supabase from './supabaseClient.js';
 
 const TAG = '[MisConsultas]';
-const log  = (...a)=>console.log(TAG, ...a);
-const warn = (...a)=>console.warn(TAG, ...a);
-const error= (...a)=>console.error(TAG, ...a);
+const log   = (...a)=>console.log(TAG, ...a);
+const dbg   = [];
+const dpush = (o)=>{ try{ dbg.push(o); const pre=document.getElementById('mc-debug-pre'); if(pre){ pre.textContent = dbg.map(x=> typeof x==='string'?x:JSON.stringify(x,null,2)).join('\n'); } }catch{} };
 
-// =============== helpers ===============
 const pad2 = n => (n<10?'0'+n:''+n);
-const isoToday = () => {
-  const d=new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
-};
-const isoFirstDayOfMonth = (d=new Date()) =>
-  `${d.getFullYear()}-${pad2(d.getMonth()+1)}-01`;
+const isoToday = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
+const isoFirstDayOfMonth = (d=new Date()) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-01`;
+const isUUID = v => typeof v==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+const money = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0));
 
-const isUUID = v => typeof v==='string' &&
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
-
-const toNumber = v => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-const money = n => new Intl.NumberFormat('es-AR', {
-  style:'currency', currency:'ARS', maximumFractionDigits:0
-}).format(toNumber(n));
-
-// =============== estado UI ===============
-let UI = {
-  root:null,
-  desde:null, hasta:null, centro:null, btn:null,
-  kpiCons:null, kpiCobrado:null, kpiPend:null,
-  legend:null, tbody:null, empty:null, dbg:null
-};
+let UI = {};
 let profesionalId = null;
+let Charts = { timeline:null, os:null, centros:null, estados:null }; // instancias Chart.js
 
-// =============== scaffold si falta ===============
-function ensureScaffold(root){
-  // si ya está, solo tomar refs
-  if (root.querySelector('#mc-desde')) {
-    bindRefs(root);
-    ensureOptionalBlocks(root);
-    return;
-  }
-
-  // crea controles básicos
-  root.innerHTML = `
-    <div class="mc-wrap">
-      <h2 style="margin:0 0 12px;color:#381e60">Mis Consultas</h2>
-      <div class="mc-controls" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
-        <div><label>Desde<br><input id="mc-desde" type="date"></label></div>
-        <div><label>Hasta<br><input id="mc-hasta" type="date"></label></div>
-        <div style="min-width:220px"><label>Centro<br>
-          <select id="mc-centro">
-            <option value="">Todos los centros</option>
-          </select>
-        </label></div>
-        <button id="mc-refresh" class="btn" style="height:36px;background:#7656b0;color:#fff;border:none;border-radius:7px;padding:0 12px;cursor:pointer">Actualizar</button>
-      </div>
-      <hr style="margin:14px 0 12px;border:none;border-top:1px solid #ece5fc">
-
-      <div id="mc-kpis" class="kpis" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:10px">
-        <div class="card" style="background:#fff;border-radius:10px;padding:12px;box-shadow:0 1px 8px rgba(60,40,140,.08)">
-          <div style="font-size:12px;color:#6b6480">Consultas atendidas</div>
-          <div id="mc-kpi-consultas" style="font-size:20px;color:#381e60;font-weight:700">—</div>
-        </div>
-        <div class="card" style="background:#fff;border-radius:10px;padding:12px;box-shadow:0 1px 8px rgba(60,40,140,.08)">
-          <div style="font-size:12px;color:#6b6480">Cobrado</div>
-          <div id="mc-kpi-cobrado" style="font-size:20px;color:#381e60;font-weight:700">—</div>
-        </div>
-        <div class="card" style="background:#fff;border-radius:10px;padding:12px;box-shadow:0 1px 8px rgba(60,40,140,.08)">
-          <div style="font-size:12px;color:#6b6480">Pendiente</div>
-          <div id="mc-kpi-pendiente" style="font-size:20px;color:#381e60;font-weight:700">—</div>
-        </div>
-      </div>
-
-      <div id="mc-legend" style="font-size:12px;color:#6b6480;margin-bottom:6px">—</div>
-
-      <div class="table-wrap" style="overflow:auto;border-radius:10px;background:#fff;box-shadow:0 1px 8px rgba(60,40,140,.08)">
-        <table style="width:100%;border-collapse:collapse">
-          <thead style="background:#f5f2ff;color:#4f3b7a">
-            <tr>
-              <th style="text-align:left;padding:8px 10px">Fecha</th>
-              <th style="text-align:left;padding:8px 10px">Hora</th>
-              <th style="text-align:left;padding:8px 10px">Centro</th>
-              <th style="text-align:left;padding:8px 10px">Paciente</th>
-              <th style="text-align:left;padding:8px 10px">Estado</th>
-              <th style="text-align:right;padding:8px 10px">Copago</th>
-              <th style="text-align:right;padding:8px 10px">Pagado</th>
-            </tr>
-          </thead>
-          <tbody id="mc-tbody"></tbody>
-        </table>
-        <div id="mc-empty" style="display:none;padding:14px;color:#6b6480">Sin resultados.</div>
-      </div>
-
-      <details style="margin-top:10px">
-        <summary>Ver debug</summary>
-        <pre id="mc-debug" style="background:#0b1020;color:#bfe4ff;padding:10px;border-radius:8px;overflow:auto;max-height:260px"></pre>
-      </details>
-    </div>
-  `;
-
-  bindRefs(root);
+function bind() {
+  UI = {
+    root:   document.getElementById('mc'),
+    desde:  document.getElementById('mc-desde'),
+    hasta:  document.getElementById('mc-hasta'),
+    centro: document.getElementById('mc-centro'),
+    gran:   document.getElementById('mc-gran'),
+    btn:    document.getElementById('mc-refresh'),
+    kCons:  document.getElementById('mc-kpi-consultas'),
+    kCob:   document.getElementById('mc-kpi-cobrado'),
+    kPen:   document.getElementById('mc-kpi-pendiente'),
+    legend: document.getElementById('mc-legend'),
+    tbody:  document.getElementById('mc-tbody'),
+    empty:  document.getElementById('mc-empty'),
+    canvases: {
+      timeline: document.getElementById('mc-chart-timeline'),
+      os:       document.getElementById('mc-chart-os'),
+      centros:  document.getElementById('mc-chart-centros'),
+      estados:  document.getElementById('mc-chart-estados'),
+    },
+  };
 }
 
-// toma referencias a IDs esperados
-function bindRefs(root){
-  UI.root       = root;
-  UI.desde      = root.querySelector('#mc-desde');
-  UI.hasta      = root.querySelector('#mc-hasta');
-  UI.centro     = root.querySelector('#mc-centro');
-  UI.btn        = root.querySelector('#mc-refresh');
-  UI.kpiCons    = root.querySelector('#mc-kpi-consultas');
-  UI.kpiCobrado = root.querySelector('#mc-kpi-cobrado');
-  UI.kpiPend    = root.querySelector('#mc-kpi-pendiente');
-  UI.legend     = root.querySelector('#mc-legend');
-  UI.tbody      = root.querySelector('#mc-tbody');
-  UI.empty      = root.querySelector('#mc-empty');
-  UI.dbg        = root.querySelector('#mc-debug');
+async function loadChartJS(){
+  if (window.Chart) return window.Chart;
+  await new Promise((res, rej)=>{
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
+    s.onload = res; s.onerror = ()=>rej(new Error('No se pudo cargar Chart.js'));
+    document.head.appendChild(s);
+  });
+  return window.Chart;
 }
 
-// si faltan bloques opcionales en tu HTML, los crea
-function ensureOptionalBlocks(root){
-  if (!root.querySelector('#mc-kpi-consultas')) {
-    const kpis = document.createElement('div');
-    kpis.id = 'mc-kpis';
-    kpis.innerHTML = `
-      <div id="mc-kpi-consultas"></div>
-      <div id="mc-kpi-cobrado"></div>
-      <div id="mc-kpi-pendiente"></div>`;
-    root.prepend(kpis);
-  }
-  if (!root.querySelector('#mc-tbody')){
-    const tbl = document.createElement('table');
-    tbl.innerHTML = `<tbody id="mc-tbody"></tbody>`;
-    root.appendChild(tbl);
-  }
-  if (!root.querySelector('#mc-empty')){
-    const dv = document.createElement('div');
-    dv.id='mc-empty'; dv.style.display='none'; dv.textContent='Sin resultados.';
-    root.appendChild(dv);
-  }
-  if (!root.querySelector('#mc-debug')){
-    const det = document.createElement('details');
-    det.innerHTML = `<summary>Ver debug</summary><pre id="mc-debug"></pre>`;
-    root.appendChild(det);
-  }
-  bindRefs(root);
-}
-
-function dbgAppend(obj){
-  if (!UI.dbg) return;
-  try {
-    const line = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
-    UI.dbg.textContent += (line + '\n');
-  } catch { /* ignore */ }
-}
-
-// =============== datos: centros ===============
-async function loadCentros(profId){
+/* ===== centros del profesional ===== */
+async function loadCentrosFor(profId){
   const sel = UI.centro;
-  if (!sel) return;
-
   sel.innerHTML = `<option value="">Todos los centros</option>`;
-
   let centros = [];
-  try {
-    // intento 1: join anidado
+  try{
     const { data, error } = await supabase
       .from('profesional_centro')
       .select('centro_id, centros_medicos(id,nombre)')
       .eq('profesional_id', profId)
       .eq('activo', true);
 
-    if (!error) {
-      centros = (data || []).map(r => r.centros_medicos).filter(Boolean);
-    } else {
-      warn('join centros_medicos error:', error);
-      dbgAppend({ join_error: error.message || error });
-    }
+    if (!error) centros = (data||[]).map(r=>r.centros_medicos).filter(Boolean);
 
-    // intento 2: dos pasos
-    if (!centros.length) {
-      const { data: links=[] } = await supabase
+    if (!centros.length){
+      const { data:links=[] } = await supabase
         .from('profesional_centro')
         .select('centro_id')
         .eq('profesional_id', profId)
         .eq('activo', true);
-
       const ids = [...new Set(links.map(r=>r.centro_id).filter(Boolean))];
       if (ids.length){
-        const { data: cms=[], error: cmErr } = await supabase
+        const { data:cms=[] } = await supabase
           .from('centros_medicos')
           .select('id,nombre')
           .in('id', ids)
-          .order('nombre', { ascending: true });
-        if (!cmErr) centros = cms;
+          .order('nombre');
+        centros = cms;
       }
     }
 
-    // pintar
-    const seen = new Set();
+    const used = new Set();
     centros.forEach(c=>{
-      if (!c?.id || seen.has(String(c.id))) return;
-      seen.add(String(c.id));
-      const opt = document.createElement('option');
-      opt.value = c.id;
-      opt.textContent = c.nombre || c.id;
+      if (!c?.id || used.has(String(c.id))) return;
+      used.add(String(c.id));
+      const opt=document.createElement('option');
+      opt.value=c.id; opt.textContent=c.nombre || c.id;
       sel.appendChild(opt);
     });
 
-    dbgAppend({ centros_cargados: centros.map(c=>({id:c.id,nombre:c.nombre})) });
-    log('centros cargados:', centros.length);
-  } catch (e) {
-    error('loadCentros error:', e);
-    dbgAppend({ loadCentros_error: String(e?.message||e) });
+    dpush({ centros: centros.map(c=>({id:c.id,nombre:c.nombre})) });
+  }catch(e){
+    dpush({ loadCentros_error: e?.message||e });
   }
 }
 
-// =============== datos: turnos + pagos ===============
+/* ===== turnos + pagos ===== */
 async function fetchTurnos({ desde, hasta, profId, centroId }){
   let q = supabase
     .from('turnos')
     .select(`
       id, fecha, hora_inicio, hora_fin, estado, copago,
-      centro_id,
-      pacientes(id, apellido, nombre),
-      centros_medicos(id, nombre)
+      centro_id, obra_social_id,
+      pacientes(id, apellido, nombre, obra_social),
+      centros_medicos(id, nombre),
+      obras_sociales:obras_sociales(obra_social)
     `)
     .eq('profesional_id', profId)
     .gte('fecha', desde)
@@ -243,138 +120,198 @@ async function fetchTurnos({ desde, hasta, profId, centroId }){
   return data || [];
 }
 
-async function fetchPagosMap(turnoIds){
-  const ids = [...new Set((turnoIds||[]).filter(Boolean))];
-  if (!ids.length) return {};
-  const { data = [], error } = await supabase
+async function fetchPagosMap(ids){
+  const uniq = [...new Set(ids || [])];
+  if (!uniq.length) return {};
+  const { data = [] } = await supabase
     .from('turnos_pagos')
     .select('turno_id, importe')
-    .in('turno_id', ids);
-  if (error) throw error;
+    .in('turno_id', uniq);
   const map = {};
-  for (const r of data) map[r.turno_id] = (map[r.turno_id] || 0) + toNumber(r.importe);
+  for (const r of data) map[r.turno_id] = (map[r.turno_id] || 0) + Number(r.importe||0);
   return map;
 }
 
-// =============== render ===============
-function setLegend(){
-  if (!UI.legend) return;
-  const desde = UI.desde?.value || '—';
-  const hasta = UI.hasta?.value || '—';
-  const centroTxt = UI.centro?.selectedOptions?.[0]?.textContent || 'Todos los centros';
-  UI.legend.textContent = `${centroTxt} · ${desde} → ${hasta}`;
-}
-
-function setKPIs(turnos, pagosMap){
-  const atendidos = turnos.filter(t=>t.estado==='atendido').length;
-  const totalCopago = turnos.reduce((a,t)=>a+toNumber(t.copago),0);
-  const totalPagos  = Object.values(pagosMap).reduce((a,b)=>a+toNumber(b),0);
-  const pendiente   = Math.max(0, totalCopago - totalPagos);
-
-  if (UI.kpiCons)    UI.kpiCons.textContent    = String(atendidos);
-  if (UI.kpiCobrado) UI.kpiCobrado.textContent = money(totalPagos);
-  if (UI.kpiPend)    UI.kpiPend.textContent    = money(pendiente);
-}
-
-function renderRows(turnos, pagosMap){
-  if (!UI.tbody) return;
-  if (!turnos.length){
-    UI.tbody.innerHTML = '';
-    if (UI.empty) { UI.empty.style.display=''; UI.empty.textContent='Sin resultados en el período.'; }
-    return;
+/* ===== agregados para gráficos ===== */
+function groupBy(arr, keyFn){
+  const m = new Map();
+  for (const it of arr){
+    const k = keyFn(it);
+    m.set(k, (m.get(k)||[]).concat(it));
   }
-  if (UI.empty) UI.empty.style.display='none';
+  return m;
+}
 
+function buildTimeline(turnos, gran='day'){
+  const formatDay = (d)=>d;
+  const toWeek = (d)=>{ const dt=new Date(d); const y=dt.getFullYear(); 
+    const oneJan=new Date(y,0,1); const days=Math.floor((dt-oneJan)/86400000)+1;
+    const wk = Math.ceil(days/7); return `${y}-W${wk}`; };
+  const toMonth = (d)=> d.slice(0,7);
+
+  const keyer = gran==='day'? formatDay : gran==='week'? toWeek : toMonth;
+  const map = groupBy(turnos, t=> keyer(t.fecha));
+  const labels = [...map.keys()].sort();
+  const values = labels.map(l => map.get(l).filter(x=>x.estado==='atendido').length);
+  return { labels, values };
+}
+
+function buildPorOS(turnos){
+  const labelOf = (t)=> t.obras_sociales?.obra_social || t.pacientes?.obra_social || 'Sin OS';
+  const m = groupBy(turnos, labelOf);
+  const labels = [...m.keys()];
+  const values = labels.map(l => m.get(l).filter(x=>x.estado==='atendido').length);
+  return { labels, values };
+}
+
+function buildPorCentro(turnos){
+  const labelOf = (t)=> t.centros_medicos?.nombre || '—';
+  const m = groupBy(turnos, labelOf);
+  const labels = [...m.keys()];
+  const values = labels.map(l => m.get(l).filter(x=>x.estado==='atendido').length);
+  return { labels, values };
+}
+
+function buildPorEstado(turnos){
+  const labels = ['asignado','en_espera','en_atencion','atendido','cancelado','confirmado'];
+  const cnt = (st)=> turnos.filter(t=>t.estado===st).length;
+  const values = labels.map(cnt);
+  return { labels, values };
+}
+
+/* ===== render ===== */
+function setLegend(){
+  const d = UI.desde.value, h = UI.hasta.value;
+  const c = UI.centro.selectedOptions?.[0]?.textContent || 'Todos los centros';
+  UI.legend.textContent = `${c} · ${d} → ${h}`;
+}
+
+function renderTable(turnos, pagosMap){
+  if (!turnos.length){ UI.tbody.innerHTML=''; UI.empty.style.display=''; return; }
+  UI.empty.style.display='none';
   UI.tbody.innerHTML = turnos.map(t=>{
     const p = t.pacientes || {};
-    const paciente = [p.apellido, p.nombre].filter(Boolean).join(', ') || '—';
+    const nombre = [p.apellido, p.nombre].filter(Boolean).join(', ') || '—';
     const fecha = t.fecha || '—';
     const hora  = String(t.hora_inicio||'').slice(0,5) || '—';
     const centro= t.centros_medicos?.nombre || '—';
     const estado= String(t.estado||'—').replaceAll('_',' ');
-    const copago= money(t.copago||0);
-    const pagado= money(pagosMap[t.id] || 0);
-    return `
-      <tr>
-        <td style="padding:8px 10px;border-top:1px solid #f1ecff">${fecha}</td>
-        <td style="padding:8px 10px;border-top:1px solid #f1ecff">${hora}</td>
-        <td style="padding:8px 10px;border-top:1px solid #f1ecff">${centro}</td>
-        <td style="padding:8px 10px;border-top:1px solid #f1ecff">${paciente}</td>
-        <td style="padding:8px 10px;border-top:1px solid #f1ecff">${estado}</td>
-        <td style="padding:8px 10px;border-top:1px solid #f1ecff;text-align:right">${copago}</td>
-        <td style="padding:8px 10px;border-top:1px solid #f1ecff;text-align:right">${pagado}</td>
-      </tr>
-    `;
+    const cop   = money(t.copago || 0);
+    const pag   = money(pagosMap[t.id] || 0);
+    return `<tr>
+      <td>${fecha}</td><td>${hora}</td><td>${centro}</td>
+      <td>${nombre}</td><td>${estado}</td>
+      <td style="text-align:right">${cop}</td>
+      <td style="text-align:right">${pag}</td>
+    </tr>`;
   }).join('');
 }
 
-// =============== refresh ===============
-async function refresh(){
-  const desde = UI.desde?.value || isoFirstDayOfMonth();
-  const hasta = UI.hasta?.value || isoToday();
-  const centroId = (UI.centro?.value || '').trim() || null;
+function setKPIs(turnos, pagosMap){
+  const atendidos = turnos.filter(t=>t.estado==='atendido').length;
+  const totalCop  = turnos.reduce((a,t)=> a + Number(t.copago||0), 0);
+  const totalPag  = Object.values(pagosMap).reduce((a,b)=> a + Number(b||0), 0);
+  const pend      = Math.max(0, totalCop - totalPag);
 
-  dbgAppend({ refresh_params:{ desde, hasta, profesionalId, centroId } });
-  log('refresh', { desde, hasta, profesionalId, centroId });
-
-  if (UI.empty){ UI.empty.style.display=''; UI.empty.textContent='Cargando…'; }
-
-  try{
-    console.time(`${TAG} refresh`);
-    const turnos = await fetchTurnos({ desde, hasta, profId: profesionalId, centroId });
-    dbgAppend({ turnos_len: turnos.length });
-    log('turnos', turnos.length);
-
-    const pagosMap = await fetchPagosMap(turnos.map(t=>t.id));
-    dbgAppend({ pagosMap_keys: Object.keys(pagosMap).length });
-
-    setKPIs(turnos, pagosMap);
-    renderRows(turnos, pagosMap);
-    setLegend();
-
-    console.timeEnd(`${TAG} refresh`);
-    if (UI.empty) UI.empty.style.display='none';
-  }catch(e){
-    error('refresh error', e);
-    dbgAppend({ refresh_error: String(e?.message||e) });
-    if (UI.empty){ UI.empty.style.display=''; UI.empty.textContent='Error cargando datos.'; }
-  }
+  UI.kCons.textContent = String(atendidos);
+  UI.kCob.textContent  = money(totalPag);
+  UI.kPen.textContent  = money(pend);
 }
 
-// =============== init público ===============
-export async function initMisConsultas(root){
-  try{
-    log('init');
-    ensureScaffold(root || document);
-    // fechas por defecto
-    if (UI.desde && !UI.desde.value) UI.desde.value = isoFirstDayOfMonth();
-    if (UI.hasta && !UI.hasta.value) UI.hasta.value = isoToday();
-    dbgAppend({ defaults:{ desde:UI.desde?.value, hasta:UI.hasta?.value } });
-
-    // profesional
-    const pid = localStorage.getItem('profesional_id');
-    profesionalId = isUUID(pid) ? pid : null;
-    dbgAppend({ profesional_id: profesionalId });
-    log('profesionalId:', profesionalId);
-
-    if (!profesionalId){
-      if (UI.empty){ UI.empty.style.display=''; UI.empty.textContent='No se detectó el profesional logueado.'; }
-      return;
+function barConfig({labels, values}, title){
+  return {
+    type: 'bar',
+    data: { labels, datasets: [{ label: title, data: values }] },
+    options: { responsive:true, maintainAspectRatio:false,
+      scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } },
+      plugins:{ legend:{ display:false } }
     }
+  };
+}
+function pieConfig({labels, values}){
+  return {
+    type:'pie',
+    data:{ labels, datasets:[{ data: values }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
+  };
+}
 
-    await loadCentros(profesionalId);
-
-    // listeners
-    if (UI.btn)    UI.btn.onclick    = refresh;
-    if (UI.centro) UI.centro.onchange= refresh;
-    if (UI.desde)  UI.desde.onchange = refresh;
-    if (UI.hasta)  UI.hasta.onchange = refresh;
-
-    // primera carga
-    await refresh();
-  }catch(e){
-    error('init error', e);
-    dbgAppend({ init_error: String(e?.message||e) });
-    if (UI.empty){ UI.empty.style.display=''; UI.empty.textContent='No se pudo iniciar Mis Consultas.'; }
+function ensureOrUpdateChart(instRef, canvas, cfg){
+  if (!canvas) return null;
+  if (instRef?.data){
+    // update
+    instRef.config.type = cfg.type;
+    instRef.data.labels = cfg.data.labels;
+    instRef.data.datasets = cfg.data.datasets;
+    instRef.update();
+    return instRef;
   }
+  // create
+  return new window.Chart(canvas.getContext('2d'), cfg);
+}
+
+/* ===== ciclo principal ===== */
+async function refresh(){
+  const desde = UI.desde.value || isoFirstDayOfMonth();
+  const hasta = UI.hasta.value || isoToday();
+  const gran  = UI.gran.value || 'day';
+  const centroId = UI.centro.value || null;
+
+  UI.empty.style.display=''; UI.empty.textContent='Cargando…';
+  dpush({ refresh_params: {desde, hasta, gran, profesionalId, centroId} });
+
+  const turnos = await fetchTurnos({ desde, hasta, profId: profesionalId, centroId });
+  const pagosMap = await fetchPagosMap(turnos.map(t=>t.id));
+
+  setKPIs(turnos, pagosMap);
+  renderTable(turnos, pagosMap);
+  setLegend();
+
+  // gráficos
+  const tl = buildTimeline(turnos, gran);
+  Charts.timeline = ensureOrUpdateChart(Charts.timeline, UI.canvases.timeline,
+    barConfig(tl, 'Atendidos'));
+
+  const os = buildPorOS(turnos);
+  Charts.os = ensureOrUpdateChart(Charts.os, UI.canvases.os, pieConfig(os));
+
+  const byC = buildPorCentro(turnos);
+  Charts.centros = ensureOrUpdateChart(Charts.centros, UI.canvases.centros, barConfig(byC, 'Atendidos'));
+
+  const est = buildPorEstado(turnos);
+  Charts.estados = ensureOrUpdateChart(Charts.estados, UI.canvases.estados, pieConfig(est));
+
+  UI.empty.style.display='none';
+}
+
+/* ===== init ===== */
+export async function initMisConsultas(root){
+  bind();
+
+  // defaults de fecha
+  if (!UI.desde.value) UI.desde.value = isoFirstDayOfMonth();
+  if (!UI.hasta.value) UI.hasta.value = isoToday();
+
+  // profesional
+  const pid = localStorage.getItem('profesional_id');
+  if (!isUUID(pid)){
+    UI.empty.style.display=''; UI.empty.textContent='No se detectó el profesional logueado.';
+    dpush({ error:'profesional_id inválido', pid });
+    return;
+  }
+  profesionalId = pid;
+
+  await loadCentrosFor(profesionalId);
+  await loadChartJS();
+
+  // listeners
+  UI.btn.onclick = refresh;
+  UI.gran.onchange = refresh;
+  UI.centro.onchange = refresh;
+  UI.desde.onchange = refresh;
+  UI.hasta.onchange = refresh;
+
+  // primera carga
+  await refresh();
+  log('ready');
 }
