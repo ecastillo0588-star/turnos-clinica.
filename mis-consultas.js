@@ -1,20 +1,61 @@
-// mis-consultas.js (v4 con gráficos)
+// mis-consultas.js (v5: AR dates + multifiltros + safe charts)
 import supabase from './supabaseClient.js';
 
 const TAG = '[MisConsultas]';
-const log   = (...a)=>console.log(TAG, ...a);
-const dbg   = [];
-const dpush = (o)=>{ try{ dbg.push(o); const pre=document.getElementById('mc-debug-pre'); if(pre){ pre.textContent = dbg.map(x=> typeof x==='string'?x:JSON.stringify(x,null,2)).join('\n'); } }catch{} };
+const log = (...a)=>console.log(TAG, ...a);
+const dbg=[]; const dpush=o=>{try{dbg.push(o);const pre=document.getElementById('mc-debug-pre');if(pre){pre.textContent=dbg.map(x=>typeof x==='string'?x:JSON.stringify(x,null,2)).join('\n');}}catch{}};
 
-const pad2 = n => (n<10?'0'+n:''+n);
+const pad2=n=>(n<10?'0'+n:''+n);
 const isoToday = () => { const d=new Date(); return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; };
 const isoFirstDayOfMonth = (d=new Date()) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-01`;
 const isUUID = v => typeof v==='string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
 const money = n => new Intl.NumberFormat('es-AR',{style:'currency',currency:'ARS',maximumFractionDigits:0}).format(Number(n||0));
 
+// ======= Formateos AR =======
+const fmtDateARShort = (iso)=> {
+  if(!iso) return '—';
+  const [y,m,d]=iso.split('-');
+  return `${d}/${m}/${String(y).slice(2)}`; // dd/mm/yy
+};
+const fmtMonthAR = (iso)=>{ // yyyy-mm-dd | yyyy-mm
+  const [y,m]=iso.split('-');
+  return `${m}/${String(y).slice(2)}`; // mm/yy
+};
+
+// key por granularidad (para timeline y filtros)
+function weekKey(iso){ // S##/yy
+  const dt = new Date(iso+'T00:00:00');
+  const y = dt.getFullYear();
+  const oneJan = new Date(y,0,1);
+  const days = Math.floor((dt - oneJan)/86400000)+1;
+  const wk = Math.ceil(days/7);
+  return `S${wk}/${String(y).slice(2)}`;
+}
+function keyFromDate(iso, gran){
+  if (gran==='day')   return fmtDateARShort(iso);  // dd/mm/yy
+  if (gran==='week')  return weekKey(iso);
+  return fmtMonthAR(iso);                          // month
+}
+
+// ======= Estado UI/Charts/Filtros =======
 let UI = {};
 let profesionalId = null;
-let Charts = { timeline:null, os:null, centros:null, estados:null }; // instancias Chart.js
+let Charts = { timeline:null, os:null, centros:null, estados:null };
+
+// dataset crudo de la última consulta
+const State = {
+  baseTurnos: [],
+  basePagosMap: {},
+  gran: 'day'
+};
+
+// filtros activos (multifiltro)
+const Filters = {
+  timeline: null,           // { gran:'day|week|month', label:'...' }
+  os: new Set(),            // etiquetas (paciente.obra_social)
+  centro: new Set(),        // nombres de centro
+  estado: new Set()         // 'asignado' | ...
+};
 
 function bind() {
   UI = {
@@ -30,6 +71,7 @@ function bind() {
     legend: document.getElementById('mc-legend'),
     tbody:  document.getElementById('mc-tbody'),
     empty:  document.getElementById('mc-empty'),
+    chips:  document.getElementById('mc-chips'),
     canvases: {
       timeline: document.getElementById('mc-chart-timeline'),
       os:       document.getElementById('mc-chart-os'),
@@ -54,8 +96,8 @@ async function loadChartJS(){
 async function loadCentrosFor(profId){
   const sel = UI.centro;
   sel.innerHTML = `<option value="">Todos los centros</option>`;
-  let centros = [];
   try{
+    let centros = [];
     const { data, error } = await supabase
       .from('profesional_centro')
       .select('centro_id, centros_medicos(id,nombre)')
@@ -97,7 +139,6 @@ async function loadCentrosFor(profId){
 }
 
 /* ===== turnos + pagos ===== */
-// --- reemplazá fetchTurnos por este ---
 async function fetchTurnos({ desde, hasta, profId, centroId }){
   let q = supabase
     .from('turnos')
@@ -120,7 +161,6 @@ async function fetchTurnos({ desde, hasta, profId, centroId }){
   return data || [];
 }
 
-// --- reemplazá buildPorOS por este (sin referencia a obras_sociales) ---
 function buildPorOS(turnos){
   const labelOf = (t)=> t.pacientes?.obra_social || 'Sin OS';
   const m = groupBy(turnos, labelOf);
@@ -128,95 +168,6 @@ function buildPorOS(turnos){
   const values = labels.map(l => m.get(l).filter(x=>x.estado==='atendido').length);
   return { labels, values };
 }
-
-// --- en refresh(), envolvé todo en try/catch (o reemplazá la función completa) ---
-// ==== REFRESH ÚNICA ====
-async function refresh(){
-  // 1) Parámetros actuales de la UI (con defaults)
-  const desde    = UI.desde.value || isoFirstDayOfMonth();
-  const hasta    = UI.hasta.value || isoToday();
-  const gran     = UI.gran?.value || 'day';
-  const centroId = UI.centro?.value || null;
-
-  // 2) Estado de carga
-  if (UI.empty){
-    UI.empty.style.display = '';
-    UI.empty.textContent = 'Cargando…';
-  }
-
-  // (opcional debug)
-  dpush({ refresh_params: { desde, hasta, gran, profesionalId, centroId } });
-
-  try {
-    // 3) Traer datos base
-    const turnos   = await fetchTurnos({ desde, hasta, profId: profesionalId, centroId });
-    const pagosMap = await fetchPagosMap(turnos.map(t => t.id));
-
-    // 4) KPIs + tabla + leyenda
-    setKPIs(turnos, pagosMap);
-    renderTable(turnos, pagosMap);
-    setLegend();
-
-    // 5) Preparar series para gráficos
-    const tl  = buildTimeline(turnos, gran);   // {labels, values} por día/semana/mes
-    const os  = buildPorOS(turnos);            // {labels, values} por Obra Social (desde paciente.obra_social)
-    const cen = buildPorCentro(turnos);        // {labels, values} por centro
-    const st  = buildPorEstado(turnos);        // {labels, values} por estado
-
-    // 6) Crear/actualizar charts (Chart.js cargado previamente en init)
-    Charts.timeline = ensureOrUpdateChart(
-      Charts.timeline,
-      UI.canvases.timeline,
-      barConfig(tl, 'Atendidos')
-    );
-
-    Charts.os = ensureOrUpdateChart(
-      Charts.os,
-      UI.canvases.os,
-      pieConfig(os)
-    );
-
-    Charts.centros = ensureOrUpdateChart(
-      Charts.centros,
-      UI.canvases.centros,
-      barConfig(cen, 'Atendidos')
-    );
-
-    Charts.estados = ensureOrUpdateChart(
-      Charts.estados,
-      UI.canvases.estados,
-      pieConfig(st)
-    );
-
-    // 7) Ocultar vacío si hay datos (o mostrar mensaje si no hay)
-    if (UI.empty){
-      if ((turnos || []).length === 0) {
-        UI.empty.style.display = '';
-        UI.empty.textContent = 'Sin resultados para el período.';
-      } else {
-        UI.empty.style.display = 'none';
-      }
-    }
-
-  } catch (e) {
-    console.error('[MisConsultas] refresh error:', e);
-    dpush({ refresh_error: e?.message || e });
-    if (UI.empty){
-      UI.empty.style.display = '';
-      UI.empty.textContent = 'Error: ' + (e?.message || e);
-    }
-  } finally {
-    // 8) Reflow suave para evitar “estiramientos”
-    requestAnimationFrame(() => {
-      try { Charts.timeline?.resize(); } catch {}
-      try { Charts.os?.resize(); } catch {}
-      try { Charts.centros?.resize(); } catch {}
-      try { Charts.estados?.resize(); } catch {}
-    });
-  }
-}
-
-
 
 async function fetchPagosMap(ids){
   const uniq = [...new Set(ids || [])];
@@ -230,7 +181,7 @@ async function fetchPagosMap(ids){
   return map;
 }
 
-/* ===== agregados para gráficos ===== */
+/* ===== helpers de agrupación ===== */
 function groupBy(arr, keyFn){
   const m = new Map();
   for (const it of arr){
@@ -241,19 +192,23 @@ function groupBy(arr, keyFn){
 }
 
 function buildTimeline(turnos, gran='day'){
-  const formatDay = (d)=>d;
-  const toWeek = (d)=>{ const dt=new Date(d); const y=dt.getFullYear(); 
-    const oneJan=new Date(y,0,1); const days=Math.floor((dt-oneJan)/86400000)+1;
-    const wk = Math.ceil(days/7); return `${y}-W${wk}`; };
-  const toMonth = (d)=> d.slice(0,7);
-
-  const keyer = gran==='day'? formatDay : gran==='week'? toWeek : toMonth;
-  const map = groupBy(turnos, t=> keyer(t.fecha));
-  const labels = [...map.keys()].sort();
+  const map = groupBy(turnos, t=> keyFromDate(t.fecha, gran));
+  const labels = [...map.keys()];
+  labels.sort((a,b)=>{
+    // ordenar por valor real, no por string (reconstruimos a ISO para comparar)
+    const toIso = (lbl)=>{
+      if (gran==='day'){ const [d,m,y]=lbl.split('/'); return `20${y}-${m}-${d}`; }
+      if (gran==='week'){ // S##/yy -> yyyy-## (comparación simple por año/semana)
+        const [s,yy]=lbl.split('/'); return `20${yy}-${s.slice(1).padStart(2,'0')}`;
+      }
+      // month mm/yy
+      const [m,yy]=lbl.split('/'); return `20${yy}-${m}-01`;
+    };
+    return toIso(a) < toIso(b) ? -1 : 1;
+  });
   const values = labels.map(l => map.get(l).filter(x=>x.estado==='atendido').length);
   return { labels, values };
 }
-
 
 function buildPorCentro(turnos){
   const labelOf = (t)=> t.centros_medicos?.nombre || '—';
@@ -272,7 +227,7 @@ function buildPorEstado(turnos){
 
 /* ===== render ===== */
 function setLegend(){
-  const d = UI.desde.value, h = UI.hasta.value;
+  const d = fmtDateARShort(UI.desde.value), h = fmtDateARShort(UI.hasta.value);
   const c = UI.centro.selectedOptions?.[0]?.textContent || 'Todos los centros';
   UI.legend.textContent = `${c} · ${d} → ${h}`;
 }
@@ -283,7 +238,7 @@ function renderTable(turnos, pagosMap){
   UI.tbody.innerHTML = turnos.map(t=>{
     const p = t.pacientes || {};
     const nombre = [p.apellido, p.nombre].filter(Boolean).join(', ') || '—';
-    const fecha = t.fecha || '—';
+    const fecha = fmtDateARShort(t.fecha);
     const hora  = String(t.hora_inicio||'').slice(0,5) || '—';
     const centro= t.centros_medicos?.nombre || '—';
     const estado= String(t.estado||'—').replaceAll('_',' ');
@@ -309,52 +264,224 @@ function setKPIs(turnos, pagosMap){
   UI.kPen.textContent  = money(pend);
 }
 
-function barConfig({labels, values}, title){
+/* ====== gráficos ====== */
+function barConfig({labels, values}, title, onPointClick){
   return {
     type: 'bar',
     data: { labels, datasets: [{ label: title, data: values }] },
     options: { responsive:true, maintainAspectRatio:false,
+      onClick(evt, activeEls){
+        if (!activeEls?.length) return;
+        const idx = activeEls[0].index;
+        onPointClick?.(labels[idx]);
+      },
       scales:{ y:{ beginAtZero:true, ticks:{ precision:0 } } },
       plugins:{ legend:{ display:false } }
     }
   };
 }
-function pieConfig({labels, values}){
+function pieConfig({labels, values}, onSliceClick){
   return {
     type:'pie',
     data:{ labels, datasets:[{ data: values }] },
-    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
+    options:{ responsive:true, maintainAspectRatio:false,
+      onClick(evt, activeEls){
+        if (!activeEls?.length) return;
+        const idx = activeEls[0].index;
+        onSliceClick?.(labels[idx]);
+      },
+      plugins:{ legend:{ position:'bottom' } }
+    }
   };
 }
 
 function ensureOrUpdateChart(instRef, canvas, cfg){
   if (!canvas || !window.Chart) return null;
 
-  // Si existe pero el canvas ya no está en el DOM o no coincide → destruir
   const invalid =
     (instRef && (!instRef.canvas || !document.contains(instRef.canvas))) ||
     (instRef && instRef.canvas && instRef.canvas !== canvas);
 
-  if (invalid) {
-    try { instRef.destroy(); } catch {}
-    instRef = null;
-  }
+  if (invalid) { try{instRef.destroy();}catch{} instRef=null; }
 
-  if (!instRef) {
-    // Crear nuevo sobre el canvas correcto
-    return new window.Chart(canvas.getContext('2d'), cfg);
-  }
+  if (!instRef) return new window.Chart(canvas.getContext('2d'), cfg);
 
-  // Reusar: actualizar datos/tipo
-  instRef.config.type      = cfg.type;
-  instRef.data.labels      = cfg.data.labels;
-  instRef.data.datasets    = cfg.data.datasets;
-  instRef.options          = { ...instRef.options, ...cfg.options };
+  // update
+  instRef.config.type   = cfg.type;
+  instRef.data.labels   = cfg.data.labels;
+  instRef.data.datasets = cfg.data.datasets;
+  instRef.options       = { ...instRef.options, ...cfg.options };
   instRef.update();
   return instRef;
 }
 
+function destroyCharts(){
+  try { Charts.timeline?.destroy(); } catch {}
+  try { Charts.os?.destroy(); } catch {}
+  try { Charts.centros?.destroy(); } catch {}
+  try { Charts.estados?.destroy(); } catch {}
+  Charts = { timeline:null, os:null, centros:null, estados:null };
+}
 
+/* ====== Multifiltros ====== */
+function toggleFilter(type, payload){
+  if (type==='timeline'){
+    const same = Filters.timeline && Filters.timeline.label===payload.label && Filters.timeline.gran===payload.gran;
+    Filters.timeline = same ? null : { ...payload };
+  } else {
+    const set = Filters[type];
+    if (set.has(payload)) set.delete(payload); else set.add(payload);
+  }
+  renderEverything(); // re-pinta todo con filtros
+}
+
+function removeFilter(type, label){
+  if (type==='timeline') { Filters.timeline=null; }
+  else { Filters[type].delete(label); }
+  renderEverything();
+}
+function clearAllFilters(){
+  Filters.timeline=null;
+  Filters.os.clear(); Filters.centro.clear(); Filters.estado.clear();
+  renderEverything();
+}
+
+function renderChips(){
+  const wrap = UI.chips;
+  if (!wrap) return;
+  const chips = [];
+
+  if (Filters.timeline) chips.push({ type:'timeline', label: Filters.timeline.label, show:`Período: ${Filters.timeline.label}` });
+  for (const v of Filters.os)     chips.push({ type:'os', label: v, show:`OS: ${v}` });
+  for (const v of Filters.centro) chips.push({ type:'centro', label: v, show:`Centro: ${v}` });
+  for (const v of Filters.estado) chips.push({ type:'estado', label: v, show:`Estado: ${v}` });
+
+  if (!chips.length){ wrap.innerHTML=''; return; }
+
+  wrap.innerHTML = chips.map(c=>`
+    <span class="chip" data-type="${c.type}" data-label="${c.label}">
+      ${c.show} <button title="Quitar">×</button>
+    </span>`).join('') + `
+    <button class="btn" id="mc-clear" style="padding:6px 10px;font-size:12px;margin-left:8px;">Limpiar</button>`;
+
+  wrap.querySelectorAll('.chip button').forEach(btn=>{
+    btn.onclick = (e)=>{
+      const chip = e.currentTarget.closest('.chip');
+      removeFilter(chip.dataset.type, chip.dataset.label);
+    };
+  });
+  document.getElementById('mc-clear')?.addEventListener('click', clearAllFilters);
+}
+
+// Aplica filtros sobre State.baseTurnos
+function getFilteredTurnos(){
+  const { timeline } = Filters;
+  return State.baseTurnos.filter(t=>{
+    if (timeline){
+      const key = keyFromDate(t.fecha, timeline.gran);
+      if (key !== timeline.label) return false;
+    }
+    if (Filters.os.size){
+      const lbl = t.pacientes?.obra_social || 'Sin OS';
+      if (!Filters.os.has(lbl)) return false;
+    }
+    if (Filters.centro.size){
+      const c = t.centros_medicos?.nombre || '—';
+      if (!Filters.centro.has(c)) return false;
+    }
+    if (Filters.estado.size){
+      if (!Filters.estado.has(t.estado)) return false;
+    }
+    return true;
+  });
+}
+
+function pagosSubsetMap(turnos){
+  const ids = new Set(turnos.map(t=>t.id));
+  const map = {};
+  for (const [id,imp] of Object.entries(State.basePagosMap)){
+    if (ids.has(id)) map[id]=imp;
+  }
+  return map;
+}
+
+/* ===== ciclo principal ===== */
+// Renderiza TODO (kpis, tabla, charts) desde State + Filters
+function renderEverything(){
+  const turnos = getFilteredTurnos();
+  const pagosMap = pagosSubsetMap(turnos);
+
+  setLegend();
+  setKPIs(turnos, pagosMap);
+  renderTable(turnos, pagosMap);
+  renderChips();
+
+  // gráficos (se alimentan del subconjunto filtrado)
+  const tl  = buildTimeline(turnos, State.gran);
+  Charts.timeline = ensureOrUpdateChart(
+    Charts.timeline, UI.canvases.timeline,
+    barConfig(tl, 'Atendidos', (label)=> toggleFilter('timeline', { label, gran: State.gran }))
+  );
+
+  const os  = buildPorOS(turnos);
+  Charts.os = ensureOrUpdateChart(
+    Charts.os, UI.canvases.os,
+    pieConfig(os, (label)=> toggleFilter('os', label))
+  );
+
+  const cen = buildPorCentro(turnos);
+  Charts.centros = ensureOrUpdateChart(
+    Charts.centros, UI.canvases.centros,
+    barConfig(cen, 'Atendidos', (label)=> toggleFilter('centro', label))
+  );
+
+  const st  = buildPorEstado(turnos);
+  Charts.estados = ensureOrUpdateChart(
+    Charts.estados, UI.canvases.estados,
+    pieConfig(st, (label)=> toggleFilter('estado', label))
+  );
+
+  // estado vacío
+  if (UI.empty){
+    if ((turnos||[]).length===0){ UI.empty.style.display=''; UI.empty.textContent='Sin resultados para el período.'; }
+    else { UI.empty.style.display='none'; }
+  }
+
+  // reflow suave
+  requestAnimationFrame(()=>{
+    try{Charts.timeline?.resize();}catch{}
+    try{Charts.os?.resize();}catch{}
+    try{Charts.centros?.resize();}catch{}
+    try{Charts.estados?.resize();}catch{}
+  });
+}
+
+// Consulta a Supabase y actualiza State, luego renderEverything()
+async function refresh(){
+  const desde    = UI.desde.value || isoFirstDayOfMonth();
+  const hasta    = UI.hasta.value || isoToday();
+  const gran     = UI.gran?.value || 'day';
+  const centroId = UI.centro?.value || null;
+
+  if (UI.empty){ UI.empty.style.display=''; UI.empty.textContent='Cargando…'; }
+  dpush({ refresh_params: {desde, hasta, gran, profesionalId, centroId} });
+
+  try{
+    const turnos   = await fetchTurnos({ desde, hasta, profId: profesionalId, centroId });
+    const pagosMap = await fetchPagosMap(turnos.map(t=>t.id));
+
+    State.baseTurnos   = turnos;
+    State.basePagosMap = pagosMap;
+    State.gran         = gran;
+
+    // al cambiar de intervalo re-render con filtros actuales
+    renderEverything();
+  }catch(e){
+    console.error('[MisConsultas] refresh error:', e);
+    dpush({ refresh_error: e?.message || e });
+    if (UI.empty){ UI.empty.style.display=''; UI.empty.textContent='Error: '+(e?.message||e); }
+  }
+}
 
 /* ===== init ===== */
 export async function initMisConsultas(root){
@@ -378,42 +505,25 @@ export async function initMisConsultas(root){
 
   // listeners
   UI.btn.onclick = refresh;
-  UI.gran.onchange = refresh;
+  UI.gran.onchange = ()=>{ refresh(); };   // cambia gran → timeline y filtro timeline usan “S”
   UI.centro.onchange = refresh;
   UI.desde.onchange = refresh;
   UI.hasta.onchange = refresh;
 
-  // --- auto-limpieza cuando el panel se desmonta (SPA)
-const onResize = () => {
-  // Reforzamos el reflow cuando cambia el tamaño de la ventana
-  Charts.timeline?.resize();
-  Charts.os?.resize();
-  Charts.centros?.resize();
-  Charts.estados?.resize();
-};
-window.addEventListener('resize', onResize);
+  // auto-limpieza (SPA)
+  const onResize = ()=>{ Charts.timeline?.resize(); Charts.os?.resize(); Charts.centros?.resize(); Charts.estados?.resize(); };
+  window.addEventListener('resize', onResize);
 
-// Si el nodo raíz deja de existir, destruimos los charts
-const mo = new MutationObserver(() => {
-  if (UI.root && !document.body.contains(UI.root)) {
-    window.removeEventListener('resize', onResize);
-    destroyCharts();
-    mo.disconnect();
-  }
-});
-mo.observe(document.body, { childList:true, subtree:true });
-
+  const mo = new MutationObserver(()=>{
+    if (UI.root && !document.body.contains(UI.root)){
+      window.removeEventListener('resize', onResize);
+      destroyCharts();
+      mo.disconnect();
+    }
+  });
+  mo.observe(document.body, { childList:true, subtree:true });
 
   // primera carga
   await refresh();
   log('ready');
 }
-
-function destroyCharts(){
-  try { Charts.timeline?.destroy(); } catch {}
-  try { Charts.os?.destroy(); } catch {}
-  try { Charts.centros?.destroy(); } catch {}
-  try { Charts.estados?.destroy(); } catch {}
-  Charts = { timeline:null, os:null, centros:null, estados:null };
-}
-
