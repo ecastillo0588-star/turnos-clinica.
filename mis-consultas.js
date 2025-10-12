@@ -1,206 +1,323 @@
-// mis-consultas.js (FIX: importar isUUID antes de usarla + fechas por defecto + logs)
-import supabase from "./supabaseClient.js";
-import { isUUID } from "./global.js";
+// mis-consultas.js
+// =======================
+// Panel "Mis Consultas"
+// =======================
+import supabase from './supabaseClient.js';
 
-const pad2 = n => (n < 10 ? "0" + n : "" + n);
-const firstDayOfMonthISO = (d=new Date()) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-01`;
-const todayISO = (d=new Date()) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+// ---------- Helpers de log ----------
+const TAG = '[MisConsultas]';
+const log  = (...a) => console.log(TAG, ...a);
+const warn = (...a) => console.warn(TAG, ...a);
+const err  = (...a) => console.error(TAG, ...a);
 
-const NS = "[MisConsultas]";
+// ---------- Helpers básicos ----------
+const pad2 = n => (n < 10 ? '0' + n : '' + n);
 
-export async function initMisConsultas(root){
-  const $ = sel => (root || document).querySelector(sel);
-  const dbg = $("#mc-debug");
-  const log = (...a) => {
-    console.log(NS, ...a);
-    if (dbg) dbg.textContent += a.map(v => typeof v==="string" ? v : JSON.stringify(v,null,2)).join(" ") + "\n";
-  };
+function isoToday() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+function isoFirstDayOfMonth(date = new Date()) {
+  const d = new Date(date.getFullYear(), date.getMonth(), 1);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+function isUUID(v) {
+  return typeof v === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v);
+}
 
+function money(n) {
+  const val = Number(n || 0);
+  return new Intl.NumberFormat('es-AR', {
+    style: 'currency', currency: 'ARS', maximumFractionDigits: 0
+  }).format(isFinite(val) ? val : 0);
+}
+
+function toPeso(n) {
+  if (n === null || n === undefined) return 0;
+  const x = Number(n);
+  return isFinite(x) ? x : 0;
+}
+
+// ---------- Estado interno ----------
+let E = {
+  root: null,
+  el: {
+    desde: null, hasta: null, centro: null, refresh: null,
+    kpiConsultas: null, kpiCobrado: null, kpiPendiente: null,
+    legend: null, tbody: null, empty: null
+  },
+  profesionalId: null
+};
+
+// ---------- Carga centros del profesional ----------
+async function loadCentrosDelProfesional(profesionalId) {
+  const sel = E.el.centro;
+  if (!sel || !profesionalId) return;
+
+  sel.innerHTML = `<option value="">Todos los centros</option>`;
+  let centros = [];
   try {
-    log("init");
-    // Log de localStorage
-    try {
-      const snap = {};
-      for (const k of Object.keys(localStorage)) snap[k]=localStorage.getItem(k);
-      log("localStorage snapshot:", snap);
-    } catch {}
+    // Join directo
+    const { data, error } = await supabase
+      .from('profesional_centro')
+      .select('centro_id, centros_medicos(id,nombre)')
+      .eq('profesional_id', profesionalId)
+      .eq('activo', true);
 
-    // --- Fechas por defecto SIEMPRE primero
-    const inpDesde = $("#mc-desde");
-    const inpHasta = $("#mc-hasta");
-    if (inpDesde && !inpDesde.value) inpDesde.value = firstDayOfMonthISO();
-    if (inpHasta && !inpHasta.value) inpHasta.value = todayISO();
-    log("default dates:", { desde: inpDesde?.value, hasta: inpHasta?.value });
+    if (!error) {
+      centros = (data || []).map(r => r.centros_medicos).filter(Boolean);
+    } else {
+      warn('join centros_medicos error:', error);
+    }
 
-    // --- Resolver profesional
-    log("resolveProfesionalId()");
-    const profesionalId = await resolveProfesionalId(log);
-    log("resolved profesionalId:", profesionalId);
+    // Fallback: doble llamada
+    if (!centros.length) {
+      const { data: links = [] } = await supabase
+        .from('profesional_centro')
+        .select('centro_id')
+        .eq('profesional_id', profesionalId)
+        .eq('activo', true);
 
-    if (!profesionalId){
-      $("#mc-out").innerHTML = `<div style="color:#b00020;">⚠️ No se pudo resolver <code>profesional_id</code>. Revisá el login o el vínculo con profesionales.</div>`;
+      const ids = [...new Set(links.map(x => x.centro_id).filter(Boolean))];
+      if (ids.length) {
+        const { data: cms = [] } = await supabase
+          .from('centros_medicos')
+          .select('id,nombre')
+          .in('id', ids)
+          .order('nombre', { ascending: true });
+        centros = cms;
+      }
+    }
+
+    // De-dup + orden
+    const seen = new Set();
+    const final = [];
+    for (const c of centros) {
+      if (!c?.id || seen.has(String(c.id))) continue;
+      seen.add(String(c.id));
+      final.push(c);
+    }
+    final.sort((a, b) => (a.nombre || '').localeCompare(b.nombre || ''));
+
+    // Pintar opciones
+    for (const c of final) {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nombre || c.id;
+      sel.appendChild(opt);
+    }
+
+    log('centros cargados:', final.length);
+  } catch (e) {
+    err('loadCentrosDelProfesional error:', e);
+  }
+}
+
+// ---------- Datos ----------
+async function fetchTurnos({ desde, hasta, profesionalId, centroId = null }) {
+  let q = supabase
+    .from('turnos')
+    .select(`
+      id, fecha, hora_inicio, hora_fin, estado, copago, centro_id,
+      pacientes(id, apellido, nombre),
+      centros_medicos(id, nombre)
+    `)
+    .eq('profesional_id', profesionalId)
+    .gte('fecha', desde)
+    .lte('fecha', hasta)
+    .order('fecha', { ascending: true })
+    .order('hora_inicio', { ascending: true });
+
+  if (centroId) q = q.eq('centro_id', centroId);
+
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+
+async function fetchPagosMap(turnoIds = []) {
+  const ids = [...new Set(turnoIds)].filter(Boolean);
+  if (!ids.length) return {};
+  const { data = [], error } = await supabase
+    .from('turnos_pagos')
+    .select('turno_id, importe');
+  if (error) throw error;
+
+  const map = {};
+  for (const r of data) {
+    const id = r.turno_id;
+    if (!ids.includes(id)) continue; // reducir a los turnos de la vista
+    map[id] = (map[id] || 0) + toPeso(r.importe);
+  }
+  return map;
+}
+
+// ---------- Render ----------
+function renderEmpty(msg = 'Sin resultados en el período') {
+  if (E.el.tbody) E.el.tbody.innerHTML = '';
+  if (E.el.empty) {
+    E.el.empty.style.display = '';
+    E.el.empty.textContent = msg;
+  }
+}
+
+function renderTable(turnos, pagosMap) {
+  const tbody = E.el.tbody;
+  if (!tbody) return;
+
+  if (!turnos.length) {
+    renderEmpty();
+    return;
+  }
+  if (E.el.empty) E.el.empty.style.display = 'none';
+
+  const rows = turnos.map(t => {
+    const p = t.pacientes || {};
+    const paciente = [p.apellido, p.nombre].filter(Boolean).join(', ') || '—';
+    const fecha = t.fecha || '—';
+    const hora = String(t.hora_inicio || '').slice(0,5) || '—';
+    const centro = t.centros_medicos?.nombre || '—';
+    const estado = String(t.estado || '—').replaceAll('_', ' ');
+    const copago = toPeso(t.copago);
+    const pagado = toPeso(pagosMap[t.id] || 0);
+
+    return `
+      <tr>
+        <td>${fecha}</td>
+        <td>${hora}</td>
+        <td>${centro}</td>
+        <td>${paciente}</td>
+        <td>${estado}</td>
+        <td style="text-align:right;">${money(copago)}</td>
+        <td style="text-align:right;">${money(pagado)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.innerHTML = rows;
+}
+
+function renderKPIs(turnos, pagosMap) {
+  const totalAtendidos = turnos.filter(t => t.estado === 'atendido').length;
+  const totalCopagos = turnos.reduce((acc, t) => acc + toPeso(t.copago), 0);
+  const totalPagos = Object.values(pagosMap).reduce((a, b) => a + toPeso(b), 0);
+  const totalPend = Math.max(0, totalCopagos - totalPagos);
+
+  if (E.el.kpiConsultas) E.el.kpiConsultas.textContent = `${totalAtendidos} atendidas`;
+  if (E.el.kpiCobrado)   E.el.kpiCobrado.textContent   = money(totalPagos);
+  if (E.el.kpiPendiente) E.el.kpiPendiente.textContent = money(totalPend);
+}
+
+function renderLegend() {
+  if (!E.el.legend) return;
+  const desde = E.el.desde?.value || '—';
+  const hasta = E.el.hasta?.value || '—';
+  const centroSel = E.el.centro?.selectedOptions?.[0]?.textContent || 'Todos los centros';
+  E.el.legend.textContent = `${centroSel} · ${desde} → ${hasta}`;
+}
+
+// ---------- Refresh principal ----------
+async function refresh() {
+  try {
+    const desde = E.el.desde?.value || isoFirstDayOfMonth();
+    const hasta = E.el.hasta?.value || isoToday();
+    const centroId = (E.el.centro?.value || '').trim() || null;
+
+    if (!E.profesionalId) {
+      renderEmpty('No se detectó el profesional logueado.');
       return;
     }
 
-    // Handler
-    $("#mc-refresh")?.addEventListener("click", () => refresh(profesionalId));
+    log('refresh params:', { desde, hasta, profesionalId: E.profesionalId, centroId });
+    console.time(`${TAG} refresh`);
 
-    // Primera carga
-    await refresh(profesionalId);
+    const turnos = await fetchTurnos({
+      desde, hasta, profesionalId: E.profesionalId, centroId
+    });
+    log('turnos recibidos:', turnos.length);
 
+    const pagosMap = await fetchPagosMap(turnos.map(t => t.id));
+    log('pagosMap size:', Object.keys(pagosMap).length);
+
+    renderKPIs(turnos, pagosMap);
+    renderTable(turnos, pagosMap);
+    renderLegend();
+
+    console.timeEnd(`${TAG} refresh`);
   } catch (e) {
-    console.warn(NS, "init error:", e);
-    if (dbg) dbg.textContent += `INIT ERROR: ${e?.message||e}\n`;
-  }
-
-  // -------------------------
-  async function refresh(profesionalId){
-    const desde = ($("#mc-desde")?.value || firstDayOfMonthISO());
-    const hasta = ($("#mc-hasta")?.value || todayISO());
-    const out = $("#mc-out");
-    const sum = $("#mc-summary");
-
-    console.time(NS + " refresh");
-    try {
-      log("refresh params:", { desde, hasta, profesionalId });
-      if (out) out.innerHTML = "Cargando…";
-      if (sum) sum.innerHTML = "";
-
-      // 1) Turnos del período (todos los centros) para el profesional
-      const selectCols = `
-        id, fecha, estado, copago, medio_pago, estado_pago, centro_id,
-        pacientes(apellido, nombre)
-      `;
-      const { data: turnos = [], error: tErr } = await supabase
-        .from("turnos")
-        .select(selectCols)
-        .eq("profesional_id", profesionalId)
-        .gte("fecha", desde)
-        .lte("fecha", hasta)
-        .order("fecha", { ascending: true });
-
-      if (tErr) throw tErr;
-
-      log(`turnos recibidos: ${turnos.length}`);
-      if (turnos.length) log("sample turno[0]:", turnos[0]);
-
-      // 2) Sumar pagos por turno
-      const ids = [...new Set(turnos.map(t => t.id))];
-      let pagosMap = {};
-      if (ids.length){
-        const { data: pagos = [], error: pErr } = await supabase
-          .from("turnos_pagos")
-          .select("turno_id, importe")
-          .in("turno_id", ids);
-        if (pErr) throw pErr;
-        pagosMap = pagos.reduce((acc, r) => {
-          acc[r.turno_id] = (acc[r.turno_id] || 0) + Number(r.importe || 0);
-          return acc;
-        }, {});
-      }
-      log("pagosMap size:", Object.keys(pagosMap).length);
-
-      // 3) KPIs
-      const sumCopago = turnos.reduce((a,t) => a + (Number(t.copago || 0)), 0);
-      const sumPagado = ids.reduce((a,id) => a + (pagosMap[id] || 0), 0);
-      const pendiente = Math.max(0, sumCopago - sumPagado);
-
-      const atendidos = turnos.filter(t => t.estado === "atendido").length;
-      const enEspera  = turnos.filter(t => t.estado === "en_espera").length;
-      const cancelados= turnos.filter(t => t.estado === "cancelado").length;
-      const asignados = turnos.filter(t => t.estado === "asignado" || t.estado === "confirmado").length;
-
-      const money = n => new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0}).format(n||0);
-
-      if (sum){
-        const box = (label, val) => `<div style="padding:10px 12px;background:#fff;border:1px solid #eee;border-radius:10px;min-width:160px;"><div style="font-size:12px;color:#6b6480">${label}</div><div style="font-size:18px;font-weight:700;color:#381e60">${val}</div></div>`;
-        sum.innerHTML =
-          box("Consultas atendidas", atendidos) +
-          box("Asignados/Confirmados", asignados) +
-          box("En espera", enEspera) +
-          box("Cancelados", cancelados) +
-          box("Copagos del período", money(sumCopago)) +
-          box("Pagado", money(sumPagado)) +
-          box("Pendiente", money(pendiente));
-      }
-
-      // 4) Tabla detalle
-      if ($("#mc-out")){
-        const rows = turnos.map(t => {
-          const pagado = pagosMap[t.id] || 0;
-          const p = t.pacientes || {};
-          const nom = [p.nombre, p.apellido].filter(Boolean).join(" ") || "—";
-          return `
-            <tr>
-              <td>${t.fecha || "—"}</td>
-              <td>${nom}</td>
-              <td>${t.estado}</td>
-              <td style="text-align:right">${money(t.copago || 0)}</td>
-              <td style="text-align:right">${money(pagado)}</td>
-            </tr>`;
-        }).join("");
-
-        $("#mc-out").innerHTML = `
-          <table class="table" style="width:100%;border-collapse:collapse;">
-            <thead>
-              <tr style="background:#f6f3ff">
-                <th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">Fecha</th>
-                <th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">Paciente</th>
-                <th style="text-align:left;padding:8px;border-bottom:1px solid #eee;">Estado</th>
-                <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Copago</th>
-                <th style="text-align:right;padding:8px;border-bottom:1px solid #eee;">Pagado</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${rows || `<tr><td colspan="5" style="padding:10px;color:#6b6480;">Sin turnos en el período.</td></tr>`}
-            </tbody>
-          </table>`;
-      }
-
-      log("refresh OK");
-    } catch (e) {
-      console.warn(NS, "refresh error:", e);
-      if ($("#mc-out")) $("#mc-out").innerHTML = `<div style="color:#b00020;">Error: ${e?.message||e}</div>`;
-    } finally {
-      console.timeEnd(NS + " refresh");
-    }
+    err('refresh error:', e);
+    renderEmpty('Error cargando datos.');
   }
 }
 
-// ------------------------- helpers
-async function resolveProfesionalId(log=()=>{}){
-  // 1) ?prof=<uuid> en la URL (por si lo llamás directo)
-  try {
-    const qs = new URLSearchParams(location.search);
-    const qp = qs.get("prof");
-    if (qp && isUUID(qp)) {
-      log("resolve by querystring ?prof:", qp);
-      return qp;
-    }
-  } catch {}
+// ---------- Resolver profesional ----------
+function resolveProfesionalId() {
+  const ls = {
+    profesional_id: localStorage.getItem('profesional_id'),
+    user_role: localStorage.getItem('user_role'),
+    user_name: localStorage.getItem('user_name'),
+  };
+  log('localStorage snapshot:', ls);
 
-  // 2) localStorage.professional_id (flujo normal)
-  const ls = localStorage.getItem("profesional_id");
-  if (ls && isUUID(ls)) {
-    log("resolve by localStorage.profesional_id:", ls);
-    return ls;
+  const pid = ls.profesional_id;
+  if (isUUID(pid)) {
+    log('resolve by localStorage.profesional_id:', pid);
+    return pid;
   }
-
-  // 3) Fallback: si tenés profile_id en localStorage, buscá su profesional
-  const profileId = localStorage.getItem("profile_id");
-  if (profileId && isUUID(profileId)) {
-    const { data: p, error } = await supabase
-      .from("profesionales")
-      .select("id")
-      .eq("profile_id", profileId)
-      .maybeSingle();
-    if (!error && p?.id) {
-      log("resolve by profesionales.profile_id:", p.id);
-      return p.id;
-    }
-    log("fallback profesionales.profile_id error:", error);
-  }
-
-  log("resolveProfesionalId(): no encontrado");
+  warn('No hay profesional_id en localStorage o es inválido.');
   return null;
 }
+
+// ---------- INIT ----------
+export async function initMisConsultas(root) {
+  try {
+    log('init');
+
+    // Referencias
+    E.root            = root || document;
+    E.el.desde        = E.root.querySelector('#mc-desde');
+    E.el.hasta        = E.root.querySelector('#mc-hasta');
+    E.el.centro       = E.root.querySelector('#mc-centro');
+    E.el.refresh      = E.root.querySelector('#mc-refresh');
+    E.el.kpiConsultas = E.root.querySelector('#mc-kpi-consultas');
+    E.el.kpiCobrado   = E.root.querySelector('#mc-kpi-cobrado');
+    E.el.kpiPendiente = E.root.querySelector('#mc-kpi-pendiente');
+    E.el.legend       = E.root.querySelector('#mc-legend');
+    E.el.tbody        = E.root.querySelector('#mc-tbody');
+    E.el.empty        = E.root.querySelector('#mc-empty');
+
+    // Fechas por defecto
+    const defDesde = isoFirstDayOfMonth();
+    const defHasta = isoToday();
+    if (E.el.desde && !E.el.desde.value) E.el.desde.value = defDesde;
+    if (E.el.hasta && !E.el.hasta.value) E.el.hasta.value = defHasta;
+    log('default dates:', { defDesde, defHasta });
+
+    // Profesional logueado
+    E.profesionalId = resolveProfesionalId();
+    if (!E.profesionalId) {
+      renderEmpty('No se detectó el profesional. Cerrá sesión e iniciá nuevamente.');
+      return;
+    }
+    log('resolved profesionalId:', E.profesionalId);
+
+    // Centros del profesional
+    await loadCentrosDelProfesional(E.profesionalId);
+
+    // Listeners
+    if (E.el.refresh) E.el.refresh.onclick = () => refresh();
+    if (E.el.centro)  E.el.centro.onchange = () => refresh();
+    if (E.el.desde)   E.el.desde.onchange  = () => refresh();
+    if (E.el.hasta)   E.el.hasta.onchange  = () => refresh();
+
+    // Primera carga
+    await refresh();
+  } catch (e) {
+    err('init error:', e);
+    renderEmpty('No se pudo iniciar Mis Consultas.');
+  }
+}
+
+// Por si querés testear manual desde consola:
+// window.__misConsultasRefresh = refresh;
