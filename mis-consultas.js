@@ -293,39 +293,6 @@ function ensureOrUpdateChart(instRef, canvas, cfg){
   return new window.Chart(canvas.getContext('2d'), cfg);
 }
 
-/* ===== ciclo principal ===== */
-async function refresh(){
-  const desde = UI.desde.value || isoFirstDayOfMonth();
-  const hasta = UI.hasta.value || isoToday();
-  const gran  = UI.gran.value || 'day';
-  const centroId = UI.centro.value || null;
-
-  UI.empty.style.display=''; UI.empty.textContent='Cargando…';
-  dpush({ refresh_params: {desde, hasta, gran, profesionalId, centroId} });
-
-  const turnos = await fetchTurnos({ desde, hasta, profId: profesionalId, centroId });
-  const pagosMap = await fetchPagosMap(turnos.map(t=>t.id));
-
-  setKPIs(turnos, pagosMap);
-  renderTable(turnos, pagosMap);
-  setLegend();
-
-  // gráficos
-  const tl = buildTimeline(turnos, gran);
-  Charts.timeline = ensureOrUpdateChart(Charts.timeline, UI.canvases.timeline,
-    barConfig(tl, 'Atendidos'));
-
-  const os = buildPorOS(turnos);
-  Charts.os = ensureOrUpdateChart(Charts.os, UI.canvases.os, pieConfig(os));
-
-  const byC = buildPorCentro(turnos);
-  Charts.centros = ensureOrUpdateChart(Charts.centros, UI.canvases.centros, barConfig(byC, 'Atendidos'));
-
-  const est = buildPorEstado(turnos);
-  Charts.estados = ensureOrUpdateChart(Charts.estados, UI.canvases.estados, pieConfig(est));
-
-  UI.empty.style.display='none';
-}
 
 /* ===== init ===== */
 export async function initMisConsultas(root){
