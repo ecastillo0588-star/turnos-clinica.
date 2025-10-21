@@ -407,51 +407,67 @@
   }
 
 // === Alta / reactivación de asociación en profesional_centro ===
+// === Alta / reactivación de asociación en profesional_centro ===
 async function upsertProfesionalCentro({ rol, profesionalId, centroId, medicoProfesionalId }) {
-  if (!centroId) return { ok: false, msg: 'Falta centro.' };
-  if (!profesionalId) return { ok: false, msg: 'Falta asistente.' };
+  // Validaciones rápidas de entrada
+  if (!centroId)            return { ok: false, msg: 'Falta centro.' };
+  if (!profesionalId)       return { ok: false, msg: 'Falta asistente.' };
   if (!medicoProfesionalId) return { ok: false, msg: 'Falta médico registrador.' };
   if (!(rol === 'amc' || rol === 'amp')) return { ok: false, msg: 'Rol inválido.' };
 
   try {
+    // Traemos TODAS las filas del mismo profesional + centro (cualquier registrador)
     const { data: existing, error: selErr } = await supabase
       .from('profesional_centro')
-      .select('id, profesional_id, centro_id, medico_registrador_id, activo')
+      .select('profesional_id, centro_id, medico_registrador_id, activo')
       .eq('profesional_id', profesionalId)
       .eq('centro_id', centroId);
 
     if (selErr) return { ok: false, msg: selErr.message || 'Error consultando asociaciones.' };
+    const rows = existing || [];
 
-    const alreadyActive = (existing || []).find(r => r.activo === true);
-    if (alreadyActive) return { ok: true, msg: 'El asistente ya está asociado a este centro.' };
+    // 1) ¿Ya está activa con este mismo registrador?
+    const activeSame = rows.find(r => r.activo === true && r.medico_registrador_id === medicoProfesionalId);
+    if (activeSame) {
+      return { ok: true, msg: 'El asistente ya está asociado a este centro.' };
+    }
 
-    const inactiveSameMed = (existing || []).find(r => !r.activo && r.medico_registrador_id === medicoProfesionalId);
-    if (inactiveSameMed) {
+    // 2) ¿Existe fila inactiva con este mismo registrador? => reactivar
+    const inactiveSame = rows.find(r => r.activo === false && r.medico_registrador_id === medicoProfesionalId);
+    if (inactiveSame) {
       const { error: updErr } = await supabase
         .from('profesional_centro')
         .update({ activo: true })
-        .eq('id', inactiveSameMed.id);
+        .eq('profesional_id', profesionalId)
+        .eq('centro_id', centroId)
+        .eq('medico_registrador_id', medicoProfesionalId);
       if (updErr) return { ok: false, msg: updErr.message || 'No se pudo reactivar la asociación.' };
       return { ok: true, msg: 'Asociación reactivada.' };
     }
 
-    const anyInactive = (existing || []).find(r => !r.activo);
-    if (anyInactive) {
+    // 3) ¿Hay alguna fila inactiva con OTRO registrador?
+    //    Si tu regla de negocio permite “mover” el registrador, reusamos esa fila y
+    //    la pasamos a activo=true cambiando el medico_registrador_id.
+    const inactiveOther = rows.find(r => r.activo === false);
+    if (inactiveOther) {
       const { error: updErr } = await supabase
         .from('profesional_centro')
         .update({ activo: true, medico_registrador_id: medicoProfesionalId })
-        .eq('id', anyInactive.id);
-      if (updErr) return { ok: false, msg: updErr.message || 'No se pudo reactivar la asociación (otro registrador).' };
+        .eq('profesional_id', profesionalId)
+        .eq('centro_id', centroId)
+        .eq('medico_registrador_id', inactiveOther.medico_registrador_id);
+      if (updErr) return { ok: false, msg: updErr.message || 'No se pudo reactivar la asociación (cambio de registrador).' };
       return { ok: true, msg: 'Asociación reactivada.' };
     }
 
+    // 4) Caso nuevo: insertamos la fila (se respeta el índice único parcial de activo=true por triple)
     const { error: insErr } = await supabase
       .from('profesional_centro')
       .insert([{
         profesional_id: profesionalId,
         centro_id: centroId,
         medico_registrador_id: medicoProfesionalId,
-        activo: true
+        activo: true,
       }]);
 
     if (insErr) return { ok: false, msg: insErr.message || 'No se pudo crear la asociación.' };
@@ -461,6 +477,7 @@ async function upsertProfesionalCentro({ rol, profesionalId, centroId, medicoPro
     return { ok: false, msg: e?.message || 'Error inesperado.' };
   }
 }
+
   
   
   // ========= Modal añadir =========
