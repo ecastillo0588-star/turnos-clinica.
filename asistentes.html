@@ -406,6 +406,63 @@
     await Promise.all([cargarAMC(centroId), cargarAMP(centroId)]);
   }
 
+// === Alta / reactivación de asociación en profesional_centro ===
+async function upsertProfesionalCentro({ rol, profesionalId, centroId, medicoProfesionalId }) {
+  if (!centroId) return { ok: false, msg: 'Falta centro.' };
+  if (!profesionalId) return { ok: false, msg: 'Falta asistente.' };
+  if (!medicoProfesionalId) return { ok: false, msg: 'Falta médico registrador.' };
+  if (!(rol === 'amc' || rol === 'amp')) return { ok: false, msg: 'Rol inválido.' };
+
+  try {
+    const { data: existing, error: selErr } = await supabase
+      .from('profesional_centro')
+      .select('id, profesional_id, centro_id, medico_registrador_id, activo')
+      .eq('profesional_id', profesionalId)
+      .eq('centro_id', centroId);
+
+    if (selErr) return { ok: false, msg: selErr.message || 'Error consultando asociaciones.' };
+
+    const alreadyActive = (existing || []).find(r => r.activo === true);
+    if (alreadyActive) return { ok: true, msg: 'El asistente ya está asociado a este centro.' };
+
+    const inactiveSameMed = (existing || []).find(r => !r.activo && r.medico_registrador_id === medicoProfesionalId);
+    if (inactiveSameMed) {
+      const { error: updErr } = await supabase
+        .from('profesional_centro')
+        .update({ activo: true })
+        .eq('id', inactiveSameMed.id);
+      if (updErr) return { ok: false, msg: updErr.message || 'No se pudo reactivar la asociación.' };
+      return { ok: true, msg: 'Asociación reactivada.' };
+    }
+
+    const anyInactive = (existing || []).find(r => !r.activo);
+    if (anyInactive) {
+      const { error: updErr } = await supabase
+        .from('profesional_centro')
+        .update({ activo: true, medico_registrador_id: medicoProfesionalId })
+        .eq('id', anyInactive.id);
+      if (updErr) return { ok: false, msg: updErr.message || 'No se pudo reactivar la asociación (otro registrador).' };
+      return { ok: true, msg: 'Asociación reactivada.' };
+    }
+
+    const { error: insErr } = await supabase
+      .from('profesional_centro')
+      .insert([{
+        profesional_id: profesionalId,
+        centro_id: centroId,
+        medico_registrador_id: medicoProfesionalId,
+        activo: true
+      }]);
+
+    if (insErr) return { ok: false, msg: insErr.message || 'No se pudo crear la asociación.' };
+    return { ok: true, msg: 'Asociación creada.' };
+
+  } catch (e) {
+    return { ok: false, msg: e?.message || 'Error inesperado.' };
+  }
+}
+  
+  
   // ========= Modal añadir =========
   async function abrirModalPara(rol) {
     formStatus.textContent = '';
@@ -447,6 +504,36 @@
     openModal();
   }
 
+  // === Alta desde el modal "Vincular" ===
+formAdd.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  formStatus.textContent = '';
+  formError.textContent = '';
+
+  const rol = (hiddenRol.value || '').trim().toLowerCase(); // 'amc' o 'amp'
+  const centroId = centroSelect.value;
+  const profesionalId = asistenteSelect.value;
+
+  // Validaciones de UI
+  if (!centroId) { formError.textContent = 'Seleccione un centro.'; return; }
+  if (!medicoProfesionalId) { formError.textContent = 'No se detectó médico logueado.'; return; }
+  if (!profesionalId) { formError.textContent = 'Seleccione un asistente.'; return; }
+  if (!(rol === 'amc' || rol === 'amp')) { formError.textContent = 'Rol inválido.'; return; }
+
+  // Ejecutar upsert
+  const res = await upsertProfesionalCentro({ rol, profesionalId, centroId, medicoProfesionalId });
+
+  if (!res.ok) {
+    formError.textContent = res.msg || 'No se pudo asociar.';
+    return;
+  }
+
+  formStatus.textContent = res.msg || 'Asociación realizada.';
+  await recargarTablas();
+  closeModal();
+});
+
+     
   btnAddAMC.addEventListener('click', async () => {
     if (!centroSelect.value) { alert('Seleccione un centro primero.'); return; }
     if (!medicoProfesionalId) { alert('No se detectó médico logueado.'); return; }
