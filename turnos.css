@@ -302,3 +302,26 @@
 .dup-badge-hora { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .dup-badge-prof { color: #4b3a78; }
 .dup-badge-centro { color: #5b6e91; }
+
+/* Resumen de turnos futuros en el área del calendario (#turnos-status) */
+.dup-status {
+  background: #f7f7ff;
+  border: 1px solid #e6e6ff;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #2f2a4d;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.dup-status .tag-match {
+  background: #e8f6ea;
+  color: #0a7d38;
+  border: 1px solid #b7e0bc;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
