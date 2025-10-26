@@ -680,7 +680,7 @@ async function refreshDuplicateUI(){
   if (UI.modal?.style.display === 'flex') {
     renderDuplicateBannerInModal(turnosFuturos);
   }
-  renderDuplicateSummaryInCalendar(turnosFuturos);
+   // (Desactivado) No queremos el cartel grande en el calendario.
 }
 
 
@@ -812,11 +812,9 @@ async function selectPaciente(p){
   enforceTipoTurnoByPaciente(p.id);
   if (UI.modal?.style.display === 'flex') refreshModalTitle();
 
-  // 🔎 Centralizado: pinta avisos (inline, banner, status) sin carreras
-  await refreshDuplicateUI();
-
-  // ✅ Luego refrescá el calendario
-  await renderCalendar();
+  await renderCalendar();        // 1) refresca grilla/DOM pesado
+  await new Promise(requestAnimationFrame); // 2) deja al browser pintar
+  await refreshDuplicateUI();    // 3) pinta el aviso chico inmediatamente
 }
 
 
