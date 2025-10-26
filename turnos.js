@@ -1777,13 +1777,31 @@ UI.pacInput?.addEventListener('input', () => {
   suggestTimer = setTimeout(() => fetchSuggestions(q), 180);
 });
 
+  // Botón "limpiar" → reset inmediato (sin esperar fetch)
   UI.pacClear?.addEventListener('click', async () => {
     pacienteSeleccionado = null;
+    dupReqId++; // invalida cualquier refreshDuplicateUI en vuelo
     if (UI.pacChip) UI.pacChip.style.display = 'none';
+    if (UI.pacInput) UI.pacInput.value = '';
+    hideSuggest();
     enforceTipoTurnoByPaciente(null);
     if (UI.modal?.style.display === 'flex') refreshModalTitle();
-    // Centralizado + anti-race: limpia inline/banner/status
-    await refreshDuplicateUI();
+    clearDuplicateWarnings();            // borra inline + banner
+    if (UI.status) UI.status.innerHTML = ''; // borra resumen
+  });
+
+  // Cierre del chip (click en el ícono .chip-close)
+  UI.pacChip?.addEventListener('click', async (e) => {
+    if (!e.target.closest('.chip-close')) return;
+    pacienteSeleccionado = null;
+    dupReqId++; // invalida cualquier refreshDuplicateUI en vuelo
+    if (UI.pacChip) UI.pacChip.style.display = 'none';
+    if (UI.pacInput) UI.pacInput.value = '';
+    hideSuggest();
+    enforceTipoTurnoByPaciente(null);
+    if (UI.modal?.style.display === 'flex') refreshModalTitle();
+    clearDuplicateWarnings();             // borra inline + banner
+    if (UI.status) UI.status.innerHTML = '';// borra resumen
   });
 
   // --- Modal Día ---
