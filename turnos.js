@@ -1348,6 +1348,7 @@ async function openDayModalMulti(isoDate, AByProf, TByProf){
   });
 
   await renderMiniCalFor(isoDate);
+  await refreshDuplicateUI(); // <- pinta el banner del modal inmediatamente
 }
 
 async function refreshDayModal(){
@@ -1862,3 +1863,26 @@ function attachHandlers(){
     infoEl.textContent = cond || val ? cond + val : '';
   });
 }
+
+export async function initTurnos(){
+  bindUI();
+  attachHandlers();
+  renderDow();
+  initPaymentsBridge(); // idempotente
+
+  await syncCentroFromStorage(true);
+
+  if (!currentCentroId){
+    UI.status && (UI.status.textContent = 'Seleccioná un centro en la barra lateral para ver turnos.');
+    startCentroWatcher();
+    return;
+  }
+
+  await loadObrasSociales();
+  await loadProfesionales();
+  await loadDuracionesForSelected();
+  await renderCalendar();
+
+  startCentroWatcher();
+}
+
