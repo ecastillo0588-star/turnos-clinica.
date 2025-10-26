@@ -256,3 +256,49 @@
 }
 .tw-btn.ok:hover { filter: brightness(.97); }
 
+/* Aviso inline bajo Paciente */
+.dup-inline-warning {
+  display: none;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: #fff8e6;
+  border: 1px solid #ffe2a9;
+  border-radius: 8px;
+  color: #6b4c00;
+  font-size: 13px;
+}
+.dup-inline-warning .dup-inline-title { font-weight: 600; margin-bottom: 6px; }
+.dup-inline-warning .dup-inline-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.dup-inline-warning .dup-inline-legend { margin-top: 6px; font-style: italic; color: #8a6b21; }
+.dup-pill {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #ffeccc;
+  border: 1px solid #ffd48a;
+  white-space: nowrap;
+}
+.dup-pill.match { background: #e8f6ea; border-color: #b7e0bc; }
+
+/* Banner en modal día */
+.dup-banner {
+  display: none;
+  margin: 10px 14px 0;
+  padding: 10px 12px;
+  background: #eef3ff;
+  border: 1px solid #cbd8ff;
+  border-radius: 10px;
+}
+.dup-banner-title { font-weight: 700; color: #2f3b78; margin-bottom: 8px; }
+.dup-banner-list { display: grid; gap: 8px; }
+.dup-banner-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px; border-radius: 8px; background: #fff;
+  border: 1px solid #dfe6ff;
+}
+.dup-banner-item.match { border-color: #bfe3c3; box-shadow: inset 0 0 0 1px #bfe3c3; }
+.dup-banner-main { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.dup-badge-fecha { font-weight: 600; }
+.dup-badge-hora { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.dup-badge-prof { color: #4b3a78; }
+.dup-badge-centro { color: #5b6e91; }
