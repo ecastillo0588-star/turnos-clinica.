@@ -1344,9 +1344,10 @@ async function openDayModalMulti(isoDate, AByProf, TByProf){
     const slots = generarSlotsDeProfesional(AByProf.get(pid) || [], TByProf.get(pid) || [], tipo, exclude, pid);
     renderSlotsGroup(slots, pid);
   });
-
-  await renderMiniCalFor(isoDate);
   await refreshDuplicateUI(); // <- pinta el banner del modal inmediatamente
+  await renderMiniCalFor(isoDate);
+  
+  
 }
 
 async function refreshDayModal(){
@@ -1764,12 +1765,16 @@ function attachHandlers(){
   applyRoleClasses(userRole);
 
   // --- Typeahead Paciente ---
-  UI.pacInput?.addEventListener('input', () => {
-    clearTimeout(suggestTimer);
-    const q = UI.pacInput.value.trim();
-    if (!q) { hideSuggest(); return; }
-    suggestTimer = setTimeout(() => fetchSuggestions(q), 180);
-  });
+UI.pacInput?.addEventListener('input', () => {
+  clearTimeout(suggestTimer);
+  const q = UI.pacInput.value.trim();
+ if (!q) {
+   hideSuggest();
+   if (!pacienteSeleccionado) clearDuplicateWarnings(); // 🔑 oculta el cartelito
+   return;
+ }
+  suggestTimer = setTimeout(() => fetchSuggestions(q), 180);
+});
 
   UI.pacClear?.addEventListener('click', async () => {
     pacienteSeleccionado = null;
@@ -1864,6 +1869,8 @@ function attachHandlers(){
 
 export async function initTurnos(){
   bindUI();
+  clearDuplicateWarnings();
+  if (UI.status) UI.status.innerHTML = '';  // (opcional) limpia la franja de estado
   attachHandlers();
   renderDow();
   initPaymentsBridge(); // idempotente
