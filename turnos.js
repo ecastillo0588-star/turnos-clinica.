@@ -371,11 +371,15 @@ function hookProfesionalSelect(){
         const turnosFuturos = await fetchTurnosFuturosPaciente({ pacienteId: pacienteSeleccionado.id });
         renderDuplicateWarningInline(turnosFuturos);
 
-        if (UI.modal?.style.display === 'flex') {
-          renderDuplicateBannerInModal(turnosFuturos);
-        }
+      if (UI.modal?.style.display === 'flex') {
+        renderDuplicateBannerInModal(turnosFuturos);
+      }
+      // SIEMPRE actualizar el status del calendario
+      renderDuplicateSummaryInCalendar(turnosFuturos);
+
       } else {
         clearDuplicateWarnings();
+        if (UI.status) UI.status.innerHTML = '';
       }
     } catch (e) {
       console.warn('hookProfesionalSelect: error al refrescar avisos:', e);
@@ -670,6 +674,57 @@ function clearDuplicateWarnings(){
 }
 
 // ---------------------------
+// Resumen en el área del calendario (usa #turnos-status)
+// ---------------------------
+function renderDuplicateSummaryInCalendar(turnos){
+  const host = UI.status;
+  if (!host) return;
+
+  // Limpiar si no hay paciente o no hay turnos
+  if (!pacienteSeleccionado || !Array.isArray(turnos) || turnos.length === 0){
+    host.innerHTML = '';
+    return;
+  }
+
+  // Tomamos el próximo
+  const next = turnos[0];
+  const d = new Date(next.fecha + 'T00:00:00')
+    .toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+  const hm = toHM(next.hora_inicio);
+  const sameProf = new Set((selectedProfesionales || []).map(String))
+    .has(String(next.profesional_id));
+
+  host.innerHTML = `
+    <div class="dup-status">
+      <strong>Este paciente tiene un turno futuro</strong> — ${d} ${hm}
+      · ${next.profLabel || ''} · ${next.centroNombre || ''}
+      ${sameProf ? '<span class="tag-match">mismo profesional</span>' : ''}
+      <button class="tw-btn secondary dup-open-day" data-date="${next.fecha}" style="margin-left:8px;">Abrir día</button>
+    </div>
+  `;
+
+  const btn = host.querySelector('.dup-open-day');
+  if (btn){
+    btn.addEventListener('click', async () => {
+      await openDayModalByISO(next.fecha);
+    });
+  }
+}
+
+// Abre el modal de un día específico sin depender del click en la grilla
+async function openDayModalByISO(iso){
+  if (!Array.isArray(selectedProfesionales) || selectedProfesionales.length === 0) return;
+  const d = new Date(iso + 'T00:00:00');
+  const y = d.getFullYear(), m = d.getMonth();
+  const { agenda, turnos } = await fetchAgendaYTurnosMulti(selectedProfesionales, y, m);
+  const gA = groupByFecha(agenda), gT = groupByFecha(turnos);
+  const AByProf = groupBy(gA.get(iso) || [], 'profesional_id');
+  const TByProf = groupBy(gT.get(iso) || [], 'profesional_id');
+  await openDayModalMulti(iso, AByProf, TByProf);
+}
+
+
+// ---------------------------
 /* Pacientes (typeahead) */
 // ---------------------------
 let suggestTimer = null;
@@ -754,6 +809,7 @@ async function selectPaciente(p){
     if (UI.modal?.style.display === 'flex') {
       renderDuplicateBannerInModal(turnosFuturos);
     }
+    renderDuplicateSummaryInCalendar(turnosFuturos);
   } catch (e) {
     console.warn('selectPaciente: error al obtener turnos futuros:', e);
     clearDuplicateWarnings();
@@ -1531,7 +1587,7 @@ async function desbloquearTurno(t) {
   });
 
  // Prefill del textarea "Editable" + sincronizar el link
- const ta = document.getElementById('ok-wa-text'); // ← coincide con el id del HTML
+ const ta = document.getElementById('ok-wa-textarea');
   if (ta) {
     ta.value = waText; // <<<<<< aquí lo precargamos
     ta.oninput = () => {
@@ -1666,10 +1722,6 @@ function fmtDateLongNice(iso){
   return raw.toLowerCase().split(' ').map((w,i)=> (i===0||!stop.has(w)) ? (w[0].toUpperCase()+w.slice(1)) : w).join(' ');
 }
 
-
-
-/**
-
 /**
  * Abre el modal OK y setea el link de WhatsApp.
  * @param {{ pac:any, fechaISO:string, start:string, end:string, profLabel:string, osNombre?:string|null, copago?:number|null }} args
@@ -1699,6 +1751,7 @@ function attachHandlers(){
     enforceTipoTurnoByPaciente(null);
     if (UI.modal?.style.display === 'flex') refreshModalTitle();
     clearDuplicateWarnings(); 
+    if (UI.status) UI.status.innerHTML = '';
   });
 
   // Modal día
