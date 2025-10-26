@@ -226,6 +226,8 @@ function bindUI(){
     profesionalSelect: document.getElementById('turnos-profesional-select'),
     tipoTurno:         document.getElementById('turnos-tipo'),
 
+    
+
     // Pacientes (typeahead)
     pacInput:    document.getElementById('turnos-paciente-input'),
     pacSuggest:  document.getElementById('turnos-paciente-suggest'),
@@ -812,9 +814,8 @@ async function selectPaciente(p){
   enforceTipoTurnoByPaciente(p.id);
   if (UI.modal?.style.display === 'flex') refreshModalTitle();
 
-  await renderCalendar();        // 1) refresca grilla/DOM pesado
-  await new Promise(requestAnimationFrame); // 2) deja al browser pintar
-  await refreshDuplicateUI();    // 3) pinta el aviso chico inmediatamente
++ await refreshDuplicateUI();    // 1) pinta el aviso chico al toque
++ await renderCalendar();        // 2) después se actualiza el mes
 }
 
 
@@ -1869,8 +1870,14 @@ UI.pacInput?.addEventListener('input', () => {
 
 export async function initTurnos(){
   bindUI();
-  clearDuplicateWarnings();
-  if (UI.status) UI.status.innerHTML = '';  // (opcional) limpia la franja de estado
+
+ // 🔑 Reset total del contexto de paciente y avisos
+ pacienteSeleccionado = null;
+ dupReqId++; // invalida cualquier refreshDuplicateUI en vuelo
+ UI.pacChip && (UI.pacChip.style.display = 'none');
+ UI.pacInput && (UI.pacInput.value = '');
+ clearDuplicateWarnings();
+ UI.status && (UI.status.innerHTML = '');
   attachHandlers();
   renderDow();
   initPaymentsBridge(); // idempotente
