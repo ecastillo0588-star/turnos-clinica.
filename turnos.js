@@ -995,20 +995,6 @@ async function renderCalendar(){
 }
 
 
-// 🔎 Refrescar el resumen de turnos futuros del paciente en el área del calendario
-try {
-  if (pacienteSeleccionado?.id) {
-    const turnosFuturos = await fetchTurnosFuturosPaciente({ pacienteId: pacienteSeleccionado.id });
-    renderDuplicateSummaryInCalendar(turnosFuturos);
-  } else {
-    renderDuplicateSummaryInCalendar([]); // limpia si no hay paciente
-  }
-} catch (e) {
-  console.warn('renderCalendar: no se pudo refrescar el resumen de duplicados:', e);
-  renderDuplicateSummaryInCalendar([]); // fallback: limpiar
-}
-}
-
 // ---------------------------
 /* Modal día (multi-prof) */
 // ---------------------------
