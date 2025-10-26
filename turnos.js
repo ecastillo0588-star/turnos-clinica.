@@ -86,6 +86,23 @@ function minutesDiff(a,b){
   const [h2,m2] = b.split(':').map(Number);
   return h2*60+m2 - (h1*60+m1);
 }
+
+// ---------------------------
+// Estados "vigentes" para avisos
+// (si querés incluir 'atendido', agregalo abajo)
+// ---------------------------
+const ESTADOS_VIGENTES_INFO = new Set(['asignado', 'confirmado']);
+
+/**
+ * Devuelve true si el estado del turno debe considerarse "vigente"
+ * para las advertencias informativas (duplicados del paciente).
+ */
+function isEstadoVigente(estado){
+  if (!estado) return false;
+  const s = String(estado).trim().toLowerCase();
+  return ESTADOS_VIGENTES_INFO.has(s);
+}
+
 function groupBy(arr, key){
   const m = new Map(); for (const x of arr||[]) {
     const k = x[key]; if (!m.has(k)) m.set(k, []); m.get(k).push(x);
@@ -333,18 +350,40 @@ function hookProfesionalSelect(){
   if (!sel) return;
 
   sel.addEventListener('change', async () => {
+    // Actualiza selección como antes
     selectedProfesionales = sel.multiple
       ? Array.from(sel.selectedOptions).map(o => String(o.value)).filter(Boolean)
       : (sel.value ? [String(sel.value)] : []);
     window.currentProfesional = selectedProfesionales[0] || null;
+
+    // Mantener flujos existentes
     await loadDuracionesForSelected();
     await renderCalendar();
+
     if (UI.modal?.style.display === 'flex' && modalDateISO) {
       await refreshDayModal();
       await renderMiniCalFor(modalDateISO);
     }
+
+    // 🔄 Nuevo: refrescar avisos informativos si hay paciente seleccionado
+    try {
+      if (pacienteSeleccionado?.id) {
+        const turnosFuturos = await fetchTurnosFuturosPaciente({ pacienteId: pacienteSeleccionado.id });
+        renderDuplicateWarningInline(turnosFuturos);
+
+        if (UI.modal?.style.display === 'flex') {
+          renderDuplicateBannerInModal(turnosFuturos);
+        }
+      } else {
+        clearDuplicateWarnings();
+      }
+    } catch (e) {
+      console.warn('hookProfesionalSelect: error al refrescar avisos:', e);
+      clearDuplicateWarnings();
+    }
   });
 }
+
 
 // ---------------------------
 /* Duraciones */
@@ -458,6 +497,179 @@ async function loadObrasSociales(){
 }
 
 // ---------------------------
+// Cache de centros (para enriquecer avisos sin repetir fetch)
+// ---------------------------
+const CENTROS_CACHE = new Map(); // Map<centroId, { nombre:string, direccion:string }>
+
+/**
+ * Devuelve {nombre, direccion} de un centro usando cache local.
+ * Usa fetchCentroById(id) que ya existe en este archivo.
+ */
+async function getCentroCached(id){
+  if (!id) return { nombre:'', direccion:'' };
+  if (CENTROS_CACHE.has(id)) return CENTROS_CACHE.get(id);
+
+  const c = await fetchCentroById(id);
+  const out = { nombre: c?.nombre || '', direccion: c?.direccion || '' };
+  CENTROS_CACHE.set(id, out);
+  return out;
+}
+
+// ---------------------------
+// Turnos futuros del paciente (cross-centro, cross-prof)
+// ---------------------------
+async function fetchTurnosFuturosPaciente({ pacienteId, desdeISO = null }){
+  if (!pacienteId) return [];
+
+  const hoyISO = desdeISO || dateToISO(new Date());
+
+  const { data, error } = await supabase
+    .from('turnos')
+    .select('id, fecha, hora_inicio, hora_fin, estado, profesional_id, centro_id')
+    .eq('paciente_id', pacienteId)
+    .gte('fecha', hoyISO)
+    .in('estado', Array.from(ESTADOS_VIGENTES_INFO)) // 'asignado','confirmado'
+    .order('fecha', { ascending: true })
+    .order('hora_inicio', { ascending: true });
+
+  if (error) {
+    console.warn('fetchTurnosFuturosPaciente error:', error.message);
+    return [];
+  }
+
+  const rows = data || [];
+
+  // Enriquecer: labels y centro (con cache)
+  const out = [];
+  for (const t of rows){
+    const centro = await getCentroCached(t.centro_id);
+    out.push({
+      id: t.id,
+      fecha: t.fecha,
+      hora_inicio: toHM(t.hora_inicio),
+      hora_fin: t.hora_fin ? toHM(t.hora_fin) : null,
+      estado: t.estado,
+      profesional_id: t.profesional_id,
+      profLabel: profNameById(t.profesional_id),
+      centro_id: t.centro_id,
+      centroNombre: centro.nombre,
+      centroDireccion: centro.direccion,
+    });
+  }
+  return out;
+}
+  
+// ---------------------------
+// Aviso inline bajo el input de Paciente
+// ---------------------------
+function renderDuplicateWarningInline(turnos){
+  const host = document.getElementById('turnos-dup-inline');
+  if (!host) return;
+
+  // Sin paciente o sin turnos -> ocultar
+  if (!pacienteSeleccionado || !Array.isArray(turnos) || turnos.length === 0){
+    host.style.display = 'none';
+    host.innerHTML = '';
+    return;
+  }
+
+  // ¿Coinciden con el/los profesionales en contexto?
+  const selectedSet = new Set((selectedProfesionales || []).map(String));
+
+  // Construimos pills compactas
+  const items = turnos.map(t => {
+    const d = new Date(t.fecha + 'T00:00:00');
+    const f = d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+    const hm = toHM(t.hora_inicio);
+    const match = selectedSet.has(String(t.profesional_id));
+    const title = `${f} ${hm} · ${t.profLabel || ''} · ${t.centroNombre || ''}`;
+    const cls = `dup-pill${match ? ' match' : ''}`;
+    return `<span class="${cls}" title="${title}">${f} ${hm} · ${t.profLabel || ''} · ${t.centroNombre || ''}</span>`;
+  });
+
+  // Header + lista
+  host.classList.add('dup-inline-warning');
+  host.innerHTML = `
+    <div class="dup-inline-title">Este paciente ya tiene turnos futuros:</div>
+    <div class="dup-inline-list">${items.join('')}</div>
+    <div class="dup-inline-legend">Resaltado = coincide con el profesional seleccionado</div>
+  `;
+  host.style.display = 'block';
+}
+
+// ---------------------------
+// Banner informativo dentro del modal día
+// ---------------------------
+function renderDuplicateBannerInModal(turnos){
+  const host = document.getElementById('turnos-dup-banner');
+  if (!host) return;
+
+  // Si no hay paciente o no hay turnos -> ocultar banner
+  if (!pacienteSeleccionado || !Array.isArray(turnos) || turnos.length === 0){
+    host.style.display = 'none';
+    host.innerHTML = '';
+    return;
+  }
+
+  // Resaltar coincidencias con profesionales seleccionados
+  const selectedSet = new Set((selectedProfesionales || []).map(String));
+
+  // Construcción de ítems
+  const itemsHtml = turnos.map(t => {
+    const d = new Date(t.fecha + 'T00:00:00');
+    const fLargo = d.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'long' });
+    const hm = toHM(t.hora_inicio);
+    const match = selectedSet.has(String(t.profesional_id)) ? ' match' : '';
+    const titulo = `${fLargo} · ${hm} · ${t.profLabel || ''} · ${t.centroNombre || ''}`;
+    return `
+      <div class="dup-banner-item${match}" title="${titulo}">
+        <div class="dup-banner-main">
+          <span class="dup-badge-fecha">${fLargo}</span>
+          <span class="dup-badge-hora">${hm}</span>
+          <span class="dup-badge-prof">${t.profLabel || ''}</span>
+          <span class="dup-badge-centro">${t.centroNombre || ''}</span>
+        </div>
+        <div class="dup-banner-actions">
+          <button class="tw-btn secondary dup-open-day" data-date="${t.fecha}">Abrir día</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  host.classList.add('dup-banner');
+  host.innerHTML = `
+    <div class="dup-banner-title">Turnos futuros del paciente</div>
+    <div class="dup-banner-list">${itemsHtml}</div>
+    <div class="dup-banner-legend">Resaltado = coincide con el profesional seleccionado</div>
+  `;
+  host.style.display = 'block';
+
+  // Wire de botones "Abrir día"
+  host.querySelectorAll('.dup-open-day').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const iso = btn.getAttribute('data-date');
+      if (iso) await loadModalDate(iso);
+    });
+  });
+}
+
+// ---------------------------
+// Limpiar avisos de duplicados (inline + modal)
+// ---------------------------
+function clearDuplicateWarnings(){
+  const inlineHost = document.getElementById('turnos-dup-inline');
+  if (inlineHost){
+    inlineHost.style.display = 'none';
+    inlineHost.innerHTML = '';
+  }
+
+  const bannerHost = document.getElementById('turnos-dup-banner');
+  if (bannerHost){
+    bannerHost.style.display = 'none';
+    bannerHost.innerHTML = '';
+  }
+}
+
+// ---------------------------
 /* Pacientes (typeahead) */
 // ---------------------------
 let suggestTimer = null;
@@ -515,29 +727,39 @@ function bindSuggestHandlers(q, result){
     });
   });
 }
-function selectPaciente(p){
+
+async function selectPaciente(p){
   pacienteSeleccionado = {
-    id: p.id, nombre: p.nombre, apellido: p.apellido,
-    dni: p.dni, telefono: p.telefono || '', obra_social_id: p.obra_social_id || null,
+    id: p.id,
+    nombre: p.nombre,
+    apellido: p.apellido,
+    dni: p.dni,
+    telefono: p.telefono || '',
+    obra_social_id: p.obra_social_id || null,
   };
+
   if (UI.pacChipText) UI.pacChipText.textContent = `${p.apellido}, ${p.nombre} · DNI ${p.dni}`;
   if (UI.pacChip) UI.pacChip.style.display = 'flex';
   hideSuggest();
+
+  // Mantener la lógica existente
   enforceTipoTurnoByPaciente(p.id);
   if (UI.modal?.style.display === 'flex') refreshModalTitle();
-}
-async function enforceTipoTurnoByPaciente(pacienteId){
-  const optNueva = UI.tipoTurno?.querySelector('option[value="nueva_consulta"]');
-  if (!optNueva) return;
-  if (!pacienteId){ optNueva.disabled = false; return; }
-  const { count } = await supabase.from('turnos').select('id', { count:'exact', head:true }).eq('paciente_id', pacienteId);
-  if ((count ?? 0) > 0){
-    optNueva.disabled = true;
-    if (UI.tipoTurno.value === 'nueva_consulta') UI.tipoTurno.value = 'recurrente';
-  } else {
-    optNueva.disabled = false;
+
+  // 🔎 Nuevo: buscar turnos futuros del paciente y renderizar avisos
+  try {
+    const turnosFuturos = await fetchTurnosFuturosPaciente({ pacienteId: p.id });
+    renderDuplicateWarningInline(turnosFuturos);
+
+    if (UI.modal?.style.display === 'flex') {
+      renderDuplicateBannerInModal(turnosFuturos);
+    }
+  } catch (e) {
+    console.warn('selectPaciente: error al obtener turnos futuros:', e);
+    clearDuplicateWarnings();
   }
 }
+
 
 // ---------------------------
 /* Fetch agendas/turnos (multi-prof) */
@@ -901,6 +1123,32 @@ async function tryAgendar(slot){
       ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
       : null;
 
+    // ---------- Aviso informativo por turnos futuros (no bloquea) ----------
+try {
+  const futuros = await fetchTurnosFuturosPaciente({ pacienteId: pacienteSeleccionado.id });
+  if (Array.isArray(futuros) && futuros.length > 0) {
+    const selectedSet = new Set((selectedProfesionales || []).map(String));
+    const top = futuros.slice(0, 3).map(t => {
+      const d = new Date(t.fecha + 'T00:00:00')
+        .toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+      const hm = toHM(t.hora_inicio);
+      const match = selectedSet.has(String(t.profesional_id)) ? ' (mismo profesional)' : '';
+      return `• ${d} ${hm} · ${t.profLabel || ''} · ${t.centroNombre || ''}${match}`;
+    }).join('\n');
+
+    const extra = futuros.length > 3 ? `\n…y ${futuros.length - 3} más` : '';
+    const msg =
+      `Atención: este paciente ya tiene turnos futuros:\n${top}${extra}\n\n` +
+      `¿Deseás continuar con esta nueva reserva?`;
+    const ok = window.confirm(msg);
+    if (!ok) return; // usuario decide no seguir
+  }
+} catch (e) {
+  console.warn('tryAgendar: aviso informativo falló:', e);
+}
+// ----------------------------------------------------------------------
+
+
     // --------- Confirmación (y comentario de recepción) ----------
     const resConfirm = await openConfirmModal({
       pac: pacienteSeleccionado,
@@ -1045,7 +1293,21 @@ async function refreshDayModal(){
     const slots = generarSlotsDeProfesional(AByProf.get(pid) || [], TByProf.get(pid) || [], tipo, exclude, pid);
     renderSlotsGroup(slots, pid);
   });
+
+  // 🔎 Nuevo: actualizar banner informativo con turnos futuros del paciente
+  try {
+    if (pacienteSeleccionado?.id) {
+      const turnosFuturos = await fetchTurnosFuturosPaciente({ pacienteId: pacienteSeleccionado.id });
+      renderDuplicateBannerInModal(turnosFuturos);
+    } else {
+      renderDuplicateBannerInModal([]); // oculta si no hay paciente
+    }
+  } catch (e) {
+    console.warn('refreshDayModal: error al renderizar banner de duplicados:', e);
+    renderDuplicateBannerInModal([]); // fallback: ocultar
+  }
 }
+
 
 // ---------------------------
 /* Mini calendario (modal) */
@@ -1268,8 +1530,8 @@ async function desbloquearTurno(t) {
     copago,
   });
 
-  // Prefill del textarea "Editable" + sincronizar el link
-  const ta = document.getElementById('ok-wa-textarea'); // <- asegurate que exista en el HTML
+ // Prefill del textarea "Editable" + sincronizar el link
+ const ta = document.getElementById('ok-wa-text'); // ← coincide con el id del HTML
   if (ta) {
     ta.value = waText; // <<<<<< aquí lo precargamos
     ta.oninput = () => {
@@ -1436,6 +1698,7 @@ function attachHandlers(){
     if (UI.pacChip) UI.pacChip.style.display = 'none';
     enforceTipoTurnoByPaciente(null);
     if (UI.modal?.style.display === 'flex') refreshModalTitle();
+    clearDuplicateWarnings(); 
   });
 
   // Modal día
