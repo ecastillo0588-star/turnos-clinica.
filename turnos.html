@@ -41,24 +41,28 @@
 
   <!-- Head -->
   <div class="tw-head">
-    <div class="tw-head-left">
-      <button id="turnos-prev-month" class="tw-btn secondary" title="Mes anterior">◀</button>
-      <h2 id="turnos-cal-title">Calendario</h2>
-      <button id="turnos-next-month" class="tw-btn secondary" title="Mes siguiente">▶</button>
-    </div>
-    <div class="tw-legend">
-      <span class="tw-dot free"></span> con disponibilidad 
-      <span class="tw-dot busy"></span> sin hueco 
-      <span class="tw-dot none"></span> sin agenda
-    </div>
+  <div class="tw-head-left">
+    <button id="turnos-prev-month" class="tw-btn secondary" title="Mes anterior">◀</button>
+    <h2 id="turnos-cal-title">Calendario</h2>
+    <button id="turnos-next-month" class="tw-btn secondary" title="Mes siguiente">▶</button>
   </div>
+  <div class="tw-legend">
+    <span class="tw-dot free"></span> con disponibilidad 
+    <span class="tw-dot busy"></span> sin hueco 
+    <span class="tw-dot none"></span> sin agenda
+  </div>
+</div>
+
+<!-- Aviso/estado del paciente (ahora arriba del calendario) -->
+<div class="tw-status" id="turnos-status"></div>
+
 
   <!-- Calendario mensual -->
   <div class="tw-cal">
     <div class="tw-dow" id="turnos-cal-dow"></div>
     <div class="tw-grid" id="turnos-cal-grid"></div>
   </div>
-  <div class="tw-status" id="turnos-status"></div>
+
 
 </div> <!-- cierre de #turnos-view -->
 
