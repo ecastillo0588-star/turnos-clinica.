@@ -801,20 +801,29 @@ async function selectPaciente(p){
   enforceTipoTurnoByPaciente(p.id);
   if (UI.modal?.style.display === 'flex') refreshModalTitle();
 
-  // 🔎 Nuevo: buscar turnos futuros del paciente y renderizar avisos
+  // 🔎 Buscar turnos futuros del paciente y renderizar avisos
   try {
     const turnosFuturos = await fetchTurnosFuturosPaciente({ pacienteId: p.id });
+
+    // Aviso bajo el input Paciente
     renderDuplicateWarningInline(turnosFuturos);
 
+    // Banner dentro del modal (si estuviera abierto)
     if (UI.modal?.style.display === 'flex') {
       renderDuplicateBannerInModal(turnosFuturos);
     }
+
+    // Resumen arriba del calendario (en el área de status)
     renderDuplicateSummaryInCalendar(turnosFuturos);
   } catch (e) {
     console.warn('selectPaciente: error al obtener turnos futuros:', e);
     clearDuplicateWarnings();
   }
+
+  // ✅ Forzar un render del calendario para que el resumen quede visible inmediatamente
+  await renderCalendar();
 }
+
 
 
 // ---------------------------
@@ -877,36 +886,46 @@ function renderDow(){
 async function renderCalendar(){
   if (!UI.status || !UI.calGrid || !UI.calTitle) return;
 
+  // Centro requerido
   if (!currentCentroId){
     UI.status.textContent = 'Seleccioná un centro en la barra lateral para ver turnos.';
-    UI.calGrid.innerHTML = ''; UI.calTitle.textContent = ''; return;
+    UI.calGrid.innerHTML = '';
+    UI.calTitle.textContent = '';
+    return;
   }
+
+  // Al menos un profesional
   if (!selectedProfesionales.length){
     UI.status.textContent = 'Seleccioná al menos un profesional.';
     UI.calGrid.innerHTML = '';
-    const first = new Date(view.y, view.m, 1);
-    UI.calTitle.textContent = first.toLocaleString('es-AR', { month:'long', year:'numeric' });
+    const first0 = new Date(view.y, view.m, 1);
+    UI.calTitle.textContent = first0.toLocaleString('es-AR', { month:'long', year:'numeric' });
     return;
   }
 
   UI.status.textContent = 'Cargando agenda...';
 
+  // Traer agenda y turnos del mes visible
   const { agenda, turnos } = await fetchAgendaYTurnosMulti(selectedProfesionales, view.y, view.m);
-  const gA = groupByFecha(agenda), gT = groupByFecha(turnos);
+  const gA = groupByFecha(agenda);
+  const gT = groupByFecha(turnos);
   const tipo = UI.tipoTurno?.value || 'recurrente';
 
+  // Reset de grilla y título
   UI.calGrid.innerHTML = '';
   const first = new Date(view.y, view.m, 1);
-  const last  = new Date(view.y, view.m+1, 0);
+  const last  = new Date(view.y, view.m + 1, 0);
   UI.calTitle.textContent = first.toLocaleString('es-AR', { month:'long', year:'numeric' });
 
+  // Construcción de celdas del mes
   const offset = nativeFirstDow(first);
   const total  = offset + last.getDate();
-  const rows   = Math.ceil(total/7);
+  const rows   = Math.ceil(total / 7);
   let day = 1;
 
-  for (let i=0; i<rows*7; i++){
+  for (let i = 0; i < rows * 7; i++){
     const cell = document.createElement('div');
+
     if (i < offset || day > last.getDate()){
       cell.className = 'tw-day empty';
       UI.calGrid.appendChild(cell);
@@ -917,16 +936,24 @@ async function renderCalendar(){
     const agendaDia = gA.get(iso) || [];
     const turnosDia = gT.get(iso) || [];
 
-    // Agrupar por profesional
+    // Agregar por profesional
     const AByProf = groupBy(agendaDia, 'profesional_id');
     const TByProf = groupBy(turnosDia, 'profesional_id');
 
+    // Contar huecos libres
     let totalLibres = 0;
     selectedProfesionales.forEach(pid => {
-      const slots = generarSlotsDeProfesional(AByProf.get(pid) || [], TByProf.get(pid) || [], tipo, null, pid);
+      const slots = generarSlotsDeProfesional(
+        AByProf.get(pid) || [],
+        TByProf.get(pid) || [],
+        tipo,
+        null,
+        pid
+      );
       totalLibres += slots.filter(s => s.disponible).length;
     });
 
+    // Estado visual de la celda
     let cls = 'tw-day';
     let badge = 'sin agenda';
     const hayAgenda = agendaDia.length > 0;
@@ -941,16 +968,32 @@ async function renderCalendar(){
       badge = 'sin huecos';
     }
 
+    // Pintar celda
     cell.className = cls;
     cell.innerHTML = `<div class="num">${day}</div><div class="badge">${badge}</div>`;
+
     if (cls.includes('clickable')){
       cell.addEventListener('click', () => openDayModalMulti(iso, AByProf, TByProf));
     }
+
     UI.calGrid.appendChild(cell);
     day++;
   }
 
-  UI.status.textContent = agenda.length ? '' : 'No hay agenda cargada para este mes.';
+  // ✅ Mensaje base o resumen de duplicados (según haya paciente seleccionado)
+  if (!pacienteSeleccionado?.id) {
+    UI.status.textContent = agenda.length ? '' : 'No hay agenda cargada para este mes.';
+  } else {
+    try {
+      const turnosFuturos = await fetchTurnosFuturosPaciente({ pacienteId: pacienteSeleccionado.id });
+      renderDuplicateSummaryInCalendar(turnosFuturos);
+    } catch (e) {
+      console.warn('renderCalendar: no se pudo refrescar el resumen de duplicados:', e);
+      renderDuplicateSummaryInCalendar([]); // fallback: limpiar
+    }
+  }
+}
+
 
 // 🔎 Refrescar el resumen de turnos futuros del paciente en el área del calendario
 try {
