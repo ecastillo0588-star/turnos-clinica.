@@ -22,6 +22,8 @@
         <span id="turnos-paciente-chip-text"></span>
         <button id="turnos-paciente-clear" title="Quitar">✕</button>
       </div>
+       <!-- Aviso inline: turnos futuros del paciente -->
+ <div id="turnos-dup-inline" class="dup-inline-warning" style="display:none;"></div>
     </div>
     <div class="tw-field">
       <label>Tipo de turno</label>
@@ -73,6 +75,9 @@
       </div>
       <button class="tw-close" id="turnos-modal-close">×</button>
     </div>
+     <!-- Banner informativo: turnos futuros del paciente -->
+ <section id="turnos-dup-banner" class="dup-banner" style="display:none;">
+   </section>
     <section class="tw-slots">
       <h4>Horarios</h4>
       <div id="turnos-slots-list"></div>
@@ -135,8 +140,8 @@
 
     <!-- Mensaje de WhatsApp editable -->
     <div class="tw-field" style="margin-top:10px;">
-      <label for="ok-wa-text">Mensaje de WhatsApp (editable)</label>
-      <textarea id="ok-wa-text" class="tw-inp" rows="6"
+      <label for="ok-wa-textarea">Mensaje de WhatsApp (editable)</label>
+      <textarea id="ok-wa-textarea" class="tw-inp" rows="6"
         placeholder="Escribí o ajustá el mensaje antes de enviarlo..."></textarea>
       <div class="tw-hint" id="ok-wa-phone-hint" style="margin-top:6px;"></div>
     </div>
