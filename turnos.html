@@ -22,6 +22,9 @@
         <span id="turnos-paciente-chip-text"></span>
         <button id="turnos-paciente-clear" title="Quitar">✕</button>
       </div>
+
+       <!-- Aviso inline: turnos futuros del paciente -->
+ <div id="turnos-dup-inline" class="dup-inline-warning" style="display:none;"></div>
     </div>
     <div class="tw-field">
       <label>Tipo de turno</label>
@@ -38,24 +41,28 @@
 
   <!-- Head -->
   <div class="tw-head">
-    <div class="tw-head-left">
-      <button id="turnos-prev-month" class="tw-btn secondary" title="Mes anterior">◀</button>
-      <h2 id="turnos-cal-title">Calendario</h2>
-      <button id="turnos-next-month" class="tw-btn secondary" title="Mes siguiente">▶</button>
-    </div>
-    <div class="tw-legend">
-      <span class="tw-dot free"></span> con disponibilidad 
-      <span class="tw-dot busy"></span> sin hueco 
-      <span class="tw-dot none"></span> sin agenda
-    </div>
+  <div class="tw-head-left">
+    <button id="turnos-prev-month" class="tw-btn secondary" title="Mes anterior">◀</button>
+    <h2 id="turnos-cal-title">Calendario</h2>
+    <button id="turnos-next-month" class="tw-btn secondary" title="Mes siguiente">▶</button>
   </div>
+  <div class="tw-legend">
+    <span class="tw-dot free"></span> con disponibilidad 
+    <span class="tw-dot busy"></span> sin hueco 
+    <span class="tw-dot none"></span> sin agenda
+  </div>
+</div>
+
+<!-- Aviso/estado del paciente (ahora arriba del calendario) -->
+<div class="tw-status" id="turnos-status"></div>
+
 
   <!-- Calendario mensual -->
   <div class="tw-cal">
     <div class="tw-dow" id="turnos-cal-dow"></div>
     <div class="tw-grid" id="turnos-cal-grid"></div>
   </div>
-  <div class="tw-status" id="turnos-status"></div>
+
 
 </div> <!-- cierre de #turnos-view -->
 
@@ -73,6 +80,9 @@
       </div>
       <button class="tw-close" id="turnos-modal-close">×</button>
     </div>
+     <!-- Banner informativo: turnos futuros del paciente -->
+ <section id="turnos-dup-banner" class="dup-banner" style="display:none;">
+   </section>
     <section class="tw-slots">
       <h4>Horarios</h4>
       <div id="turnos-slots-list"></div>
@@ -135,8 +145,8 @@
 
     <!-- Mensaje de WhatsApp editable -->
     <div class="tw-field" style="margin-top:10px;">
-      <label for="ok-wa-text">Mensaje de WhatsApp (editable)</label>
-      <textarea id="ok-wa-text" class="tw-inp" rows="6"
+      <label for="ok-wa-textarea">Mensaje de WhatsApp (editable)</label>
+      <textarea id="ok-wa-textarea" class="tw-inp" rows="6"
         placeholder="Escribí o ajustá el mensaje antes de enviarlo..."></textarea>
       <div class="tw-hint" id="ok-wa-phone-hint" style="margin-top:6px;"></div>
     </div>

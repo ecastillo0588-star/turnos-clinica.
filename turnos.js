@@ -63,6 +63,8 @@ const obrasSocialesById = new Map();
 let reprogramState = null; // { turno, durMin }
 let bookingBusy = false;
 let reprogramBusy = false;
+let dupReqId = 0;      // token anti-race para avisos de duplicados  ← AGREGAR
+let tipoReqId = 0;     // token anti-race para enforceTipoTurnoByPaciente
 
 // Watcher de centro
 let centroWatchTimer = null;
@@ -86,6 +88,23 @@ function minutesDiff(a,b){
   const [h2,m2] = b.split(':').map(Number);
   return h2*60+m2 - (h1*60+m1);
 }
+
+// ---------------------------
+// Estados "vigentes" para avisos
+// (si querés incluir 'atendido', agregalo abajo)
+// ---------------------------
+const ESTADOS_VIGENTES_INFO = new Set(['asignado', 'confirmado']);
+
+/**
+ * Devuelve true si el estado del turno debe considerarse "vigente"
+ * para las advertencias informativas (duplicados del paciente).
+ */
+function isEstadoVigente(estado){
+  if (!estado) return false;
+  const s = String(estado).trim().toLowerCase();
+  return ESTADOS_VIGENTES_INFO.has(s);
+}
+
 function groupBy(arr, key){
   const m = new Map(); for (const x of arr||[]) {
     const k = x[key]; if (!m.has(k)) m.set(k, []); m.get(k).push(x);
@@ -206,6 +225,8 @@ function bindUI(){
     // Solo select de profesional (centro viene del sidebar)
     profesionalSelect: document.getElementById('turnos-profesional-select'),
     tipoTurno:         document.getElementById('turnos-tipo'),
+
+    
 
     // Pacientes (typeahead)
     pacInput:    document.getElementById('turnos-paciente-input'),
@@ -328,23 +349,48 @@ async function loadProfesionales(){
     window.currentProfesional = selectedProfesionales[0] || null;
   }
 }
+
 function hookProfesionalSelect(){
   const sel = UI.profesionalSelect;
   if (!sel) return;
 
-  sel.addEventListener('change', async () => {
+sel.addEventListener('change', async () => {
+  try {
+    // Actualiza la selección
     selectedProfesionales = sel.multiple
       ? Array.from(sel.selectedOptions).map(o => String(o.value)).filter(Boolean)
       : (sel.value ? [String(sel.value)] : []);
     window.currentProfesional = selectedProfesionales[0] || null;
+
+    // Guard si no quedó nadie seleccionado
+    if (!selectedProfesionales.length){
+      UI.calGrid && (UI.calGrid.innerHTML = '');
+      UI.calTitle && (UI.calTitle.textContent = '');
+      if (UI.status) UI.status.textContent = 'Seleccioná al menos un profesional.';
+      clearDuplicateWarnings();
+      return;
+    }
+
+    // Re-evaluar tipo (nueva/recurrente) y refrescar duplicados al toque
+    await enforceTipoTurnoByPaciente(pacienteSeleccionado?.id || null);
+    await refreshDuplicateUI();
+
+    // Mantener flujos existentes
     await loadDuracionesForSelected();
     await renderCalendar();
+
     if (UI.modal?.style.display === 'flex' && modalDateISO) {
       await refreshDayModal();
       await renderMiniCalFor(modalDateISO);
     }
-  });
+  } finally {
+    // no-op; reservado por si más adelante querés desactivar spinners, etc.
+  }
+});
+
 }
+
+
 
 // ---------------------------
 /* Duraciones */
@@ -458,6 +504,287 @@ async function loadObrasSociales(){
 }
 
 // ---------------------------
+// Cache de centros (para enriquecer avisos sin repetir fetch)
+// ---------------------------
+const CENTROS_CACHE = new Map(); // Map<centroId, { nombre:string, direccion:string }>
+
+/**
+ * Devuelve {nombre, direccion} de un centro usando cache local.
+ * Usa fetchCentroById(id) que ya existe en este archivo.
+ */
+async function getCentroCached(id){
+  if (!id) return { nombre:'', direccion:'' };
+  if (CENTROS_CACHE.has(id)) return CENTROS_CACHE.get(id);
+
+  const c = await fetchCentroById(id);
+  const out = { nombre: c?.nombre || '', direccion: c?.direccion || '' };
+  CENTROS_CACHE.set(id, out);
+  return out;
+}
+
+// ---------------------------
+// Turnos futuros del paciente (cross-centro, cross-prof)
+// ---------------------------
+async function fetchTurnosFuturosPaciente({ pacienteId, desdeISO = null }){
+  if (!pacienteId) return [];
+
+  const hoyISO = desdeISO || dateToISO(new Date());
+
+  const { data, error } = await supabase
+    .from('turnos')
+    .select('id, fecha, hora_inicio, hora_fin, estado, profesional_id, centro_id')
+    .eq('paciente_id', pacienteId)
+    .gte('fecha', hoyISO)
+    .in('estado', Array.from(ESTADOS_VIGENTES_INFO)) // 'asignado','confirmado'
+    .order('fecha', { ascending: true })
+    .order('hora_inicio', { ascending: true });
+
+  if (error) {
+    console.warn('fetchTurnosFuturosPaciente error:', error.message);
+    return [];
+  }
+
+  const rows = data || [];
+
+  // Enriquecer: labels y centro (con cache)
+  const out = [];
+  for (const t of rows){
+    const centro = await getCentroCached(t.centro_id);
+    out.push({
+      id: t.id,
+      fecha: t.fecha,
+      hora_inicio: toHM(t.hora_inicio),
+      hora_fin: t.hora_fin ? toHM(t.hora_fin) : null,
+      estado: t.estado,
+      profesional_id: t.profesional_id,
+      profLabel: profNameById(t.profesional_id),
+      centro_id: t.centro_id,
+      centroNombre: centro.nombre,
+      centroDireccion: centro.direccion,
+    });
+  }
+  return out;
+}
+
+async function enforceTipoTurnoByPaciente(pacienteId){
+  const sel = UI.tipoTurno;
+  if (!sel) return;
+
+  const my = ++tipoReqId;
+
+  const profId = selectedProfesionales?.[0] || null;
+  if (!pacienteId || !profId) return;
+
+  try {
+    const { count, error } = await supabase
+      .from('turnos')
+      .select('id', { count: 'exact', head: true })
+      .eq('paciente_id', pacienteId)
+      .eq('profesional_id', profId)
+      .neq('estado', 'cancelado')
+      .limit(1);
+
+    if (error) { console.warn('enforceTipoTurnoByPaciente:', error.message); return; }
+    if (my !== tipoReqId) return;
+
+    const nuevoValor = (count && count > 0) ? 'recurrente' : 'nueva_consulta';
+    if (sel.value !== nuevoValor) {
+      sel.value = nuevoValor;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  } catch (e) {
+    console.warn('enforceTipoTurnoByPaciente error:', e);
+  }
+}
+
+  
+// ---------------------------
+// Aviso inline bajo el input de Paciente
+// ---------------------------
+function renderDuplicateWarningInline(turnos){
+  const host = document.getElementById('turnos-dup-inline');
+  if (!host) return;
+
+  // Sin paciente o sin turnos -> ocultar
+  if (!pacienteSeleccionado || !Array.isArray(turnos) || turnos.length === 0){
+    host.style.display = 'none';
+    host.innerHTML = '';
+    return;
+  }
+
+  // ¿Coinciden con el/los profesionales en contexto?
+  const selectedSet = new Set((selectedProfesionales || []).map(String));
+
+  // Construimos pills compactas
+  const items = turnos.map(t => {
+    const d = new Date(t.fecha + 'T00:00:00');
+    const f = d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+    const hm = toHM(t.hora_inicio);
+    const match = selectedSet.has(String(t.profesional_id));
+    const title = `${f} ${hm} · ${t.profLabel || ''} · ${t.centroNombre || ''}`;
+    const cls = `dup-pill${match ? ' match' : ''}`;
+    return `<span class="${cls}" title="${title}">${f} ${hm} · ${t.profLabel || ''} · ${t.centroNombre || ''}</span>`;
+  });
+
+  // Header + lista
+  host.classList.add('dup-inline-warning');
+  host.innerHTML = `
+    <div class="dup-inline-title">Este paciente ya tiene turnos futuros:</div>
+    <div class="dup-inline-list">${items.join('')}</div>
+    <div class="dup-inline-legend">Resaltado = coincide con el profesional seleccionado</div>
+  `;
+  host.style.display = 'block';
+}
+
+// ---------------------------
+// Banner informativo dentro del modal día
+// ---------------------------
+function renderDuplicateBannerInModal(turnos){
+  const host = document.getElementById('turnos-dup-banner');
+  if (!host) return;
+
+  // Si no hay paciente o no hay turnos -> ocultar banner
+  if (!pacienteSeleccionado || !Array.isArray(turnos) || turnos.length === 0){
+    host.style.display = 'none';
+    host.innerHTML = '';
+    return;
+  }
+
+  // Resaltar coincidencias con profesionales seleccionados
+  const selectedSet = new Set((selectedProfesionales || []).map(String));
+
+  // Construcción de ítems
+  const itemsHtml = turnos.map(t => {
+    const d = new Date(t.fecha + 'T00:00:00');
+    const fLargo = d.toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: 'long' });
+    const hm = toHM(t.hora_inicio);
+    const match = selectedSet.has(String(t.profesional_id)) ? ' match' : '';
+    const titulo = `${fLargo} · ${hm} · ${t.profLabel || ''} · ${t.centroNombre || ''}`;
+    return `
+      <div class="dup-banner-item${match}" title="${titulo}">
+        <div class="dup-banner-main">
+          <span class="dup-badge-fecha">${fLargo}</span>
+          <span class="dup-badge-hora">${hm}</span>
+          <span class="dup-badge-prof">${t.profLabel || ''}</span>
+          <span class="dup-badge-centro">${t.centroNombre || ''}</span>
+        </div>
+        <div class="dup-banner-actions">
+          <button class="tw-btn secondary dup-open-day" data-date="${t.fecha}">Abrir día</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  host.classList.add('dup-banner');
+  host.innerHTML = `
+    <div class="dup-banner-title">Turnos futuros del paciente</div>
+    <div class="dup-banner-list">${itemsHtml}</div>
+    <div class="dup-banner-legend">El Paciente cuenta con algún turno con el Profesional Seleccionado</div>
+  `;
+  host.style.display = 'block';
+
+  // Wire de botones "Abrir día"
+  host.querySelectorAll('.dup-open-day').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const iso = btn.getAttribute('data-date');
+      if (iso) await loadModalDate(iso);
+    });
+  });
+}
+
+// ---------------------------
+// Limpiar avisos de duplicados (inline + modal)
+// ---------------------------
+function clearDuplicateWarnings(){
+  const inlineHost = document.getElementById('turnos-dup-inline');
+  if (inlineHost){
+    inlineHost.style.display = 'none';
+    inlineHost.innerHTML = '';
+  }
+
+  const bannerHost = document.getElementById('turnos-dup-banner');
+  if (bannerHost){
+    bannerHost.style.display = 'none';
+    bannerHost.innerHTML = '';
+  }
+}
+
+async function refreshDuplicateUI(){
+  const my = ++dupReqId;
+
+  // sin paciente => limpiar y salir
+  if (!pacienteSeleccionado?.id){
+    clearDuplicateWarnings();
+    if (UI.status) UI.status.innerHTML = '';
+    return;
+  }
+
+  // fetch turnos futuros del paciente
+  const turnosFuturos = await fetchTurnosFuturosPaciente({ pacienteId: pacienteSeleccionado.id });
+
+  // si hubo un refresh posterior, descartar este resultado
+  if (my !== dupReqId) return;
+
+  // pintar en los 3 lugares
+  renderDuplicateWarningInline(turnosFuturos);
+  if (UI.modal?.style.display === 'flex') {
+    renderDuplicateBannerInModal(turnosFuturos);
+  }
+   // (Desactivado) No queremos el cartel grande en el calendario.
+}
+
+
+// ---------------------------
+// Resumen en el área del calendario (usa #turnos-status)
+// ---------------------------
+function renderDuplicateSummaryInCalendar(turnos){
+  const host = UI.status;
+  if (!host) return;
+
+  // Limpiar si no hay paciente o no hay turnos
+  if (!pacienteSeleccionado || !Array.isArray(turnos) || turnos.length === 0){
+    host.innerHTML = '';
+    return;
+  }
+
+  // Tomamos el próximo
+  const next = turnos[0];
+  const d = new Date(next.fecha + 'T00:00:00')
+    .toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+  const hm = toHM(next.hora_inicio);
+  const sameProf = new Set((selectedProfesionales || []).map(String))
+    .has(String(next.profesional_id));
+
+  host.innerHTML = `
+    <div class="dup-status">
+      <strong>Este paciente tiene un turno futuro</strong> — ${d} ${hm}
+      · ${next.profLabel || ''} · ${next.centroNombre || ''}
+      ${sameProf ? '<span class="tag-match">mismo profesional</span>' : ''}
+      <button class="tw-btn secondary dup-open-day" data-date="${next.fecha}" style="margin-left:8px;">Abrir día</button>
+    </div>
+  `;
+
+  const btn = host.querySelector('.dup-open-day');
+  if (btn){
+    btn.addEventListener('click', async () => {
+      await openDayModalByISO(next.fecha);
+    });
+  }
+}
+
+// Abre el modal de un día específico sin depender del click en la grilla
+async function openDayModalByISO(iso){
+  if (!Array.isArray(selectedProfesionales) || selectedProfesionales.length === 0) return;
+  const d = new Date(iso + 'T00:00:00');
+  const y = d.getFullYear(), m = d.getMonth();
+  const { agenda, turnos } = await fetchAgendaYTurnosMulti(selectedProfesionales, y, m);
+  const gA = groupByFecha(agenda), gT = groupByFecha(turnos);
+  const AByProf = groupBy(gA.get(iso) || [], 'profesional_id');
+  const TByProf = groupBy(gT.get(iso) || [], 'profesional_id');
+  await openDayModalMulti(iso, AByProf, TByProf);
+}
+
+
+// ---------------------------
 /* Pacientes (typeahead) */
 // ---------------------------
 let suggestTimer = null;
@@ -515,29 +842,31 @@ function bindSuggestHandlers(q, result){
     });
   });
 }
-function selectPaciente(p){
+
+async function selectPaciente(p){
   pacienteSeleccionado = {
-    id: p.id, nombre: p.nombre, apellido: p.apellido,
-    dni: p.dni, telefono: p.telefono || '', obra_social_id: p.obra_social_id || null,
+    id: p.id,
+    nombre: p.nombre,
+    apellido: p.apellido,
+    dni: p.dni,
+    telefono: p.telefono || '',
+    obra_social_id: p.obra_social_id || null,
   };
+
   if (UI.pacChipText) UI.pacChipText.textContent = `${p.apellido}, ${p.nombre} · DNI ${p.dni}`;
   if (UI.pacChip) UI.pacChip.style.display = 'flex';
   hideSuggest();
+
+  // Mantener flujos existentes
   enforceTipoTurnoByPaciente(p.id);
   if (UI.modal?.style.display === 'flex') refreshModalTitle();
+
+await refreshDuplicateUI();    // 1) pinta el aviso chico al toque
+await renderCalendar();        // 2) después se actualiza el mes
 }
-async function enforceTipoTurnoByPaciente(pacienteId){
-  const optNueva = UI.tipoTurno?.querySelector('option[value="nueva_consulta"]');
-  if (!optNueva) return;
-  if (!pacienteId){ optNueva.disabled = false; return; }
-  const { count } = await supabase.from('turnos').select('id', { count:'exact', head:true }).eq('paciente_id', pacienteId);
-  if ((count ?? 0) > 0){
-    optNueva.disabled = true;
-    if (UI.tipoTurno.value === 'nueva_consulta') UI.tipoTurno.value = 'recurrente';
-  } else {
-    optNueva.disabled = false;
-  }
-}
+
+
+
 
 // ---------------------------
 /* Fetch agendas/turnos (multi-prof) */
@@ -599,36 +928,46 @@ function renderDow(){
 async function renderCalendar(){
   if (!UI.status || !UI.calGrid || !UI.calTitle) return;
 
+  // Centro requerido
   if (!currentCentroId){
     UI.status.textContent = 'Seleccioná un centro en la barra lateral para ver turnos.';
-    UI.calGrid.innerHTML = ''; UI.calTitle.textContent = ''; return;
+    UI.calGrid.innerHTML = '';
+    UI.calTitle.textContent = '';
+    return;
   }
+
+  // Al menos un profesional
   if (!selectedProfesionales.length){
     UI.status.textContent = 'Seleccioná al menos un profesional.';
     UI.calGrid.innerHTML = '';
-    const first = new Date(view.y, view.m, 1);
-    UI.calTitle.textContent = first.toLocaleString('es-AR', { month:'long', year:'numeric' });
+    const first0 = new Date(view.y, view.m, 1);
+    UI.calTitle.textContent = first0.toLocaleString('es-AR', { month:'long', year:'numeric' });
     return;
   }
 
   UI.status.textContent = 'Cargando agenda...';
 
+  // Traer agenda y turnos del mes visible
   const { agenda, turnos } = await fetchAgendaYTurnosMulti(selectedProfesionales, view.y, view.m);
-  const gA = groupByFecha(agenda), gT = groupByFecha(turnos);
+  const gA = groupByFecha(agenda);
+  const gT = groupByFecha(turnos);
   const tipo = UI.tipoTurno?.value || 'recurrente';
 
+  // Reset de grilla y título
   UI.calGrid.innerHTML = '';
   const first = new Date(view.y, view.m, 1);
-  const last  = new Date(view.y, view.m+1, 0);
+  const last  = new Date(view.y, view.m + 1, 0);
   UI.calTitle.textContent = first.toLocaleString('es-AR', { month:'long', year:'numeric' });
 
+  // Construcción de celdas del mes
   const offset = nativeFirstDow(first);
   const total  = offset + last.getDate();
-  const rows   = Math.ceil(total/7);
+  const rows   = Math.ceil(total / 7);
   let day = 1;
 
-  for (let i=0; i<rows*7; i++){
+  for (let i = 0; i < rows * 7; i++){
     const cell = document.createElement('div');
+
     if (i < offset || day > last.getDate()){
       cell.className = 'tw-day empty';
       UI.calGrid.appendChild(cell);
@@ -639,16 +978,24 @@ async function renderCalendar(){
     const agendaDia = gA.get(iso) || [];
     const turnosDia = gT.get(iso) || [];
 
-    // Agrupar por profesional
+    // Agregar por profesional
     const AByProf = groupBy(agendaDia, 'profesional_id');
     const TByProf = groupBy(turnosDia, 'profesional_id');
 
+    // Contar huecos libres
     let totalLibres = 0;
     selectedProfesionales.forEach(pid => {
-      const slots = generarSlotsDeProfesional(AByProf.get(pid) || [], TByProf.get(pid) || [], tipo, null, pid);
+      const slots = generarSlotsDeProfesional(
+        AByProf.get(pid) || [],
+        TByProf.get(pid) || [],
+        tipo,
+        null,
+        pid
+      );
       totalLibres += slots.filter(s => s.disponible).length;
     });
 
+    // Estado visual de la celda
     let cls = 'tw-day';
     let badge = 'sin agenda';
     const hayAgenda = agendaDia.length > 0;
@@ -663,17 +1010,26 @@ async function renderCalendar(){
       badge = 'sin huecos';
     }
 
+    // Pintar celda
     cell.className = cls;
     cell.innerHTML = `<div class="num">${day}</div><div class="badge">${badge}</div>`;
+
     if (cls.includes('clickable')){
       cell.addEventListener('click', () => openDayModalMulti(iso, AByProf, TByProf));
     }
+
     UI.calGrid.appendChild(cell);
     day++;
   }
 
+  // Mensaje base (si hay agenda, vacío; si no, aviso)
   UI.status.textContent = agenda.length ? '' : 'No hay agenda cargada para este mes.';
+
+  // 🔎 Centralizado: avisos de duplicados (inline, banner modal, status)
+  await refreshDuplicateUI();
 }
+
+
 
 // ---------------------------
 /* Modal día (multi-prof) */
@@ -901,6 +1257,32 @@ async function tryAgendar(slot){
       ? (copagoElegido ?? await getCopagoParticular(currentCentroId, slot.profId, modalDateISO))
       : null;
 
+    // ---------- Aviso informativo por turnos futuros (no bloquea) ----------
+try {
+  const futuros = await fetchTurnosFuturosPaciente({ pacienteId: pacienteSeleccionado.id });
+  if (Array.isArray(futuros) && futuros.length > 0) {
+    const selectedSet = new Set((selectedProfesionales || []).map(String));
+    const top = futuros.slice(0, 3).map(t => {
+      const d = new Date(t.fecha + 'T00:00:00')
+        .toLocaleDateString('es-AR', { weekday: 'short', day: '2-digit', month: '2-digit' });
+      const hm = toHM(t.hora_inicio);
+      const match = selectedSet.has(String(t.profesional_id)) ? ' (mismo profesional)' : '';
+      return `• ${d} ${hm} · ${t.profLabel || ''} · ${t.centroNombre || ''}${match}`;
+    }).join('\n');
+
+    const extra = futuros.length > 3 ? `\n…y ${futuros.length - 3} más` : '';
+    const msg =
+      `Atención: este paciente ya tiene turnos futuros:\n${top}${extra}\n\n` +
+      `¿Deseás continuar con esta nueva reserva?`;
+    const ok = window.confirm(msg);
+    if (!ok) return; // usuario decide no seguir
+  }
+} catch (e) {
+  console.warn('tryAgendar: aviso informativo falló:', e);
+}
+// ----------------------------------------------------------------------
+
+
     // --------- Confirmación (y comentario de recepción) ----------
     const resConfirm = await openConfirmModal({
       pac: pacienteSeleccionado,
@@ -1010,8 +1392,10 @@ async function openDayModalMulti(isoDate, AByProf, TByProf){
     const slots = generarSlotsDeProfesional(AByProf.get(pid) || [], TByProf.get(pid) || [], tipo, exclude, pid);
     renderSlotsGroup(slots, pid);
   });
-
+  await refreshDuplicateUI(); // <- pinta el banner del modal inmediatamente
   await renderMiniCalFor(isoDate);
+  
+  
 }
 
 async function refreshDayModal(){
@@ -1039,13 +1423,24 @@ async function refreshDayModal(){
 
   UI.slotsList.innerHTML = '';
   const tipo = UI.tipoTurno?.value || 'recurrente';
-  const exclude = reprogramState?.turno.id || null;
+  const exclude = reprogramState?.turno?.id || null;
 
   selectedProfesionales.forEach(pid => {
-    const slots = generarSlotsDeProfesional(AByProf.get(pid) || [], TByProf.get(pid) || [], tipo, exclude, pid);
+    const slots = generarSlotsDeProfesional(
+      AByProf.get(pid) || [],
+      TByProf.get(pid) || [],
+      tipo,
+      exclude,
+      pid
+    );
     renderSlotsGroup(slots, pid);
   });
+
+  // 🔎 Centralizado: actualiza banner del modal + inline + status sin carreras
+  await refreshDuplicateUI();
 }
+
+
 
 // ---------------------------
 /* Mini calendario (modal) */
@@ -1268,8 +1663,8 @@ async function desbloquearTurno(t) {
     copago,
   });
 
-  // Prefill del textarea "Editable" + sincronizar el link
-  const ta = document.getElementById('ok-wa-textarea'); // <- asegurate que exista en el HTML
+ // Prefill del textarea "Editable" + sincronizar el link
+ const ta = document.getElementById('ok-wa-textarea');
   if (ta) {
     ta.value = waText; // <<<<<< aquí lo precargamos
     ta.oninput = () => {
@@ -1404,10 +1799,6 @@ function fmtDateLongNice(iso){
   return raw.toLowerCase().split(' ').map((w,i)=> (i===0||!stop.has(w)) ? (w[0].toUpperCase()+w.slice(1)) : w).join(' ');
 }
 
-
-
-/**
-
 /**
  * Abre el modal OK y setea el link de WhatsApp.
  * @param {{ pac:any, fechaISO:string, start:string, end:string, profLabel:string, osNombre?:string|null, copago?:number|null }} args
@@ -1421,45 +1812,89 @@ function attachHandlers(){
   // Rol classes (como en Inicio)
   applyRoleClasses(userRole);
 
-  // Typeahead paciente
-  UI.pacInput?.addEventListener('input', () => {
-    clearTimeout(suggestTimer);
-    const q = UI.pacInput.value.trim();
-    if (!q) { hideSuggest(); return; }
-    suggestTimer = setTimeout(() => fetchSuggestions(q), 180);
-  });
-  window.addEventListener('click', (e) => {
-    if (UI.pacSuggest && !UI.pacSuggest.contains(e.target) && e.target !== UI.pacInput) hideSuggest();
-  });
-  UI.pacClear?.addEventListener('click', () => {
+  // --- Typeahead Paciente ---
+UI.pacInput?.addEventListener('input', () => {
+  clearTimeout(suggestTimer);
+  const q = UI.pacInput.value.trim();
+ if (!q) {
+   hideSuggest();
+   if (!pacienteSeleccionado) clearDuplicateWarnings(); // 🔑 oculta el cartelito
+   return;
+ }
+  suggestTimer = setTimeout(() => fetchSuggestions(q), 180);
+});
+
+  // Botón "limpiar" → reset inmediato (sin esperar fetch)
+  UI.pacClear?.addEventListener('click', async () => {
     pacienteSeleccionado = null;
+    dupReqId++; // invalida cualquier refreshDuplicateUI en vuelo
     if (UI.pacChip) UI.pacChip.style.display = 'none';
+    if (UI.pacInput) UI.pacInput.value = '';
+    hideSuggest();
     enforceTipoTurnoByPaciente(null);
     if (UI.modal?.style.display === 'flex') refreshModalTitle();
+    clearDuplicateWarnings();            // borra inline + banner
+    if (UI.status) UI.status.innerHTML = ''; // borra resumen
   });
 
-  // Modal día
-  UI.modalClose?.addEventListener('click', () => (UI.modal.style.display = 'none'));
+  // Cierre del chip (click en el ícono .chip-close)
+  UI.pacChip?.addEventListener('click', async (e) => {
+    if (!e.target.closest('.chip-close')) return;
+    pacienteSeleccionado = null;
+    dupReqId++; // invalida cualquier refreshDuplicateUI en vuelo
+    if (UI.pacChip) UI.pacChip.style.display = 'none';
+    if (UI.pacInput) UI.pacInput.value = '';
+    hideSuggest();
+    enforceTipoTurnoByPaciente(null);
+    if (UI.modal?.style.display === 'flex') refreshModalTitle();
+    clearDuplicateWarnings();             // borra inline + banner
+    if (UI.status) UI.status.innerHTML = '';// borra resumen
+  });
+
+  // --- Modal Día ---
+  UI.modalClose?.addEventListener('click', () => {
+    UI.modal.style.display = 'none';
+    // evita que quede “fantasma” si se reabre rápido
+    renderDuplicateBannerInModal([]);
+  });
+
   UI.modalPrevDay?.addEventListener('click', async () => {
     if (!modalDateISO) return;
-    const d = new Date(modalDateISO + 'T00:00:00'); d.setDate(d.getDate()-1);
+    const d = new Date(modalDateISO + 'T00:00:00');
+    d.setDate(d.getDate() - 1);
     await loadModalDate(dateToISO(d));
   });
+
   UI.modalNextDay?.addEventListener('click', async () => {
     if (!modalDateISO) return;
-    const d = new Date(modalDateISO + 'T00:00:00'); d.setDate(d.getDate()+1);
+    const d = new Date(modalDateISO + 'T00:00:00');
+    d.setDate(d.getDate() + 1);
     await loadModalDate(dateToISO(d));
   });
+
   UI.modalDateInput?.addEventListener('change', async () => {
     if (UI.modalDateInput.value) await loadModalDate(UI.modalDateInput.value);
   });
 
+  // --- Listener global unificado (clicks “afuera”) ---
   window.addEventListener('click', (e) => {
-    if (e.target === UI.modal) UI.modal.style.display = 'none';
-    if (e.target === UI.okBackdrop) UI.okBackdrop.style.display = 'none';
+    // 1) Cerrar sugerencias si clic afuera del suggest
+    if (UI.pacSuggest && !UI.pacSuggest.contains(e.target) && e.target !== UI.pacInput) {
+      hideSuggest();
+    }
+    // 2) Cerrar modal de día si clic en el backdrop
+    if (e.target === UI.modal) {
+      UI.modal.style.display = 'none';
+      // limpiar banner del modal para que no quede “fantasma”
+      renderDuplicateBannerInModal([]);
+    }
+    // 3) Cerrar modal OK si clic en su backdrop
+    if (e.target === UI.okBackdrop) {
+      UI.okBackdrop.style.display = 'none';
+    }
   });
 
-  // Calendario / filtros
+  // --- Calendario / filtros ---
   UI.tipoTurno?.addEventListener('change', async () => {
     await renderCalendar();
     if (UI.modal?.style.display === 'flex' && modalDateISO) {
@@ -1472,17 +1907,22 @@ function attachHandlers(){
   UI.prevMonth?.addEventListener('click', async () => { if (--view.m < 0){ view.m=11; view.y--; } await renderCalendar(); });
   UI.nextMonth?.addEventListener('click', async () => { if (++view.m > 11){ view.m=0; view.y++; } await renderCalendar(); });
 
-  // OK modal
+  // --- OK modal ---
   UI.okClose?.addEventListener('click', () => (UI.okBackdrop.style.display = 'none'));
   UI.okCopy?.addEventListener('click', async () => {
-    try { await navigator.clipboard.writeText(UI.okWa.href); UI.okMsg.textContent = 'Link copiado ✔'; setTimeout(()=> UI.okMsg.textContent='', 2000); }
-    catch { UI.okMsg.textContent = 'No se pudo copiar'; }
+    try {
+      await navigator.clipboard.writeText(UI.okWa.href);
+      UI.okMsg.textContent = 'Link copiado ✔';
+      setTimeout(()=> UI.okMsg.textContent='', 2000);
+    } catch {
+      UI.okMsg.textContent = 'No se pudo copiar';
+    }
   });
 
-  // Profesional select
+  // --- Profesional select ---
   hookProfesionalSelect();
 
-  // Obra social (si existen esos nodos)
+  // --- Obra social (si existen esos nodos) ---
   UI.npObra?.addEventListener('change', () => {
     const infoEl = UI.npObraInfo; if (!infoEl) return;
     const sel = obrasSocialesCache.find(o => o.obra_social === UI.npObra.value);
@@ -1493,16 +1933,20 @@ function attachHandlers(){
   });
 }
 
-// ---------------------------
-/* Init (desde dashboard) */
-// ---------------------------
 export async function initTurnos(){
   bindUI();
+
+ // 🔑 Reset total del contexto de paciente y avisos
+ pacienteSeleccionado = null;
+ dupReqId++; // invalida cualquier refreshDuplicateUI en vuelo
+ UI.pacChip && (UI.pacChip.style.display = 'none');
+ UI.pacInput && (UI.pacInput.value = '');
+ clearDuplicateWarnings();
+ UI.status && (UI.status.innerHTML = '');
   attachHandlers();
   renderDow();
   initPaymentsBridge(); // idempotente
 
-  // Centro desde sidebar
   await syncCentroFromStorage(true);
 
   if (!currentCentroId){
@@ -1512,9 +1956,10 @@ export async function initTurnos(){
   }
 
   await loadObrasSociales();
-  await loadProfesionales();         // igual que en Inicio (AMC -> multiple)
+  await loadProfesionales();
   await loadDuracionesForSelected();
   await renderCalendar();
 
-  startCentroWatcher();              // sincroniza cambios del sidebar
+  startCentroWatcher();
 }
+
