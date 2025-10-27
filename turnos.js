@@ -63,7 +63,7 @@ const obrasSocialesById = new Map();
 let reprogramState = null; // { turno, durMin }
 let bookingBusy = false;
 let reprogramBusy = false;
-let dupReqId = 0; // token anti-race para avisos de duplicados
+let tipoReqId = 0;     // token anti-race para enforceTipoTurnoByPaciente
 
 
 // Watcher de centro
@@ -354,12 +354,26 @@ function hookProfesionalSelect(){
   const sel = UI.profesionalSelect;
   if (!sel) return;
 
-  sel.addEventListener('change', async () => {
+sel.addEventListener('change', async () => {
+  try {
     // Actualiza la selección
     selectedProfesionales = sel.multiple
       ? Array.from(sel.selectedOptions).map(o => String(o.value)).filter(Boolean)
       : (sel.value ? [String(sel.value)] : []);
     window.currentProfesional = selectedProfesionales[0] || null;
+
+    // Guard si no quedó nadie seleccionado
+    if (!selectedProfesionales.length){
+      UI.calGrid && (UI.calGrid.innerHTML = '');
+      UI.calTitle && (UI.calTitle.textContent = '');
+      if (UI.status) UI.status.textContent = 'Seleccioná al menos un profesional.';
+      clearDuplicateWarnings();
+      return;
+    }
+
+    // Re-evaluar tipo (nueva/recurrente) y refrescar duplicados al toque
+    await enforceTipoTurnoByPaciente(pacienteSeleccionado?.id || null);
+    await refreshDuplicateUI();
 
     // Mantener flujos existentes
     await loadDuracionesForSelected();
@@ -369,10 +383,11 @@ function hookProfesionalSelect(){
       await refreshDayModal();
       await renderMiniCalFor(modalDateISO);
     }
+  } finally {
+    // no-op; reservado por si más adelante querés desactivar spinners, etc.
+  }
+});
 
-    // 🔎 Centralizado: avisos de duplicados (inline, banner, status)
-    await refreshDuplicateUI();
-  });
 }
 
 
@@ -550,6 +565,38 @@ async function fetchTurnosFuturosPaciente({ pacienteId, desdeISO = null }){
   }
   return out;
 }
+
+async function enforceTipoTurnoByPaciente(pacienteId){
+  const sel = UI.tipoTurno;
+  if (!sel) return;
+
+  const my = ++tipoReqId;
+
+  const profId = selectedProfesionales?.[0] || null;
+  if (!pacienteId || !profId) return;
+
+  try {
+    const { count, error } = await supabase
+      .from('turnos')
+      .select('id', { count: 'exact', head: true })
+      .eq('paciente_id', pacienteId)
+      .eq('profesional_id', profId)
+      .neq('estado', 'cancelado')
+      .limit(1);
+
+    if (error) { console.warn('enforceTipoTurnoByPaciente:', error.message); return; }
+    if (my !== tipoReqId) return;
+
+    const nuevoValor = (count && count > 0) ? 'recurrente' : 'nueva_consulta';
+    if (sel.value !== nuevoValor) {
+      sel.value = nuevoValor;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  } catch (e) {
+    console.warn('enforceTipoTurnoByPaciente error:', e);
+  }
+}
+
   
 // ---------------------------
 // Aviso inline bajo el input de Paciente
