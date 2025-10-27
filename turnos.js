@@ -63,8 +63,8 @@ const obrasSocialesById = new Map();
 let reprogramState = null; // { turno, durMin }
 let bookingBusy = false;
 let reprogramBusy = false;
+let dupReqId = 0;      // token anti-race para avisos de duplicados  ← AGREGAR
 let tipoReqId = 0;     // token anti-race para enforceTipoTurnoByPaciente
-
 
 // Watcher de centro
 let centroWatchTimer = null;
@@ -861,8 +861,8 @@ async function selectPaciente(p){
   enforceTipoTurnoByPaciente(p.id);
   if (UI.modal?.style.display === 'flex') refreshModalTitle();
 
-+ await refreshDuplicateUI();    // 1) pinta el aviso chico al toque
-+ await renderCalendar();        // 2) después se actualiza el mes
+await refreshDuplicateUI();    // 1) pinta el aviso chico al toque
+await renderCalendar();        // 2) después se actualiza el mes
 }
 
 
