@@ -631,7 +631,7 @@ function renderDuplicateBannerInModal(turnos){
   host.innerHTML = `
     <div class="dup-banner-title">Turnos futuros del paciente</div>
     <div class="dup-banner-list">${itemsHtml}</div>
-    <div class="dup-banner-legend">Resaltado = coincide con el profesional seleccionado</div>
+    <div class="dup-banner-legend">El Paciente cuenta con algún turno con el Profesional Seleccionado</div>
   `;
   host.style.display = 'block';
 
